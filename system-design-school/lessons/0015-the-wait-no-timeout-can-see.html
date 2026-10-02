@@ -33,7 +33,7 @@
 
 <div class="win">
   <span class="label">The win</span>
-  <p>Take request p99 from <strong>1 947&#8239;ms to 112&#8239;ms</strong> without touching a single query &#8212; the query time is identical in every row of the table. Then put a transaction pooler in front and watch <strong>eleven of twelve clients</strong> fail with <code>prepared statement &quot;__asyncpg_stmt_d__&quot; does not exist</code>, and fix it twice: once in the driver, once in the proxy, with a measured price for each.</p>
+  <p>Take request p99 from <strong>1&#8239;947&#8239;ms to 112&#8239;ms</strong> without touching a single query &#8212; the query time is identical in every row of the table. Then put a transaction pooler in front and watch <strong>eleven of twelve clients</strong> fail with <code>prepared statement &quot;__asyncpg_stmt_d__&quot; does not exist</code>, and fix it twice: once in the driver, once in the proxy, with a measured price for each.</p>
 </div>
 
 <div class="anchor-box">
@@ -89,7 +89,7 @@
 
 <div class="note">
   <span class="callout-label">Why no timeout in the request path catches this</span>
-  <p>Lesson 0012 put a deadline on every stage and propagated what was left of it. That deadline is checked around the <em>call</em>, and the call has not started: the coroutine is suspended inside <code>engine.connect()</code>, waiting for somebody else to finish. A stage timeout of 1 600&#8239;ms fires 1 600&#8239;ms after the connection was obtained, not after it was requested.</p>
+  <p>Lesson 0012 put a deadline on every stage and propagated what was left of it. That deadline is checked around the <em>call</em>, and the call has not started: the coroutine is suspended inside <code>engine.connect()</code>, waiting for somebody else to finish. A stage timeout of 1&#8239;600&#8239;ms fires 1&#8239;600&#8239;ms after the connection was obtained, not after it was requested.</p>
   <p>The pool has its own timeout, and it defaults to thirty seconds against an eight-second budget. So the bound exists, is above every other bound in the system, and is therefore dead code. The request dies of its deadline and the deadline gets the blame.</p>
 </div>
 
@@ -165,7 +165,7 @@
     <ol class="narrate">
       <li>Five bars, one per <b>pool size</b>, all under the same forty concurrent requests. Each bar is two segments.</li>
       <li>The <b>orange is waiting for a connection</b> and it shrinks from 959&#8239;ms to nothing. The <b>green is the query</b> and it never shrinks &#8212; the widest of the five is the fastest row.</li>
-      <li>So every millisecond you removed was queueing, and no database instrument ever saw it. The p99 went <b>1 947&#8239;ms to 112</b>.</li>
+      <li>So every millisecond you removed was queueing, and no database instrument ever saw it. The p99 went <b>1&#8239;947&#8239;ms to 112</b>.</li>
       <li>The ceiling is arithmetic: <b>pool divided by how long you hold it</b>. Five over ninety-two milliseconds is fifty-four a second, and fifty-three arrived.</li>
       <li>Then the bottom half. One client through a <b>transaction pooler</b>, which lends a backend for one transaction and takes it back.</li>
       <li>So the statement is <b>prepared on server A and executed on server B</b>, where it does not exist. Two fixes: turn the driver's cache off, or let the proxy track them.</li>
@@ -178,14 +178,14 @@
   <p>Sixty seconds. Twelve marks, which is this workspace's standing ceiling &#8212; lesson 0014 tested eight against it and the answer has not come back yet, so nothing here changes while that is open.</p>
   <ul>
     <li>Five bars, shrinking, with <b>one segment that changes and one that does not</b>.</li>
-    <li>The two numbers on the ends: <b>1 056&#8239;ms</b> against <b>110&#8239;ms</b>.</li>
+    <li>The two numbers on the ends: <b>1&#8239;056&#8239;ms</b> against <b>110&#8239;ms</b>.</li>
     <li>The ceiling line: <b>pool &#247; hold time</b>, and that it was measured within a few per cent.</li>
     <li>Underneath: one client, one proxy, <b>two different backends</b>, and the statement on the wrong one.</li>
   </ul>
   <span class="timer">Draw the green segments first and make them the same width deliberately. If you draw the orange first you will unconsciously shrink the green to match, and the whole finding disappears.</span>
 </div>
 
-<h2>Lab &#8212; take 1 947&#8239;ms to 112, then break the driver</h2>
+<h2>Lab &#8212; take 1&#8239;947&#8239;ms to 112, then break the driver</h2>
 
 <div class="lab">
   <header>
@@ -237,7 +237,7 @@ was asked anything. No query log contains it.
    40         0ms         0ms        110ms        112ms    351.6      363.2</pre>
         <div class="expect broken">
           <span class="label">The query column does not move</span>
-          <p>Read the table by column rather than by row. <code>p50 query</code> is 97, 91, 92, 94, 110 &#8212; flat, and the last one is the largest. <strong>The database did the same work at the same speed in every row.</strong> Meanwhile <code>p99 total</code> falls from 1 947&#8239;ms to 112, a factor of seventeen, and every millisecond of that came out of the wait column.</p>
+          <p>Read the table by column rather than by row. <code>p50 query</code> is 97, 91, 92, 94, 110 &#8212; flat, and the last one is the largest. <strong>The database did the same work at the same speed in every row.</strong> Meanwhile <code>p99 total</code> falls from 1&#8239;947&#8239;ms to 112, a factor of seventeen, and every millisecond of that came out of the wait column.</p>
           <p>The row to sit with is <strong>pool 5</strong>, because that is the default and therefore what you are running unless you changed it. At the default, the median request spent <strong>363&#8239;ms queueing and 91&#8239;ms querying</strong> &#8212; eighty per cent of the request was spent in a queue inside the application process.</p>
           <p><code>predicted</code> is pool size divided by how long a connection is held: <strong>5 &#247; 0.091&#8239;s = 55/s</strong> against 52.9 measured. That is not a coincidence and it is not tuning &#8212; it is Little's law, and it says your maximum throughput was decided by two numbers, one of which you never chose.</p>
         </div>
@@ -615,7 +615,7 @@ max_connections        the server     the machine's memory</span>
 
 <div class="pager">
   <span><span class="dir">Previous</span><a href="0014-idempotency-is-a-key-and-a-clock.html">&#8592; 0014 &#183; Idempotency is a key and a clock</a></span>
-  <span><span class="dir">Index</span><a href="index.html">All lessons &#8594;</a></span>
+  <span><span class="dir">Next</span><a href="0016-the-update-that-was-never-refused.html">0016 &#183; The update that was never refused &#8594;</a></span>
 </div>
 
 </div>

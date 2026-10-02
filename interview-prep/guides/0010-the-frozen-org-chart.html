@@ -23,6 +23,8 @@
 .prep-sitebar a{color:inherit; text-decoration:none; border-bottom:1px solid currentColor; padding-bottom:1px}
 .prep-sitebar a:hover{opacity:1}
 .prep-sitebar span::before{content:"/"; margin-right:12px; opacity:0.5}
+/* On a phone the third item wraps; give it its own line rather than starting one with "/". */
+@media (max-width:640px){.prep-sitebar span:last-child{flex-basis:100%}.prep-sitebar span:last-child::before{content:none}}
 </style>
 
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -56,7 +58,7 @@
 
 :root{
   --ground:#e6e9ec; --card:#f1f3f5; --card-2:#eaedf0; --sunk:#d9dee2;
-  --ink:#14181c; --ink-2:#454e56; --ink-3:#79838c;
+  --ink:#14181c; --ink-2:#454e56; --ink-3:#79838c; --cm:#65707a;
   --rule:#bfc7ce; --rule-2:#d7dde2;
   --sig:#9b1f38; --sig-ink:#82182e; --sig-soft:#f6dee3;
   --plan:#41566b; --plan-ink:#31455a; --plan-soft:#dfe5ea;
@@ -67,7 +69,7 @@
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
     --ground:#101317; --card:#191d22; --card-2:#20252b; --sunk:#0a0c0f;
-    --ink:#e7ecf0; --ink-2:#aab4bd; --ink-3:#79838c;
+    --ink:#e7ecf0; --ink-2:#aab4bd; --ink-3:#79838c; --cm:#79838c;
     --rule:#2d343b; --rule-2:#222830;
     --sig:#f07a92; --sig-ink:#f894a8; --sig-soft:#3d141f;
     --plan:#8fa7bd; --plan-ink:#a5bace; --plan-soft:#1a232c;
@@ -75,7 +77,7 @@
 }
 :root[data-theme="dark"]{
   --ground:#101317; --card:#191d22; --card-2:#20252b; --sunk:#0a0c0f;
-  --ink:#e7ecf0; --ink-2:#aab4bd; --ink-3:#79838c;
+  --ink:#e7ecf0; --ink-2:#aab4bd; --ink-3:#79838c; --cm:#79838c;
   --rule:#2d343b; --rule-2:#222830;
   --sig:#f07a92; --sig-ink:#f894a8; --sig-soft:#3d141f;
   --plan:#8fa7bd; --plan-ink:#a5bace; --plan-soft:#1a232c;
@@ -132,7 +134,7 @@ code,kbd{font-family:var(--mono); font-size:0.86em; background:var(--sunk); padd
 .tblock div{background:var(--card-2); padding:11px 14px; border-right:1px solid var(--rule); margin-bottom:1px}
 .tblock div:last-child{border-right:0}
 .tblock span{
-  display:block; font-family:var(--mono); font-size:9.5px; font-weight:600;
+  display:block; font-family:var(--mono); font-size:10px; font-weight:600;
   letter-spacing:0.14em; text-transform:uppercase; color:var(--ink-3); margin-bottom:3px;
 }
 .tblock b{font-family:var(--mono); font-size:13px; font-weight:600; color:var(--ink-2)}
@@ -230,6 +232,7 @@ h3.sub{
 .formula b{color:var(--ink); font-weight:600}
 .formula i{color:var(--sig-ink); font-style:normal}
 .formula u{color:var(--plan-ink); text-decoration:none}
+.formula .cm{color:var(--cm)}
 
 /* ---------- tables ---------- */
 .twrap{overflow-x:auto; margin:24px 0 8px 30px}
@@ -246,6 +249,7 @@ h3.sub{
 .tw .sg{color:var(--sig-ink); font-weight:600}
 .tw .pl{color:var(--plan-ink)}
 .cap{font-size:14px; color:var(--ink-3); margin:10px 0 0 30px; max-width:66ch}
+.cap+p{margin-top:22px}
 .cap b{color:var(--ink-2)}
 
 /* ---------- SIGNATURE FIGURE 1: the two axes ----------
@@ -282,7 +286,7 @@ h3.sub{
   .axh{display:none}
   .axr{padding:13px 14px}
   .ax .axco{
-    display:block; font-family:var(--mono); font-size:9.5px; font-weight:600;
+    display:block; font-family:var(--mono); font-size:10px; font-weight:600;
     letter-spacing:0.12em; text-transform:uppercase; color:var(--ink-3); margin-bottom:6px;
   }
 }
@@ -344,7 +348,7 @@ h3.sub{
   font-weight:600; letter-spacing:0.13em; text-transform:uppercase; color:var(--plan-ink); margin-bottom:7px;
 }
 .gates>li.veto .gk{color:var(--sig-ink)}
-.gates .gk .gtag{border:1px solid currentColor; padding:1px 6px; font-size:9.5px; letter-spacing:0.1em}
+.gates .gk .gtag{border:1px solid currentColor; padding:1px 6px; font-size:10px; letter-spacing:0.1em}
 .gates>li b{display:block; font-family:var(--display); font-size:19px; font-weight:600; margin-bottom:6px; line-height:1.3}
 .gates>li p{margin:0; font-size:16px; color:var(--ink-2); max-width:none}
 .gates>li p+p{margin-top:9px}
@@ -979,7 +983,7 @@ h3.sub{
   </div>
 
   <div class="fu" id="f8">
-    <p class="fuq"><span class="fn3">F8</span>What is the failure mode of <em>your</em> approach? Sell me the case against dynamic graphs.</p>
+    <p class="fuq"><span class="fn3">F8</span><span>What is the failure mode of <em>your</em> approach? Sell me the case against dynamic graphs.</span></p>
     <p class="fua">Four real costs. Planning becomes the bottleneck and a single point of failure &#8212; you have added a component whose mistakes are the whole system&#8217;s mistakes. A per-run graph is unreproducible, so regressions are hard to attribute: was that the model, the plan, or the task. Benchmarking gets substantially harder when the structure is a variable. And the elaborate system is more system to get wrong &#8212; MAST&#8217;s largest failure category is <strong>system design issues at 41.8%</strong>, not model limitations.</p>
     <p class="fua">Which is why I would not start here. Start with the template, measure how often it is violated, and let that number buy the dynamic version.</p>
   </div>

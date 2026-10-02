@@ -36,8 +36,15 @@ PRIVATE_PHRASES = [
     (" No repository survives any of it, so every ledger row is a claim you hold the proof for.", ""),
     (" The ledger is not study material at all &#8212; it is the to-do list.", ""),
     ("the trap, the ledger sentences and the redraw checklist", "the trap and the redraw checklist"),
+    ("the walk-through, the ledger sentences and the redraw checklist",
+     "the walk-through and the redraw checklist"),
     ("go deeper, the 80 ledger sentences, and\n  the diagram checklist", "go deeper, and\n  the diagram checklist"),
     ("reduced to the six things", "reduced to the five things"),
+]
+
+# Wording that points at the private copies, which this site replaces.
+SITE_PHRASES = [
+    (" The guides also live as published pages, linked from each row above, for reading on a phone.", ""),
 ]
 
 FORBIDDEN = [
@@ -94,6 +101,8 @@ def rewrite(page: Path) -> bool:
         return f'<a href="{target}">{m.group(2)}</a>' if target else m.group(2)
 
     new = ARTIFACT_LINK.sub(link, new)
+    for old, replacement in SITE_PHRASES:
+        new = new.replace(old, replacement)
     if is_resume(page):
         new = drop_divs(drop_divs(new, PRIVATE_DIVS), PRIVATE_NOTE)
         new = PRIVATE_ENTRY.sub("", new)

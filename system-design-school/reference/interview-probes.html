@@ -663,8 +663,8 @@
       <span class="tell">The question behind the r&#233;sum&#233; bullet. Answering with the p50 misses it entirely &#8212; this is about the ceiling, not the distribution. Saying where it is <em>not</em> enforced is the honest opening.</span>
       <details class="model">
         <summary>Model answer &#8212; say yours first</summary>
-        <p>It was enforced at the edge and nowhere below it, which means it was a measurement rather than a guarantee. Each of five stages had its own timeout, so the ceiling was five times the timeout, doubled again by one retry per stage. With 5&#8239;s stage timeouts that is a 50&#8239;s ceiling for an 8&#8239;s budget, and I measured a worst case of <strong>11 880&#8239;ms</strong> with no timeout violated anywhere.</p>
-        <p>The fix is a single absolute deadline built at the edge and passed to every stage, with each bounded by <code>min(its own timeout, remaining)</code>. That put the maximum at <strong>8 001&#8239;ms</strong> on every run, and moved the median by about 15&#8239;ms &#8212; it is a tail intervention, so it costs the common case nothing.</p>
+        <p>It was enforced at the edge and nowhere below it, which means it was a measurement rather than a guarantee. Each of five stages had its own timeout, so the ceiling was five times the timeout, doubled again by one retry per stage. With 5&#8239;s stage timeouts that is a 50&#8239;s ceiling for an 8&#8239;s budget, and I measured a worst case of <strong>11&#8239;880&#8239;ms</strong> with no timeout violated anywhere.</p>
+        <p>The fix is a single absolute deadline built at the edge and passed to every stage, with each bounded by <code>min(its own timeout, remaining)</code>. That put the maximum at <strong>8&#8239;001&#8239;ms</strong> on every run, and moved the median by about 15&#8239;ms &#8212; it is a tail intervention, so it costs the common case nothing.</p>
         <span class="invites">Invites &#183; <b>&#8220;What did it cost?&#8221; &#8212; 26 turns of 200 that used to finish late now fail, which is the trade.</b></span>
       </details>
     </li>
@@ -732,7 +732,7 @@
       <span class="tell">Most answers are a round number and a shrug. Deriving it is the whole difference, and it takes one line of arithmetic you can do at a whiteboard.</span>
       <details class="model">
         <summary>Model answer &#8212; say yours first</summary>
-        <p>From Little's law, <code>L = &#955;W</code>. Rearranged, the time an item waits is the depth divided by the rate the queue drains at. We serve about 21 a second, so a depth of 16 is <strong>762&#8239;ms</strong> of queueing on top of about 390&#8239;ms of service &#8212; a predicted p50 of 1 167. Measured 1 197, within 3&#8239;%.</p>
+        <p>From Little's law, <code>L = &#955;W</code>. Rearranged, the time an item waits is the depth divided by the rate the queue drains at. We serve about 21 a second, so a depth of 16 is <strong>762&#8239;ms</strong> of queueing on top of about 390&#8239;ms of service &#8212; a predicted p50 of 1&#8239;167. Measured 1&#8239;197, within 3&#8239;%.</p>
         <p>The reason to do it that way round is that it inverts the usual argument. People treat queue depth as a capacity knob and pick a number that feels safe. It is a <strong>p99 knob</strong>: choosing 256 instead of 16 is choosing twelve seconds of waiting against an eight-second budget, which is a promise broken before the request does anything.</p>
         <span class="invites">Invites &#183; <b>&#8220;What if your service rate varies?&#8221; &#8212; then so does the promise, which is an argument for bounding age as well as depth.</b></span>
       </details>
@@ -1043,7 +1043,7 @@
       </details>
     </li>
     <li>
-      &#8220;Would <code>SKIP LOCKED</code> help here?&#8221;
+      <span>&#8220;Would <code>SKIP LOCKED</code> help here?&#8221;</span>
       <span class="tell">Offered as a helpful suggestion and usually a test. It is the right answer to the neighbouring problem, and accepting it uncritically is the failure.</span>
       <details class="model">
         <summary>Model answer &#8212; say yours first</summary>
@@ -1102,7 +1102,7 @@
       </details>
     </li>
     <li>
-      &#8220;Would you set <code>idle_in_transaction_session_timeout</code>? To what?&#8221;
+      <span>&#8220;Would you set <code>idle_in_transaction_session_timeout</code>? To what?&#8221;</span>
       <span class="tell">A yes is expected. What is being tested is whether you know what it kills and what the application sees when it does.</span>
       <details class="model">
         <summary>Model answer &#8212; say yours first</summary>
@@ -1214,7 +1214,7 @@
       <span class="tell">Sounds like configuration. It is a question about whether you know a lease produces duplicates on its own.</span>
       <details class="model">
         <summary>Model answer &#8212; say yours first</summary>
-        <p>Longer than the tail of the work, and it is computable. The duplicate rate is about the probability a job outlives its lease. With work at a 100&#8239;ms median I predicted <strong>100 duplicates in 400</strong> for a 150&#8239;ms lease and measured 108, with no failures at all; at 600&#8239;ms it was one.</p>
+        <p>Longer than the tail of the work, and it is computable. The duplicate rate is about the probability a job outlives its lease. With work at a 100&#8239;ms median I predicted <strong>100 duplicates in 400</strong> for a 150&#8239;ms lease and measured 107 to 116 over five runs, with no failures at all; at 600&#8239;ms it was one.</p>
         <p>So I would set it from the stage's p99.9, add a heartbeat so a slow worker keeps its job &#8212; that took 150&#8239;ms to zero &#8212; and keep the receiver's key anyway, because a heartbeat cannot cover a paused process.</p>
         <span class="invites">Invites &#183; <b>&#8220;Why not a very long lease?&#8221; &#8212; a crashed job then waits that long; 1&#8239;s versus under 50&#8239;ms here.</b></span>
       </details>
@@ -1253,7 +1253,7 @@
       <span class="tell">The opener. It tests whether you can argue against the default on something other than cost.</span>
       <details class="model">
         <summary>Model answer &#8212; say yours first</summary>
-        <p>Because the job would stop being atomic with the write that causes it. I measured the dual write: committing the interview and then publishing orphaned <strong>24 runs</strong> during one 1.5-second broker stall, and publishing first left jobs for runs that never committed when the producer was killed. A jobs table in the same transaction had zero of either in every run.</p>
+        <p>Because the job would stop being atomic with the write that causes it. I measured the dual write: committing the interview and then publishing orphaned <strong>20 to 24 runs</strong> during one 1.5-second broker stall, and publishing first left jobs for runs that never committed when the producer was killed. A jobs table in the same transaction had zero of either in every run.</p>
         <p>Pub/Sub is the right answer the day a second service needs the same events &#8212; that is a subscription each, and a table queue cannot do it. Until then it adds a system and a consistency problem to solve a durability problem.</p>
         <span class="invites">Invites &#183; <b>&#8220;And when you do need Pub/Sub?&#8221; &#8212; write to a table in the transaction and relay it: the outbox, lesson 0027.</b></span>
       </details>
@@ -1264,7 +1264,7 @@
       <details class="model">
         <summary>Model answer &#8212; say yours first</summary>
         <p>Not from throughput first &#8212; four consumers claimed 1&#8239;100 a second on a laptop. What kills it is an open transaction elsewhere. Every job deleted after that transaction's snapshot stays in the index, so each claim walks past them: one idle session took claims from <strong>a few pages to over 1&#8239;600</strong> on a queue that was nearly empty.</p>
-        <p>With headroom that is invisible. At 1&#8239;100 a second the median claim went from 1.9 to 4.8&#8239;ms and the consumers fell 4&#8239;400 jobs behind; closing the session fixed it within ten seconds. So the defence is an idle-in-transaction timeout on every pool, plus an alert on the oldest transaction's age, not a bigger database.</p>
+        <p>With headroom that is invisible. At 1&#8239;100 a second the median claim went from 1.9 to 4.8&#8239;ms and the consumers fell up to 4&#8239;400 jobs behind; closing the session fixed it within ten seconds. So the defence is an idle-in-transaction timeout on every pool, plus an alert on the oldest transaction's age, not a bigger database.</p>
         <span class="invites">Invites &#183; <b>&#8220;How did you find the idle session?&#8221; &#8212; lesson 0019's pg_stat_activity query.</b></span>
       </details>
     </li>

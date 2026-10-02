@@ -276,7 +276,7 @@ ttl   0.05s  (lifetime shorter than the window)  applied 2  replayed 0</pre>
         <div class="expect broken">
           <span class="label">Applied twice, with the index present and working perfectly</span>
           <p>Nothing here raced. One caller, two attempts, 300&#8239;ms apart. The key was pruned in between, so the second attempt found an empty table and was, as far as the database is concerned, a brand new request. Stripe documents exactly this behaviour rather than hiding it: <em>&#8220;we generate a new request if a key is reused after the original is pruned.&#8221;</em></p>
-          <p><strong>So the lifetime is a correctness parameter, not a cleanup policy</strong>, and the number it has to beat is one lesson 0010 already measured. Full jitter over six attempts produced a median <em>retry window</em> of 2 507&#8239;ms and no jitter produced 5 000&#8239;ms &#8212; but that is one client's window, and the number you need is the longest any client can produce, including the one retrying by hand tomorrow morning.</p>
+          <p><strong>So the lifetime is a correctness parameter, not a cleanup policy</strong>, and the number it has to beat is one lesson 0010 already measured. Full jitter over six attempts produced a median <em>retry window</em> of 2&#8239;507&#8239;ms and no jitter produced 5&#8239;000&#8239;ms &#8212; but that is one client's window, and the number you need is the longest any client can produce, including the one retrying by hand tomorrow morning.</p>
         </div>
       </li>
 
@@ -552,7 +552,7 @@ insert-first + index            1                     0   in progress, or the an
     <span class="from">lesson 0011 &#183; exactly one half-open probe</span>
   </details>
   <details>
-    <summary>0012's deadline capped the worst turn at 8 001&#8239;ms by converting 26 late answers into failures. Why does that make this lesson necessary rather than optional?</summary>
+    <summary>0012's deadline capped the worst turn at 8&#8239;001&#8239;ms by converting 26 late answers into failures. Why does that make this lesson necessary rather than optional?</summary>
     <p class="answer">Because it manufactures partial failures on purpose. Before propagation, a turn that ran long finished late; after it, the turn is cut off mid-pipeline, which means some stages have completed and written their output and the rest have not. Anything that re-drives that turn &#8212; a retry loop, an operator, a queue redelivery &#8212; re-runs the stages that already succeeded. So the deadline fix in 0012 does not create the duplicate-apply problem, but it guarantees the conditions for it at a known rate: twenty-six turns in two hundred, every run. A resilience mechanism that converts slowness into partial completion has to be paired with one that makes partial completion safe to repeat, or you have traded a latency bug for a correctness bug.</p>
     <span class="from">lesson 0012 &#183; 26 turns of 200, cut off mid-turn</span>
   </details>
@@ -585,7 +585,7 @@ insert-first + index            1                     0   in progress, or the an
 
 <div class="pager">
   <span><span class="dir">Previous</span><a href="0013-admit-queue-or-shed.html">&#8592; 0013 &#183; Admit, queue, or shed</a></span>
-  <span><span class="dir">Index</span><a href="index.html">All lessons &#8594;</a></span>
+  <span><span class="dir">Next</span><a href="0015-the-wait-no-timeout-can-see.html">0015 &#183; The wait no timeout can see &#8594;</a></span>
 </div>
 
 </div>

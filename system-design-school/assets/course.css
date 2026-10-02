@@ -147,6 +147,20 @@ body {
 .crumbs a:hover { color: var(--accent-ink); border-color: var(--accent); }
 .crumbs .sep { color: var(--rule); }
 
+/* As its own flex item a separator wraps alone and starts the next line with
+   "/" on a phone. Drawn after the crumb it follows instead, in space reserved
+   by that crumb's margin, so it always ends a line rather than starting one. */
+@supports selector(:has(+ *)) {
+  .crumbs .sep { display: none; }
+  .crumbs > :has(+ .sep) { position: relative; margin-right: calc(14px + 1ch); }
+  .crumbs > :has(+ .sep)::after {
+    content: "/";
+    position: absolute;
+    left: calc(100% + 14px);
+    color: var(--rule);
+  }
+}
+
 .lesson-no {
   font-family: var(--mono);
   font-weight: 700;
@@ -217,7 +231,8 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-
 
 code {
   font-family: var(--mono);
-  font-size: 0.855em;
+  /* Floored so code inside a 10.5px table head or label stays legible. */
+  font-size: max(0.855em, 10px);
   background: var(--surface-2);
   padding: 1.5px 5px;
   border-radius: 2px;
@@ -225,6 +240,10 @@ code {
 }
 
 a code { background: var(--accent-bg); }
+
+/* A table cell squeezed to fit a phone broke `allkeys-lru` into "allke/ys-/lru".
+   The wrapper scrolls, so a cell can keep its words whole instead. */
+.table-wrap code { word-break: normal; }
 
 /* Numbers that line up in prose or tables */
 .num { font-variant-numeric: tabular-nums; }
@@ -425,6 +444,7 @@ caption {
 .primary-source .callout-label { color: var(--accent-ink); }
 .primary-source .title { font-size: 1.06rem; font-weight: 600; display: block; margin-bottom: 6px; }
 .primary-source p { margin: 0; font-size: 0.95rem; color: var(--ink-2); max-width: none; }
+.primary-source p + p { margin-top: 10px; }
 
 /* --------------------------------------------------------------------------
    Probes to expect — retrieval under adversarial framing
@@ -490,16 +510,21 @@ caption {
   cursor: pointer;
   font-size: 1rem;
   list-style: none;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 14px;
-  align-items: baseline;
+  /* Not a grid: an <em> or <code> in the question became its own grid item
+     and split the sentence across both columns. The label hangs in reserved
+     space on the right instead. */
+  display: block;
+  position: relative;
+  padding-right: calc(14px + 6ch);
 }
 
 .recall summary::-webkit-details-marker { display: none; }
 
 .recall summary::after {
   content: "reveal";
+  position: absolute;
+  top: 6px;
+  right: 0;
   font-family: var(--mono);
   font-size: 10px;
   letter-spacing: 0.1em;
@@ -776,7 +801,7 @@ caption {
   width: 0;
   border-left: 2px dashed var(--bad);
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--bad);
@@ -795,7 +820,7 @@ caption {
   display: inline-block;
   margin-top: 3px;
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--warn);
@@ -939,7 +964,7 @@ ol.lesson-list .l-win { grid-column: 2; font-size: 0.92rem; color: var(--ink-2);
 
 .status-chip {
   font-family: var(--mono);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -1204,7 +1229,7 @@ table.verdict th:nth-child(3) { width: 55%; }
 
 .evidence .field > label {
   font-family: var(--mono);
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.11em;
   text-transform: uppercase;

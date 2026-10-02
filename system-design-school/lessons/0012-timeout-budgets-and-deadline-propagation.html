@@ -33,7 +33,7 @@
 
 <div class="win">
   <span class="label">The win</span>
-  <p>Push a turn <strong>past 11 seconds</strong> against an 8 000&#8239;ms budget with no timeout violated anywhere, then pass one absolute deadline down and watch the maximum land on <strong>8 001&#8239;ms</strong>, every run &#8212; and measure what that costs, which is <strong>26 turns of 200</strong>.</p>
+  <p>Push a turn <strong>past 11 seconds</strong> against an 8&#8239;000&#8239;ms budget with no timeout violated anywhere, then pass one absolute deadline down and watch the maximum land on <strong>8&#8239;001&#8239;ms</strong>, every run &#8212; and measure what that costs, which is <strong>26 turns of 200</strong>.</p>
 </div>
 
 <div class="anchor-box">
@@ -147,7 +147,7 @@
     <ol class="narrate">
       <li>One time axis, and the <b>8-second budget as a vertical wall</b> on it. Everything in this drawing is about which things are allowed to cross that wall.</li>
       <li>Top row: five stages end to end. Two of them hit their own <b>5-second timeout</b>, which is a perfectly reasonable limit for one model call.</li>
-      <li>The turn ends at <b>11 880&#8239;ms</b>, 48&#8239;% past the wall, and <b>no timeout was violated</b>. That is the whole problem in one sentence.</li>
+      <li>The turn ends at <b>11&#8239;880&#8239;ms</b>, 48&#8239;% past the wall, and <b>no timeout was violated</b>. That is the whole problem in one sentence.</li>
       <li>Bottom row: identical stages, but now they share <b>one absolute instant</b> rather than each starting its own clock.</li>
       <li>Stages 1 to 3 are unchanged. Stage 4 is handed <b>the 2.2 seconds that are left</b>, not a fresh five, so the turn stops exactly on the wall.</li>
       <li>Then the cost, because it is the honest half: stage 5 never starts, <b>25 retries are refused for not fitting</b>, and <b>26 turns of 200</b> that used to finish late now fail instead.</li>
@@ -162,7 +162,7 @@
     <li>The <b>axis and the budget wall</b>, with the wall roughly two thirds along so there is room to overrun it.</li>
     <li>Top row: five stages, two of them long, ending <b>past the wall</b> &#8212; with &#8220;no timeout violated&#8221; written under it.</li>
     <li>Bottom row: the same stages, with <b>stage 4 shortened to what is left</b> and the turn stopping on the wall.</li>
-    <li>The two numbers: <b>11 880 against 8 001</b>, and the cost, <b>26 turns of 200</b>.</li>
+    <li>The two numbers: <b>11&#8239;880 against 8&#8239;001</b>, and the cost, <b>26 turns of 200</b>.</li>
   </ul>
   <span class="timer">Draw the wall first. Everyone who gets this wrong draws the stages first and then has nowhere to put the budget, which is exactly the mistake the system makes.</span>
 </div>
@@ -173,7 +173,7 @@
   <header>
     <span class="kicker">Lab 0012</span>
     <span class="est">~20 minutes</span>
-    <h3>11 880&#8239;ms with every timeout honoured, then 8 001 with a cost</h3>
+    <h3>11&#8239;880&#8239;ms with every timeout honoured, then 8&#8239;001 with a cost</h3>
   </header>
   <div class="body">
     <div class="prereq">
@@ -186,7 +186,7 @@
     <div class="caution">
       <span class="callout-label">Real milliseconds, fake provider</span>
       <p>The turns here run concurrently against <code>FakeUpstream</code> and each one times only itself, so these <strong>are</strong> real elapsed milliseconds rather than a scaled model &#8212; which is why 200 turns take one turn's wall clock. What is modelled is the latency distribution of a model call, not the timing machinery.</p>
-      <p><strong>Know which columns hold still before you quote one.</strong> Over five runs of the 5&#8239;000&#8239;ms case: <code>refused</code> was <strong>25 every time</strong>, <code>deadline</code>'s maximum was <strong>8 001&#8211;8 002&#8239;ms every time</strong>, and <code>independent</code> completed <strong>174 of 200 every time</strong>. The unbounded rows wander, because whether a given turn crosses a timeout depends on event-loop scheduling under load: <code>independent+retry</code>'s p99 ranged <strong>8 955&#8211;10 578&#8239;ms</strong> and its maximum <strong>11 053&#8211;12 260&#8239;ms</strong>. That is itself the finding &#8212; the bounded row is bounded and the unbounded one is not &#8212; so claim the shape and the stable figures, not a particular millisecond.</p>
+      <p><strong>Know which columns hold still before you quote one.</strong> Over five runs of the 5&#8239;000&#8239;ms case: <code>refused</code> was <strong>25 every time</strong>, <code>deadline</code>'s maximum was <strong>8&#8239;001&#8211;8&#8239;002&#8239;ms every time</strong>, and <code>independent</code> completed <strong>174 of 200 every time</strong>. The unbounded rows wander, because whether a given turn crosses a timeout depends on event-loop scheduling under load: <code>independent+retry</code>'s p99 ranged <strong>8&#8239;955&#8211;10&#8239;578&#8239;ms</strong> and its maximum <strong>11&#8239;053&#8211;12&#8239;260&#8239;ms</strong>. That is itself the finding &#8212; the bounded row is bounded and the unbounded one is not &#8212; so claim the shape and the stable figures, not a particular millisecond.</p>
     </div>
 
     <ol class="steps">
@@ -218,8 +218,8 @@ independent+retry       2273    9015   11880        4 /200     200 /200        0
 deadline                2258    7005    8001        1 /200     174 /200       25</pre>
         <div class="expect broken">
           <span class="label">p99 of 9&#8239;s and a worst case of 11.9&#8239;s, against a budget of 8</span>
-          <p>Look at the second row. <strong>p99 is 9 015&#8239;ms and the maximum is 11 880&#8239;ms &#8212; 48&#8239;% past the budget.</strong> Every stage honoured its 5&#8239;000&#8239;ms timeout and every retry was permitted, so there is no configuration error to find and no alert that would fire. The p50 is a healthy 2 273&#8239;ms, which is exactly the number that would go on a slide.</p>
-          <p>Run it again and that row moves &#8212; across five runs its p99 ranged 8 955 to 10 578&#8239;ms and its maximum 11 053 to 12 260. <strong>That is the point rather than noise in the way.</strong> The row has no ceiling, so what you measure is wherever the distribution landed today; the number to carry is &#8220;between 11 and 12 seconds against a budget of 8&#8221;, not one millisecond figure.</p>
+          <p>Look at the second row. <strong>p99 is 9&#8239;015&#8239;ms and the maximum is 11&#8239;880&#8239;ms &#8212; 48&#8239;% past the budget.</strong> Every stage honoured its 5&#8239;000&#8239;ms timeout and every retry was permitted, so there is no configuration error to find and no alert that would fire. The p50 is a healthy 2&#8239;273&#8239;ms, which is exactly the number that would go on a slide.</p>
+          <p>Run it again and that row moves &#8212; across five runs its p99 ranged 8&#8239;955 to 10&#8239;578&#8239;ms and its maximum 11&#8239;053 to 12&#8239;260. <strong>That is the point rather than noise in the way.</strong> The row has no ceiling, so what you measure is wherever the distribution landed today; the number to carry is &#8220;between 11 and 12 seconds against a budget of 8&#8221;, not one millisecond figure.</p>
           <p>This is the shape to recognise: <strong>a median that looks fine and a tail that is not bounded by anything</strong>. Five local limits of 5&#8239;s permit a 25&#8239;s ceiling, and one retry per stage makes it 50. What you actually observe is wherever the latency distribution lands inside that.</p>
         </div>
       </li>
@@ -230,12 +230,12 @@ deadline                2258    7005    8001        1 /200     174 /200       25
         <pre class="out">deadline                2258    7005    8001        1 /200     174 /200       25</pre>
         <div class="ba">
           <span class="label">Before / after &#183; one object, passed down</span>
-          <p><strong>Maximum 11 880&#8239;ms &#8594; 8 001&#8239;ms.</strong> Not &#8220;usually under&#8221; &#8212; across five runs the bounded maximum was 8 001 or 8 002&#8239;ms while the unbounded one wandered between 11 053 and 12 260, because a stage is bounded by <code>min(its own timeout, what is left)</code> and the remainder cannot be negative.</p>
-          <p>The p50 barely moves: <strong>2 273 &#8594; 2 258&#8239;ms</strong>. Propagation is a tail intervention, and it costs the median nothing.</p>
+          <p><strong>Maximum 11&#8239;880&#8239;ms &#8594; 8&#8239;001&#8239;ms.</strong> Not &#8220;usually under&#8221; &#8212; across five runs the bounded maximum was 8&#8239;001 or 8&#8239;002&#8239;ms while the unbounded one wandered between 11&#8239;053 and 12&#8239;260, because a stage is bounded by <code>min(its own timeout, what is left)</code> and the remainder cannot be negative.</p>
+          <p>The p50 barely moves: <strong>2&#8239;273 &#8594; 2&#8239;258&#8239;ms</strong>. Propagation is a tail intervention, and it costs the median nothing.</p>
         </div>
         <div class="expect">
           <span class="label">And the &#8220;1 over budget&#8221; is worth explaining rather than hiding</span>
-          <p>One turn of 200 is still counted as over, at <strong>8 001&#8239;ms</strong>. That is the measurement including about a millisecond of loop overhead after the deadline fired, not a turn that escaped &#8212; the deadline stopped the work at 8&#8239;000. It is worth noticing because it is the difference between &#8220;the budget is enforced&#8221; and &#8220;the budget plus whatever your instrumentation costs is enforced&#8221;, and at a tighter budget that gap matters.</p>
+          <p>One turn of 200 is still counted as over, at <strong>8&#8239;001&#8239;ms</strong>. That is the measurement including about a millisecond of loop overhead after the deadline fired, not a turn that escaped &#8212; the deadline stopped the work at 8&#8239;000. It is worth noticing because it is the difference between &#8220;the budget is enforced&#8221; and &#8220;the budget plus whatever your instrumentation costs is enforced&#8221;, and at a tighter budget that gap matters.</p>
         </div>
       </li>
 
@@ -409,7 +409,7 @@ bulkhead    concurrent calls     any duration at all</span>
 <h2>Check yourself</h2>
 
 <div class="quiz" data-quiz-id="0012-q1">
-  <p class="q">Five stages each honour a 5&#8239;s timeout, each retries once, and a turn takes 11 880&#8239;ms against an 8&#8239;s budget. Which component is misconfigured?</p>
+  <p class="q">Five stages each honour a 5&#8239;s timeout, each retries once, and a turn takes 11&#8239;880&#8239;ms against an 8&#8239;s budget. Which component is misconfigured?</p>
   <ol class="options">
     <li data-correct="true">Nothing; a per-call limit cannot bound a request</li>
     <li>The stage timeouts, which should each be 1600ms</li>
@@ -417,13 +417,13 @@ bulkhead    concurrent calls     any duration at all</span>
     <li>The budget, which was set unrealistically low throughout</li>
   </ol>
   <div class="why">
-    <p>Nothing is misconfigured, and that is the finding rather than a dodge. Every stage stayed inside its own limit and every retry was permitted. A timeout measures a <em>call</em> and the budget is a property of the <em>request</em>, so no set of per-call limits composes into a per-request guarantee &#8212; five 5&#8239;s timeouts with one retry each permit a 50&#8239;s ceiling, and 11 880&#8239;ms is just where the distribution landed.</p>
+    <p>Nothing is misconfigured, and that is the finding rather than a dodge. Every stage stayed inside its own limit and every retry was permitted. A timeout measures a <em>call</em> and the budget is a property of the <em>request</em>, so no set of per-call limits composes into a per-request guarantee &#8212; five 5&#8239;s timeouts with one retry each permit a 50&#8239;s ceiling, and 11&#8239;880&#8239;ms is just where the distribution landed.</p>
     <p>The 1&#8239;600&#8239;ms answer is tempting and was measured too: it does keep every turn inside the budget, and it <strong>failed 53 of 200 turns</strong>, because an equal slice assumes stages cost the same and that each one's latency is a point rather than a spread.</p>
   </div>
 </div>
 
 <div class="quiz" data-quiz-id="0012-q2">
-  <p class="q">Propagating one deadline capped the worst turn at 8 001&#8239;ms and dropped completions from 200 of 200 to 174 of 200. What happened to those 26 turns?</p>
+  <p class="q">Propagating one deadline capped the worst turn at 8&#8239;001&#8239;ms and dropped completions from 200 of 200 to 174 of 200. What happened to those 26 turns?</p>
   <ol class="options">
     <li data-correct="true">They finished late before and now fail on time</li>
     <li>They were refused by the retry budget token bucket</li>
@@ -451,7 +451,7 @@ bulkhead    concurrent calls     any duration at all</span>
     </li>
     <li>
       <span class="beat">What I did</span>
-      <p class="line">I measured it across two hundred turns. The worst case was <b>11 880 milliseconds</b> against an eight-second budget, with every timeout honoured and no alert that could have fired.</p>
+      <p class="line">I measured it across two hundred turns. The worst case was <b>11&#8239;880 milliseconds</b> against an eight-second budget, with every timeout honoured and no alert that could have fired.</p>
       <p class="line">Then I built one deadline at the edge and passed it to every stage, bounding each by whatever was left. The maximum landed on <b>8001 milliseconds</b>, every run.</p>
       <p class="line">It also refused <b>25 retries</b> that could not have finished in the time remaining. That is what makes a retry budget enforceable instead of a whiteboard calculation.</p>
     </li>
@@ -478,8 +478,8 @@ bulkhead    concurrent calls     any duration at all</span>
       <span class="tell">The question behind the r&#233;sum&#233; bullet. Answering with the p50 misses it entirely &#8212; this is about the ceiling, not the distribution. Saying where it is <em>not</em> enforced is the honest opening.</span>
       <details class="model">
         <summary>Model answer &#8212; say yours first</summary>
-        <p>It was enforced at the edge and nowhere below it, which means it was a measurement rather than a guarantee. Each of five stages had its own timeout, so the ceiling was five times the timeout, doubled again by one retry per stage. With 5&#8239;s stage timeouts that is a 50&#8239;s ceiling for an 8&#8239;s budget, and I measured a worst case of <strong>11 880&#8239;ms</strong> with no timeout violated anywhere.</p>
-        <p>The fix is a single absolute deadline built at the edge and passed to every stage, with each bounded by <code>min(its own timeout, remaining)</code>. That put the maximum at <strong>8 001&#8239;ms</strong> on every run, and moved the median by about 15&#8239;ms &#8212; it is a tail intervention, so it costs the common case nothing.</p>
+        <p>It was enforced at the edge and nowhere below it, which means it was a measurement rather than a guarantee. Each of five stages had its own timeout, so the ceiling was five times the timeout, doubled again by one retry per stage. With 5&#8239;s stage timeouts that is a 50&#8239;s ceiling for an 8&#8239;s budget, and I measured a worst case of <strong>11&#8239;880&#8239;ms</strong> with no timeout violated anywhere.</p>
+        <p>The fix is a single absolute deadline built at the edge and passed to every stage, with each bounded by <code>min(its own timeout, remaining)</code>. That put the maximum at <strong>8&#8239;001&#8239;ms</strong> on every run, and moved the median by about 15&#8239;ms &#8212; it is a tail intervention, so it costs the common case nothing.</p>
         <span class="invites">Invites &#183; <b>&#8220;What did it cost?&#8221; &#8212; 26 turns of 200 that used to finish late now fail, which is the trade.</b></span>
       </details>
     </li>
@@ -571,7 +571,7 @@ bulkhead    concurrent calls     any duration at all</span>
 
 <div class="pager">
   <span><span class="dir">Previous</span><a href="0011-the-breaker-you-have-to-defend.html">&#8592; 0011 &#183; The breaker you have to defend</a></span>
-  <span><span class="dir">Index</span><a href="index.html">All lessons &#8594;</a></span>
+  <span><span class="dir">Next</span><a href="0013-admit-queue-or-shed.html">0013 &#183; Admit, queue, or shed &#8594;</a></span>
 </div>
 
 </div>

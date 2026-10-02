@@ -57,8 +57,8 @@ nested, retry at each layer        243        243
       SDK inside your wrapper inside your own loop is 27x.</pre>
 
 <ul>
-  <li><strong>Attempt count is set by the tail, and at the tail it is one.</strong> <code>nT + (n&#8722;1)&#183;base &#8804; slice</code>. For a 1 600&#8239;ms slice at 200&#8239;ms base: three attempts need <code>T &#8804; 433&#8239;ms</code>, two need <code>T &#8804; 750&#8239;ms</code>. Measured stage latency was p50 387, p90 670, p99 1 042 &#8212; so three attempts fit at the median, two at p90, <strong>one at p99</strong>. The requests slow enough to want a retry are the ones with no room for it. Those get a hedge or a fallback.</li>
-  <li><strong>The retry window is the quantity nobody writes down:</strong> the total wall clock the attempts span. Full jitter averages <code>backoff/2</code>, so it halves the window &#8212; which against a fixed-duration outage means giving up early. Measured against a 4&#8239;s outage: no jitter completed 49 of 49 with a 5 000&#8239;ms window; full jitter completed <strong>3 of 49</strong> with 2 507&#8239;ms. Jitter decides arrival shape; the window decides outage survival.</li>
+  <li><strong>Attempt count is set by the tail, and at the tail it is one.</strong> <code>nT + (n&#8722;1)&#183;base &#8804; slice</code>. For a 1&#8239;600&#8239;ms slice at 200&#8239;ms base: three attempts need <code>T &#8804; 433&#8239;ms</code>, two need <code>T &#8804; 750&#8239;ms</code>. Measured stage latency was p50 387, p90 670, p99 1&#8239;042 &#8212; so three attempts fit at the median, two at p90, <strong>one at p99</strong>. The requests slow enough to want a retry are the ones with no room for it. Those get a hedge or a fallback.</li>
+  <li><strong>The retry window is the quantity nobody writes down:</strong> the total wall clock the attempts span. Full jitter averages <code>backoff/2</code>, so it halves the window &#8212; which against a fixed-duration outage means giving up early. Measured against a 4&#8239;s outage: no jitter completed 49 of 49 with a 5&#8239;000&#8239;ms window; full jitter completed <strong>3 of 49</strong> with 2&#8239;507&#8239;ms. Jitter decides arrival shape; the window decides outage survival.</li>
   <li><strong>Only a budget bounds the count.</strong> A token bucket at ~10&#8239;% of request rate, per dependency and shared across call sites &#8212; not per call site, because the amplification comes from the number of call sites.</li>
 </ul>
 
@@ -122,7 +122,7 @@ nested, retry at each layer        243        243
 <ol>
   <li><strong>Deadline first.</strong> Nothing else composes, and every other control needs to know how much time is left.</li>
   <li><strong>Then a retry budget</strong> rather than a breaker, unless you specifically need to fail at 0&#8239;ms so a fallback gets the remaining deadline, or to cover first attempts rather than only retries. The Builders' Library recommends the bucket <em>instead of</em> a breaker, and being able to say why is worth more than having built one.</li>
-  <li><strong>Then admission control</strong>, sized from Little's law rather than by feel. It will not raise your goodput &#8212; measured 44&#8239;% &#8594; 43 &#8212; and it cut p99 from 7 998&#8239;ms to 1 711.</li>
+  <li><strong>Then admission control</strong>, sized from Little's law rather than by feel. It will not raise your goodput &#8212; measured 44&#8239;% &#8594; 43 &#8212; and it cut p99 from 7&#8239;998&#8239;ms to 1&#8239;711.</li>
   <li><strong>Then idempotency</strong>, because everything above increases the number of duplicate and partially-completed requests in flight. A deadline that cuts a turn off mid-pipeline manufactures partial failures at a known rate: 26 turns in 200.</li>
 </ol>
 
