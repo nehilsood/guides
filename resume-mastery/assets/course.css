@@ -1,0 +1,2098 @@
+/* ==========================================================================
+   course.css — shared stylesheet for System Design School
+   Linked by every lesson and reference sheet. Deliberately uses system font
+   stacks only: these files are read offline, and a webfont that fails to load
+   is worse than one that was never asked for.
+   ========================================================================== */
+
+:root {
+  /* --- ground and ink --- */
+  --paper:      #FCFCFD;
+  --surface:    #F4F6F8;
+  --surface-2:  #EDEFF3;
+  --ink:        #14181F;
+  --ink-2:      #454E5C;
+  --ink-3:      #737D8C;
+  --rule:       #DCE0E7;
+  --rule-soft:  #E9ECF1;
+
+  /* --- accent: one measured blue, spent sparingly --- */
+  --accent:     #2B5CA8;
+  --accent-ink: #21497F;
+  --accent-bg:  #E7EEF8;
+
+  /* --- semantic states, separate from the accent ---
+     Lessons here work by breaking something and then fixing it, so
+     "broken" and "fixed" are first-class colours, not decoration. */
+  --bad:        #A5322C;
+  --bad-bg:     #FAECEA;
+  --good:       #1C6B51;
+  --good-bg:    #E6F2ED;
+  --warn:       #8A6512;
+  --warn-bg:    #FAF1DC;
+
+  /* --- type --- */
+  --serif: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, "Times New Roman", serif;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+
+  --measure: 41rem;   /* rem, not ch: ch resolves per-element font-size */
+  /* Structural blocks — the dashboard, the lesson rows — sit between the prose
+     measure and the full 1180px page. Without this they inherit the page width,
+     so a right-aligned badge lands ~480px clear of the text it belongs to and
+     the row reads as two unrelated things. Code blocks and tables still go
+     full-bleed on purpose; they are the reason .page is wide at all. */
+  --content: 880px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper:      #101318;
+    --surface:    #171B22;
+    --surface-2:  #1E232B;
+    --ink:        #E6E8EC;
+    --ink-2:      #A8B0BC;
+    --ink-3:      #78818F;
+    --rule:       #2A303A;
+    --rule-soft:  #21262E;
+
+    --accent:     #7EA8E0;
+    --accent-ink: #9DBEEB;
+    --accent-bg:  #17222F;
+
+    --bad:        #E58A83;
+    --bad-bg:     #2A1A19;
+    --good:       #6FC0A2;
+    --good-bg:    #14231E;
+    --warn:       #D9AE5C;
+    --warn-bg:    #251E12;
+  }
+}
+
+:root[data-theme="dark"] {
+  --paper:      #101318;
+  --surface:    #171B22;
+  --surface-2:  #1E232B;
+  --ink:        #E6E8EC;
+  --ink-2:      #A8B0BC;
+  --ink-3:      #78818F;
+  --rule:       #2A303A;
+  --rule-soft:  #21262E;
+
+  --accent:     #7EA8E0;
+  --accent-ink: #9DBEEB;
+  --accent-bg:  #17222F;
+
+  --bad:        #E58A83;
+  --bad-bg:     #2A1A19;
+  --good:       #6FC0A2;
+  --good-bg:    #14231E;
+  --warn:       #D9AE5C;
+  --warn-bg:    #251E12;
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 18px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The page is exactly as wide as the widest thing in it. It was 1180px, set
+   when tables and code went full-bleed; now that both are clamped to the
+   structural rail nothing reaches past 880, so 1180 only bought 300px of
+   permanent blank margin on the right and made every page hug the left edge
+   of the window. Sizing the page to the rail centres the whole design. */
+.page {
+  max-width: calc(var(--content) + 64px);
+  margin: 0 auto;
+  padding: 0 32px 120px;
+}
+
+/* Main column holds the measure; full-bleed elements opt out explicitly. */
+.col { max-width: var(--measure); }
+
+/* --------------------------------------------------------------------------
+   Masthead
+   -------------------------------------------------------------------------- */
+
+.masthead {
+  padding: 40px 0 20px;
+  border-bottom: 2px solid var(--ink);
+  margin-bottom: 34px;
+  max-width: var(--content);
+}
+
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: baseline;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-bottom: 20px;
+}
+
+.crumbs a { color: var(--ink-3); text-decoration: none; border-bottom: 1px solid var(--rule); }
+.crumbs a:hover { color: var(--accent-ink); border-color: var(--accent); }
+.crumbs .sep { color: var(--rule); }
+
+.lesson-no {
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--accent-ink);
+  letter-spacing: 0.08em;
+}
+
+h1 {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: clamp(2.1rem, 5vw, 3.1rem);
+  line-height: 1.06;
+  letter-spacing: -0.018em;
+  margin: 0 0 16px;
+  max-width: 34ch;
+  text-wrap: balance;
+}
+
+.standfirst {
+  font-size: 1.16rem;
+  line-height: 1.5;
+  color: var(--ink-2);
+  max-width: var(--measure);
+  margin: 0;
+}
+
+.standfirst em { color: var(--ink); }
+
+/* --------------------------------------------------------------------------
+   Headings and prose
+   -------------------------------------------------------------------------- */
+
+h2 {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: 1.62rem;
+  line-height: 1.15;
+  letter-spacing: -0.012em;
+  margin: 52px 0 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--rule);
+  max-width: var(--content);
+  text-wrap: balance;
+}
+
+h3 {
+  font-family: var(--sans);
+  font-weight: 650;
+  font-size: 1.06rem;
+  letter-spacing: -0.004em;
+  margin: 32px 0 8px;
+  max-width: var(--measure);
+}
+
+p, ul, ol, dl { max-width: var(--measure); }
+
+p { margin: 0 0 18px; }
+
+ul, ol { margin: 0 0 18px; padding-left: 1.4em; }
+li { margin-bottom: 7px; }
+li > ul, li > ol { margin-top: 7px; margin-bottom: 0; }
+
+strong { font-weight: 650; }
+
+a { color: var(--accent-ink); text-decoration: none; border-bottom: 1px solid var(--accent-bg); }
+a:hover { border-color: var(--accent); }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 1px; }
+
+code {
+  font-family: var(--mono);
+  font-size: 0.855em;
+  background: var(--surface-2);
+  padding: 1.5px 5px;
+  border-radius: 2px;
+  word-break: break-word;
+}
+
+a code { background: var(--accent-bg); }
+
+/* Numbers that line up in prose or tables */
+.num { font-variant-numeric: tabular-nums; }
+
+/* --------------------------------------------------------------------------
+   The tangible win — one per lesson, stated up front
+   -------------------------------------------------------------------------- */
+
+.win {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 16px;
+  align-items: start;
+  max-width: var(--measure);
+  margin: 30px 0 38px;
+  padding: 18px 22px 20px;
+  background: var(--accent-bg);
+  border-left: 3px solid var(--accent);
+}
+
+.win .label {
+  grid-column: 1 / -1;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+
+.win p { grid-column: 1 / -1; margin: 0; font-size: 1.07rem; color: var(--ink); max-width: none; }
+
+/* --------------------------------------------------------------------------
+   Callouts
+   -------------------------------------------------------------------------- */
+
+.note, .caution, .aside {
+  max-width: var(--measure);
+  margin: 26px 0;
+  padding: 15px 20px 16px;
+  border-left: 3px solid var(--rule);
+  background: var(--surface);
+  font-size: 0.97rem;
+}
+
+.note   { border-color: var(--accent); }
+.caution{ border-color: var(--bad); background: var(--bad-bg); }
+.aside  { border-color: var(--ink-3); }
+
+.note > :last-child, .caution > :last-child, .aside > :last-child { margin-bottom: 0; }
+
+.callout-label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  margin-bottom: 7px;
+  color: var(--ink-3);
+}
+
+.caution .callout-label { color: var(--bad); }
+.note .callout-label { color: var(--accent-ink); }
+
+/* --------------------------------------------------------------------------
+   Résumé anchor — ties the lesson to something he actually shipped
+   -------------------------------------------------------------------------- */
+
+.anchor-box {
+  max-width: var(--measure);
+  margin: 26px 0 34px;
+  padding: 16px 20px 18px;
+  border: 1px solid var(--rule);
+  border-top: 2px solid var(--ink-3);
+  background: var(--surface);
+}
+
+.anchor-box .callout-label { color: var(--ink-3); }
+
+.anchor-box blockquote {
+  margin: 0 0 12px;
+  padding-left: 14px;
+  border-left: 2px solid var(--rule);
+  font-style: italic;
+  color: var(--ink-2);
+  font-size: 0.98rem;
+}
+
+.anchor-box > :last-child { margin-bottom: 0; }
+
+/* --------------------------------------------------------------------------
+   Tables
+   -------------------------------------------------------------------------- */
+
+/* Clamped to the structural rail. Without a max-width this filled the whole
+   1180px page while the prose beside it stopped at 656px, so a three-column
+   table opened a 400px gap inside its first column and the page showed four
+   different right edges. `overflow-x` still lets a genuinely wide table
+   scroll in place rather than pushing the body sideways. */
+/* `width: fit-content`, so the wrapper hugs the table instead of being a box
+   the table sits in one corner of. `table` is already shrink-to-fit (see
+   below), so a three-column comparison came out 348px wide inside an 880px
+   wrapper — 532px of empty rule-bounded nothing, which is the same defect the
+   1180px `.page` had and reads the same way. Capped at the rail, so a wide
+   table still clamps and its `overflow-x` still has something to do. */
+.table-wrap {
+  width: fit-content;
+  max-width: var(--content);
+  overflow-x: auto;
+  margin: 24px 0 28px;
+}
+
+table {
+  border-collapse: collapse;
+  font-family: var(--sans);
+  font-size: 0.925rem;
+  /* Sized to its content, capped at the rail — not stretched to fill it.
+     `min-width: 100%` forced every table to the full width of its wrapper,
+     and auto table layout hands the leftover to whichever column holds the
+     widest cell. On the latency card that opened a 330px hole between an
+     operation name and its figure, so the columns stopped reading as columns.
+     `max-width` keeps a genuinely wide table wrapping inside the rail rather
+     than scrolling, which is the better failure of the two. */
+  max-width: 100%;
+}
+
+th, td {
+  text-align: left;
+  padding: 9px 16px 9px 0;
+  border-bottom: 1px solid var(--rule-soft);
+  vertical-align: top;
+}
+
+
+
+thead th {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  border-bottom: 1px solid var(--rule);
+  white-space: nowrap;
+}
+
+tbody tr:last-child td { border-bottom: 1px solid var(--rule); }
+
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 0.88em; }
+
+/* Small screens: buy the cells room by spending less on type and padding,
+   which is the only lever that actually works here. Dropping the table's
+   max-width so the wrapper scrolls does nothing — auto table layout still
+   fits the available width rather than taking its preferred one — and a
+   three-column prose table at 560px stays tight whatever you do. It wraps
+   and stays readable; it does not clip, and the page never scrolls sideways.
+   Stacking these into definition lists is the real fix and a bigger change
+   than this pass. */
+@media (max-width: 640px) {
+  table { font-size: 0.87rem; }
+  th, td { padding: 8px 10px 8px 0; }
+}
+
+caption {
+  caption-side: bottom;
+  text-align: left;
+  /* A caption is prose and takes the prose measure. Inheriting the table's
+     width set the latency card's source note at about 150 characters a line. */
+  max-width: var(--measure);
+  padding-top: 10px;
+  font-size: 0.87rem;
+  color: var(--ink-3);
+  font-style: italic;
+}
+
+/* --------------------------------------------------------------------------
+   Citations and primary source
+   -------------------------------------------------------------------------- */
+
+.cite {
+  font-size: 0.88rem;
+  color: var(--ink-3);
+  font-family: var(--sans);
+}
+
+.primary-source {
+  max-width: var(--measure);
+  margin: 40px 0 30px;
+  padding: 20px 22px;
+  border: 1px solid var(--rule);
+  background: var(--surface);
+}
+
+.primary-source .callout-label { color: var(--accent-ink); }
+.primary-source .title { font-size: 1.06rem; font-weight: 600; display: block; margin-bottom: 6px; }
+.primary-source p { margin: 0; font-size: 0.95rem; color: var(--ink-2); max-width: none; }
+
+/* --------------------------------------------------------------------------
+   Probes to expect — retrieval under adversarial framing
+   -------------------------------------------------------------------------- */
+
+.probes { max-width: var(--measure); margin: 34px 0; }
+
+.probes ol { list-style: none; padding: 0; margin: 0; counter-reset: probe; }
+
+.probes li {
+  counter-increment: probe;
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 12px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--rule-soft);
+  margin: 0;
+  font-size: 0.99rem;
+}
+
+.probes li:first-child { border-top: 1px solid var(--rule); }
+.probes li:last-child { border-bottom: 1px solid var(--rule); }
+
+.probes li::before {
+  content: "Q" counter(probe);
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--bad);
+  padding-top: 4px;
+}
+
+/* Every child goes in the text column. `.probes li` is a `30px 1fr` grid whose
+   ::before holds column 1, so an unplaced child auto-flows to column 1 of the
+   NEXT row — a 30px track, which rendered the answer text one word per line.
+   Placing all children explicitly means adding a child cannot resurrect it.
+   `ol.steps > li` and `.expect` already do this; this grid was the one that
+   did not. */
+.probes li > * { grid-column: 2; }
+
+.probes .tell {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.9rem;
+  color: var(--ink-3);
+}
+
+/* --------------------------------------------------------------------------
+   Recall block — spaced, interleaved retrieval from EARLIER lessons
+   -------------------------------------------------------------------------- */
+
+.recall { max-width: var(--measure); margin: 44px 0 0; padding-top: 18px; border-top: 2px solid var(--ink); }
+
+.recall details {
+  border-bottom: 1px solid var(--rule-soft);
+  padding: 12px 0;
+}
+
+.recall details:last-of-type { border-bottom: 1px solid var(--rule); }
+
+.recall summary {
+  cursor: pointer;
+  font-size: 1rem;
+  list-style: none;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 14px;
+  align-items: baseline;
+}
+
+.recall summary::-webkit-details-marker { display: none; }
+
+.recall summary::after {
+  content: "reveal";
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  border-bottom: 1px solid var(--rule);
+  white-space: nowrap;
+}
+
+.recall details[open] summary::after { content: "hide"; }
+.recall summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.recall .answer {
+  margin: 12px 0 2px;
+  padding-left: 14px;
+  border-left: 2px solid var(--good);
+  font-size: 0.95rem;
+  color: var(--ink-2);
+  max-width: none;
+}
+
+.recall .from {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* --------------------------------------------------------------------------
+   Ask-your-teacher footer
+   -------------------------------------------------------------------------- */
+
+.ask {
+  max-width: var(--measure);
+  margin: 46px 0 0;
+  padding: 18px 22px;
+  border: 1px dashed var(--rule);
+  background: var(--surface);
+  font-size: 0.95rem;
+  color: var(--ink-2);
+}
+
+.ask > :last-child { margin-bottom: 0; }
+.ask strong { color: var(--ink); }
+
+/* --------------------------------------------------------------------------
+   Next / prev
+   -------------------------------------------------------------------------- */
+
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 28px;
+  justify-content: space-between;
+  max-width: var(--measure);
+  margin-top: 46px;
+  padding-top: 18px;
+  border-top: 1px solid var(--rule);
+  font-family: var(--sans);
+  font-size: 0.93rem;
+}
+
+.pager a { border-bottom: none; }
+.pager .dir {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-bottom: 3px;
+}
+
+/* --------------------------------------------------------------------------
+   Theme toggle
+   -------------------------------------------------------------------------- */
+
+.theme-toggle {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 10;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  padding: 6px 10px;
+  cursor: pointer;
+  border-radius: 2px;
+}
+
+.theme-toggle:hover { color: var(--ink); border-color: var(--ink-3); }
+.theme-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* --------------------------------------------------------------------------
+   Reduced motion
+   -------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+
+/* --------------------------------------------------------------------------
+   Small screens
+   -------------------------------------------------------------------------- */
+
+@media (max-width: 640px) {
+  body { font-size: 17px; }
+  .page { padding: 0 18px 80px; }
+  .theme-toggle { display: none; }
+}
+
+/* --------------------------------------------------------------------------
+   Print — reference sheets are meant to be printed and pinned up
+   -------------------------------------------------------------------------- */
+
+@media print {
+  :root {
+    --paper: #fff; --surface: #fff; --surface-2: #f2f2f2;
+    --ink: #000; --ink-2: #222; --ink-3: #555;
+    --rule: #999; --rule-soft: #ccc;
+    --accent: #000; --accent-ink: #000; --accent-bg: #f0f0f0;
+  }
+  body { font-size: 10.5pt; line-height: 1.45; }
+  .page { max-width: none; padding: 0; }
+  .theme-toggle, .pager, .ask, .recall { display: none; }
+  h1 { font-size: 20pt; }
+  h2 { font-size: 13pt; margin-top: 18pt; page-break-after: avoid; }
+  h3 { page-break-after: avoid; }
+  table, .win, .note, .caution, .anchor-box, .primary-source { page-break-inside: avoid; }
+  a { border-bottom: none; }
+  a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 8pt; color: #555; }
+}
+
+/* ==========================================================================
+   Quiz widget — styles for assets/quiz.js
+   ========================================================================== */
+
+.quiz {
+  max-width: var(--measure);
+  margin: 30px 0;
+  padding: 18px 22px 20px;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--ink-3);
+  background: var(--surface);
+}
+
+.quiz .q {
+  margin: 0 0 14px;
+  font-size: 1.03rem;
+  font-weight: 600;
+  max-width: none;
+}
+
+.quiz .options { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; max-width: none; }
+
+.quiz .options li {
+  margin: 0;
+  padding: 10px 14px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.quiz .options li:hover:not(.settled) { border-color: var(--accent); background: var(--accent-bg); }
+.quiz .options li:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.quiz .options li.settled { cursor: default; }
+.quiz .options li.settled:not(.is-answer):not(.chosen-wrong) { color: var(--ink-3); }
+
+.quiz .options li.is-answer { border-color: var(--good); background: var(--good-bg); color: var(--ink); }
+.quiz .options li.chosen-wrong { border-color: var(--bad); background: var(--bad-bg); color: var(--ink); text-decoration: line-through; text-decoration-color: var(--bad); }
+.quiz .options li.chosen-right { font-weight: 650; }
+
+.quiz .quiz-status {
+  margin: 13px 0 0;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  max-width: none;
+}
+
+.quiz .quiz-status.ok { color: var(--good); }
+.quiz .quiz-status.no { color: var(--bad); }
+
+.quiz .why {
+  margin: 14px 0 0;
+  padding-left: 14px;
+  border-left: 2px solid var(--rule);
+  font-size: 0.94rem;
+  color: var(--ink-2);
+  max-width: none;
+}
+
+.quiz .why > :last-child { margin-bottom: 0; }
+
+@media print {
+  .quiz .options li { border-color: #999; }
+  .quiz .why { display: block !important; }
+  .quiz .options li.is-answer::after { content: " \2190 answer"; font-family: var(--mono); font-size: 8pt; }
+}
+
+/* ==========================================================================
+   Latency budget calculator — styles for assets/latency-calc.js
+   ========================================================================== */
+
+.latency-calc {
+  max-width: 78ch;
+  margin: 32px 0;
+  padding: 20px 22px 18px;
+  border: 1px solid var(--rule);
+  border-top: 2px solid var(--accent);
+  background: var(--surface);
+}
+
+.lc-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 40px;
+  align-items: flex-end;
+  margin-bottom: 20px;
+}
+
+.lc-figure { display: grid; gap: 3px; }
+
+.lc-num {
+  font-family: var(--mono);
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.lc-cap {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.lc-figure.lc-quiet .lc-num { color: var(--ink-3); font-size: 1.2rem; }
+.lc-figure.lc-ok .lc-num { color: var(--good); }
+.lc-figure.lc-over .lc-num { color: var(--bad); }
+.lc-figure.lc-over .lc-cap { color: var(--bad); font-weight: 700; }
+
+.lc-bar-wrap { position: relative; margin-bottom: 22px; }
+
+.lc-bar {
+  display: flex;
+  height: 26px;
+  border: 1px solid var(--rule);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.lc-seg { height: 100%; transition: width 140ms ease; min-width: 1px; }
+
+.lc-overflow {
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  width: 0;
+  border-left: 2px dashed var(--bad);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--bad);
+  padding-left: 4px;
+  white-space: nowrap;
+}
+
+.lc-table { font-size: 0.9rem; }
+.lc-table td, .lc-table th { padding: 7px 14px 7px 0; }
+.lc-swatch-cell { width: 18px; padding-right: 8px !important; }
+.lc-swatch { display: block; width: 10px; height: 10px; border-radius: 2px; }
+
+.lc-name { display: block; font-weight: 600; color: var(--ink); }
+.lc-note { display: block; font-size: 0.85em; color: var(--ink-3); }
+.lc-fixed {
+  display: inline-block;
+  margin-top: 3px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--warn);
+  background: var(--warn-bg);
+  padding: 1px 5px;
+}
+
+.lc-input {
+  font-family: var(--mono);
+  font-size: 0.92rem;
+  font-variant-numeric: tabular-nums;
+  width: 6.5em;
+  text-align: right;
+  padding: 4px 7px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+}
+
+.lc-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+.lc-static { font-family: var(--mono); color: var(--ink-3); padding-right: 8px; }
+.lc-share { color: var(--ink-2); }
+
+.lc-hint { margin: 4px 0 0; font-size: 0.86rem; color: var(--ink-3); font-style: italic; max-width: none; }
+
+@media print {
+  .lc-input { border: none; background: none; }
+  .lc-hint { display: none; }
+  .lc-seg { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+}
+
+/* ==========================================================================
+   Index dashboard — styles for assets/progress.js
+   ========================================================================== */
+
+.dash {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px 48px;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin: 30px 0 12px;
+  max-width: var(--content);
+}
+
+.dash-figure { display: grid; gap: 4px; }
+.dash-figure .n {
+  font-family: var(--mono);
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+}
+.dash-figure .n .of { color: var(--ink-3); font-size: 0.95rem; font-weight: 500; }
+.dash-figure .cap {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.dash-figure.is-due .n { color: var(--warn); }
+
+.dash-bar {
+  height: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--rule);
+  max-width: var(--content);
+  margin-bottom: 34px;
+  overflow: hidden;
+}
+.dash-bar > span { display: block; height: 100%; width: 0; background: var(--accent); transition: width 200ms ease; }
+
+.due-panel {
+  max-width: var(--measure);
+  margin: 0 0 44px;
+  padding: 16px 20px 18px;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--warn);
+  background: var(--warn-bg);
+}
+.due-panel .callout-label { color: var(--warn); }
+.due-empty { margin: 0; font-size: 0.95rem; color: var(--ink-2); max-width: none; }
+.due-items { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; max-width: none; }
+.due-items li { margin: 0; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; justify-content: space-between; }
+.due-meta { font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-3); }
+
+/* --- lesson list --- */
+
+.tier-band {
+  margin: 46px 0 0;
+  padding-top: 14px;
+  border-top: 2px solid var(--ink);
+  display: grid;
+  gap: 6px;
+}
+.tier-band .tier-kicker {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+.tier-band h2 { margin: 0; padding: 0; border: none; font-size: 1.4rem; }
+.tier-band p { margin: 4px 0 0; font-size: 0.96rem; color: var(--ink-2); }
+
+ol.lesson-list { list-style: none; margin: 20px 0 0; padding: 0; max-width: var(--content); }
+
+ol.lesson-list > li {
+  display: grid;
+  grid-template-columns: 3.4em 1fr auto;
+  gap: 4px 16px;
+  align-items: baseline;
+  padding: 13px 4px 14px;
+  margin: 0;
+  border-bottom: 1px solid var(--rule-soft);
+}
+
+ol.lesson-list > li:first-child { border-top: 1px solid var(--rule); }
+ol.lesson-list > li:last-child { border-bottom: 1px solid var(--rule); }
+ol.lesson-list > li:hover { background: var(--surface); }
+ol.lesson-list > li.is-due { background: var(--warn-bg); }
+
+ol.lesson-list .l-no {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--ink-3);
+}
+
+ol.lesson-list .l-title { font-family: var(--sans); font-weight: 600; font-size: 1rem; }
+ol.lesson-list .l-title a { border-bottom: none; }
+ol.lesson-list .l-title a:hover { border-bottom: 1px solid var(--accent); }
+ol.lesson-list .l-win { grid-column: 2; font-size: 0.92rem; color: var(--ink-2); margin: 2px 0 0; max-width: 70ch; }
+
+.status-slot { grid-column: 3; grid-row: 1; display: flex; flex-wrap: wrap; gap: 5px; justify-content: flex-end; }
+
+.status-chip {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 3px 7px;
+  border-radius: 2px;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.status-chip.is-unread { color: var(--ink-3); border-color: var(--rule); }
+.status-chip.is-due { color: var(--warn); background: var(--warn-bg); border-color: var(--warn); }
+.status-chip.is-resting { color: var(--good); background: var(--good-bg); }
+.status-chip.is-score { color: var(--accent-ink); background: var(--accent-bg); }
+
+.pending { opacity: 0.55; }
+.pending .l-title { font-weight: 500; }
+
+@media (max-width: 640px) {
+  ol.lesson-list > li { grid-template-columns: 3.2em 1fr; }
+  .status-slot { grid-column: 2; grid-row: auto; justify-content: flex-start; margin-top: 6px; }
+}
+
+/* Reset-progress control on the index. */
+.reset {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 6px 11px;
+  cursor: pointer;
+}
+
+.reset:hover { color: var(--bad); border-color: var(--bad); }
+.reset:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@media print { .reset { display: none; } }
+
+/* Roadmap rows name the résumé system the lesson is anchored to. Without this
+   line a roadmap reads as a syllabus; with it, it reads as a list of things
+   you have already built and cannot yet defend. */
+.l-anchor {
+  grid-column: 2;
+  max-width: 74ch;
+  margin: 3px 0 0;
+  font-size: 0.86rem;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+.l-anchor b { font-weight: 600; color: var(--ink-2); }
+.l-anchor.llm b { color: var(--accent); }
+
+/* A verdict column holds a pattern name, which is the answer the reader came
+   for. Left to itself the column collapses to its narrowest content and breaks
+   "Read-through" across two lines as "Read-" / "through", which reads as two
+   words. Keep the name whole and let the reasoning column absorb the slack. */
+table.verdict td:nth-child(2),
+table.verdict th:nth-child(2) { white-space: nowrap; }
+table.verdict td:nth-child(3),
+table.verdict th:nth-child(3) { width: 55%; }
+
+/* --------------------------------------------------------------------------
+   Primer — plain-language orientation before the argument starts.
+   Every other block on the page assumes you already know the vocabulary.
+   This one does not: it says what the thing is in ordinary words, then
+   defines each term the lesson will use in one sentence, with no jargon
+   inside the definitions. Read it once and skip it forever after.
+   -------------------------------------------------------------------------- */
+
+.primer {
+  max-width: var(--content);
+  margin: 30px 0 40px;
+  padding: 20px 24px 22px;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+}
+
+.primer > .callout-label { margin-bottom: 10px; color: var(--ink-3); }
+
+.primer > p {
+  max-width: var(--measure);
+  margin: 0 0 14px;
+  font-size: 1.02rem;
+  color: var(--ink);
+}
+
+.primer > p:last-child { margin-bottom: 0; }
+
+.primer dl {
+  display: grid;
+  grid-template-columns: minmax(9em, max-content) 1fr;
+  gap: 8px 20px;
+  margin: 16px 0 0;
+  max-width: none;
+  font-size: 0.95rem;
+}
+
+.primer dt {
+  font-family: var(--sans);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.primer dt code { font-size: 0.88em; }
+
+.primer dd {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.primer dd b { color: var(--ink); font-weight: 600; }
+
+/* On a narrow screen a two-track definition list becomes unreadable long
+   before it becomes narrow, so stack it instead of letting the term column
+   squeeze to one word per line. */
+@media (max-width: 620px) {
+  .primer dl { grid-template-columns: 1fr; gap: 2px 0; }
+  .primer dd { margin: 0 0 10px; }
+}
+
+/* --------------------------------------------------------------------------
+   Underneath — the layer below the one you can configure
+
+   A lesson that stops at "set maxmemory-policy to allkeys-lfu" gets you
+   through the first question and loses the follow-up, because the follow-up
+   is always "why is that safe?" or "why does that work?". This block is one
+   layer down on the SAME mechanism — never a second topic, which is the
+   difference between depth and scope creep.
+   -------------------------------------------------------------------------- */
+
+.underneath {
+  max-width: var(--content);
+  margin: 30px 0 36px;
+  padding: 4px 0 0;
+  border-top: 2px solid var(--ink);
+}
+
+.underneath > .callout-label { color: var(--ink); margin: 12px 0 8px; }
+
+.underneath > p,
+.underneath > ul,
+.underneath > ol { max-width: var(--measure); }
+
+/* Derivations get room to breathe and a left rule, because the eye needs to
+   know where the arithmetic starts and stops. */
+.underneath .derive {
+  max-width: var(--measure);
+  margin: 16px 0;
+  padding: 13px 17px;
+  background: var(--surface);
+  border-left: 3px solid var(--ink-3);
+  font-size: 0.95rem;
+}
+
+.underneath .derive > :last-child { margin-bottom: 0; }
+
+/* `white-space: pre` is the whole point of this class and was missing. The
+   markup is a <span> holding a column-aligned table written with literal
+   newlines and runs of spaces; without it, all fifteen derivations in the
+   course collapsed into one flowing sentence — "hop median p99 VAD 250 250
+   ASR 300 678 ingress 12 19 …" — which is not merely ugly, it destroys the
+   only content the block has. A <span> is inline and normalises whitespace;
+   `display: block` alone does not change that. */
+.underneath .derive .eq {
+  display: block;
+  margin: 9px 0;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--ink);
+  white-space: pre;
+  tab-size: 2;
+  overflow-x: auto;
+}
+
+.underneath .derive .eq b { color: var(--accent-ink); font-weight: 700; }
+
+/* The one-line takeaway. Deliberately styled as the loudest thing in the
+   block: it is what you actually say out loud. */
+.underneath .lands {
+  max-width: var(--measure);
+  margin: 18px 0 0;
+  padding: 12px 16px;
+  background: var(--accent-bg);
+  border-left: 3px solid var(--accent);
+  font-size: 1rem;
+  color: var(--ink);
+}
+
+.underneath .lands b { font-weight: 650; }
+
+/* --------------------------------------------------------------------------
+   Evidence — your numbers, not the lesson's
+
+   The labs print figures to a terminal and the terminal scrolls away. This
+   is where the number you personally measured gets written down, because
+   "I built a circuit breaker and can defend the thresholds" is a claim, and
+   a claim with no measurement behind it does not survive one follow-up.
+
+   Values persist through store.js. Storage is best-effort, so the block has
+   to read correctly with nothing stored — which is its resting state anyway.
+   -------------------------------------------------------------------------- */
+
+.evidence {
+  max-width: var(--content);
+  margin: 34px 0;
+  border: 1px solid var(--ink);
+  background: var(--paper);
+}
+
+.evidence > header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 13px 20px 11px;
+  background: var(--ink);
+}
+
+.evidence > header .callout-label { margin: 0; color: var(--paper); }
+.evidence > header .hint {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  color: var(--rule);
+}
+
+.evidence .body { padding: 16px 20px 18px; }
+.evidence .body > p { max-width: var(--measure); font-size: 0.95rem; color: var(--ink-2); }
+.evidence .body > :last-child { margin-bottom: 0; }
+
+/* One row per measurement. A grid rather than a table: the fourth column is
+   a sentence and a table cell would set it far too wide to read. */
+.evidence .rows {
+  display: grid;
+  gap: 0;
+  margin: 14px 0 0;
+  border-top: 1px solid var(--rule);
+}
+
+.evidence .row {
+  display: grid;
+  grid-template-columns: minmax(11em, 1.1fr) minmax(6em, 0.55fr) minmax(8em, 0.8fr);
+  gap: 6px 16px;
+  padding: 11px 0 12px;
+  border-bottom: 1px solid var(--rule-soft);
+  align-items: start;
+}
+
+.evidence .row:last-child { border-bottom: 1px solid var(--rule); }
+
+.evidence .ran   { font-size: 0.94rem; color: var(--ink); }
+.evidence .ran code { font-size: 0.87em; }
+
+.evidence .field { display: grid; gap: 3px; }
+
+.evidence .field > label {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.evidence input[type="text"] {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-bottom: 2px solid var(--ink-3);
+  border-radius: 2px;
+  padding: 6px 8px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.evidence input[type="text"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-bottom-color: var(--accent);
+}
+
+.evidence input[type="text"].filled { border-bottom-color: var(--good); background: var(--paper); }
+
+/* "Why that threshold and not 2×" spans the full width on its own line: it
+   is the only answer here that is prose, and it is the one that gets asked. */
+.evidence .why-row {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+/* This one is a sentence rather than a field name, so it does not get the
+   uppercase mono treatment — but it must not inherit body size either, or it
+   reads as a heading and the row stops looking like a form. */
+.evidence .why-row > label {
+  font-family: var(--sans);
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--ink-2);
+  /* Spanning `1 / -1` gave it the block's full 830px, which at this size is
+     about 105 characters — the one line on the page you cannot skim, set
+     wider than anything else on it. */
+  max-width: 62ch;
+}
+
+.evidence .why-row > label code { font-size: 0.92em; }
+
+.evidence textarea {
+  font-family: var(--sans);
+  font-size: 0.93rem;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 2px;
+  padding: 7px 9px;
+  width: 100%;
+  min-height: 3.1em;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.evidence textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.evidence textarea.filled { border-color: var(--good); background: var(--paper); }
+
+@media (max-width: 700px) {
+  .evidence .row { grid-template-columns: 1fr; }
+}
+
+/* The bullet this lesson earns. Only honest if every number in it came from
+   the rows above — which is the point of putting it directly underneath. */
+.evidence .earned {
+  margin: 20px 0 0;
+  padding: 14px 17px;
+  background: var(--good-bg);
+  border-left: 3px solid var(--good);
+}
+
+.evidence .earned .callout-label { color: var(--good); }
+
+.evidence .earned p {
+  margin: 0;
+  max-width: var(--measure);
+  font-size: 0.97rem;
+  color: var(--ink);
+}
+
+.evidence .earned p + p { margin-top: 9px; }
+.evidence .earned .placeholder { color: var(--bad); font-family: var(--mono); font-size: 0.9em; }
+.evidence .earned .caveat { font-size: 0.89rem; color: var(--ink-2); }
+
+/* --------------------------------------------------------------------------
+   Say it out loud — the 75 seconds
+
+   Everything else in a lesson trains recognition. This trains production,
+   which is the thing actually being tested when someone asks you about your
+   own system. Four beats, because four is what recalls under pressure, and
+   the fourth is the cost — an answer with no cost in it reads as something
+   you read rather than something you shipped.
+   -------------------------------------------------------------------------- */
+
+/* Sized to the prose rail, not the structural one. `.say .line` is capped at
+   46ch on purpose — you read a script aloud in short lines — so an 880px box
+   left a 265px empty strip down the inside of its own right edge. The rail is
+   for diagrams and tables; this block holds nothing but sentences. */
+.say {
+  max-width: var(--measure);
+  margin: 34px 0;
+  padding: 19px 22px 21px;
+  border: 2px solid var(--accent);
+  background: var(--accent-bg);
+}
+
+.say > .callout-label { color: var(--accent-ink); }
+
+.say > .frame {
+  margin: 0 0 15px;
+  max-width: var(--measure);
+  font-size: 0.93rem;
+  color: var(--ink-2);
+}
+
+.say .beats {
+  display: grid;
+  gap: 13px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: beat;
+}
+
+.say .beats > li {
+  counter-increment: beat;
+  display: grid;
+  grid-template-columns: minmax(7.5em, max-content) 1fr;
+  gap: 4px 18px;
+  margin: 0;
+  padding-bottom: 13px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.say .beats > li:last-child { padding-bottom: 0; border-bottom: none; }
+
+/* Place every child explicitly. A beat can hold two spoken lines, and with
+   auto-placement the second one lands in column 1 of the next row — the
+   narrow label track — which sets it at a completely different width from
+   the first and makes the script unreadable as a script. Same failure the
+   `.probes li` grid had, and the same fix. */
+.say .beats > li > * { grid-column: 2; }
+
+/* Matched through `li` deliberately: `.say .beat` alone loses to the rule
+   above, which carries an extra type selector and therefore higher
+   specificity — the label would silently land in the text column. */
+.say .beats > li > .beat {
+  grid-column: 1;
+  grid-row: 1;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+  padding-top: 5px;
+}
+
+/* Spoken register: bigger than body copy and set narrower, because you are
+   reading it aloud rather than skimming it. */
+.say .line {
+  margin: 0;
+  max-width: 46ch;
+  font-family: var(--serif);
+  font-size: 1.09rem;
+  line-height: 1.55;
+  color: var(--ink);
+}
+
+.say .line + .line { margin-top: 7px; }
+.say .line b { font-weight: 650; }
+.say .line code { font-size: 0.86em; background: var(--paper); }
+
+@media (max-width: 620px) {
+  .say .beats > li { grid-template-columns: 1fr; gap: 3px 0; }
+  .say .beats > li > * { grid-column: 1; }
+  .say .beats > li > .beat { grid-column: 1; grid-row: 1; padding-top: 0; }
+}
+
+/* The phrasing that sounds fluent and gets you caught. One per lesson, and
+   there is always exactly one — the confident wrong sentence is a more
+   expensive mistake than an honest "I don't know". */
+.say-dont {
+  max-width: var(--measure);
+  margin: -34px 0 34px;
+  padding: 13px 22px 15px;
+  border: 2px solid var(--bad);
+  border-top: none;
+  background: var(--bad-bg);
+}
+
+.say-dont > .callout-label { color: var(--bad); }
+
+.say-dont p {
+  margin: 0;
+  max-width: var(--measure);
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+
+.say-dont p + p { margin-top: 8px; }
+.say-dont .quoted { font-family: var(--serif); font-style: italic; color: var(--bad); }
+
+/* --------------------------------------------------------------------------
+   Probe model answers
+
+   `.tell` says what the interviewer is testing. That is diagnosis, and on
+   its own it leaves you knowing what the question means and still not
+   knowing what to say. The model answer goes behind a fold so the ritual
+   stays: read the probe, answer it OUT LOUD, then open it and compare.
+
+   Scoped to `.probes` because `.recall .answer` is a different component;
+   this one is `.model` so the two can never collide.
+   -------------------------------------------------------------------------- */
+
+.probes details.model {
+  margin-top: 9px;
+  border-top: 1px solid var(--rule-soft);
+  padding-top: 8px;
+}
+
+.probes details.model > summary {
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--good);
+}
+
+.probes details.model > summary::-webkit-details-marker { display: none; }
+.probes details.model > summary::before { content: "\25B8  "; }
+.probes details.model[open] > summary::before { content: "\25BE  "; }
+.probes details.model > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.probes details.model > p {
+  margin: 9px 0 0;
+  padding-left: 14px;
+  border-left: 2px solid var(--good);
+  max-width: none;
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+
+.probes details.model > p + p { margin-top: 8px; }
+
+/* Where the answer takes you next. Every good answer invites one specific
+   follow-up, and knowing which one is most of the advantage. */
+.probes details.model > .invites {
+  display: block;
+  margin-top: 9px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.probes details.model > .invites b {
+  font-family: var(--sans);
+  font-size: 1.28em;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-2);
+  font-weight: 400;
+}
+
+@media print {
+  /* On paper a closed <details> is just a missing answer, and there is no
+     way to tick it open from the print stylesheet — so force the contents
+     visible instead. */
+  .probes details.model:not([open]) > :not(summary),
+  .recall details:not([open]) > :not(summary) {
+    display: block !important;
+    content-visibility: visible !important;
+  }
+  .probes details.model > p { border-left-color: #666; }
+  .say { border-color: #333; background: #f7f7f7; }
+  .say-dont { border-color: #333; background: #f0f0f0; }
+  .evidence { border-color: #333; break-inside: avoid; }
+  .evidence > header { background: #333; }
+  .evidence input[type="text"], .evidence textarea { background: #fff; border-color: #999; }
+  .underneath { break-inside: avoid-page; }
+}
+
+/* ==========================================================================
+   Résumé Mastery additions
+   Four new block types on top of the System Design School vocabulary:
+   .claim-line (the résumé bullet, quoted), .pm (the plain-meaning gloss),
+   .qset (the question banks), .star (the behavioural story) and .ledger
+   (the defensibility audit).
+
+   One rule governs all of them and it is not negotiable: no container here
+   is a grid or a flexbox. Every one holds prose, and a grid whose children
+   are prose auto-places contiguous text runs into the marker column and
+   crushes the 1fr track into a one-word-per-line ribbon. That bug has cost
+   this codebase five separate repairs. Indent-and-hang with an absolutely
+   positioned ::before does the same job and cannot fail that way.
+   ========================================================================== */
+
+/* --- the résumé line under test ------------------------------------------ */
+
+.claim-line {
+  max-width: var(--content);
+  margin: 28px 0;
+  padding: 14px 18px;
+  background: var(--surface);
+  border-left: 3px solid var(--ink);
+}
+.claim-line blockquote {
+  max-width: var(--measure);
+  margin: 6px 0 0;
+  font-family: var(--serif);
+  font-size: 1.02rem;
+  color: var(--ink);
+}
+.claim-line .whose {
+  display: block;
+  margin-top: 8px;
+  font-family: var(--sans);
+  font-size: 11px;
+  letter-spacing: .04em;
+  color: var(--ink-3);
+}
+
+/* --- plain meaning: the one sentence a non-engineer would nod at ---------- */
+
+.pm {
+  max-width: var(--measure);
+  margin: 10px 0 20px;
+  padding: 8px 0 8px 16px;
+  border-left: 3px solid var(--accent);
+  font-family: var(--sans);
+  font-size: .95rem;
+  color: var(--ink-2);
+}
+.pm-k {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* --- question banks ------------------------------------------------------ */
+
+.qset { max-width: var(--content); margin: 40px 0; }
+
+.qset > .qset-note {
+  max-width: var(--measure);
+  margin: 0 0 18px;
+  font-family: var(--sans);
+  font-size: .92rem;
+  color: var(--ink-2);
+}
+
+.qa-index {
+  max-width: var(--measure);
+  margin: 0 0 24px;
+  padding: 12px 0 12px 16px;
+  border-left: 2px solid var(--rule);
+  list-style: none;
+  font-family: var(--sans);
+  font-size: .88rem;
+  columns: 2;
+  column-gap: 28px;
+}
+.qa-index li { margin: 0 0 5px; break-inside: avoid; }
+
+.qa { list-style: none; padding: 0; margin: 0; counter-reset: qa; }
+
+.qa-item {
+  counter-increment: qa;
+  position: relative;
+  padding: 14px 0 16px 2.6em;
+  border-bottom: 1px solid var(--rule-soft);
+  scroll-margin-top: 24px;
+}
+.qa-item:first-child { border-top: 1px solid var(--rule); }
+.qa-item::before {
+  content: counter(qa);
+  position: absolute;
+  left: 0;
+  top: 17px;
+  width: 1.7em;
+  text-align: right;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-3);
+}
+
+.qa-q {
+  max-width: var(--measure);
+  margin: 0 0 6px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.qa-a {
+  max-width: var(--measure);
+  margin: 0 0 8px;
+  font-size: .96rem;
+  color: var(--ink-2);
+}
+.qa-flag {
+  max-width: var(--measure);
+  margin: 0;
+  padding-left: 12px;
+  border-left: 2px solid var(--bad);
+  font-family: var(--sans);
+  font-size: .88rem;
+  color: var(--ink-2);
+}
+.qa-flag-k {
+  display: block;
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--bad);
+}
+
+/* --- the behavioural story ----------------------------------------------- */
+
+.star {
+  max-width: var(--content);
+  margin: 40px 0;
+  padding: 18px 20px;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+}
+.star .frame {
+  max-width: var(--measure);
+  margin: 6px 0 14px;
+  font-family: var(--sans);
+  font-size: .92rem;
+  color: var(--ink-2);
+}
+.star .rungs { list-style: none; padding: 0; margin: 0; }
+.star .rung {
+  position: relative;
+  padding: 0 0 14px 7.5em;
+  margin: 0;
+}
+.star .rung-k {
+  position: absolute;
+  left: 0;
+  top: 2px;
+  width: 6.5em;
+  font-family: var(--sans);
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.star .rung p {
+  max-width: var(--measure);
+  margin: 0 0 6px;
+  font-size: .97rem;
+  color: var(--ink-2);
+}
+.star .rung p:last-child { margin-bottom: 0; }
+
+/* --- the defensibility ledger -------------------------------------------- */
+
+.ledger {
+  max-width: var(--content);
+  margin: 40px 0;
+  padding-top: 16px;
+  border-top: 2px solid var(--ink);
+}
+.ledger > p {
+  max-width: var(--measure);
+  font-family: var(--sans);
+  font-size: .92rem;
+  color: var(--ink-2);
+}
+.ledger .claims { list-style: none; padding: 0; margin: 14px 0 0; counter-reset: claim; }
+
+.ledger .claim {
+  counter-increment: claim;
+  position: relative;
+  padding: 14px 0 14px 2.5em;
+  border-bottom: 1px solid var(--rule-soft);
+}
+.ledger .claim::before {
+  content: counter(claim) ".";
+  position: absolute;
+  left: 0;
+  top: 16px;
+  width: 1.6em;
+  text-align: right;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-3);
+}
+
+.claim-text {
+  max-width: var(--measure);
+  margin: 0 0 8px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* Indent-and-hang, not inline-block: with an inline-block label the SECOND
+   line of a wrapped value returns to x=0 and sits under the label instead of
+   staying in its column. Caught by rendering it, invisible in the markup. */
+.lg-row {
+  position: relative;
+  max-width: var(--measure);
+  margin: 0 0 6px;
+  padding-left: 9.5em;
+  font-family: var(--sans);
+  font-size: .93rem;
+}
+.lg-k {
+  position: absolute;
+  left: 0;
+  top: 3px;
+  width: 8.5em;
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.lg-v { display: inline; color: var(--ink-2); }
+
+.lg-verdict {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 2px;
+}
+.is-solid       { color: var(--good); background: var(--good-bg); }
+.is-thin        { color: var(--warn); background: var(--warn-bg); }
+.is-unsupported { color: var(--bad);  background: var(--bad-bg); }
+
+.lg-todo {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--warn);
+  background: var(--warn-bg);
+  padding: 1px 5px;
+  border-radius: 2px;
+}
+
+@media (max-width: 700px) {
+  .qa-index { columns: 1; }
+}
+@media (max-width: 620px) {
+  .lg-row { padding-left: 0; }
+  .lg-k { position: static; display: block; width: auto; margin-bottom: 2px; }
+  .star .rung { padding-left: 0; }
+  .star .rung-k { position: static; display: block; width: auto; margin-bottom: 4px; }
+}
+
+/* --- in one breath: the spoken version, sitting above the detailed one ---- */
+
+.breath {
+  position: relative;
+  max-width: var(--measure);
+  margin: 0 0 22px;
+  padding: 14px 18px;
+  background: var(--surface);
+  border-top: 2px solid var(--ink);
+  font-family: var(--sans);
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--ink);
+}
+.breath::before {
+  content: "In one breath";
+  display: block;
+  margin-bottom: 6px;
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* --- bridge: the cross-workspace link block, mirrored in both courses ----- */
+
+.bridge {
+  max-width: var(--measure);
+  margin: 34px 0 0;
+  padding: 18px 20px;
+  background: var(--surface);
+  border-left: 3px solid var(--accent);
+}
+.bridge > p {
+  margin: 6px 0 14px;
+  font-family: var(--sans);
+  font-size: .92rem;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+.bridge-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.bridge-row {
+  position: relative;
+  margin: 0 0 12px;
+  padding-left: 26px;
+}
+.bridge-row:last-child { margin-bottom: 0; }
+.bridge-row::before {
+  content: "\2192";
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--accent);
+}
+.bridge-row > a {
+  font-family: var(--sans);
+  font-size: .95rem;
+  font-weight: 600;
+}
+.bridge-why {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--sans);
+  font-size: .9rem;
+  line-height: 1.5;
+  color: var(--ink-2);
+}
+.bridge-soon {
+  font-family: var(--sans);
+  font-size: .95rem;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
+/* ==========================================================================
+   Generated reference sheets — build_drill.py and build_onepagers.py
+
+   Two wrappers and nothing else. Everything inside them reuses the chapter
+   vocabulary verbatim, because a sheet that looks different from the chapter
+   it was extracted from is a second thing to learn rather than the same thing
+   in a smaller box.
+   ========================================================================== */
+
+.drill { margin: 0 0 30px; }
+
+.drill > .callout-label { display: block; margin: 0 0 10px; }
+
+/* The fold is the whole point of the drill sheet: the question has to be
+   answerable before the answer is on screen. Unlike `.probes details.model`
+   this one carries no class, because there is only ever one kind of fold
+   inside a `.drill`. */
+.drill details {
+  margin-top: 8px;
+  border-top: 1px solid var(--rule-soft);
+  padding-top: 7px;
+}
+
+.drill details > summary {
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--good);
+}
+
+.drill details > summary::-webkit-details-marker { display: none; }
+.drill details > summary::before { content: "\25B8  "; }
+.drill details[open] > summary::before { content: "\25BE  "; }
+.drill details > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.drill details > .qa-a { margin-top: 9px; }
+
+/* One chapter's one-pager. On screen a rule separates them; on paper each
+   one takes a sheet, which is the only reason the file exists. */
+.sheet {
+  max-width: var(--content);
+  margin: 0 0 48px;
+  padding: 0 0 36px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.sheet:last-of-type { border-bottom: none; padding-bottom: 0; }
+
+@media print {
+  /* A closed fold prints as a missing answer and nothing can open it from
+     here, so force the contents visible — same treatment as `.probes`. */
+  .drill details:not([open]) > :not(summary) {
+    display: block !important;
+    content-visibility: visible !important;
+  }
+  .drill details > summary { display: none; }
+
+  .sheet {
+    page-break-after: always;
+    border-bottom: none;
+    margin-bottom: 0;
+    padding-bottom: 0;
+  }
+  .sheet:last-of-type { page-break-after: auto; }
+}
+
+/* --------------------------------------------------------------------------
+   The stack — what each named technology actually is
+
+   The primer above this one defines the domain: rubric, KPI, two-pass, the
+   Scout. It deliberately keeps the tool names out, which is right for the
+   domain and wrong for the interview, because the résumé bullet says the tool
+   names out loud. A chapter that argues "GKE rather than Cloud Run" without
+   ever saying what either one is has skipped the rung its own argument stands
+   on, and the candidate who cannot define the noun loses the room before the
+   trade-off is reached.
+
+   Same box as .primer, so the two read as one orientation section rather than
+   two formats, with a left rule to say that this half is about the tools and
+   the half above it is about the problem.
+   -------------------------------------------------------------------------- */
+
+.stack {
+  margin-top: -20px;
+  border-left: 3px solid var(--accent);
+}
+
+.stack > .callout-label { color: var(--accent-ink); }
+
+/* Each definition carries three beats — what it is, why it is here, what gets
+   asked about it. The beats are <b> runs inside the <dd> rather than three
+   more classes, because .primer dd b already exists and the alternative is a
+   wrapper element per beat for no gain. Set in the label face so the eye can
+   find "What gets asked" without reading the sentence in front of it. These
+   rules come after .primer's in the file and win on order, not specificity. */
+.stack dd b {
+  font-family: var(--sans);
+  font-size: 0.8em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* The expansion of an acronym belongs with the term, not in the sentence, but
+   putting it in the <dt> widens the grid's first column to the longest one on
+   the page and pushes every definition right. So it opens the <dd> instead. */
+.stack dd i {
+  font-style: normal;
+  color: var(--ink-2);
+}
+
+.stack dd i::after { content: " · "; color: var(--ink-3); }
+
+/* --- the walked example --------------------------------------------------
+   .say is the ninety-second opener. This is the ten minutes that follow it,
+   when the interviewer says "walk me through it": one concrete case carried
+   from one end of the system to the other.
+
+   The reason it is a block and not more prose is that a mechanism described
+   in the abstract has to be held in the head, and a listener holding four
+   abstractions cannot ask a question without losing the thread. A case holds
+   itself. They can interrupt at step 6 and both people know where they are.
+
+   Steps are numbered by a CSS counter rather than by hand, so inserting one
+   does not renumber the rest. The number and its label share the left gutter
+   that .star .rung already uses, which is what makes the two spoken blocks
+   read as siblings rather than as two unrelated pieces of furniture. */
+.trace {
+  max-width: var(--content);
+  margin: 34px 0;
+  padding: 19px 22px 21px;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent);
+}
+
+.trace > .callout-label { color: var(--accent-ink); }
+
+.trace > .frame {
+  max-width: var(--measure);
+  margin: 6px 0 14px;
+  font-family: var(--sans);
+  font-size: .92rem;
+  color: var(--ink-2);
+}
+
+/* The analogy and the case sit on paper rather than on the panel, because
+   they are the two things a reader comes back to mid-walk to reorient. */
+.tr-case {
+  max-width: var(--measure);
+  margin: 0 0 9px;
+  padding: 10px 14px;
+  background: var(--paper);
+  border: 1px solid var(--rule-soft);
+  font-size: .95rem;
+  color: var(--ink-2);
+}
+
+.tr-case b:first-child { color: var(--accent-ink); font-weight: 650; }
+
+.trace > ol {
+  list-style: none;
+  margin: 20px 0 0;
+  padding: 0;
+  counter-reset: tr;
+}
+
+.tr-step {
+  counter-increment: tr;
+  position: relative;
+  margin: 0 0 15px;
+  padding: 0 0 15px 8.5em;
+  border-bottom: 1px solid var(--rule-soft);
+}
+
+.tr-step:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+
+.tr-k {
+  position: absolute;
+  left: 0;
+  top: 2px;
+  /* Wider than .star .rung-k because these labels are phrases rather than the
+     five fixed STAR words, and a label wider than its own box overflows rather
+     than wrapping when the phrase is one long word. The gutter is wider still,
+     so this costs nothing. */
+  width: 9.5em;
+  overflow-wrap: break-word;
+  font-family: var(--sans);
+  font-size: 10px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.tr-k::before {
+  content: counter(tr);
+  display: block;
+  margin-bottom: 3px;
+  font-family: var(--serif);
+  font-size: 17px;
+  letter-spacing: 0;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.tr-step > p {
+  max-width: var(--measure);
+  margin: 0 0 7px;
+  font-size: .97rem;
+  color: var(--ink-2);
+}
+
+.tr-step > p:last-child { margin-bottom: 0; }
+
+/* The lead-in word of each paragraph is furniture, the same chip the .stack
+   entries use, so the three kinds of line are told apart without three
+   classes and without three colours. */
+.tr-step > p > b:first-child {
+  font-family: var(--sans);
+  font-size: 10px;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: var(--ink-3);
+}
+
+.tr-step code { font-size: .86em; background: var(--paper); }
+
+@media (max-width: 620px) {
+  .tr-step { padding-left: 0; }
+  .tr-k { position: static; display: block; width: auto; margin-bottom: 5px; }
+  .tr-k::before { display: inline; margin: 0 .45em 0 0; font-size: 13px; }
+}
+
+@media print {
+  .trace { border-color: #333; background: #f7f7f7; break-inside: auto; }
+  .tr-case { border-color: #999; }
+  .tr-step { break-inside: avoid; }
+}

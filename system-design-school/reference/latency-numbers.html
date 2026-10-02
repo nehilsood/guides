@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>Latency Reference Card</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <script src="../assets/theme.js"></script>
+</head>
+<body>
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="../lessons/index.html">System Design School</a>
+    <span class="sep">/</span>
+    <span>Reference</span>
+    <span class="sep">/</span>
+    <span>from lessons 0001–0002</span>
+  </div>
+  <h1>Latency Reference Card</h1>
+  <p class="standfirst">Print this. The top table is the one to memorise; the rest is the arithmetic you will be asked to do out loud.</p>
+</header>
+
+<h2>Orders of magnitude</h2>
+
+<div class="table-wrap">
+<table>
+  <caption>Approximate, and deliberately so — the value is in the ratios, not the digits. Figures drift with hardware; the gaps between rows do not. Source: the “Latency Numbers Every Programmer Should Know” lineage.</caption>
+  <thead><tr><th>Operation</th><th class="n">Time</th><th>Scaled to “1 s = L1 reference”</th></tr></thead>
+  <tbody>
+    <tr><td>L1 cache reference</td><td class="n">~1 ns</td><td>1 second</td></tr>
+    <tr><td>Branch mispredict</td><td class="n">~3 ns</td><td>3 seconds</td></tr>
+    <tr><td>L2 cache reference</td><td class="n">~4 ns</td><td>4 seconds</td></tr>
+    <tr><td>Mutex lock/unlock</td><td class="n">~17 ns</td><td>17 seconds</td></tr>
+    <tr><td>Main memory reference</td><td class="n">~100 ns</td><td>1.5 minutes</td></tr>
+    <tr><td>Compress 1 KB (Snappy)</td><td class="n">~2 µs</td><td>33 minutes</td></tr>
+    <tr><td>Send 1 KB over 1 Gbps</td><td class="n">~10 µs</td><td>2.8 hours</td></tr>
+    <tr><td>SSD random read</td><td class="n">~16 µs</td><td>4.4 hours</td></tr>
+    <tr><td>Read 1 MB sequentially from memory</td><td class="n">~40 µs</td><td>11 hours</td></tr>
+    <tr><td>Round trip within a datacenter</td><td class="n">~500 µs</td><td>5.8 days</td></tr>
+    <tr><td>Read 1 MB sequentially from SSD</td><td class="n">~1 ms</td><td>11 days</td></tr>
+    <tr><td>Disk seek</td><td class="n">~2–10 ms</td><td>3–16 weeks</td></tr>
+    <tr><td>Round trip India → US West</td><td class="n">~230 ms</td><td>7 years</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="callout-label">The one comparison that matters most</span>
+  <p>A datacenter round trip is roughly <strong>5,000×</strong> a memory reference. A cross-continent round trip is roughly <strong>2,000,000×</strong>. This is why a cache hit and a cache miss are different <em>kinds</em> of event rather than different speeds, and why moving a hop off the critical path beats optimising it.</p>
+</div>
+
+<h2>The LLM-turn scale</h2>
+
+<div class="table-wrap">
+<table>
+  <caption>The numbers you actually work with. Nothing on this table is in nanoseconds, which is why intuition built on the table above misleads here.</caption>
+  <thead><tr><th>Hop</th><th class="n">Typical</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>Gateway ingress: auth, validate, route</td><td class="n">5–20 ms</td><td>Never the problem. Do not optimise this.</td></tr>
+    <tr><td>Redis GET, same region</td><td class="n">0.5–2 ms</td><td>Dominated by the round trip, not by Redis.</td></tr>
+    <tr><td>Postgres indexed point query</td><td class="n">1–5 ms</td><td>Unindexed on a large table: 100 ms–seconds.</td></tr>
+    <tr><td>Embedding, small model, hosted</td><td class="n">80–200 ms</td><td>Pure function of the text. Cache it.</td></tr>
+    <tr><td>Vector search, &lt;1 M vectors</td><td class="n">10–50 ms</td><td>Flat scan is fine below ~10 k. Index buys little there.</td></tr>
+    <tr><td>LLM time-to-first-token</td><td class="n">300 ms–2 s</td><td>Prefill scales with prompt length. Usually your largest hop.</td></tr>
+    <tr><td>LLM inter-token delay</td><td class="n">5–40 ms</td><td>Total = TTFT + tokens × delay.</td></tr>
+    <tr><td>TTS first audio chunk</td><td class="n">200–500 ms</td><td>Streaming TTS moves this off the critical path.</td></tr>
+    <tr><td>WebRTC first frame</td><td class="n">50–150 ms</td><td>Plus the network hop to the client.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Percentile arithmetic</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Question</th><th>Answer</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>n sequential hops, each with p99 = T. Turn p99?</td>
+      <td>Magnitude stays near <strong>T</strong>; probability of hitting a tail becomes <strong>1 − 0.99ⁿ</strong>. Five hops → ~5% of turns. Percentiles are <em>not</em> additive.</td>
+    </tr>
+    <tr>
+      <td>Parallel hops?</td>
+      <td>Cost is the <strong>maximum</strong>, not the sum. But the tail is <em>worse</em> than any single hop's: you wait for the slowest of n draws.</td>
+    </tr>
+    <tr>
+      <td>How many samples to trust a p99?</td>
+      <td>At least <strong>1,000</strong> for a stable p99; <strong>10,000+</strong> for p99.9. Below that you are reporting noise with a decimal point.</td>
+    </tr>
+    <tr>
+      <td>Which percentile definition?</td>
+      <td><strong>Nearest-rank</strong>: <code>ceil(q/100 × N) − 1</code>. Never interpolate — it invents a value nobody measured, in the only region anyone argues about.</td>
+    </tr>
+    <tr>
+      <td>Closed-loop generator, C workers, stall of duration S. Bad samples?</td>
+      <td><strong>C</strong>. Independent of S. This is coordinated omission, and it is why the reported tail tracks your worker count rather than your service.</td>
+    </tr>
+    <tr>
+      <td>Open-loop generator, rate R, stall of duration S?</td>
+      <td><strong>R × S</strong> affected requests — which is what a real user population would have experienced.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Budget rules of thumb</h2>
+
+<ul>
+  <li><strong>Never let the median approach the ceiling.</strong> A median at the ceiling means roughly half of requests breach. Aim for the median at 25–35% of budget.</li>
+  <li><strong>Budget against p99, not p50.</strong> The ceiling is a promise about the worst acceptable case, so compare it to a tail statistic.</li>
+  <li><strong>Reserve for retries explicitly.</strong> A hop with one retry can consume double its budget. If the budget has no room for that, the retry policy is decorative.</li>
+  <li><strong>Attack the largest hop first,</strong> and only it. A 42% hop halved beats a 6% hop eliminated.</li>
+  <li><strong>Move hops off the critical path before optimising them.</strong> A hop that does not need the previous hop's output should not be waiting for it.</li>
+  <li><strong>Separate floors from choices.</strong> TLS handshakes, silence windows and speed-of-light are floors. Label them once so nobody spends a sprint on them.</li>
+</ul>
+
+<div class="ask">
+  <p>Companion sheet: <a href="caching-decision-tree.html">Caching Decision Tree</a>. Lessons: <a href="../lessons/0001-latency-budget-arithmetic.html">0001</a>, <a href="../lessons/0002-p50-is-a-lie.html">0002</a>.</p>
+</div>
+
+</div>
+</body>
+</html>

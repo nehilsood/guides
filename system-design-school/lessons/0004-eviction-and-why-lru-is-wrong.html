@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>Eviction, and Why LRU Is Wrong</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0004">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">System Design School</a>
+    <span class="sep">/</span>
+    <span>Tier 1 · Caching &amp; latency</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Lesson 0004</span>
+    <span class="sep">/</span>
+    <span>Docker required</span>
+  </div>
+  <h1>Eviction, and Why LRU Is Wrong</h1>
+  <p class="standfirst">Your cache from lesson 0003 has no memory limit and therefore no eviction policy. That is fine for a laptop and a liability in production. This lesson fills Redis until it refuses writes, then shows you why the default everyone reaches for is the wrong default for an embedding workload.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>You will exhaust a 32 MB Redis, see writes fail rather than evict, then watch <code>allkeys-lru</code> and <code>allkeys-lfu</code> produce measurably different hit rates on the same access pattern — and know which one your workload wants.</p>
+</div>
+
+<div class="anchor-box">
+  <span class="callout-label">Why you, specifically</span>
+  <blockquote>“Designed an on-device RAG and function-calling layer over a quantized <strong>MobileLLM</strong>, covering 50+ TV functions from natural-language queries.”</blockquote>
+  <p>On-device is where eviction policy stops being academic. A TV has a hard memory ceiling you cannot raise by changing an instance type, the access pattern is heavily skewed — a handful of functions account for most invocations — and skew is precisely the condition under which LRU and LFU diverge. You have already shipped the workload this lesson is about.</p>
+  <p>And it is live in your current work too. Your own prep notes, on scaling the gateway, list <em>“prefix caching for the shared system prompt”</em> and <em>“cache-aware routing to maximize prefix-cache hit rate”</em> among the three levers that make the unit economics work. A prefix cache is a cache with a hard memory ceiling and a skewed access pattern — so every eviction decision below applies to it directly, and “what is your eviction policy” is a question about your GPU bill, not just your Redis.</p>
+</div>
+
+<div class="primer">
+  <span class="callout-label">Start here — the plain version</span>
+  <p>A cache has a fixed amount of memory. Fill it, and something has to go before anything new can
+  come in. <b>Eviction</b> is the act of deleting an entry to make room, and the <b>eviction
+  policy</b> is simply the rule for choosing which one dies.</p>
+  <p>Two surprises make this a lesson rather than a footnote. The first is that Redis's out-of-the-box
+  answer is not to evict at all — it starts refusing to store anything new while continuing to
+  answer normally, which is very hard to notice. The second is that the policy everyone reaches for,
+  “delete whatever was used longest ago”, is the wrong one for a workload like yours, and this lesson
+  makes the difference visible on real numbers.</p>
+  <dl>
+    <dt><code>maxmemory</code></dt>
+    <dd>The memory ceiling you set. Without one, Redis grows until the machine objects.</dd>
+
+    <dt><code>noeviction</code></dt>
+    <dd>Refuse writes rather than delete anything. Reads keep working perfectly, which is why
+    nobody notices — health checks read.</dd>
+
+    <dt>LRU</dt>
+    <dd><b>Least Recently Used.</b> Delete whatever has not been touched for the longest time.
+    Reading an entry counts as touching it.</dd>
+
+    <dt>LFU</dt>
+    <dd><b>Least Frequently Used.</b> Delete whatever gets asked for least often. Resists a
+    one-off flood of new data, because each new entry has been used only once.</dd>
+
+    <dt>LRM</dt>
+    <dd><b>Least Recently Modified.</b> Delete whatever has not been <em>written</em> for the
+    longest time; reads do not protect an entry. New in Redis 8.6.</dd>
+
+    <dt><code>allkeys-</code> / <code>volatile-</code></dt>
+    <dd>The prefix says what is eligible: <code>allkeys-</code> means anything, <code>volatile-</code>
+    means only entries that were given a TTL. If nothing has a TTL, a <code>volatile-</code> policy
+    can evict nothing at all.</dd>
+
+    <dt>Hot set</dt>
+    <dd>The entries actually in use right now. The thing you are trying to protect.</dd>
+
+    <dt>Sweep / scan</dt>
+    <dd>A batch job that touches a great many entries once each. Under LRU every one of them looks
+    “recently used” and pushes your hot set out — that is the whole argument of this lesson.</dd>
+
+    <dt>Approximation</dt>
+    <dd>Redis does not keep a perfect ordering, because that would cost more memory than it saves.
+    It samples a handful of entries and evicts the best candidate among them. Close enough, and
+    worth knowing it is not exact.</dd>
+  </dl>
+</div>
+<h2>First: eviction is not automatic</h2>
+
+<p>The single most common production surprise here. In <strong>Redis open source</strong> the default <code>maxmemory-policy</code> is <code>noeviction</code>, which means that when memory runs out Redis does not make room — it starts <strong>returning errors on writes</strong> while continuing to serve reads normally.</p>
+
+<div class="caution">
+  <p><strong>Do not carry that default onto GCP.</strong> Managed Redis does not agree with open-source Redis here. <a href="https://docs.cloud.google.com/memorystore/docs/redis/supported-redis-configurations" target="_blank" rel="noopener">Memorystore for Redis</a> and AWS ElastiCache both default <code>maxmemory-policy</code> to <code>volatile-lru</code>, and <a href="https://redis.io/docs/latest/operate/rs/databases/memory-performance/eviction-policy/" target="_blank" rel="noopener">Redis Enterprise</a> defaults to <code>volatile-lru</code> for most databases (<code>noeviction</code> for Active-Active).</p>
+  <p>That matters more than it looks, because <code>volatile-lru</code> only ever evicts keys that have a TTL. <strong>If nothing in your keyspace has a TTL, <code>volatile-lru</code> behaves exactly like <code>noeviction</code></strong> — writes start failing — except now the policy name on the dashboard says you configured eviction. This is the worst of the three states: broken, and looking correct.</p>
+  <p>You are on GKE. So the honest form of the answer is not "the default is <code>noeviction</code>" but <em>"it depends who provisioned it, and I have checked mine."</em></p>
+</div>
+
+<p>Read that again in terms of your service. Your cache stops accepting new entries but keeps answering for the entries it has. Hit rate slowly decays as the working set shifts, latency creeps up, and nothing in your dashboard says “cache full” unless you were already watching <code>evicted_keys</code> and <code>used_memory</code>. It is a quiet failure, which is the worst kind.</p>
+
+<h3>The policies</h3>
+
+<p>Redis names policies as <code>{scope}-{algorithm}</code>. Scope is <code>allkeys</code> (anything is fair game) or <code>volatile</code> (only keys with a TTL). The algorithms:</p>
+
+<div class="table-wrap">
+<table>
+  <caption>From the Redis documentation on key eviction. Note <code>lrm</code> — it is new, and most tutorials predate it entirely.</caption>
+  <thead>
+    <tr><th>Algorithm</th><th>Evicts</th><th>Right when</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>lru</code></td><td>Least recently <em>used</em> — reads and writes both refresh the timestamp.</td><td>A subset of keys is accessed far more than the rest. Redis's own docs call this the good default under a Pareto-ish distribution.</td></tr>
+    <tr><td><code>lfu</code></td><td>Least <em>frequently</em> used, via a decaying probabilistic counter.</td><td>Popularity is stable over time and you want to resist one-off scans flushing your hot set.</td></tr>
+    <tr><td><code>lrm</code></td><td>Least recently <em>modified</em> — only writes refresh the timestamp.</td><td>Redis 8.6+. Read-heavy workloads where you want to shed data nobody has updated, regardless of how often it is read.</td></tr>
+    <tr><td><code>random</code></td><td>Anything.</td><td>All keys are equally likely to be needed — a repeating full cycle over the keyspace. Rarer than people think, and cheap when true.</td></tr>
+    <tr><td><code>ttl</code></td><td>Shortest remaining TTL first (<code>volatile-ttl</code> only).</td><td>Your code can meaningfully predict which entries are disposable and encode that as a short TTL.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="callout-label">Both LRU and LFU are approximations</span>
+  <p>Redis does not maintain a true LRU list — that would cost more memory than it saves. It samples <code>maxmemory-samples</code> keys at random (default 5) and evicts the best candidate among them, keeping a pool of good candidates between rounds. LFU is approximated too, with a <a href="https://en.wikipedia.org/wiki/Approximate_counting_algorithm" target="_blank" rel="noopener">Morris counter</a> — an 8-bit probabilistic counter per object, so the frequency estimate lives in the range 0–255 rather than being a real count. <code>lfu-log-factor</code> sets how many hits are needed to saturate it (at the default of 10, roughly a million), and <code>lfu-decay-time</code> halves idle counters, in minutes, with <code>0</code> meaning never decay. Raising <code>maxmemory-samples</code> to 10 gets you close to true LRU at some CPU cost. Knowing these are approximations is the difference between quoting a policy name and understanding it.</p>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 386" role="img" aria-labelledby="mech0004-t mech0004-d">
+    <title id="mech0004-t">What each eviction policy sorts on, and what it costs you</title>
+    <desc id="mech0004-d">A 40 MB one-shot sweep is written into an 8 MB cache already holding a 0.4 MB hot set. Sorting by last-touch time evicts the hot set and leaves 5 of 200 keys resident; sorting by hit count evicts the sweep and leaves all 200.</desc>
+    <defs>
+      <marker id="a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+    </defs>
+
+    <!-- MARK 1-2 · what is asking to be stored, drawn honestly to scale.
+         17.5 px per MB, so the 8 MB ceiling lands at x=160. -->
+    <text x="20" y="22" class="strong">Asking to be stored</text>
+    <text x="196" y="22" class="mono ink-warn">maxmemory 8 MB &#8212; the dashes are where it falls</text>
+
+    <rect x="20" y="40" width="8" height="26" class="good"/>
+    <path d="M160,34 L160,72" class="flow-dim"/>
+    <text x="20" y="86" class="lbl">hot set &#183; 200 &#215; 2 KB = <tspan class="strong">0.4 MB</tspan> &#183; 50 hits each &#8212; fits with room to spare</text>
+
+    <rect x="20" y="100" width="700" height="26" class="warn"/>
+    <path d="M160,94 L160,132" class="flow-dim"/>
+    <text x="20" y="146" class="lbl">one-shot sweep &#183; 20 000 &#215; 2 KB = <tspan class="strong">40 MB</tspan> &#183; 1 hit each &#8212; 100&#215; the hot set, 5&#215; the whole cache</text>
+
+    <!-- MARK 3 · the trigger -->
+    <path d="M300,160 L300,194" class="flow" marker-end="url(#a4)"/>
+    <text x="314" y="181" class="mono">ceiling reached &#8594; the policy reads one number per key and evicts the lowest</text>
+
+    <!-- MARK 4 · sort on last touch -->
+    <rect x="20" y="208" width="384" height="164" class="bad"/>
+    <text x="34" y="232" class="strong ink-bad">allkeys-lru &#8212; sorts on last touch</text>
+    <rect x="34" y="247" width="10" height="10" class="good"/>
+    <text x="52" y="256" class="lbl">the hot set dies &#8212; touched before the sweep</text>
+    <rect x="34" y="269" width="10" height="10" class="warn"/>
+    <text x="52" y="278" class="lbl">the sweep survives &#8212; touched a millisecond ago</text>
+    <path d="M34,294 L390,294" class="rule"/>
+    <text x="34" y="326" class="num ink-bad" style="font-size:23px">5 / 200</text>
+    <text x="34" y="345" class="lbl">hot keys still resident</text>
+    <text x="34" y="363" class="lbl-dim">allkeys-random left 4 &#8212; here LRU is a coin flip</text>
+
+    <!-- MARK 5 · sort on hit count -->
+    <rect x="436" y="208" width="384" height="164" class="good"/>
+    <text x="450" y="232" class="strong ink-good">allkeys-lfu &#8212; sorts on hit count</text>
+    <rect x="450" y="247" width="10" height="10" class="warn"/>
+    <text x="468" y="256" class="lbl">the sweep dies &#8212; every key has a count of 1</text>
+    <rect x="450" y="269" width="10" height="10" class="good"/>
+    <text x="468" y="278" class="lbl">the hot set survives &#8212; a count of 50</text>
+    <path d="M450,294 L806,294" class="rule"/>
+    <text x="450" y="326" class="num ink-good" style="font-size:23px">200 / 200</text>
+    <text x="450" y="345" class="lbl">hot keys still resident</text>
+    <text x="450" y="363" class="lbl-dim">same ceiling, same 17 000 evictions</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">Say this while you draw it</span>
+    <ol class="narrate">
+      <li>Draw the hot set as a <b>sliver</b> and the sweep as a bar running off the page. That scale gap is the whole argument: <b>0.4 MB of keys you need against 40 MB you will never read again</b> — a hundred times more, five times the cache.</li>
+      <li>Dash in the <b>ceiling</b> where 8 MB actually falls. The hot set sits comfortably left of it. The sweep does not.</li>
+      <li>One arrow down, and say the sentence that carries everything: <b>“the policy reads one number per key and evicts the lowest.”</b></li>
+      <li>LRU's number is <b>last touch</b>. The sweep keys were touched a millisecond ago, so they win and the hot set dies: <b>5 of 200</b>.</li>
+      <li>LFU's number is <b>hit count</b>. The sweep keys sit at 1 and go first, so the hot set lives: <b>200 of 200</b>.</li>
+      <li>Land it: <b>same workload, same ceiling, same seventeen thousand evictions.</b> The only thing that changed was which number the policy sorted on — and random beat LRU.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds, on paper or a whiteboard. You are not reproducing the picture; you are reproducing the argument, and the argument is four marks long.</p>
+  <ul>
+    <li>Two populations <b>drawn to scale</b> — the sweep has to run off the edge of your paper, or the diagram says nothing.</li>
+    <li>The <b>ceiling</b>, with the hot set fitting inside it and the sweep obviously not.</li>
+    <li><b>The number each policy sorts on</b>, written on its branch: last touch, hit count.</li>
+    <li>Both <b>survivor counts</b>. If you only keep one thing, keep that LRU landed on the same side as random.</li>
+  </ul>
+  <span class="timer">If it took longer than a minute, you drew the picture. Draw the argument.</span>
+</div>
+
+<h2>Why LRU is the wrong default here</h2>
+
+<p>LRU's weakness is that it is fooled by recency without frequency. Consider your evaluation platform running a batch job that embeds a 49-dataset benchmark — a single sweep across thousands of distinct texts, each touched exactly once.</p>
+
+<p>Under <code>allkeys-lru</code>, every one of those one-shot embeddings is “recently used”, so they evict the genuinely hot entries that live interviews depend on. Your batch job flushes your interactive cache. Hit rate collapses for the path that has an 8-second budget, in service of a path that has no budget at all.</p>
+
+<p>Under <code>allkeys-lfu</code>, those one-shot keys have a frequency counter of one. They are the <em>first</em> things evicted, and your hot interactive set survives the sweep. That is the whole argument, and it is a real operational difference rather than a preference.</p>
+
+<h2>Lab — fill it up and break it</h2>
+
+<div class="lab">
+  <header>
+    <span class="kicker">Lab 0004</span>
+    <span class="est">~12 minutes</span>
+    <h3>Exhaust Redis, then compare policies</h3>
+  </header>
+  <div class="body">
+    <div class="prereq">
+      <span>Needs:</span>
+      <span class="chip needs-docker">Docker Desktop running</span>
+      <span class="chip">lesson 0003 cache in place</span>
+    </div>
+
+    <ol class="steps">
+      <li>
+        <p class="what">Confirm the deliberately hostile configuration the compose file ships. 32 MB and <code>noeviction</code> are chosen so you can hit the wall in seconds rather than hours.</p>
+        <pre class="cmd"><span class="prompt">$ </span>docker compose up -d redis
+<span class="prompt">$ </span>docker compose exec redis redis-cli config get maxmemory maxmemory-policy</pre>
+        <pre class="out">1) "maxmemory"
+2) "33554432"
+3) "maxmemory-policy"
+4) "noeviction"</pre>
+      </li>
+
+      <li>
+        <p class="what">Fill it with plain <code>SET</code>s, one command each, and watch Redis start refusing them. Send them down a pipe so 400 000 round trips take seconds.</p>
+        <pre class="cmd"><span class="prompt">$ </span>seq 1 400000 \
+    | awk <span class="str">'{print "set plain:"$1" "sprintf("%0200d",1)}'</span> \
+    | docker compose exec -T redis redis-cli --pipe</pre>
+        <pre class="out">OOM command not allowed when used memory > 'maxmemory'.
+OOM command not allowed when used memory > 'maxmemory'.
+Last reply received from server.
+errors: <span class="fail">282073</span>, replies: 400000</pre>
+        <div class="expect broken">
+          <span class="label">You should see</span>
+          <p>Hundreds of thousands of <code>OOM command not allowed</code> errors, and memory pinned exactly at the ceiling — <strong>117 927 keys stored, 282 073 refused, <code>used_memory_human:32.02M</code></strong>. Redis did not make room. It stopped accepting.</p>
+          <p>Now confirm the asymmetry that makes this dangerous — <strong>reads still work perfectly</strong>:</p>
+          <pre class="cmd"><span class="prompt">$ </span>docker compose exec redis redis-cli info memory | grep used_memory_human
+<span class="prompt">$ </span>docker compose exec redis redis-cli get plain:1
+<span class="prompt">$ </span>docker compose exec redis redis-cli set canary 1</pre>
+          <p>The <code>get</code> succeeds; the <code>set</code> fails. A cache in this state looks healthy from the read path and is silently frozen — and every health check anyone writes is a read.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Now break the ceiling on purpose, because <code>maxmemory</code> is not one. Flush, then do the identical 400 000 writes inside a single Lua script.</p>
+        <pre class="cmd"><span class="prompt">$ </span>docker compose exec redis redis-cli flushall
+<span class="prompt">$ </span>docker compose exec redis redis-cli eval \
+    <span class="str">"for i=1,400000 do redis.call('set','junk:'..i,string.rep('x',200)) end return 'done'"</span> 0
+<span class="prompt">$ </span>docker compose exec redis redis-cli info memory | grep used_memory_human</pre>
+        <pre class="out">"done"
+used_memory_human:<span class="hi">116.20M</span></pre>
+        <div class="expect broken">
+          <span class="label">You should see</span>
+          <p>No error at all, all 400 000 keys written, and <strong>116 MB of memory against a 32 MB <code>maxmemory</code> — 3.6&#215; the limit you set.</strong> Nothing was evicted and nothing was refused.</p>
+          <p>Then run the <em>same</em> script a second time, without flushing:</p>
+          <pre class="cmd"><span class="prompt">$ </span>docker compose exec redis redis-cli eval \
+    <span class="str">"for i=1,10 do redis.call('set','more:'..i,string.rep('x',200)) end return 'done'"</span> 0</pre>
+          <pre class="out">(error) OOM command not allowed when used memory > 'maxmemory'.
+  script: 5874aa98..., <span class="fail">on @user_script:1</span></pre>
+          <p>Refused, and <code>exists more:1</code> returns <code>0</code> — not one key was written. Same script, opposite outcome. <a href="#underneath-0004">Underneath</a> explains why, and it is the most useful thing in this lesson.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Watch what your own service does in that state. Leave Redis full and hit the retrieval endpoint with a query you have never used.</p>
+        <pre class="cmd"><span class="prompt">$ </span>curl -sX POST <span class="str">'localhost:8000/v1/retrieve?q=brand+new+phrasing'</span> | jq '{ms}'
+<span class="prompt">$ </span>curl -sX POST <span class="str">'localhost:8000/v1/retrieve?q=brand+new+phrasing'</span> | jq '{ms}'</pre>
+        <div class="expect">
+          <span class="label">You should see</span>
+          <p>A <code>cache.set_failed</code> warning both times, and <strong>166 ms on both</strong> — the cache never populates, so every request pays full price forever. Your lesson 0003 wrapper is why the service still works at all. Without it this would be a 500.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Turn on eviction and watch the difference immediately.</p>
+        <pre class="cmd"><span class="prompt">$ </span>docker compose exec redis redis-cli config set maxmemory-policy allkeys-lru
+<span class="prompt">$ </span>docker compose exec redis redis-cli set canary 1
+<span class="prompt">$ </span>docker compose exec redis redis-cli info stats | grep -E <span class="str">'evicted_keys|keyspace'</span></pre>
+        <div class="expect">
+          <span class="label">You should see</span>
+          <p><code>OK</code> on the write, and a non-zero <code>evicted_keys</code>. Redis made room by throwing something away. Those two counters — <code>evicted_keys</code> and the <code>keyspace_hits</code>/<code>keyspace_misses</code> pair — are the ones to put on a dashboard.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Now the real comparison. Simulate the skewed-plus-sweep pattern: a small hot set queried constantly, interrupted by a one-shot batch sweep. Run it under each policy.</p>
+        <pre class="cmd"><span class="prompt">$ </span>docker compose exec redis redis-cli flushall
+<span class="prompt">$ </span>docker compose exec redis redis-cli config set maxmemory-policy allkeys-lru
+<span class="prompt">$ </span>docker compose exec redis redis-cli config set maxmemory 8mb
+
+<span class="comment"># hot set: 200 keys, hit 50 times each</span>
+<span class="prompt">$ </span>docker compose exec redis redis-cli eval <span class="str">"
+  for r=1,50 do for i=1,200 do
+    redis.call('set','hot:'..i,string.rep('h',2000))
+    redis.call('get','hot:'..i)
+  end end
+  return 'warm'"</span> 0
+
+<span class="comment"># the benchmark sweep: 20000 keys, touched once each.
+# Plain SETs, not EVAL — step 3 is why.</span>
+<span class="prompt">$ </span>seq 1 20000 \
+    | awk <span class="str">'{print "set sweep:"$1" "sprintf("%02000d",1)}'</span> \
+    | docker compose exec -T redis redis-cli --pipe
+
+<span class="comment"># how much of the hot set survived?</span>
+<span class="prompt">$ </span>docker compose exec redis redis-cli eval <span class="str">"
+  local n=0 for i=1,200 do if redis.call('exists','hot:'..i)==1 then n=n+1 end end
+  return n"</span> 0</pre>
+        <div class="expect">
+          <span class="label">You should see</span>
+          <p>Run the block three times, changing only the policy. On Redis 8.10.1 this machine produced:</p>
+          <div class="table-wrap">
+          <table>
+            <thead><tr><th>Policy</th><th>Hot keys resident</th><th><code>evicted_keys</code></th></tr></thead>
+            <tbody>
+              <tr><td><code>allkeys-lru</code></td><td><strong>5 / 200</strong></td><td>16 953</td></tr>
+              <tr><td><code>allkeys-lfu</code></td><td><strong>200 / 200</strong></td><td>16 969</td></tr>
+              <tr><td><code>allkeys-random</code></td><td>4 / 200</td><td>16 975</td></tr>
+            </tbody>
+          </table>
+          </div>
+          <p>Include <code>allkeys-random</code>. It is the control, and it is the finding: LRU did not merely underperform LFU here, it landed <strong>on the same side as random</strong>. Every policy evicted about seventeen thousand keys to hold the same ceiling — the only thing that differed was <em>which</em> seventeen thousand.</p>
+          <p>Note the sweep in this step uses a plain pipeline of <code>SET</code>s rather than <code>EVAL</code>, for the reason you just proved in step 3: a script would sail past 8 MB and never trigger an eviction at all.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Last, run the same experiment under <code>volatile-lru</code> — the policy your managed Redis probably has right now. Run it twice: once with no TTLs anywhere, then once with a TTL on every key.</p>
+        <pre class="cmd"><span class="comment"># pass 1 — nothing has a TTL (SET, as before)</span>
+<span class="prompt">$ </span>docker compose exec redis redis-cli flushall
+<span class="prompt">$ </span>docker compose exec redis redis-cli config set maxmemory-policy volatile-lru
+<span class="prompt">$ </span>docker compose exec redis redis-cli config resetstat
+<span class="comment"># ... warm the hot set and run the sweep exactly as in step 6 ...</span>
+<span class="prompt">$ </span>docker compose exec redis redis-cli info stats | grep evicted_keys</pre>
+        <pre class="out">errors: <span class="fail">16941</span>, replies: 20000
+evicted_keys:<span class="hi">0</span></pre>
+        <div class="expect broken">
+          <span class="label">You should see, on pass 1</span>
+          <p><strong>Zero evictions, and 16 941 of the 20 000 sweep writes refused.</strong> The hot set &#8220;survived&#8221; 200 / 200 — but not because the policy protected it. It survived because Redis was refusing all new writes. <code>volatile-lru</code> with no TTLs in the keyspace is <code>noeviction</code> wearing a policy name that looks deliberate.</p>
+          <p>Now pass 2: identical workload, but use <code>setex ... 3600</code> instead of <code>set</code> for both the hot set and the sweep, so every key is an eviction candidate.</p>
+          <pre class="out">evicted_keys:<span class="hi">17036</span>
+hot keys resident: <span class="fail">4 / 200</span></pre>
+          <p>Now it evicts &#8212; and it has degenerated into plain LRU, destroying the hot set exactly as <code>allkeys-lru</code> did. So <code>volatile-lru</code> fails in both directions: silently frozen without TTLs, and recency-fooled with them. That is the default on Memorystore and ElastiCache, and it is the reason the first probe below is the one that matters.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+</div>
+
+<div class="evidence" data-evidence-for="0004">
+  <header>
+    <span class="callout-label">Your numbers, not mine</span>
+    <span class="hint">saved in this browser as you type</span>
+  </header>
+  <div class="body">
+    <p>The figures in this lesson are the ones this machine produced. Yours will differ with Redis version, value size and sampling, and the differences are the interesting part. Fill this in as you finish the lab — an eviction claim you cannot attach a measurement to does not survive its first follow-up.</p>
+
+    <div class="rows">
+      <div class="row">
+        <span class="ran"><code>config get maxmemory-policy</code> against the Redis you actually run in production &#8212; not this container</span>
+        <span class="field"><label for="e4-real">The policy</label><input type="text" id="e4-real" data-field="real_policy" placeholder="e.g. volatile-lru"></span>
+        <span class="field"><label for="e4-who">Who set it</label><input type="text" id="e4-who" data-field="real_owner" placeholder="me / Memorystore default"></span>
+        <span class="why-row"><label for="e4-realwhy">And is that the policy you would choose, knowing what you now know?</label><textarea id="e4-realwhy" data-field="real_why" placeholder="If it is volatile-* — does anything in that keyspace carry a TTL? If not, it is evicting nothing."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 2, the <strong>plain <code>SET</code> flood</strong>: how many were stored, how many refused, and where memory settled</span>
+        <span class="field"><label for="e4-stored">Stored / refused</label><input type="text" id="e4-stored" data-field="flood" placeholder="e.g. 117927 / 282073"></span>
+        <span class="field"><label for="e4-mem">Used_memory</label><input type="text" id="e4-mem" data-field="flood_mem" placeholder="e.g. 32.02M"></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 3, the <strong><code>EVAL</code> overshoot</strong>: where memory landed when one script did the same writes from a flushed start</span>
+        <span class="field"><label for="e4-lua">Used_memory</label><input type="text" id="e4-lua" data-field="lua_mem" placeholder="e.g. 116.20M"></span>
+        <span class="field"><label for="e4-mult">&#215; maxmemory</label><input type="text" id="e4-mult" data-field="lua_mult" placeholder="e.g. 3.6x"></span>
+        <span class="why-row"><label for="e4-luawhy">So what headroom does your real deployment leave between <code>maxmemory</code> and the container limit, and is it enough for your largest single write?</label><textarea id="e4-luawhy" data-field="lua_why" placeholder="If maxmemory equals the pod memory limit, the kernel OOM killer is your eviction policy."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 6, the sweep: <strong>hot keys still resident under each policy</strong></span>
+        <span class="field"><label for="e4-lru">allkeys-lru</label><input type="text" id="e4-lru" data-field="hot_lru" placeholder="e.g. 5 / 200"></span>
+        <span class="field"><label for="e4-lfu">allkeys-lfu</label><input type="text" id="e4-lfu" data-field="hot_lfu" placeholder="e.g. 200 / 200"></span>
+        <span class="why-row"><label for="e4-rand">And <code>allkeys-random</code>, which is the control &#8212; if LRU is not clearly better than random on your workload, say so out loud, because that is the finding</label><textarea id="e4-rand" data-field="hot_random" placeholder="e.g. random left 4/200, so LRU's 5/200 is not a policy choice, it is a coin flip."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">The <code>lfu-decay-time</code> you would actually set, given how fast your access pattern churns</span>
+        <span class="field"><label for="e4-decay">Minutes</label><input type="text" id="e4-decay" data-field="decay" placeholder="default is 1"></span>
+        <span class="field"><label for="e4-logf">lfu-log-factor</label><input type="text" id="e4-logf" data-field="logfactor" placeholder="default is 10"></span>
+        <span class="why-row"><label for="e4-decaywhy">Why that and not the default &#8212; this is the threshold question, and the one you will be asked</label><textarea id="e4-decaywhy" data-field="decay_why" placeholder="What is the shortest interval over which your hot set genuinely changes? Decay slower than that and the cache is a museum; faster and you have re-invented LRU."></textarea></span>
+      </div>
+    </div>
+
+    <div class="earned">
+      <span class="callout-label">The bullet this lesson earns</span>
+      <p>“Chose the cache eviction policy from measurement rather than default: under a 20 000-key one-shot batch sweep against a fixed memory ceiling, <code>allkeys-lru</code> retained <span data-fill="hot_lru" class="placeholder">[run step 6]</span> of the hot set against <span data-fill="hot_lfu" class="placeholder">[run step 6]</span> under <code>allkeys-lfu</code>, and set <code>lfu-decay-time</code> to <span data-fill="decay" class="placeholder">[choose one]</span> min against the rate the working set actually turns over.”</p>
+      <p class="caveat">Every number in that sentence has to be one you produced, which is the point of the rows above. Leave a placeholder in and the bullet is worse than no bullet — an interviewer who asks “what was the number?” and gets a pause has learned something about the rest of your r&#233;sum&#233; too.</p>
+    </div>
+  </div>
+</div>
+
+<div class="caution">
+  <span class="callout-label">LFU is not a free win</span>
+  <p>LFU resists scans, but it also resists <em>change</em>. A key that was hot last week has a high counter, and it keeps that advantage until decay catches up — so a genuine shift in usage takes longer to reflect. That is what <code>lfu-decay-time</code> (minutes) and <code>lfu-log-factor</code> exist to tune. If your access pattern genuinely churns, LRU's forgetfulness is a feature. “LFU is better” is the wrong lesson; “LFU is better under stable skew with periodic scans” is the right one.</p>
+</div>
+
+<h2 id="underneath-0004">Underneath</h2>
+
+<div class="underneath">
+  <span class="callout-label">One layer down &#183; why the thing you just configured is allowed to be this approximate</span>
+
+  <p>Everything above is operational: read a policy name, pick a better one, watch a counter. The follow-up question in a design review is never “which policy” — it is <em>“why is that safe?”</em> There are three answers, and all three are about the same thing: every number in this subsystem is an estimate, and knowing how wrong each one is allowed to be is the difference between quoting a policy and understanding one.</p>
+
+  <h3><code>maxmemory</code> is an admission check, not a ceiling</h3>
+
+  <p>The name promises a wall. It is not one. Redis tests memory when it <strong>admits a command</strong>, and a Lua script is one command. The <a href="https://redis.io/docs/latest/develop/interact/programmability/eval-intro/" target="_blank" rel="noopener">scripting documentation</a> states the rule exactly: a command that could enlarge memory is refused <em>“only if this is the first write in the context of this script, otherwise we can't stop.”</em> It cannot stop, because stopping halfway would leave a partially applied script, and a script is supposed to be atomic. Redis chooses atomicity over the memory limit.</p>
+
+  <div class="derive">
+    <p>Which is measurable in three runs, all against <code>maxmemory 32mb</code> and <code>noeviction</code>:</p>
+    <span class="eq">A. flushed first, then <code>EVAL</code> 400 000 SETs   &#8594;  <b>done</b>, used_memory <b>116.20 MB</b>  (3.6&#215;)
+B. same script, memory already over  &#8594;  <b>OOM ... on @user_script:1</b>, zero keys written
+C. <code>DEL</code> one key, <em>then</em> SET, still at 116 MB  &#8594;  <b>the SET lands</b></span>
+    <p>A is the first write being admitted and then never re-checked. B is the same check refusing the script at the door — which is why the error in the lab's step 2 is real, but belongs to the <em>second</em> invocation. C is the hole: the <code>DEL</code> is the first write, so the <code>SET</code> is not, and the check never applies to it (<a href="https://github.com/redis/redis/issues/8478" target="_blank" rel="noopener">redis#8478</a>).</p>
+  </div>
+
+  <p>The operational consequence is not academic. <code>maxmemory</code> has to be set with real headroom under the container's memory limit, because a single script, a <code>MULTI</code> block or one large value can carry you past it — and the thing enforcing the actual limit is then the kernel's OOM killer, which does not evict, it kills. <a href="https://redis.io/faq/doc/1jbxid5qq7/is-maxmemory-the-maximum-value-of-used-memory" target="_blank" rel="noopener">Redis says so in its own FAQ</a>: <em>maxmemory is not the exact maximum amount of memory a Redis instance can use.</em></p>
+
+  <h3>Why sampling five keys is close enough to true LRU</h3>
+
+  <p>Redis keeps no LRU list. A true one costs a pair of pointers per object, which on small values is a large fraction of the thing being stored — you would spend the memory you were trying to save. Instead, each eviction round samples <code>maxmemory-samples</code> keys at random (default 5) and, since Redis 3.0, feeds them into a persistent pool of the best candidates seen so far, so good candidates survive between rounds.</p>
+
+  <div class="derive">
+    <p>The reason that works is that you do not need <em>the</em> least-recently-used key. You need <strong>any key from the cold tail</strong>, and cold keys are the overwhelming majority of a cache under pressure. If the hot fraction you must not touch is <span class="eq" style="display:inline">h</span>, the chance that all N sampled keys are hot is:</p>
+    <span class="eq">P(evict something hot) = h<sup>N</sup>
+
+  h = 0.20, N = 5   &#8594;  0.20<sup>5</sup>  = <b>0.03 %</b>
+  h = 0.20, N = 10  &#8594;  0.20<sup>10</sup> = <b>0.00001 %</b>
+  h = 0.50, N = 5   &#8594;  0.50<sup>5</sup>  = <b>3.1 %</b></span>
+    <p>So the sampling error is governed by how skewed your traffic is, not by how big the keyspace is — which is why the same default works from 10 000 keys to 10 million, and why raising <code>maxmemory-samples</code> to 10 buys almost nothing once your hot set is genuinely small.</p>
+  </div>
+
+  <p>This is also the honest answer to “is Redis's LRU a true LRU?” — no, and the interesting half is that it does not need to be. <a href="https://redis.io/docs/latest/develop/reference/eviction/" target="_blank" rel="noopener">The eviction docs</a> publish the comparison graphs against true LRU; the gap at N=10 is visually hard to find.</p>
+
+  <h3>Why LFU cannot work without decay</h3>
+
+  <p>An LFU counter that only ever goes up is not a measure of popularity, it is a record of all history — and a cache is a claim about the present. Without decay, a key that was hot last week outranks a key that is hot right now, forever, and the cache slowly ossifies into a museum of last month's traffic. That is what <code>lfu-decay-time</code> exists for: it halves idle counters every N minutes (<code>0</code> means never, which is the setting that produces the museum).</p>
+
+  <p>And the counter is not a count. It is an 8-bit <a href="https://en.wikipedia.org/wiki/Approximate_counting_algorithm" target="_blank" rel="noopener">Morris counter</a> — a probabilistic, logarithmic estimate living in 0–255, incremented with a probability that falls as the counter rises. <code>lfu-log-factor</code> sets how fast it saturates; at the default of 10 it takes on the order of a million accesses to reach 255. So two keys sitting at 200 and 205 are not five accesses apart, they are <em>multiples</em> apart. Reading those numbers as counts is the mistake that makes LFU tuning feel arbitrary.</p>
+
+  <p class="lands"><b>Both policies are estimators, and <code>maxmemory</code> is an admission check.</b> So the defensible form of “what is your eviction policy” is never a policy name on its own — it is <em>which number the policy sorts on, how approximate that number is, and how much headroom sits under the real memory limit.</em></p>
+</div>
+
+<h2>Check yourself</h2>
+
+<div class="quiz" data-quiz-id="0004-q1">
+  <p class="q">Redis hits <code>maxmemory</code> under the default policy. What does your service observe?</p>
+  <ol class="options">
+    <li data-correct="true">Writes start failing while reads keep on working normally</li>
+    <li>Reads and writes both fail until memory frees up</li>
+    <li>The oldest keys are dropped and nothing visibly changes</li>
+    <li>Redis restarts itself and comes back with nothing stored</li>
+  </ol>
+  <div class="why">
+    <p>The default is <code>noeviction</code>: Redis refuses commands that would add data and serves reads as normal. This is the quiet failure mode — hit rate decays as the working set drifts while every health check stays green, because health checks read.</p>
+    <p>“Oldest keys dropped” describes what you probably assumed was happening, and it is only true once you have explicitly chosen an <code>allkeys-*</code> policy. Choosing it is the fix; the point of this lesson is that nobody chose it for you.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0004-q2">
+  <p class="q">A nightly batch embeds 20,000 unique texts. Which policy protects your interactive hot set?</p>
+  <ol class="options">
+    <li data-correct="true">LFU, because each swept key is used just once</li>
+    <li>LRU, because the batch keys are the most recent</li>
+    <li>Random, because it treats all stored keys the same</li>
+    <li>TTL, because the batch entries expire before the others</li>
+  </ol>
+  <div class="why">
+    <p>LFU. Every swept key has a frequency counter of one, making them the first candidates for eviction, so your hot interactive entries survive the sweep. Under LRU the swept keys are the <em>most</em> recently used and therefore the best protected — the batch job flushes the cache that your 8-second-budget path depends on.</p>
+    <p>The TTL answer is a genuinely good instinct pointing at the wrong mechanism: giving batch writes a short TTL and using <code>volatile-ttl</code> would also work, and it is more explicit. It costs memory per key for the expiry and it requires the batch path to know it is a batch path. Worth mentioning in an interview as the alternative.</p>
+  </div>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">Not a summary to read. A spoken answer to <em>“tell me about a caching decision you made.”</em> Read it aloud once, then say it again with the page covered. If a sentence needs a second breath, cut it — you will lose it under pressure.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">On the on-device RAG layer for the TV, I had a memory ceiling I could not raise by changing an instance type. And I have the same shape again now: a prefix cache in front of the model, holding a shared system prompt that every request needs.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">When a cache fills, some rule decides what dies. Redis's default rule is not to decide — it starts refusing writes and keeps serving reads, so every health check stays green while the hit rate quietly decays.</p>
+      <p class="line">Once you do turn eviction on, the policy reads exactly one number per key and evicts the lowest. LRU's number is when the key was last touched. LFU's is how often.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">I measured it rather than arguing. Two hundred hot keys, hit fifty times each, then a twenty-thousand-key batch sweep into a fixed ceiling. Under LRU, <b>five</b> of the two hundred hot keys survived. Under LFU, <b>all two hundred</b>. Random left four. On this workload LRU is not a choice, it is a coin flip.</p>
+      <p class="line">Our batch job touches each text exactly once, which is the worst possible input to a recency rule, so we moved to <code>allkeys-lfu</code>.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">LFU resists change as well as scans. A key that was hot last week keeps its counter until decay catches up, so a usage shift shows up late. That made <code>lfu-decay-time</code> a decision I had to make rather than inherit. The honest limit: if our access pattern churned faster, LRU&#8217;s forgetfulness would be the feature.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">“We use LRU.”</span> Almost nobody does, and it is the single easiest claim in this lesson to disprove in one command. If nobody ran <code>config set</code>, open-source Redis is on <code>noeviction</code> and evicting nothing at all. If it came from Memorystore or ElastiCache it is on <code>volatile-lru</code> — which evicts nothing either, unless something in that keyspace carries a TTL.</p>
+  <p>So say the true version, which is stronger anyway: <span class="quoted">“it depends who provisioned it, and I have checked mine — here is what <code>config get maxmemory-policy</code> returns.”</span> Having checked is the signal. Assuming is the tell.</p>
+</div>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      “What is your Redis eviction policy?”
+      <span class="tell">“I don't know, whatever the default is” is honest and is also two different answers: <code>noeviction</code> if someone ran the open-source image, <code>volatile-lru</code> if it came from Memorystore or ElastiCache. Both can be silently refusing writes right now — the second one while displaying a policy name that looks deliberate. Run the <code>config get</code> from step 1 against your real cluster before your next interview.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>&#8220;It depends who provisioned it, and I have checked mine.&#8221; Open-source Redis ships <code>noeviction</code>, which refuses writes rather than evicting; Memorystore and ElastiCache ship <code>volatile-lru</code>, which evicts only keys with a TTL and therefore evicts nothing at all if nothing in the keyspace has one. Both of those are a frozen cache wearing different labels.</p>
+        <p>Then give the number: on our workload I measured <code>allkeys-lru</code> keeping 5 of 200 hot keys through a batch sweep against 200 of 200 under <code>allkeys-lfu</code>, so we run LFU with <code>lfu-decay-time</code> set deliberately.</p>
+        <span class="invites">Invites &#183; <b>&#8220;How much headroom is there between <code>maxmemory</code> and the pod's memory limit?&#8221; &#8212; because <code>maxmemory</code> is an admission check, not a wall, and one Lua script can carry you 3.6&#215; past it.</b></span>
+      </details>
+    </li>
+    <li>
+      “Your batch job runs at 2 a.m. and interactive latency is bad at 8 a.m. Why?”
+      <span class="tell">Cache flushed by the sweep under LRU, then a cold-start morning. This is a favourite question because it requires connecting two subsystems that look unrelated on a dashboard.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The 2 a.m. sweep evicted the 8 a.m. hot set. Every key the batch touched looked freshly used to a recency policy, so it displaced the entries the interactive path depends on, and the morning starts cold.</p>
+        <p>The fix is not more memory, it is the right sort key: LFU puts every once-touched batch key at a count of one and evicts those first. If you cannot change the policy, give batch writes a short TTL and run <code>volatile-ttl</code>, which is more explicit and costs memory per key for the expiry.</p>
+        <span class="invites">Invites &#183; <b>&#8220;How would you have caught this from a dashboard?&#8221; &#8212; <code>evicted_keys</code> against the <code>keyspace_hits</code>/<code>keyspace_misses</code> ratio, correlated by hour. Neither alone shows it.</b></span>
+      </details>
+    </li>
+    <li>
+      “Is Redis's LRU a true LRU?”
+      <span class="tell">No — sampled approximation with a candidate pool, tunable via <code>maxmemory-samples</code>. Answering this correctly is a strong signal that you have read the docs rather than a blog post.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>No, and it does not need to be. A true LRU list costs pointers per object, which on small values is a large slice of the thing you were trying to store. Redis samples <code>maxmemory-samples</code> keys per round &#8212; five by default &#8212; and keeps a pool of the best candidates across rounds.</p>
+        <p>It works because you never need <em>the</em> coldest key, only a key from the cold tail. If the hot fraction is 20&#8239;%, the chance all five samples are hot is 0.2&#8309;, about 0.03&#8239;%. That is why the same default holds from ten thousand keys to ten million: the error depends on skew, not on size.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So when would you raise <code>maxmemory-samples</code>?&#8221; &#8212; when the hot fraction is large, near 50&#8239;%, where the error is 3&#8239;% rather than 0.03&#8239;%. On a sharply skewed cache it buys nothing but CPU.</b></span>
+      </details>
+    </li>
+    <li>
+      “On the TV, you had a hard memory ceiling. How did you decide what to keep resident?”
+      <span class="tell">Straight from your Samsung work, and now you can answer it in eviction-policy vocabulary rather than ad hoc terms.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>At the time, by hand and by instinct &#8212; I kept the function definitions that got invoked most and let the long tail reload. What I could not do then was name it, and it was a frequency policy with a manual decay.</p>
+        <p>Said properly now: a fixed ceiling with a heavily skewed access pattern is exactly the condition where recency and frequency diverge, because a handful of TV functions account for most invocations. Anything that walks the full function catalogue once &#8212; a sync, a reindex &#8212; is a sweep, and under a recency rule it evicts the handful that matter.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What would you measure to prove the policy was right?&#8221; &#8212; hot-set survival across a sweep, which is the one experiment in this lesson and takes ten minutes.</b></span>
+      </details>
+    </li>
+    <li>
+      “What is your prefix-cache hit rate, and what evicts a prefix?”
+      <span class="tell">The scaling question from your own prep notes, asked as an eviction question. A shared system prompt is the hottest possible key and the one you least want evicted — which is the case for frequency over recency, in the place where it costs real money.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>A shared system prompt is the hottest possible key and the one you least want evicted, because a prefix miss is not a slower read &#8212; it is re-running prefill and paying for it in GPU time. So this is an eviction question with a line-item cost.</p>
+        <p>What evicts a prefix is another tenant's traffic filling the same KV cache, and under a recency rule a burst of unrelated long prompts will do it. That is the case for frequency over recency in the place where it is most expensive, and it is also why routing has to be prefix-aware &#8212; round-robin across replicas throws the hit away at the load balancer.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So how do you route to keep the prefix warm?&#8221; &#8212; which is lesson 0009, and the honest answer today is that I do not yet, and that is the gap.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="primary-source">
+  <span class="callout-label">Read this next — one source, not ten</span>
+  <span class="title"><a href="https://redis.io/docs/latest/develop/reference/eviction/" target="_blank" rel="noopener">Redis — Key eviction</a></span>
+  <p>The authoritative page, and short. It gives the full policy list, the rule-of-thumb for choosing between them, the approximated-LRU graphs comparing sample sizes, and the LFU tuning parameters. It is also the only place you will reliably find <code>lrm</code> documented — the Least Recently Modified policy added in Redis 8.6, which almost no tutorial mentions.</p>
+  <p class="cite">Pay attention to the “Using the <code>INFO</code> command” section — it tells you which counters to alert on, which is the operational half most reading on caches leaves out.</p>
+</div>
+
+<h2>Recall — from lessons 0001–0003</h2>
+
+<div class="recall">
+  <details>
+    <summary>Why did your service survive a completely full Redis in step 3?</summary>
+    <p class="answer">Because the cache-aside wrapper treats every Redis call as best-effort — a failed <code>set</code> logs a warning and the request continues on the compute path. Under read-through, where the cache owns the fetch, a full or unreachable cache would have taken the read path down with it. Degrade to slow, not to down.</p>
+    <span class="from">lesson 0003 · cache-aside vs read-through</span>
+  </details>
+  <details>
+    <summary>What must be in the embedding cache key, and what breaks without it?</summary>
+    <p class="answer">The model version: <code>emb:{model_version}:{sha256(normalised_text)}</code>. Without it, changing embedding models leaves every previously cached vector silently valid-looking and semantically wrong. Retrieval quality degrades and nothing errors — the failure has no signal at all.</p>
+    <span class="from">lesson 0003 · the key is the contract</span>
+  </details>
+  <details>
+    <summary>You now have three latency modes on the retrieval hop rather than two. What are they?</summary>
+    <p class="answer">Hit (~46 ms), miss (~166 ms), and <strong>cache unavailable or full</strong> (~166 ms plus the failed round trip to Redis). The third is the one nobody load-tests, and after this lesson you have seen it. Each additional mode is another path your capacity planning has to cover.</p>
+    <span class="from">lessons 0002–0003 · modal behaviour</span>
+  </details>
+</div>
+
+<div class="ask">
+  <p><strong>Bring me your survivor counts from step 5.</strong> The LRU-versus-LFU gap varies a lot with Redis version, sampling, and value size, and if your numbers come out close together that is worth digging into rather than shrugging at — it usually means the hot set fits comfortably and nothing was under pressure.</p>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">Where this lands on the r&#233;sum&#233;</span>
+  <p>This lesson teaches the mechanism from first principles and breaks it in a lab. The chapter opposite defends what you actually did with it, including the number on the r&#233;sum&#233;. An interviewer crosses between those two registers without warning.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <span class="bridge-soon">RM 0013 &#183; On-device RAG over a quantized MobileLLM &#8212; not yet built</span>
+      <span class="bridge-why">Fifty functions under a fixed memory ceiling on a television. Eviction policy stops being academic at that point.</span>
+    </li>
+  </ol>
+</div>
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0003-cache-aside-and-friends.html">← 0003 · Cache-aside and friends</a></span>
+  <span><span class="dir">Next</span><a href="0005-stampede-penetration-avalanche.html">0005 · Stampede, penetration, avalanche →</a></span>
+</div>
+
+</div>
+</body>
+</html>

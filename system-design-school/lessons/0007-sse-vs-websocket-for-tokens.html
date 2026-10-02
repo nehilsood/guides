@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>SSE vs WebSocket for Tokens</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0007">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">System Design School</a>
+    <span class="sep">/</span>
+    <span>Tier 1 &#183; Streaming &amp; LLM serving</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Lesson 0007</span>
+    <span class="sep">/</span>
+    <span>Docker required</span>
+  </div>
+  <h1>SSE vs WebSocket for Tokens</h1>
+  <p class="standfirst">Your gateway already streams. This lesson opens the wire and reads it, prices what streaming actually costs, and then breaks it on purpose &#8212; not the way the internet says it breaks, but the way it broke when measured.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Read your own tokens as bytes, put a real reverse proxy in front of them, and find the one line in <code>app/gateway.py</code> that is the difference between a 390&#8239;ms first word and a 3.8&#8239;second one.</p>
+</div>
+
+<div class="anchor-box">
+  <span class="callout-label">Why you, specifically</span>
+  <blockquote>&#8220;Built a custom OpenAI-compatible LLM gateway powering those interviews at ~2.1&#8239;s median time-to-first-word under a hard <strong>8&#8239;s per-turn budget</strong>.&#8221;</blockquote>
+  <p>That sentence only means anything because the gateway streams. Time-to-first-word is not a metric a non-streaming endpoint has &#8212; without <code>stream=true</code>, first word and last word are the same instant, and your 2.1&#8239;s claim collapses into whatever the full completion takes. Streaming is the reason your best number exists.</p>
+  <p>Which makes it worth knowing that the feature is one response header away from silently switching itself off, and that the header does not do what its name suggests.</p>
+  <p>That sentence is defended in full in <a href="../../resume-mastery/lessons/0002-llm-gateway-and-streaming.html">chapter 0002 of R&#233;sum&#233; Mastery</a> &#8212; this lesson is where the mechanism underneath it gets built and broken.</p>
+</div>
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>When a model answers, it does not finish and then hand you a paragraph. It produces one token at a time, for seconds. <b>Streaming means forwarding each token to the client as it appears instead of collecting them all and sending one response at the end.</b> Nothing about the total time changes &#8212; the generation still takes as long as it takes. What changes is when the human sees the first word.</p>
+  <p>There are two mainstream ways to push a sequence of things down an already-open HTTP connection, and this lesson is about why the boring one is the right one for tokens, what it costs in bytes, and what it cannot do.</p>
+  <dl>
+    <dt>Streaming</dt>
+    <dd>Sending a response in pieces as they become available, over one connection that stays open. The opposite is <b>unary</b> or buffered: one request, one whole response.</dd>
+
+    <dt>SSE &#8212; Server-Sent Events</dt>
+    <dd>A tiny text format for streaming over ordinary HTTP. The server sets <code>Content-Type: text/event-stream</code> and then writes <b>frames</b> until it is done. One direction only: server to client.</dd>
+
+    <dt>Frame</dt>
+    <dd>One SSE message. In practice one line beginning <code>data:</code>, then a <b>blank line</b>. The blank line is the delimiter, not decoration &#8212; omit it and the client waits forever for a message that has already arrived.</dd>
+
+    <dt>WebSocket</dt>
+    <dd>A different protocol that starts as an HTTP request and then <b>upgrades</b> the connection into a two-way byte channel. Both sides can send at any time.</dd>
+
+    <dt>TTFW &#8212; time-to-first-word</dt>
+    <dd>How long from sending the request until the first token reaches the client. The metric on your r&#233;sum&#233;. Only streaming has one.</dd>
+
+    <dt>Inter-token latency</dt>
+    <dd>The gap between consecutive tokens once they start. TTFW says when the answer begins; this says how fast it reads. They move for different reasons, which is lesson 0008.</dd>
+
+    <dt>Chunked transfer encoding</dt>
+    <dd>The HTTP/1.1 mechanism that lets a server send a body without knowing its length in advance: each piece is prefixed with its size. It is what makes an unbounded stream expressible in HTTP at all.</dd>
+
+    <dt>Reverse proxy</dt>
+    <dd>A server that sits in front of yours and forwards requests to it &#8212; nginx, an ingress controller, a load balancer terminating TLS. Your traffic goes through at least one, usually without you choosing it.</dd>
+
+    <dt>Response buffering</dt>
+    <dd>A proxy holding some of your response in memory before passing it on. Widely blamed for breaking streaming. This lesson measures that claim and it does not survive.</dd>
+  </dl>
+</div>
+
+<h2>Streaming is a latency trade, and it has a price</h2>
+
+<p>The generation takes as long either way. What streaming changes is <em>when</em> bytes leave, and it pays for that with a great many more of them. Both of these are measured figures from the lab below, on one completion of 1&#8239;251 characters:</p>
+
+<div class="table-wrap">
+<table>
+  <caption>One completion, delivered two ways. Same model, same text, same 3.8&#8239;s of generation.</caption>
+  <thead>
+    <tr><th>&nbsp;</th><th><code>stream=false</code></th><th><code>stream=true</code></th></tr>
+  </thead>
+  <tbody>
+    <tr><th>Time to first word</th><td>3&#8239;774&#8239;ms</td><td><b>390&#8239;ms</b></td></tr>
+    <tr><th>Time to last word</th><td>3&#8239;774&#8239;ms</td><td>3&#8239;785&#8239;ms</td></tr>
+    <tr><th>Pieces on the wire</th><td>1 response</td><td>182 frames</td></tr>
+    <tr><th>Bytes on the wire</th><td>1&#8239;461</td><td><b>37&#8239;655</b></td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>So: <b>9.7&#215; better first word, at 25.8&#215; the bytes.</b> That is the whole deal, and it is the honest answer to &#8220;why do you stream?&#8221; &#8212; not &#8220;because it is faster&#8221;, which it is not. The total is very slightly <em>worse</em>, by the cost of writing 182 small pieces instead of one large one.</p>
+
+<div class="note">
+  <span class="callout-label">Where the extra 36 kilobytes go</span>
+  <p>Each frame re-sends the entire OpenAI chunk envelope &#8212; completion id, object type, created timestamp, model name, choice index, finish reason &#8212; around one token of about seven characters. The payload-to-overhead ratio is roughly <b>1 to 30</b>. Nobody designed that; it is what you get from wrapping a streaming protocol in a request-shaped JSON schema.</p>
+</div>
+
+<h2>The 182nd frame is not a token</h2>
+
+<p>Worth knowing before you count anything: a 180-token completion produces 182 frames. One hundred and eighty carry text, then one carries an empty delta with <code>finish_reason: "stop"</code>, and the last is the literal sentinel <code>data: [DONE]</code> &#8212; fourteen bytes, not JSON at all, and not part of any specification. It is an OpenAI convention that the whole ecosystem now depends on, which is why your gateway emits it.</p>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 388" role="img" aria-labelledby="mech0007-t mech0007-d">
+    <title id="mech0007-t">Three ways to deliver one completion, on a shared time axis</title>
+    <desc id="mech0007-d">A time axis from zero to four seconds. Without streaming, nothing reaches the client until 3774 milliseconds, then one response of 1461 bytes. With streaming, 182 frames begin arriving at 390 milliseconds and continue to 3785, costing 37655 bytes. With compression enabled at the proxy and the X-Accel-Buffering header removed from the gateway, the frames are all still produced but none leaves until 3796 milliseconds, in one 940-byte flush, which is the non-streaming shape with extra steps.</desc>
+    <defs>
+      <marker id="a7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+    </defs>
+
+    <text x="20" y="22" class="strong">One completion, 1&#8239;251 characters, 3.8&#8239;s of generation. Three deliveries.</text>
+
+    <!-- MARK 1 · the axis. Everything hangs off one shared time scale, which is
+         the only reason the three lanes can be compared at all. -->
+    <path d="M136,210 L700,210 M136,204 L136,216 M277,206 L277,214 M418,206 L418,214 M559,206 L559,214 M700,204 L700,216" class="rule"/>
+    <text x="136" y="232" class="lbl-dim">0</text>
+    <text x="270" y="232" class="lbl-dim">1&#8239;s</text>
+    <text x="411" y="232" class="lbl-dim">2&#8239;s</text>
+    <text x="552" y="232" class="lbl-dim">3&#8239;s</text>
+    <text x="690" y="232" class="lbl-dim">4&#8239;s</text>
+
+    <!-- MARK 2 · stream=false. Silence, then everything at once. -->
+    <text x="20" y="90" class="lbl">stream=false</text>
+    <path d="M136,85 L654,85" class="flow-dim"/>
+    <rect x="656" y="70" width="44" height="30" class="bad"/>
+    <text x="712" y="84" class="num ink-bad" style="font-size:17px">3 774 ms</text>
+    <text x="712" y="99" class="lbl-dim">1 461 bytes</text>
+
+    <!-- MARK 3 · stream=true. One dashed path draws 182 frames: period 2.7px is
+         19.1ms at this scale, which is the measured inter-token gap. -->
+    <text x="20" y="134" class="lbl">stream=true</text>
+    <path d="M136,129 L191,129" class="flow-dim"/>
+    <path d="M191,129 L668,129" class="flow-good"
+          style="stroke-width:26;stroke-dasharray:0.9 1.8;stroke-linecap:butt"/>
+    <text x="712" y="128" class="num ink-good" style="font-size:17px">390 ms</text>
+    <text x="712" y="143" class="lbl-dim">37 655 bytes</text>
+
+    <!-- MARK 4 · same endpoint, gzip at the proxy, header deleted. The frames
+         are all still generated on time; none of them leaves. -->
+    <text x="20" y="178" class="lbl">+ gzip, header gone</text>
+    <path d="M136,173 L654,173" class="flow-dim"/>
+    <rect x="656" y="158" width="44" height="30" class="bad"/>
+    <text x="712" y="172" class="num ink-bad" style="font-size:17px">3 796 ms</text>
+    <text x="712" y="187" class="lbl-dim">940 bytes</text>
+
+    <!-- MARK 5 · the frame itself, and the delimiter people omit. -->
+    <rect x="20" y="252" width="680" height="56" class="box-2"/>
+    <text x="34" y="274" class="mono strong">data: {&#8220;choices&#8221;:[{&#8220;delta&#8221;:{&#8220;content&#8221;:&#8220;the &#8221;},&#8230;}]}\n\n</text>
+    <text x="34" y="296" class="lbl">224 bytes for four characters. The two <tspan class="mono">\n</tspan> are the frame delimiter, <tspan class="strong">0a 0a</tspan> on the wire &#8212; omit them and a client hangs.</text>
+
+    <!-- MARK 6 · the one line, and what it is actually defending against. -->
+    <rect x="20" y="326" width="680" height="52" class="accent"/>
+    <text x="34" y="348" class="mono strong ink-accent">headers={&#8220;X-Accel-Buffering&#8221;: &#8220;no&#8221;}</text>
+    <text x="34" y="368" class="lbl">One line in <tspan class="mono">app/gateway.py</tspan>. It is named for buffering; the thing it saves you from here is <tspan class="strong">compression</tspan>.</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">Say this while you draw it</span>
+    <ol class="narrate">
+      <li>One <b>time axis</b>, zero to four seconds. Every claim in this lesson is a position on it, and three lanes above it.</li>
+      <li>Lane one, <b><code>stream=false</code></b>: a flat line, then one block at the far right. <b>3&#8239;774&#8239;ms</b>, and the first word is the last word.</li>
+      <li>Lane two, <b><code>stream=true</code></b>: a comb starting at <b>390&#8239;ms</b>. Say both numbers &#8212; the ratio is 9.7&#215;, and it is the reason the endpoint exists.</li>
+      <li>Now the two byte counts beside them: <b>1&#8239;461 against 37&#8239;655</b>. You bought that first word with 25.8&#215; the traffic. Name the cost in the same breath as the win, or it is a sales pitch.</li>
+      <li>Lane three is the trap, and it is <em>shaped like lane one</em>. Same endpoint, same frames, all generated on time &#8212; and none of them leaves until <b>3&#8239;796&#8239;ms</b>. Draw it as a dashed wait and one block, identical to the top lane.</li>
+      <li>Last, the frame and the header. Point at the <b>blank line</b>, and then say the header's name out loud: it says <em>buffering</em>, and what it actually rescued was <b>compression</b>.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. This drawing is the answer to &#8220;walk me through your streaming endpoint&#8221;, and the third lane is the half that makes it sound like you have run it rather than read it.</p>
+  <ul>
+    <li>The <b>shared time axis</b>. Three lanes that cannot be compared are three anecdotes.</li>
+    <li><b>390 against 3&#8239;774</b>. If you only remember one pair of numbers, this is it.</li>
+    <li><b>1&#8239;461 against 37&#8239;655</b> &#8212; the cost. Draw it beside the win, never after it.</li>
+    <li>Lane three having <b>the same shape as lane one</b>. That is the whole point: the failure is invisible, because the endpoint still returns 200 and still emits every frame.</li>
+  </ul>
+  <span class="timer">Say &#8220;nine point seven times&#8221; and &#8220;twenty-five point eight times&#8221; as you draw the two lanes. The ratios are the argument; the raw milliseconds are just where they came from.</span>
+</div>
+
+<h2>Lab &#8212; read the frames, then delete one line</h2>
+
+<div class="lab">
+  <header>
+    <span class="kicker">Lab 0007</span>
+    <span class="est">~25 minutes</span>
+    <h3>390&#8239;ms, and how to lose it</h3>
+  </header>
+  <div class="body">
+    <div class="prereq">
+      <span>Needs:</span>
+      <span class="chip needs-docker">Docker Desktop running</span>
+      <span class="chip">anchor/vendor-eval-gateway</span>
+      <span class="chip">no Redis needed</span>
+    </div>
+
+    <ol class="steps">
+      <li>
+        <p class="what">Start the gateway with a <em>deterministic</em> upstream. This is not a detail you can skip &#8212; see the expectation below it.</p>
+        <pre class="cmd"><span class="prompt">$ </span>cd anchor/vendor-eval-gateway
+<span class="prompt">$ </span>UPSTREAM_TTFW_SIGMA=0 uv run uvicorn app.main:app --port 8000 <span class="comment"># terminal 1</span>
+<span class="prompt">$ </span>curl -s localhost:8000/healthz <span class="comment"># terminal 2</span></pre>
+        <pre class="out">{<span class="str">"status"</span>:<span class="pass">"ok"</span>}</pre>
+        <div class="expect">
+          <span class="label">Why sigma zero, and not the default</span>
+          <p>The fake upstream's TTFW is lognormal with <code>sigma=0.45</code>, which on this machine produced a spread of <strong>143 to 854&#8239;ms</strong> across five runs of an identical request. The effect this lab is hunting is a couple of hundred milliseconds. Measuring it against that noise band is how you conclude the opposite of the truth &#8212; which happened here, twice, before the sigma came out.</p>
+          <p>This is lesson 0002 arriving with a bill: <strong>the variance of your instrument sets the smallest effect you are allowed to claim.</strong> Setting <code>sigma=0</code> is the honest move only because the thing under test is the proxy, not the model.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Read the raw bytes of the first frame. Not the parsed events &#8212; the bytes.</p>
+        <pre class="cmd"><span class="prompt">$ </span>curl -sN -X POST localhost:8000/v1/chat/completions \
+  -H <span class="str">'content-type: application/json'</span> \
+  -d <span class="str">'{"messages":[{"role":"user","content":"score this vendor claim"}],"stream":true}'</span> \
+  | head -c 240 | xxd | tail -3</pre>
+        <pre class="out">000000c0: 7468 6520 227d 2c22 6669 6e69 7368 5f72  <span class="hi">the </span>"},"finish_r
+000000d0: 6561 736f 6e22 3a6e 756c 6c7d 5d7d <span class="hi">0a0a</span>  eason":null}]}<span class="hi">..</span></pre>
+        <div class="expect">
+          <span class="label">You should see</span>
+          <p>The frame ends <code>0a0a</code> &#8212; two newlines, the delimiter. Everything before it is one JSON envelope, <strong>224 bytes</strong>, wrapped around the four characters <code>the&#8239;</code>. Note the first frame is the only one carrying <code>&#8220;role&#8221;:&#8220;assistant&#8221;</code>; the rest send <code>content</code> alone and are 204 bytes.</p>
+          <p>If you are curious what a client is actually parsing, drop the <code>xxd</code> and watch the text scroll. The <code>-N</code> on <code>curl</code> is doing real work: without it curl buffers and you see nothing until the end, which is a small preview of the whole lesson.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Price the trade. Run the same request streaming and not, and record first-word, last-word and bytes for each.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python bench/frames.py <span class="comment"># both modes, 5 runs, medians</span></pre>
+        <pre class="out">path                           TTFW ms             total ms  frames   wire B   enc
+direct    :8000        <span class="pass">391</span> (390-415)     3785 (3782-3815)     182    <span class="fail">37655</span>     -
+direct, stream=false  <span class="fail">3777</span> (3771-3787)     3777 (3771-3787)       1     <span class="pass">1461</span>     -</pre>
+        <div class="expect">
+          <span class="label">The trade, in two ratios</span>
+          <p><strong>9.7&#215; better time-to-first-word, for 25.8&#215; the bytes.</strong> Both halves are the answer; either half alone is a sales pitch. Your figures will differ in the absolutes and should not differ much in the ratios.</p>
+          <p>Notice the total is marginally <em>worse</em> when streaming. Writing 182 small responses costs a little more than writing one big one, and anyone who tells you streaming makes the request faster has not measured the last word.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Now put a real reverse proxy in front of it, configured the way a default install is, and re-measure. Port 8080 is stock nginx with <code>proxy_buffering</code> at its default, which is <em>on</em>.</p>
+        <pre class="cmd"><span class="prompt">$ </span>docker compose up -d nginx
+<span class="prompt">$ </span>curl -s localhost:8080/healthz <span class="comment"># through the proxy</span>
+<span class="prompt">$ </span>uv run python bench/frames.py --via 8080 --no-unary</pre>
+        <pre class="out">path                           TTFW ms             total ms  frames   wire B   enc
+stock 4k  :8080        <span class="pass">395</span> (393-403)     3797 (3788-3800)     182    37655     -</pre>
+        <div class="expect broken">
+          <span class="label">This is the step that was supposed to break, and does not</span>
+          <p><strong>393&#8239;ms against 390.</strong> Three milliseconds. Response buffering &#8212; the setting every article on this subject names as the culprit &#8212; did not measurably change anything.</p>
+          <p>Do not move on from this. The received wisdom is that a buffering proxy holds your whole stream and releases it at the end, and it is <em>wrong here</em>, on stock nginx, against a real SSE endpoint. If you had written the lesson from the blog posts you would now be confidently teaching a failure mode you cannot reproduce.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Try harder to break it with buffering. Port 8082 buffers into 128&#8239;KB buffers &#8212; larger than the entire 37&#8239;KB response, so there is room to hold all of it. Port 8083 drops the upstream connection to HTTP/1.0, which is nginx's own default and cannot use chunked encoding.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python bench/frames.py --via 8082 --via 8083 --no-unary</pre>
+        <pre class="out">128k buf  :8082        <span class="pass">395</span> (392-397)     3798 (3789-3804)     182    37655     -
+http/1.0  :8083        <span class="pass">393</span> (391-394)     3792 (3782-3801)     182    37655     -</pre>
+        <div class="expect broken">
+          <span class="label">Still nothing</span>
+          <p>Buffers big enough to swallow the response whole: <strong>392&#8239;ms</strong>. Protocol downgrade: <strong>392&#8239;ms</strong>. Both stream, both intact, all 182 frames, byte-identical totals.</p>
+          <p>The reason is in <a href="#underneath-0007">Underneath</a>, and it is worth reading before you next repeat the buffering story to anyone. Short version: nginx's buffers exist so it can read from you faster than the client reads from it, not so it can wait.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Turn on compression. Port 8084 is the same proxy with <code>gzip on</code> &#8212; which is not perverse, it is the obvious fix for the 25.8&#215; you measured in step 3.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python bench/frames.py --via 8084 --no-unary</pre>
+        <pre class="out">gzip on   :8084        <span class="pass">393</span> (390-418)     3796 (3791-3818)     182     <span class="pass">2588</span>  gzip</pre>
+        <div class="expect">
+          <span class="label">A real win, and it is large</span>
+          <p>Still <strong>393&#8239;ms</strong> to first word, and the wire cost falls from 37&#8239;655 to <strong>2&#8239;588 bytes</strong> &#8212; <strong>14.6&#215; less traffic</strong>, which very nearly cancels the cost of streaming. The reason it compresses so well is exactly the reason it was so big: 182 near-identical envelopes are close to the best case a dictionary compressor will ever see.</p>
+          <p>So compression is correct, it is free, and it is on. Hold that thought for one step.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Delete one line from your own gateway. In <code>app/gateway.py</code>, remove <code>&#8220;X-Accel-Buffering&#8221;: &#8220;no&#8221;</code> from the <code>StreamingResponse</code> headers, restart, and re-run everything.</p>
+        <span class="file-label">app/gateway.py &#8212; the line to delete</span>
+        <pre class="code">        <span class="kw">return</span> StreamingResponse(
+            _stream_chunks(upstream, prompt, completion_id, req.model),
+            media_type=<span class="str">"text/event-stream"</span>,
+            headers={
+                <span class="str">"Cache-Control"</span>: <span class="str">"no-cache"</span>,
+                <span class="comment"># delete the next line, restart, and measure again</span>
+                <span class="str">"X-Accel-Buffering"</span>: <span class="str">"no"</span>,
+            },
+        )</pre>
+        <pre class="cmd"><span class="prompt">$ </span><span class="comment"># restart terminal 1 with the same env, then:</span>
+<span class="prompt">$ </span>uv run python bench/frames.py --via 8000 --via 8080 --via 8082 --via 8083 --via 8084 --no-unary</pre>
+        <pre class="out">direct    :8000        <span class="pass">390</span> (389-416)     3792 (3788-3821)     182    37655     -
+stock 4k  :8080        <span class="pass">395</span> (394-397)     3793 (3790-3799)     182    37655     -
+128k buf  :8082        <span class="pass">396</span> (391-399)     3797 (3788-3798)     182    37655     -
+http/1.0  :8083        <span class="pass">396</span> (393-417)     3796 (3792-3820)     182    37655     -
+gzip on   :8084     <span class="fail">3796</span> (3790-3798)     3796 (3791-3798)     182      <span class="fail">940</span>  gzip</pre>
+        <div class="ba">
+          <div class="before">
+            <span class="label">before &#8212; gzip on, header present</span>
+            <p class="figure">393<span class="unit">ms to first word</span></p>
+            <p class="gloss">182 frames, arriving 19&#8239;ms apart, in 2&#8239;588 bytes.</p>
+          </div>
+          <div class="after">
+            <span class="label">after &#8212; gzip on, header deleted</span>
+            <p class="figure">3796<span class="unit">ms to first word</span></p>
+            <p class="gloss">182 frames, all arriving at once, in 940 bytes.</p>
+          </div>
+        </div>
+        <div class="expect broken">
+          <span class="label">The failure, and how quiet it is</span>
+          <p><strong>Compression is what breaks streaming, not buffering.</strong> Only the gzip lane moved, and it moved by <strong>9.7&#215;</strong> &#8212; back to exactly the number <code>stream=false</code> gave you in step 3. You have a streaming endpoint that no longer streams.</p>
+          <p>And nothing tells you. Status 200. <code>Content-Type: text/event-stream</code>. All 182 frames present, in order, with correct content, ending in <code>[DONE]</code>. Every integration test you would plausibly have written still passes. The only symptom is a metric on a dashboard, and the only person who notices is the one waiting for the first word.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Put the line back, restart, and confirm you are at 393&#8239;ms again. Then read the header's name one more time.</p>
+        <pre class="cmd"><span class="prompt">$ </span>git checkout app/gateway.py <span class="comment"># or paste the line back</span>
+<span class="prompt">$ </span>uv run python bench/frames.py --via 8084 --no-unary</pre>
+        <pre class="out">gzip on   :8084        <span class="pass">393</span> (390-418)     3796 (3791-3818)     182     2588  gzip</pre>
+        <div class="expect">
+          <span class="label">You should see</span>
+          <p>Back to 393&#8239;ms, with the 14.6&#215; compression win intact. Both good things at once, from one header.</p>
+          <p>The header is called <code>X-Accel-Buffering</code>. It is not a gzip setting, it has never been standardised, and it originates in a module of nginx that has nothing to do with compression. What it actually switches off is nginx's entire output-postponing chain, and the gzip filter lives inside that chain. <strong>You are relying on a side effect of a non-standard header named after the wrong subsystem</strong> &#8212; which is fine, everyone is, and it is a much better thing to know than not know.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+</div>
+
+<div class="caution">
+  <span class="callout-label">The decision this leaves you with</span>
+  <p>The header is a defence you did not choose, against a filter you did not know was there, in a proxy you may not own. It is one line and it is worth keeping. But it is not a design, and if the proxy in front of you is someone else's ingress controller then the durable version of this fix is <code>proxy_buffering off</code> on <em>their</em> side of the boundary, agreed with them, in code you can both see.</p>
+  <p>The general form, which is the part worth carrying to another stack: <strong>streaming is a property of the whole path, and every hop can quietly cancel it.</strong> The endpoint being correct proves nothing about what the client receives.</p>
+</div>
+
+<div class="evidence" data-evidence-for="0007">
+  <header>
+    <span class="callout-label">Your numbers, not mine</span>
+    <span class="hint">saved in this browser as you type</span>
+  </header>
+  <div class="body">
+    <p>The figures above are from an Apple laptop with the proxy in Docker Desktop, so the proxy hop costs more than it would in a cluster and the absolutes are pessimistic. The <em>ratios</em> are the transferable part, and they are what an interviewer will ask you for.</p>
+
+    <div class="rows">
+      <div class="row">
+        <span class="ran">Step 3, <strong>the trade</strong>: first-word time streaming and not streaming, medians over five runs</span>
+        <span class="field"><label for="e7-ttfw">stream=true</label><input type="text" id="e7-ttfw" data-field="ttfw" placeholder="e.g. 390 ms"></span>
+        <span class="field"><label for="e7-nostream">stream=false</label><input type="text" id="e7-nostream" data-field="nostream" placeholder="e.g. 3774 ms"></span>
+        <span class="why-row"><label for="e7-ratio">Work out the ratio and write it as a sentence you would say out loud &#8212; because the ratio is the claim, and the milliseconds are only where it came from</label><textarea id="e7-ratio" data-field="ratio_note" placeholder="9.7x better first word. And the last word got 11 ms worse, which is the honest half nobody volunteers."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 3, <strong>what it cost</strong>: bytes on the wire each way, and the frame count</span>
+        <span class="field"><label for="e7-bytes">stream bytes</label><input type="text" id="e7-bytes" data-field="bytes_stream" placeholder="e.g. 37 655"></span>
+        <span class="field"><label for="e7-bytes2">unary bytes</label><input type="text" id="e7-bytes2" data-field="bytes_unary" placeholder="e.g. 1 461"></span>
+        <span class="why-row"><label for="e7-overhead">How many characters of actual text did that carry? Divide. That number is the thing to say when someone asks whether streaming is free</label><textarea id="e7-overhead" data-field="overhead" placeholder="1251 characters inside 37655 bytes, so about 30x envelope overhead — 182 copies of the same JSON wrapper around seven characters each."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Steps 4 and 5, <strong>the folklore</strong>: first-word time through stock buffering, 128&#8239;KB buffers, and an HTTP/1.0 upstream</span>
+        <span class="field"><label for="e7-stock">stock 4k</label><input type="text" id="e7-stock" data-field="stock" placeholder="e.g. 393 ms"></span>
+        <span class="field"><label for="e7-big">128k buffers</label><input type="text" id="e7-big" data-field="bigbuf" placeholder="e.g. 392 ms"></span>
+        <span class="why-row"><label for="e7-folklore">Did any of them break streaming on your machine? Write down what you expected before you ran it &#8212; that gap is the most useful thing in this lesson</label><textarea id="e7-folklore" data-field="folklore" placeholder="I expected the 128k lane to hold the whole response and it did not move at all. I had the mechanism wrong: the buffers are there so nginx can read faster than the client, not so it can wait."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 7, <strong>the collapse</strong>: gzip on, header deleted &#8212; first-word time, and bytes</span>
+        <span class="field"><label for="e7-broken">TTFW broken</label><input type="text" id="e7-broken" data-field="broken" placeholder="e.g. 3796 ms"></span>
+        <span class="field"><label for="e7-gzbytes">gzip bytes</label><input type="text" id="e7-gzbytes" data-field="gzip_bytes" placeholder="e.g. 2 588 &#8594; 938"></span>
+        <span class="why-row"><label for="e7-signal">Name every signal that would <em>not</em> have caught this: status code, content type, frame count, frame order, content, your tests. Then name the one that would</label><textarea id="e7-signal" data-field="signal" placeholder="200, text/event-stream, all 182 frames in order with correct text, [DONE] present, every test green. The only signal is a TTFW percentile on a dashboard, which is the argument for having one."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">The decision: <strong>is there a proxy between your gateway and its clients, and does it compress?</strong> Go and look, do not remember</span>
+        <span class="field"><label for="e7-proxy">What is in the path</label><input type="text" id="e7-proxy" data-field="proxy" placeholder="e.g. GKE ingress + Cloud LB"></span>
+        <span class="field"><label for="e7-gzip">Compression on?</label><input type="text" id="e7-gzip" data-field="gzip_on" placeholder="yes / no / unknown"></span>
+        <span class="why-row"><label for="e7-own">If the answer to either is &#8220;unknown&#8221;, that is the finding. And if the proxy is not yours, say what the durable fix is &#8212; because a header defending you by side effect is not a design you would defend in review</label><textarea id="e7-own" data-field="own_note" placeholder="The header stays because it costs nothing, but the real fix is proxy_buffering off in the ingress config, in a repo I can point at, with a comment saying why."></textarea></span>
+      </div>
+    </div>
+
+    <div class="earned">
+      <span class="callout-label">The bullet this lesson earns</span>
+      <p>&#8220;Measured the streaming gateway end to end: <span data-fill="ttfw" class="placeholder">[run step 3]</span> to first word against <span data-fill="nostream" class="placeholder">[run step 3]</span> unbuffered, at <span data-fill="bytes_stream" class="placeholder">[run step 3]</span> bytes per completion, and traced a first-word regression to <span data-fill="broken" class="placeholder">[run step 7]</span> caused by response compression at the proxy rather than the buffering it is usually blamed on.&#8221;</p>
+      <p class="caveat">The strong half is the last clause, and it is strong precisely because it contradicts the common answer. Anyone can say &#8220;we stream&#8221;. Having found that the widely-cited cause was not the cause, on your own traffic, is a different kind of claim &#8212; and it survives the follow-up, because you have the table.</p>
+    </div>
+  </div>
+</div>
+
+<h2 id="underneath-0007">Underneath</h2>
+
+<div class="underneath">
+  <span class="callout-label">One layer down &#183; why compression breaks a stream and buffering does not</span>
+
+  <p>Four things are worth understanding a layer below the configuration, because between them they explain every result in the lab and most of the internet's confusion about this topic.</p>
+
+  <h3>A frame is a text line and a blank line, and that is the entire protocol</h3>
+
+  <p>SSE has no framing layer. There is no length prefix, no opcode, no mask, no header per message &#8212; the delimiter is <code>\n\n</code> and the field is <code>data:</code>. That is why it needs chunked transfer encoding underneath: HTTP has to be able to send a body of unknown length, and the chunk sizes do the work that SSE declines to do.</p>
+
+  <div class="derive">
+    <p>Which makes the envelope, not the protocol, the reason streaming is expensive:</p>
+    <span class="eq">completion text            1 251 chars
+frames                       182  (180 tokens + stop + [DONE])
+wire bytes                37 655
+&#8594; bytes per character   <b>30.1</b></span>
+    <p>Thirty bytes of JSON per character of answer. Almost none of that is SSE &#8212; <code>data: </code> plus <code>\n\n</code> is eight bytes of the 224. The rest is the completion id, the created timestamp, the model name, the object type, the choice index and the finish reason, re-sent around every token because the chunk schema was designed to look like the non-streaming response rather than like a stream.</p>
+  </div>
+
+  <p>It also explains step 6. A dictionary compressor seeing 182 near-identical 220-byte structures is in close to its ideal case, which is why gzip found 14.6&#215; and would have found more on a longer completion. The overhead is real and it is also almost entirely redundant.</p>
+
+  <h3>Buffering is a read-ahead, not a wait</h3>
+
+  <p>The reason the buffering lanes did not move is that <code>proxy_buffering on</code> does not mean &#8220;accumulate the response and forward it at the end&#8221;. It means nginx is allowed to read from the upstream as fast as the upstream will produce, storing what the client has not yet taken. The buffers exist to <em>decouple</em> a fast backend from a slow client &#8212; which is a real and valuable thing, because it lets your worker finish and move on rather than being held open at the speed of somebody's phone.</p>
+
+  <div class="derive">
+    <p>The measurement, five runs each, sigma zero, header present:</p>
+    <span class="eq">direct                  390 ms
+stock 4 KB buffers      393 ms   (+3)
+128 KB buffers          392 ms   (+2)
+HTTP/1.0 upstream       392 ms   (+2)
+&#8594; buffering costs   <b>about 3 ms, which is the proxy hop</b></span>
+    <p>Buffering only becomes a delay when the buffers cannot be handed onward &#8212; a client too slow to drain them, at which point nginx spills to a temp file on disk and you get a genuinely different failure. That is a back-pressure problem, and it is not what happens to a laptop on a loopback interface.</p>
+  </div>
+
+  <h3>Compression cannot flush what it has not finished looking at</h3>
+
+  <p>Deflate is a sliding-window compressor: to emit a byte it wants to know whether the bytes after it repeat something already seen. Given a 220-byte frame that is 97&#8239;% identical to the previous one, the useful thing to do is wait for more input. So a compressor asked to stream must be told, explicitly and per message, to stop optimising and emit what it has &#8212; a sync flush. Skip that and it does exactly what it should: it holds your tokens as raw material.</p>
+
+  <div class="derive">
+    <p>What the header actually changed, gzip lane only:</p>
+    <span class="eq">header present     393 ms   182 frames arriving 19 ms apart   2 588 B
+header deleted    3796 ms   182 frames arriving together      940 B
+&#8594; ratio         <b>9.7&#215;</b>, and the compression got <em>better</em></span>
+    <p>Note the direction of the byte column. Withholding the flush is what makes compression work well &#8212; 940 bytes against 2&#8239;588 &#8212; so the broken configuration is the efficient one. Streaming and compression are in genuine tension, and <code>X-Accel-Buffering: no</code> resolves it by disabling nginx's output-postponing chain, which the gzip filter sits inside. The header is not a compression setting; it just happens to switch off the machinery compression uses to hold bytes back.</p>
+  </div>
+
+  <h3>What WebSocket buys is a direction, not a speed</h3>
+
+  <p>Nothing in the lab is a reason to reach for WebSocket. It would not have been faster, it would not have compressed better, and it would have been broken by exactly the same proxies. Its one structural advantage is that the client can send while the server is still sending &#8212; and for a token stream there is precisely one message worth sending on that channel: <em>stop</em>.</p>
+
+  <p>That matters more than it sounds. When an SSE client disconnects, generation upstream does not stop because it was asked to; it stops when something notices the write failed, if anything does. Every token after that point is billed and discarded. With SSE, cancellation is a second HTTP request against a completion id you had to invent and track; with WebSocket it is one frame on the connection already in your hand. If your product has a barge-in button, that is the argument &#8212; and it is an argument about control, not about throughput.</p>
+
+  <p class="lands"><b>Streaming is a property of the path, and compression is its natural enemy.</b> Your endpoint can be perfect and your client can still see one lump at the end, because a filter three hops away is doing its job well. The two ratios worth carrying out of here are <b>9.7&#215;</b> &#8212; what streaming buys, and what losing it costs, the same number twice &#8212; and <b>25.8&#215;</b>, the bytes it costs before compression and 1.8&#215; after.</p>
+</div>
+
+<h2>Check yourself</h2>
+
+<div class="quiz" data-quiz-id="0007-q1">
+  <p class="q">Your streaming endpoint works on your laptop and delivers every token at once in staging. Which proxy setting is the likeliest cause?</p>
+  <ol class="options">
+    <li data-correct="true">Response compression, which buffers to build a compressed stream</li>
+    <li>Response buffering, which holds output until a buffer fills</li>
+    <li>Protocol downgrade, which prevents the use of chunked encoding</li>
+    <li>Read timeout, which truncates output before the last token</li>
+  </ol>
+  <div class="why">
+    <p>Compression. A deflate stream wants more input before it emits anything, so unless it is given an explicit per-message flush it holds your frames as raw material &#8212; measured here at <strong>3&#8239;796&#8239;ms to first word against 393</strong>, with the response getting <em>smaller</em> as it got slower.</p>
+    <p>Buffering is the tempting answer and it is the one the internet gives, which is why this lesson measures it: stock 4&#8239;KB buffers cost 3&#8239;ms, and buffers larger than the whole response cost 2&#8239;ms. <code>proxy_buffering</code> is a read-ahead so a fast backend need not wait for a slow client, not an instruction to accumulate and forward at the end.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0007-q2">
+  <p class="q">Streaming the same completion cost 25.8&#215; the bytes of one non-streaming response. Where did the extra bytes go?</p>
+  <ol class="options">
+    <li data-correct="true">Into one JSON envelope repeated around every single token</li>
+    <li>Into the extra headers each separate frame must carry</li>
+    <li>Into the blank lines that terminate each event frame</li>
+    <li>Into a longer completion produced by the streaming path</li>
+  </ol>
+  <div class="why">
+    <p>The envelope. Every one of the 182 frames re-sends the completion id, created timestamp, model name, object type, choice index and finish reason around roughly seven characters of text &#8212; <strong>224 bytes to carry four characters</strong> in the first frame, and 30 bytes per character across the whole completion.</p>
+    <p>The blank-line answer is the right instinct aimed at the wrong scale: the delimiter plus the <code>data: </code> prefix is eight bytes of 224, about 3&#8239;%. SSE itself is close to free. The expensive decision was wrapping a stream in a schema shaped like a request-response body, and it is why the whole thing compresses 14.6&#215;.</p>
+  </div>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">A spoken answer to <em>&#8220;you say 2.1 seconds to first word &#8212; how does that actually work, and what did it cost you?&#8221;</em> This is the question your best r&#233;sum&#233; number invites, so it is the one to have cold. Read it aloud, then say it again with the page covered.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">The gateway is OpenAI-compatible and it streams, which is the only reason time-to-first-word is a number we have at all. Without streaming, first word and last word are the same instant and the metric does not exist.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">It is server-sent events over one ordinary HTTP connection. The server writes a line starting <code>data:</code> and then a blank line, per token, and the blank line is the delimiter &#8212; that is the whole protocol. Chunked transfer encoding underneath is what lets HTTP carry a body whose length nobody knows yet.</p>
+      <p class="line">Which means it is one-way. The client cannot say anything back on that connection, and that turns out to be the only real reason anyone picks WebSocket instead.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">I measured both ways on one completion. First word at <b>390 milliseconds</b> streaming, against <b>3.8 seconds</b> unbuffered &#8212; call it <b>nine and a half times</b> better. Then I put a stock nginx in front and tried to break it.</p>
+      <p class="line">And the thing everyone blames did not break it. Response buffering cost three milliseconds. Buffers bigger than the whole response cost two. What broke it was <b>gzip</b>: first word went to <b>3.8 seconds</b>, all 182 frames arriving in one flush, and the fix was one header our gateway already sets.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">Streaming is not free. The same answer costs <b>twenty-six times</b> the bytes, because each frame re-sends the whole JSON envelope around about seven characters &#8212; roughly thirty bytes per character of output. Compression brings that back to under twice, which is why we want gzip on and why the collision matters.</p>
+      <p class="line">And the honest limitation is cancellation. When a client hangs up mid-stream we keep generating and keep paying, because SSE gives us no channel to be told to stop. That is the argument for WebSocket, and it is about control rather than speed.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;We stream over SSE, so the client sees tokens as they are generated.&#8221;</span> The first clause is a fact about your code and the second is a claim about a network path you do not control. Between your <code>StreamingResponse</code> and a browser there is at least one proxy, and a single compression filter turns that sentence into a 3.8-second lie that returns 200 and passes every test you wrote. The follow-up that finds it is <em>&#8220;how do you know?&#8221;</em>, and the only answer that holds is a first-word percentile measured at the client.</p>
+  <p>The other trap is the confident version of the folklore: <span class="quoted">&#8220;you have to turn off proxy buffering or streaming breaks.&#8221;</span> Widely repeated, and it cost three milliseconds when measured. Saying it invites <em>&#8220;have you seen that happen?&#8221;</em>, and the version that holds is: <span class="quoted">&#8220;buffering is a read-ahead and it was fine &#8212; what actually broke it was compression, and I have the table.&#8221;</span></p>
+</div>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;Your users say the response hangs and then dumps everything at once. Where do you look?&#8221;
+      <span class="tell">They want a path, not a guess. Walk the hops from the model to the browser and name what each one can do to a stream. Getting to compression rather than stopping at buffering is the whole signal here, and saying you measured it is what makes it credible.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>First I would confirm which one it is, because &#8220;hangs then dumps&#8221; and &#8220;slow first token&#8221; have different causes. If the frames all arrive together, generation was fine and something in the path accumulated them &#8212; so I walk the hops: our own handler, then any proxy, then the client library. On our side I check that the frames leave when they are produced, which I can do with <code>curl -N</code> against the pod directly.</p>
+        <p>Then the proxy, and I would go to <strong>compression before buffering</strong>. I have measured this: stock nginx buffering cost three milliseconds, and turning on gzip took first word from 393&#8239;ms to 3&#8239;796 &#8212; all 182 frames in one flush, status 200, nothing else wrong. The last hop to rule out is the client, since <code>curl</code> without <code>-N</code> reproduces the same symptom entirely locally.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So how would you catch it next time?&#8221; &#8212; a time-to-first-word percentile measured at the client, not in the handler, because every server-side signal in that failure was healthy.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Why SSE and not WebSocket?&#8221;
+      <span class="tell">A protocol tour scores nothing. The answer is that SSE is sufficient because the data flows one way, and the interesting half is naming the case where that stops being true. Do not claim a performance reason; there is not one.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Because the traffic is one-directional and SSE is ordinary HTTP. It goes through our existing gateway, ingress, auth and observability with no special handling, and reconnection with <code>Last-Event-ID</code> is in the protocol rather than in my code. WebSocket would be a second transport to operate for no gain &#8212; it is not faster, it does not compress better, and it is broken by the same proxies.</p>
+        <p>Where that flips is cancellation. Right now if a client hangs up mid-generation we keep producing tokens and keep paying for them, because there is no channel for the client to say stop &#8212; it has to be a second HTTP request against the completion id. If we shipped barge-in, where a user interrupts the avatar mid-sentence, I would want that channel and I would move.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What happens today when the client disconnects?&#8221; &#8212; honestly, we generate to completion unless something notices the write failed, so we pay for tokens nobody read.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;You quote 2.1 seconds median time-to-first-word. How is that measured?&#8221;
+      <span class="tell">The trap from lesson 0002, wearing a streaming costume. Where the clock starts and stops decides the number, and measuring inside the handler flatters you by exactly the amount of the failure in this lesson. Name the instrument, then name what it cannot see.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Wall clock from the request leaving the client to the first frame arriving at it, and it has to be at the client, because everything downstream of our handler is invisible from inside it. The gateway logs its own first-frame time as <code>gateway.ttfw</code>, which is useful for splitting our latency from the model's, but it is not the user's number &#8212; in the compression failure I measured, the handler's figure stayed at 390&#8239;ms while the client saw 3&#8239;796.</p>
+        <p>I would also be careful about what counts as the first frame. My first measurement of the gzip path read 14&#8239;milliseconds, which was the compression header arriving, not a token. The instrument has to look at the first decoded <code>data:</code> line or it reports a number better than reality.</p>
+        <span class="invites">Invites &#183; <b>&#8220;And the p95 and p99?&#8221; &#8212; the question median always invites, which is lesson 0002, and the answer needs an open-loop generator or it is flattering me.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Twenty-six times the bytes sounds bad. Would you stop streaming?&#8221;
+      <span class="tell">A test of whether you can price a tradeoff rather than recite it. The answer is no, and the reason is that the cheap fix already exists and you measured it &#8212; but you should say when the answer <em>would</em> be yes.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>No, because compression takes it back. The uncompressed cost was 37&#8239;655 bytes against 1&#8239;461 for one response, but gzip brought that to 2&#8239;588 &#8212; under twice the non-streaming size, for a first word nine and a half times sooner. That is not a close decision, and it stays open because the same header that keeps streaming alive is what lets both wins coexist.</p>
+        <p>Where I would reconsider is a client paying per byte on a metered connection, or an internal service-to-service hop where no human is waiting. Streaming to something that only acts on the finished text buys nothing and costs the envelope, so those calls should be <code>stream=false</code> &#8212; and some of ours probably still are not.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Which of your callers are machines?&#8221; &#8212; a question about whether streaming became a default rather than a decision, and the answer is that it did.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;A million concurrent sessions. What does the connection model do to you?&#8221;
+      <span class="tell">Straight out of your own prep notes. The move is to convert sessions into concurrent generations before saying anything about infrastructure, then name what a long-lived connection costs the layer in front. Do not answer with replicas.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>First I would separate concurrent sessions from concurrent generations, because they differ by a lot. If a turn takes eight seconds and a person speaks every thirty, in-flight generations are about eight thirtieths of a million &#8212; call it 267&#8239;000. That is the number that sizes anything, and it is the one people skip.</p>
+        <p>Then the connection model bites before the model servers do. Each in-flight turn holds an open connection for the whole generation, so the gateway is holding hundreds of thousands of sockets and the proxy in front is doing the same &#8212; and because the session is stateful, the load balancer's placement decision is not free either, which is the routing problem in the next lesson. The honest answer is that I have measured the single-node path carefully and have not measured this, and the first thing I would look at is file descriptors and proxy connection limits rather than GPUs.</p>
+        <span class="invites">Invites &#183; <b>&#8220;And what decides which replica a session lands on?&#8221; &#8212; prefix-cache affinity, which is lesson 0009, and round-robin actively throws the win away.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="primary-source">
+  <span class="callout-label">Read this next &#8212; one source, not ten</span>
+  <span class="title"><a href="https://html.spec.whatwg.org/multipage/server-sent-events.html" target="_blank" rel="noopener">WHATWG HTML Standard &#8212; Server-sent events</a></span>
+  <p>The specification, and it is short enough to read in one sitting. Read <strong>&#167;9.2.5 &#8220;Parsing an event stream&#8221;</strong> and <strong>&#167;9.2.6 &#8220;Interpreting an event stream&#8221;</strong> &#8212; between them they are the entire protocol, and they will tell you two things your gateway does not use: <code>id:</code> with <code>Last-Event-ID</code> for resumption, and <code>retry:</code> for controlling the client's reconnect delay. Note also what the spec says about the <code>data:</code> field when a line has no colon, which is how the <code>[DONE]</code> sentinel gets away with not being JSON.</p>
+  <p class="cite">For the proxy half: <a href="https://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_buffering" target="_blank" rel="noopener">nginx &#8212; <code>proxy_buffering</code></a>, whose own wording is the reason the folklore is wrong &#8212; it describes reading the response &#8220;as soon as possible&#8221; into buffers, not withholding it. And <a href="https://nginx.org/en/docs/http/ngx_http_gzip_module.html" target="_blank" rel="noopener">the gzip module</a>, which is what actually cost you 3.4 seconds.</p>
+</div>
+
+<h2>Recall &#8212; from lessons 0004&#8211;0006</h2>
+
+<div class="recall">
+  <details>
+    <summary>The first time this lab's first-word figure was measured through the gzip path, it read <code>14 ms</code> &#8212; better than the direct path. Why was that wrong, and what is the general form?</summary>
+    <p class="answer">It was timing the first <em>network</em> chunk, and with compression in the path the first bytes on the wire are the gzip stream header, not a token. The instrument was measuring something real and irrelevant. This is the same failure as lesson 0006's fork stall, where <code>redis-cli --latency</code> sampled fourteen times a second and could not see a one-millisecond event, and reported an absent spike as evidence there was none. General form: <strong>an instrument that answers a question adjacent to yours will answer it confidently.</strong> Here the fix was to time the first decoded <code>data:</code> frame instead.</p>
+    <span class="from">lesson 0006 &#183; an instrument that lies by omission</span>
+  </details>
+  <details>
+    <summary>Your retrieval hop caches embeddings, so a hit removes about 120&#8239;ms from a 390&#8239;ms first word. Which of lesson 0005's three failures would make time-to-first-word <em>worse</em> than having no cache at all?</summary>
+    <p class="answer">All three, and a stampede most sharply. The miss window is as wide as the compute time, so under concurrency every request for one cold key pays the full recompute &#8212; and single-flight, which is the fix, makes 199 of them <em>wait</em> for the winner rather than compute. On a first-word metric that waiting is directly visible: the cache turns from a 120&#8239;ms saving into a queue. Penetration is worse still, because it never saves anything and adds a round trip to every request.</p>
+    <span class="from">lesson 0005 &#183; the miss window is the failure</span>
+  </details>
+  <details>
+    <summary>Suppose you cached whole completions in Redis under <code>allkeys-lru</code> to skip generation entirely. What does a nightly batch sweep do to your first-word metric, and why does the policy matter?</summary>
+    <p class="answer">It evicts the hot conversational set in favour of keys touched once, because LRU cannot tell a scan from real traffic &#8212; so the next morning's first-word times return to the uncached 390&#8239;ms baseline with no error anywhere. Under <code>allkeys-lfu</code> the batch keys never accumulate enough frequency to displace the hot set, which is why the policy is the decision and the eviction is only its consequence.</p>
+    <span class="from">lesson 0004 &#183; LRU cannot see a scan</span>
+  </details>
+</div>
+
+<div class="ask">
+  <p><strong>This is the first lesson of the new batch, and the one I want your reaction to.</strong> It is built on a result that contradicts what the internet says, which is exactly the kind of material I think is worth your time &#8212; but tell me whether the folklore-refutation shape works for you or just feels like a detour. And the real test: cover the screen, redraw the three lanes, and say the 75 seconds out loud. If either of those does not come, that is the thing to tell me before I build nine more like it.</p>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">Where this lands on the r&#233;sum&#233;</span>
+  <p>This lesson teaches the mechanism from first principles and breaks it in a lab. The chapter opposite defends what you actually did with it, including the number on the r&#233;sum&#233;. An interviewer crosses between those two registers without warning.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../resume-mastery/lessons/0002-llm-gateway-and-streaming.html">RM 0002 &#183; The gateway and the move to streaming</a>
+      <span class="bridge-why">You chose SSE for token delivery. The chapter is where you say why, and where the r&#233;sum&#233;'s own wording about the transport gets corrected.</span>
+    </li>
+  </ol>
+</div>
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0006-redis-is-not-magic.html">&#8592; 0006 &#183; Redis is not magic</a></span>
+  <span><span class="dir">Next</span><a href="0008-kv-cache-and-prefix-caching.html">0008 &#183; KV cache and prefix caching &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

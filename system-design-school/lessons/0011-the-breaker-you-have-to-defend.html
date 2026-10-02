@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>The Breaker You Have to Defend</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0011">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">System Design School</a>
+    <span class="sep">/</span>
+    <span>Tier 1 &#183; Resilience</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Lesson 0011</span>
+    <span class="sep">/</span>
+    <span>No Docker</span>
+  </div>
+  <h1>The Breaker You Have to Defend</h1>
+  <p class="standfirst">The three states are the easy part and nobody will ask you about them. What gets asked is where your threshold came from, and the honest answer has to survive the fact that the best source on retries recommends not having this component at all.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Drive a breaker through all three states, then break it twice on purpose: once with a missing <strong>minimum-sample gate</strong>, where a single failed call refuses <strong>100 healthy requests</strong>, and once with a dependency that is slow rather than failing, where the breaker stays shut through <strong>100 requests over budget</strong>.</p>
+</div>
+
+<div class="anchor-box">
+  <span class="callout-label">Why you, specifically</span>
+  <blockquote>&#8220;&#8230;a two-pass <strong>Scout/Evaluator pipeline</strong> (Gemini, Tavily) grounding every vendor claim in a cited source.&#8221;</blockquote>
+  <p>Gemini and Tavily are two third-party dependencies sitting inside a hard per-turn deadline, and you do not operate either of them. That is the exact situation a breaker exists for, and also the exact situation where a badly-tuned one turns a partial outage into a total one.</p>
+  <p>The second place this bites is the pipeline-failure debugger, which triages against a flaky upstream and then retriggers work unattended. A breaker there is protecting a dependency from <em>your automation</em>, which never gets bored and never backs off on its own.</p>
+  <p>Both bullets are defended in full in <a href="../../resume-mastery/lessons/0001-vendor-evaluation-platform.html">chapter 0001</a> and <a href="../../resume-mastery/lessons/0005-agentic-pipeline-debugging.html">chapter 0005 of R&#233;sum&#233; Mastery</a> &#8212; this lesson is where the mechanism underneath them gets built and broken.</p>
+</div>
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>A circuit breaker is a small state machine wrapped around calls to one dependency. While the dependency looks healthy it does nothing. When enough calls fail it <b>opens</b>, and every subsequent call fails instantly without touching the dependency at all. After a while it lets exactly one call through to see whether things have improved.</p>
+  <p>That much is on every diagram. The part that matters is underneath it: the breaker has to decide what <em>&#8220;enough calls fail&#8221;</em> means, and it does that with a <b>failure estimator</b> &#8212; a running measurement of how badly the dependency is doing. Every threshold you will be asked to justify is a property of that estimator, not of the state machine.</p>
+  <dl>
+    <dt>Closed</dt>
+    <dd>Normal. Calls go through and outcomes are recorded. Confusingly, &#8220;closed&#8221; is the working state, because the name comes from electrical circuits rather than doors.</dd>
+
+    <dt>Open</dt>
+    <dd>Tripped. Calls fail immediately without reaching the dependency, which is the entire point: you are protecting it from the load, and yourself from the latency.</dd>
+
+    <dt>Half-open</dt>
+    <dd>Testing. Exactly one call is allowed through. It succeeds and the breaker closes, or it fails and the breaker opens again for another interval.</dd>
+
+    <dt>Failure estimator</dt>
+    <dd>Whatever answers &#8220;how bad is it right now&#8221;. Usually a sliding window over the last <em>N</em> outcomes, sometimes an exponentially weighted average. The component nobody draws.</dd>
+
+    <dt>Sliding window</dt>
+    <dd>The last <em>N</em> outcomes, counted equally. Easy to defend in a review, and it measures in requests rather than time, so a quiet dependency keeps a stale verdict.</dd>
+
+    <dt>EWMA</dt>
+    <dd>Exponentially weighted moving average: <code>r = &#945;&#183;x + (1&#8722;&#945;)&#183;r</code>. Forgets smoothly instead of at a window edge, and reacts faster.</dd>
+
+    <dt>Minimum-sample gate</dt>
+    <dd>Refusing to open until the estimator has seen enough calls to mean anything. Without it, one failed call out of one is a 100&#8239;% failure rate.</dd>
+
+    <dt>Error budget</dt>
+    <dd>The failure allowance an SLO implies. 99.9&#8239;% available over 30 days is about <b>43 minutes</b> of budget, and it is where a defensible threshold comes from.</dd>
+
+    <dt>Modal behaviour</dt>
+    <dd>A system that behaves in qualitatively different ways depending on hidden state. A breaker adds a mode that only ever engages during an incident, which is the mode least likely to have been tested.</dd>
+  </dl>
+</div>
+
+<h2>The states are trivial; the estimator is the component</h2>
+
+<p>Draw the three states and you have drawn a diagram that generates no decisions. Every question you will actually be asked &#8212; <em>when does it open, how long does it stay open, what makes it close, why those numbers</em> &#8212; is answered by the thing underneath the states, which is a running estimate of how badly the dependency is doing. The state machine just reads that number and compares it to a threshold.</p>
+
+<p>Which means the interesting failures are all estimator failures, and there are two of them worth causing on purpose. The first is measuring a rate over too few samples, so a single bad call reads as total failure. The second is measuring the wrong thing entirely: a breaker sees the outcomes you hand it, so a dependency that answers slowly but correctly is, as far as the breaker is concerned, perfectly healthy.</p>
+
+<div class="note">
+  <span class="callout-label">The source this lesson has to argue with</span>
+  <p>The Amazon Builders' Library article that <a href="0010-backoff-with-jitter.html">lesson 0010</a> is built on does not recommend breakers. It says, directly: <em>&#8220;Circuit breakers&#8230; are widely promoted to solve this problem. Unfortunately, circuit breakers introduce modal behavior into systems that can be difficult to test, and can introduce significant addition time to recovery. We have found that we can mitigate this risk by limiting retries locally using a token bucket.&#8221;</em></p>
+  <p>That is the considered position of people operating the largest fleet with this problem, and it is an argument for 0010's retry budget over this entire lesson. Take it seriously rather than routing around it: <strong>a breaker earns its place only where a budget cannot help</strong>, and being able to say where that is &#8212; out loud, unprompted &#8212; is worth more than any threshold you pick.</p>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 366" role="img" aria-labelledby="mech0011-t mech0011-d">
+    <title id="mech0011-t">Three states reading one failure estimator, with the gate that stops a single call opening it</title>
+    <desc id="mech0011-d">Three breaker states in a row: closed, open and half-open. Closed becomes open when the failure rate reaches the threshold and the sample count reaches the minimum. Open becomes half-open after the cooldown interval, admitting exactly one probe. A successful probe closes the breaker; a failed probe reopens it. Underneath, the failure estimator is drawn as a window sliding over a stream of call outcomes, producing the single number the states compare against the threshold. A second, nearly empty window shows the failure mode the minimum-sample gate prevents: one failed call out of one is a hundred percent failure rate, which opened the breaker and refused a hundred healthy requests.</desc>
+    <defs>
+      <marker id="a11" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+    </defs>
+
+    <text x="20" y="20" class="strong">The states read one number. Every threshold you defend belongs to the thing that produces it.</text>
+
+    <!-- MARK 1 &#183; the three states, which are the part everybody already draws. -->
+    <rect x="20" y="40" width="168" height="46" class="good"/>
+    <rect x="336" y="40" width="168" height="46" class="bad"/>
+    <rect x="652" y="40" width="168" height="46" class="warn"/>
+    <text x="34" y="62" class="strong ink-good">closed</text>
+    <text x="34" y="78" class="lbl-dim">calls go through</text>
+    <text x="350" y="62" class="strong ink-bad">open</text>
+    <text x="350" y="78" class="lbl-dim">fail fast, nothing reaches it</text>
+    <text x="666" y="62" class="strong ink-warn">half-open</text>
+    <text x="666" y="78" class="lbl-dim">exactly one probe</text>
+
+    <!-- MARK 2 &#183; the only transition with two conditions, and the second is the gate. -->
+    <path d="M188,56 L336,56" class="flow-bad" marker-end="url(#a11)"/>
+    <text x="196" y="50" class="lbl">rate &#8805; threshold</text>
+    <text x="196" y="80" class="lbl ink-accent"><tspan class="strong">and</tspan> samples &#8805; minimum</text>
+
+    <!-- MARK 3 &#183; open is a timer, not a measurement: nothing is being observed. -->
+    <path d="M504,56 L652,56" class="flow" marker-end="url(#a11)"/>
+    <text x="512" y="50" class="lbl">after the cooldown</text>
+    <text x="512" y="80" class="lbl-dim">measured 5000&#8239;ms</text>
+
+    <!-- MARK 4 &#183; one probe decides, which is why it is a cheap experiment. -->
+    <path d="M736,92 L736,116 L104,116 L104,92" class="flow-good" marker-end="url(#a11)"/>
+    <text x="360" y="108" class="lbl ink-good">probe succeeds &#8594; closed</text>
+    <path d="M700,92 L700,140 L420,140 L420,92" class="flow-bad" marker-end="url(#a11)"/>
+    <text x="440" y="132" class="lbl ink-bad">probe fails &#8594; open again</text>
+
+    <!-- MARK 5 &#183; the estimator: a window over outcomes, producing the one number above. -->
+    <path d="M20,168 L820,168" class="rule"/>
+    <text x="20" y="190" class="strong">underneath &#183; the failure estimator</text>
+    <text x="20" y="212" class="lbl-dim">a window over the last N outcomes</text>
+    <rect x="20" y="222" width="470" height="30" class="box"/>
+    <text x="30" y="242" class="mono">&#10003;&#10003;&#10007;&#10003;&#10007;&#10007;&#10003;&#10007;&#10007;&#10007;&#10003;&#10007;&#10007;&#10003;&#10007;&#10007;&#10007;&#10003;&#10007;&#10007;</text>
+    <path d="M500,237 L560,237" class="flow" marker-end="url(#a11)"/>
+    <text x="572" y="234" class="num ink-bad">50&#8239;%</text>
+    <text x="572" y="250" class="lbl-dim">over 50 samples &#8594; open</text>
+
+    <!-- MARK 6 &#183; the same estimator with almost nothing in it, which is the bug. -->
+    <text x="20" y="292" class="lbl-dim">the same window, nearly empty</text>
+    <rect x="20" y="302" width="470" height="30" class="bad"/>
+    <text x="30" y="322" class="mono">&#10007;</text>
+    <path d="M500,317 L560,317" class="flow-bad" marker-end="url(#a11)"/>
+    <text x="572" y="314" class="num ink-bad">100&#8239;%</text>
+    <text x="572" y="330" class="lbl ink-bad">one call &#8594; open &#8594; 100 refused</text>
+    <text x="20" y="354" class="lbl">The gate is the difference between these two rows, and it is one comparison of code.</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">Say this while you draw it</span>
+    <ol class="narrate">
+      <li>Three boxes in a row: <b>closed, open, half-open</b>. Draw them fast, because they are the part that carries no information.</li>
+      <li>The first arrow is the only one with <b>two</b> conditions on it: the failure rate reached the threshold, <b>and</b> the estimator has seen enough calls to mean it.</li>
+      <li>The second arrow is a <b>timer</b>, not a measurement. While open, nothing is being observed at all &#8212; which is why the interval is a guess you have to justify.</li>
+      <li>From half-open, <b>one probe</b> decides. Success closes it, failure reopens it. One, because an experiment that costs a thousand requests is not cheap enough to repeat.</li>
+      <li>Now draw the part nobody draws: a <b>window over the stream of outcomes</b>, producing the single number those states compare. That is the component.</li>
+      <li>Then draw the same window with <b>one cross in it</b>. One failure out of one is a hundred percent, and that opened the breaker and refused <b>100 healthy requests</b>.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. Three boxes, four arrows, and two windows underneath. The two windows are the half that turns a memorised diagram into an answer.</p>
+  <ul>
+    <li>The <b>three states</b> with the two forward arrows and the two return arrows from half-open.</li>
+    <li>On the first arrow, <b>both</b> conditions &#8212; rate and sample count. Missing the second is the bug.</li>
+    <li>The <b>estimator window</b> under the states, with the number it produces feeding the threshold.</li>
+    <li>The <b>nearly empty window</b>: one cross, 100&#8239;%, and <b>100 healthy requests refused</b>.</li>
+  </ul>
+  <span class="timer">Draw the estimator before the states if you can bear to. It is the thing you will be questioned on, and drawing it first stops the answer becoming a recital of three state names.</span>
+</div>
+
+<h2>Lab &#8212; open it, then break it twice</h2>
+
+<div class="lab">
+  <header>
+    <span class="kicker">Lab 0011</span>
+    <span class="est">~20 minutes</span>
+    <h3>One failed call refusing a hundred, and a dependency too slow to notice</h3>
+  </header>
+  <div class="body">
+    <div class="prereq">
+      <span>Needs:</span>
+      <span class="chip">anchor/vendor-eval-gateway</span>
+      <span class="chip">no Docker, no server</span>
+      <span class="chip">~20 min</span>
+    </div>
+
+    <div class="caution">
+      <span class="callout-label">Virtual time, deliberately</span>
+      <p>This bench runs on a fake clock, so a five-minute scenario completes instantly and reproduces exactly. The timestamps in the transition logs are <strong>virtual milliseconds</strong> &#8212; real elapsed time, if the calls were real, but not time you waited. Everything about ordering, counts and thresholds is exact; nothing here is a measurement of Gemini's availability.</p>
+    </div>
+
+    <ol class="steps">
+      <li>
+        <p class="what">Drive the normal case first: 400 calls at 50&#8239;ms intervals, with a hard outage across the middle quarter. This is the diagram, as a transition log.</p>
+        <pre class="cmd"><span class="prompt">$ </span>cd anchor/vendor-eval-gateway
+<span class="prompt">$ </span>uv run python -m bench.breaker --scenario outage</pre>
+        <pre class="out">hard outage from call 100 to 200 of 400
+  sent 301, blocked by the breaker 99, failed 25, over budget 0
+  final state: closed
+  transitions:
+    t+   6250 ms  -&gt; open      (failure rate 50% over 50 samples)
+    t+  11250 ms  -&gt; half-open (5000 ms elapsed, admitting one probe)
+    t+  11250 ms  -&gt; closed    (probe succeeded)</pre>
+        <div class="expect">
+          <span class="label">Twenty-five failures bought, ninety-nine calls saved</span>
+          <p>The breaker absorbed <strong>25 failures</strong> before it had enough evidence to open &#8212; that is the cost of requiring a 50-sample window at a 50&#8239;% threshold, and it is unavoidable rather than a tuning mistake. In exchange, <strong>99 calls</strong> never reached a dependency that would have failed them, and never spent their own latency budget waiting.</p>
+          <p>Note the third transition: the probe succeeded on the first try, so recovery cost exactly <strong>one</strong> request. That is the half-open design working. Note also what happened between t+6250 and t+11250 &#8212; nothing was measured, because nothing was sent. An open breaker is blind by construction.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Now remove the minimum-sample gate, which is a one-line change and the most common way this component is built wrong. One call fails, at the very start, and every one of the other 399 succeeds.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.breaker --scenario gate</pre>
+        <pre class="out">min_samples = 1  (the first call fails, 399 succeed after it)
+  sent 300, blocked by the breaker 100, failed 1, over budget 0
+  transitions:
+    t+     50 ms  -&gt; open      (failure rate 100% over 1 samples)
+    t+   5100 ms  -&gt; half-open (5050 ms elapsed, admitting one probe)
+    t+   5100 ms  -&gt; closed    (probe succeeded)
+
+min_samples = 20  (the first call fails, 399 succeed after it)
+  sent 400, blocked by the breaker 0, failed 1, over budget 0
+  transitions: none -- the breaker never moved</pre>
+        <div class="ba">
+          <span class="label">Before / after &#183; one comparison</span>
+          <p>Without the gate: <strong>one failed call refuses 100 healthy ones</strong> and takes five seconds to recover. The dependency was fine the entire time.</p>
+          <p>With it: the breaker never moves, which is the correct behaviour for a single transient failure in four hundred.</p>
+        </div>
+        <div class="expect broken">
+          <span class="label">Why this fires in production and not in your tests</span>
+          <p>A failure rate over one sample is 0&#8239;% or 100&#8239;%, with nothing in between. So the ungated breaker is not &#8220;sensitive&#8221;, it is <strong>a device that opens on the first failure</strong> after any quiet period &#8212; which means process start, a scale-up event, a low-traffic dependency, or three in the morning. Load tests keep the window full and never reproduce it.</p>
+          <p>This is also the honest reason the Builders' Library calls breakers hard to test. The bug lives entirely in the interaction between <em>traffic volume</em> and <em>window size</em>, and nothing in the state machine hints that the interaction exists.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Second failure mode, and the one that matters more. The dependency does not fail at all &#8212; it answers, late. Every call during the middle quarter blows the 1600&#8239;ms stage budget and returns a correct result.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.breaker --scenario slow</pre>
+        <pre class="out">timeout recorded as a success (the default mistake)
+  sent 400, blocked by the breaker 0, failed 0, over budget 100
+  final state: closed
+  transitions: none -- the breaker never moved
+
+timeout recorded as a failure
+  sent 301, blocked by the breaker 99, failed 25, over budget 25
+  transitions:
+    t+   6250 ms  -&gt; open      (failure rate 50% over 50 samples)
+    t+  11250 ms  -&gt; half-open (5000 ms elapsed, admitting one probe)
+    t+  11250 ms  -&gt; closed    (probe succeeded)</pre>
+        <div class="expect broken">
+          <span class="label">A hundred requests over budget and a breaker reporting perfect health</span>
+          <p>In the first run the failure rate is <strong>0&#8239;%</strong> across all 400 calls, because every call succeeded. The breaker is working exactly as designed and is completely useless, because <strong>it is a failure detector and the problem is latency</strong>. Meanwhile 100 requests blew their budget.</p>
+          <p>The second run changes one line: treat exceeding the budget as a failure. Now the breaker opens, and the 100 over-budget requests become <strong>25 over budget and 99 refused instantly</strong>. Failing fast is better than failing slow, because a request that fails at 0&#8239;ms leaves the rest of the turn's budget intact for a fallback.</p>
+          <p>This is the question to be ready for, because &#8220;partial degradation&#8221; is far more common than &#8220;hard down&#8221;. A dependency at 3&#215; its normal latency will never trip a breaker that only counts exceptions.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Swap the estimator and leave everything else identical. Sliding window against EWMA, same 400 calls, same outage, same threshold.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.breaker --scenario estimator</pre>
+        <pre class="out">sliding window(50)
+  sent 301, blocked by the breaker 99, failed 25, over budget 0
+    t+   6250 ms  -&gt; open      (failure rate 50% over 50 samples)
+
+ewma(alpha=0.1)
+  sent 301, blocked by the breaker 99, failed 7, over budget 0
+    t+   5350 ms  -&gt; open      (failure rate 52% over 107 samples)</pre>
+        <div class="expect">
+          <span class="label">The same breaker, disagreeing with itself by 18 failures</span>
+          <p>EWMA opened <strong>900&#8239;ms earlier</strong> and after <strong>7 failures instead of 25</strong>. Nothing about the state machine changed; the whole difference is how the two estimators weight recent evidence. A sliding window has to fill half of itself with failures before the ratio moves, while an EWMA at &#945;&#8239;=&#8239;0.1 is already past 50&#8239;% after a short run of consecutive failures.</p>
+          <p>Which is better depends on what you are protecting. Eighteen fewer failures is eighteen fewer user-visible errors. It is also a more twitchy device, more likely to open on a burst that was going to pass &#8212; and its <code>samples</code> count is the number of calls it has ever seen, not the number it is still weighing, so the minimum-sample gate is weaker protection on an EWMA than on a window.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Now derive the threshold rather than picking it. Work out what your error budget actually permits, and compare it to the 50&#8239;% default you have been running.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -c "
+for slo in (0.99, 0.995, 0.999):
+    budget_min = (1-slo)*30*24*60
+    print(f'SLO {slo:.3%}  budget {budget_min:6.1f} min/30d  '
+          f'burned by a 10-min full outage: {10/budget_min:5.1%} of the month')"</pre>
+        <pre class="out">SLO 99.000%  budget  432.0 min/30d  burned by a 10-min full outage:  2.3% of the month
+SLO 99.500%  budget  216.0 min/30d  burned by a 10-min full outage:  4.6% of the month
+SLO 99.900%  budget   43.2 min/30d  burned by a 10-min full outage: 23.1% of the month</pre>
+        <div class="expect">
+          <span class="label">The threshold is a statement about how fast you are willing to burn budget</span>
+          <p>At <strong>99.9&#8239;%</strong> you have <strong>43 minutes</strong> for the whole month, so a single ten-minute outage costs <strong>23&#8239;%</strong> of it. That is what makes a low threshold defensible there: you cannot afford to spend 25 failures gathering evidence, and opening early is cheap relative to the budget.</p>
+          <p>At 99&#8239;% you have 432 minutes and the same outage costs 2.3&#8239;%, so opening early buys little and the false-positive risk dominates. <strong>Same dependency, same code, opposite threshold, and the reason is the SLO rather than the dependency.</strong> That is the sentence to have ready, because &#8220;we used 50&#8239;% because that is the default&#8221; is the answer this question is designed to catch.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Last, the question you should be asking about the whole component. Compare what 0010's retry budget did to the same kind of storm, and decide what the breaker adds.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.retry --experiment spike --jitter full --attempts 6 --outage-ms 4000 --budget 0.10 | sed -n '2,6p'</pre>
+        <pre class="out">  calls to the bottom : 57 (8 of them retries)
+  peak retry load     : 2 per 100ms  (20/s)
+  turns completed     : 0 of 49 (0%)
+  retries denied      : 48 of 56 asked</pre>
+        <div class="expect">
+          <span class="label">The budget already bounded the load, without adding a mode</span>
+          <p>The retry budget cut retries from 245 to 8 with no state machine, no threshold, no cooldown and no mode that engages only during incidents. If the goal is purely <em>protect the dependency from retry amplification</em>, it does that job and the Builders' Library is right to prefer it.</p>
+          <p>So name what a breaker adds that a budget cannot. Two things, and they are both about <em>you</em> rather than the dependency: it fails calls at <strong>0&#8239;ms instead of at the timeout</strong>, which returns the rest of your latency budget to a fallback; and it applies to first attempts, not just retries, so it caps the latency cost of a dependency that is simply down. Neither of those is what a token bucket is for. <strong>If you cannot name one of those two, you want the bucket.</strong></p>
+        </div>
+      </li>
+    </ol>
+  </div>
+</div>
+
+<div class="evidence" data-evidence-for="0011">
+  <header>
+    <span class="callout-label">Your numbers, not mine</span>
+    <span class="hint">saved in this browser as you type</span>
+  </header>
+  <div class="body">
+    <p>Counts and transition orderings here are exact. The last two rows are about your system rather than the bench, and they are the ones an interviewer will actually push on.</p>
+
+    <div class="rows">
+      <div class="row">
+        <span class="ran">Step 1, <strong>what the breaker bought and cost</strong>: failures absorbed before it opened, and calls refused while open</span>
+        <span class="field"><label for="e11-abs">failures absorbed</label><input type="text" id="e11-abs" data-field="absorbed" placeholder="e.g. 25, at 50 of 50%"></span>
+        <span class="field"><label for="e11-sav">calls short-circuited</label><input type="text" id="e11-sav" data-field="saved" placeholder="e.g. 99"></span>
+        <span class="why-row"><label for="e11-cost">The failures before it opened are unavoidable, not a tuning error. Say why, in terms of the estimator rather than the states</label><textarea id="e11-cost" data-field="cost" placeholder="The breaker cannot open before its estimator has evidence, and evidence is failed calls. A 50-sample window at a 50% threshold needs 25 failures by definition, so the entry cost is set by window size and threshold together."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 2, <strong>the gate</strong>: healthy requests refused by an ungated breaker after one failed call</span>
+        <span class="field"><label for="e11-ref">refused</label><input type="text" id="e11-ref" data-field="refused" placeholder="e.g. 100 of 400"></span>
+        <span class="field"><label for="e11-gated">with the gate</label><input type="text" id="e11-gated" data-field="gated" placeholder="e.g. 0, never moved"></span>
+        <span class="why-row"><label for="e11-when">Name the conditions under which this fires in production, and say why your load tests will not catch it</label><textarea id="e11-when" data-field="when" placeholder="Any time the window is nearly empty: process start, a scale-up, a low-traffic dependency, or the small hours. A load test keeps the window full, so the ratio never gets near 100% and the bug cannot appear."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 3, <strong>slow rather than failing</strong>: requests over budget when timeouts count as success, and when they count as failure</span>
+        <span class="field"><label for="e11-slow">as success</label><input type="text" id="e11-slow" data-field="slow_ok" placeholder="e.g. 100 over budget, 0 opens"></span>
+        <span class="field"><label for="e11-slowf">as failure</label><input type="text" id="e11-slowf" data-field="slow_fail" placeholder="e.g. 25 over, 99 refused"></span>
+        <span class="why-row"><label for="e11-lat">Write the rule this gives you about what a breaker can and cannot see, in a form you would say out loud</label><textarea id="e11-lat" data-field="latency" placeholder="A breaker only sees the outcomes I hand it, so it is a failure detector and not a latency detector. Partial degradation is more common than hard failure, so the timeout has to be recorded as a failure or the breaker sleeps through the incident."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 5, <strong>the threshold's derivation</strong>: your real SLO, its monthly budget, and what one ten-minute outage costs</span>
+        <span class="field"><label for="e11-slo">SLO / budget</label><input type="text" id="e11-slo" data-field="slo" placeholder="e.g. 99.9% &#8594; 43 min"></span>
+        <span class="field"><label for="e11-burn">a 10-min outage</label><input type="text" id="e11-burn" data-field="burn" placeholder="e.g. 23% of the month"></span>
+        <span class="why-row"><label for="e11-thresh">Now defend your open threshold from that number, and say what you would change it to if the SLO moved to 99&#8239;%</label><textarea id="e11-thresh" data-field="threshold" placeholder="At 99.9% a single outage costs a quarter of the month, so I open early and accept false positives. At 99% the same outage costs 2.3%, so the false-positive risk dominates and I would raise the threshold and widen the window."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">The decision: <strong>does this dependency need a breaker at all, or is 0010's retry budget enough?</strong> Answer for one real dependency by name</span>
+        <span class="field"><label for="e11-dep">dependency</label><input type="text" id="e11-dep" data-field="dep" placeholder="e.g. Tavily search"></span>
+        <span class="field"><label for="e11-verdict">breaker or bucket</label><input type="text" id="e11-verdict" data-field="verdict" placeholder="e.g. bucket only"></span>
+        <span class="why-row"><label for="e11-adds">A breaker adds exactly two things a budget cannot. Name whichever one applies here &#8212; and if neither does, say so, because that is the stronger answer</label><textarea id="e11-adds" data-field="adds" placeholder="It fails at 0 ms instead of at the timeout, which hands the rest of the turn budget to a fallback; and it covers first attempts, not only retries. For Tavily neither is decisive because we have a cached fallback, so the bucket is enough and I am not adding a mode."></textarea></span>
+      </div>
+    </div>
+
+    <div class="earned">
+      <span class="callout-label">The bullet this lesson earns</span>
+      <p>&#8220;Derived circuit-breaker thresholds for third-party model and search dependencies from the error budget rather than from defaults &#8212; a <span data-fill="slo" class="placeholder">[run step 5]</span> SLO leaves <span data-fill="burn" class="placeholder">[run step 5]</span> of the month for a single ten-minute outage &#8212; and established that an ungated breaker refuses <span data-fill="refused" class="placeholder">[run step 2]</span> healthy requests after one transient failure on a low-traffic path.&#8221;</p>
+      <p class="caveat">If you also decided <em>not</em> to add a breaker somewhere, say that instead. &#8220;We used a retry budget rather than a breaker on this dependency, because a breaker's only advantage here would have been failing at 0&#8239;ms and we have no fallback to spend the saved time on&#8221; is a much stronger sentence than any threshold.</p>
+    </div>
+  </div>
+</div>
+
+<h2 id="underneath-0011">Underneath</h2>
+
+<div class="underneath">
+  <span class="callout-label">One layer down &#183; the estimator, the gate, and whether you want this at all</span>
+
+  <p>Four things. The first two are the component nobody draws, the third is where thresholds come from, and the fourth is the argument against the whole lesson, which you should be able to make yourself.</p>
+
+  <h3>A breaker is a threshold on an estimator, and the estimator is the design</h3>
+
+  <p>The state machine contributes three names and no decisions. What decides behaviour is how the failure rate is estimated, and the two common choices genuinely disagree. A <b>sliding window</b> counts the last <em>N</em> outcomes equally, which is easy to explain in a review and measures in requests rather than in time &#8212; so a dependency that has gone quiet keeps whatever verdict it had, indefinitely. An <b>EWMA</b> forgets continuously, reacts faster, and never quite forgets, so its notion of &#8220;how many samples&#8221; is not the same as the window's.</p>
+
+  <div class="derive">
+    <p>Identical calls, identical threshold, different estimator:</p>
+    <span class="eq">estimator          opened at   failures first   samples
+sliding window(50)   6250 ms              25        50
+ewma(&#945; = 0.1)        5350 ms               7       107</span>
+    <p>Eighteen fewer user-visible failures, 900&#8239;ms sooner, from a component the diagram does not contain. If you can only defend one number in your breaker, defend this one.</p>
+  </div>
+
+  <h3>The minimum-sample gate, and why low traffic is the dangerous case</h3>
+
+  <p>A ratio needs a denominator. Over one sample the failure rate is 0&#8239;% or 100&#8239;% with nothing between, so an ungated breaker is not sensitive &#8212; it is a device that opens on the first failure after any lull. The gate is one comparison and it is the difference between a breaker that refused <b>100 healthy requests</b> and one that correctly ignored a single blip.</p>
+
+  <div class="derive">
+    <p>What the estimator can even say, by sample count, at a 50&#8239;% threshold:</p>
+    <span class="eq">samples    possible rates            opens on
+1          0% or 100%                1 failure
+4          0, 25, 50, 75, 100%       2 failures
+20         steps of 5%              10 failures
+50         steps of 2%              25 failures</span>
+    <p>Note the direction of the trade: the gate that protects you from false opens is the same number that sets how many real failures you absorb before a true open. There is no setting that does both, which is why the answer is &#8220;derived from the SLO&#8221; rather than &#8220;tuned&#8221;.</p>
+  </div>
+
+  <h3>Thresholds come from the error budget, and the same code wants two different ones</h3>
+
+  <p>An SLO of 99.9&#8239;% over thirty days is <b>43.2 minutes</b> of permitted unavailability. A ten-minute outage spends <b>23&#8239;%</b> of that, so being slow to open is expensive and a false positive is comparatively cheap &#8212; open early, on a tighter threshold and a smaller window. At 99&#8239;% the budget is 432 minutes, the same outage costs 2.3&#8239;%, and the arithmetic inverts: false opens now cost more than slow ones, so widen the window and raise the threshold.</p>
+
+  <p>The useful consequence is that <b>&#8220;what is your threshold&#8221; is not a question about the dependency</b>. Two services calling the identical upstream, with different SLOs, should have different breakers, and being able to say that is the difference between having configured a library and having designed something.</p>
+
+  <h3>One breaker per dependency, and a clear division of labour</h3>
+
+  <p>Per dependency, never per service: a breaker over &#8220;the downstream&#8221; in aggregate opens on the failures of the noisiest one and blocks calls to three healthy others. The scope of the estimator is the scope of the protection.</p>
+
+  <div class="derive">
+    <p>Three components that get confused, and what each one actually protects:</p>
+    <span class="eq">component        protects      bounds              costs you
+retry budget     the upstream  total retry count   retries you wanted
+circuit breaker  you           your latency spent  calls that would work
+load shedding    you           your own queue      requests you refuse</span>
+    <p>The breaker column is the narrow one. It protects <em>you</em> from spending 1600&#8239;ms discovering something is down, and it does that for first attempts as well as retries &#8212; which is the one thing a token bucket cannot do, since a bucket only ever sees retries.</p>
+  </div>
+
+  <p class="lands">Which lands on an uncomfortable conclusion the Builders' Library got to first: a breaker adds a mode that engages only during incidents, which is the mode with the least test coverage in any system. It is worth having where failing fast buys you a fallback you can actually run, and it is worth <em>not</em> having where a retry budget already bounds the load. Deciding which of those you are in, out loud, is the answer to this topic.</p>
+</div>
+
+<h2>Check yourself</h2>
+
+<div class="quiz" data-quiz-id="0011-q1">
+  <p class="q">A breaker on a low-traffic dependency opens at three in the morning after one failed call, then closes five seconds later. The dependency was healthy throughout. What went wrong?</p>
+  <ol class="options">
+    <li data-correct="true">The window was nearly empty, so one failure dominated</li>
+    <li>The cooldown interval was far too short for recovery</li>
+    <li>The failure threshold was set well below fifty percent</li>
+    <li>The probe in half-open state succeeded by pure chance</li>
+  </ol>
+  <div class="why">
+    <p>A failure rate over one sample is 0&#8239;% or 100&#8239;%. With no minimum-sample gate, the first failure after a quiet period is a 100&#8239;% failure rate and the breaker opens on it. Measured: one failed call in four hundred <strong>refused 100 healthy requests</strong>; with the gate at 20, the same run never moved the breaker at all.</p>
+    <p>The timing in the question is the clue. Three in the morning means low traffic, which means an almost empty window &#8212; along with process start and scale-up events, that is precisely when this fires, and it is why a load test never reproduces it.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0011-q2">
+  <p class="q">A dependency's latency triples. Every call still returns a correct result, well past your per-stage budget. What does a breaker that records exceptions do?</p>
+  <ol class="options">
+    <li data-correct="true">Nothing, because it detects failures rather than latency</li>
+    <li>Opens quickly, because slow calls fill its window</li>
+    <li>Opens after the cooldown interval has fully elapsed</li>
+    <li>Nothing, because the minimum-sample gate is blocking it</li>
+  </ol>
+  <div class="why">
+    <p>Nothing at all. Every call succeeded, so the failure rate is <strong>0&#8239;%</strong> and the breaker reports perfect health while <strong>100 requests</strong> blow their budget. A breaker sees only the outcomes you hand it, and a slow success is a success.</p>
+    <p>The fix is one line: record a timeout as a failure. That turned 100 over-budget requests into <strong>25 over budget and 99 refused instantly</strong> &#8212; and failing at 0&#8239;ms is strictly better than failing at the timeout, because the rest of the turn's budget survives for a fallback. Partial degradation is more common than hard failure, so this is the case worth designing for.</p>
+  </div>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">A spoken answer to <em>&#8220;you call two third-party services inside a hard deadline &#8212; how do you stop them taking you down?&#8221;</em> Read it aloud, then say it again with the page covered.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">Our scoring pipeline calls Gemini and Tavily inside an eight-second per-turn deadline. We operate neither of them, and a bad ten minutes at either one is our outage.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">A breaker is a state machine over a failure <b>estimator</b>, and the estimator is the part that matters. The three states read one number and compare it to a threshold.</p>
+      <p class="line">I swapped the estimator and left everything else alone. A sliding window opened after <b>25 failures</b>; an EWMA opened after <b>seven</b>, 900 milliseconds sooner.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">I broke it twice on purpose. Without a minimum-sample gate, one failed call out of four hundred refused <b>100 healthy requests</b>, because one failure in one sample is a hundred percent.</p>
+      <p class="line">Then I made the dependency slow rather than failing. The breaker saw a zero percent failure rate and never moved, while <b>100 requests</b> blew their budget. A breaker detects failures, not latency.</p>
+      <p class="line">And I derived the threshold instead of picking it. At 99.9 percent we have <b>43 minutes</b> a month, so one ten-minute outage costs a quarter of it, and opening early is cheap.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">A mode that only runs during incidents, which is the least tested state in the system. The Amazon Builders' Library recommends a retry token bucket instead, for exactly that reason.</p>
+      <p class="line">So I keep breakers only where failing at zero milliseconds buys a fallback I can actually run. Where the goal is just bounding retry load, the bucket does it without adding a mode.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;We have a circuit breaker in front of the model calls.&#8221;</span> The follow-up is always <em>&#8220;what does it open at, and where did that number come from?&#8221;</em>, and &#8220;fifty percent&#8221; with nothing behind it is worse than having no breaker, because it shows the component was installed rather than designed. The version that holds derives it: <span class="quoted">&#8220;it opens at a failure rate we set from the error budget, over a fifty-call window with a twenty-call minimum, and a service with a looser SLO calling the same upstream would want a different number.&#8221;</span></p>
+  <p>The second trap is describing the three states as though they were the design. Anyone can recite closed, open and half-open; almost nobody mentions the estimator underneath, which is where every real bug and every real threshold lives. If you have thirty seconds, spend them on the window and the minimum-sample gate and skip the state names entirely &#8212; the interviewer already knows them.</p>
+</div>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;You have a circuit breaker on the model call. What does it open at?&#8221;
+      <span class="tell">A number on its own fails this. The signal is the derivation, and the strongest version volunteers that a different service calling the same upstream should use a different number.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The threshold comes from the error budget rather than from a default. At <strong>99.9&#8239;%</strong> over thirty days we have <strong>43 minutes</strong> of unavailability for the whole month, so one ten-minute outage spends <strong>23&#8239;%</strong> of it &#8212; that makes being slow to open expensive and a false open comparatively cheap, so we open on a tighter threshold over a smaller window.</p>
+        <p>The consequence I would flag is that this is not a property of the dependency. A service with a 99&#8239;% SLO calling the identical upstream has 432 minutes of budget, the same outage costs 2.3&#8239;%, and it should open later and over a wider window. Same code, opposite tuning.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What window size?&#8221; &#8212; which is really a question about how many failures you are willing to absorb before opening.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Walk me through the states.&#8221;
+      <span class="tell">An invitation to recite, and reciting is the failure. Answer it in one sentence and spend the rest on the estimator, because that is where every bug and every threshold lives.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Closed passes calls and records outcomes, open fails them instantly without touching the dependency, half-open admits exactly one probe which either closes it or reopens it. The states are the easy half though &#8212; what decides the transitions is a <strong>failure estimator</strong>, and that is the part worth talking about.</p>
+        <p>I ran the same breaker with two estimators on identical traffic. A 50-call sliding window opened after <strong>25 failures</strong>; an EWMA at &#945;&#8239;=&#8239;0.1 opened after <strong>7</strong>, about 900&#8239;ms earlier. Eighteen fewer user-visible errors, from a component the state diagram does not contain. The window is also why one probe is enough in half-open: it is a deliberately cheap experiment, and an experiment costing a thousand requests is not one you can repeat every few seconds.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Which estimator did you pick?&#8221; &#8212; and the honest answer names the trade rather than a winner.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Your upstream is not down &#8212; it is three times slower than usual. What does your breaker do?&#8221;
+      <span class="tell">The best question on this topic, because partial degradation is far more common than hard failure and most breakers sleep through it. Give the measured version, not the theoretical one.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>By default, nothing, and that is a real bug rather than a subtlety. A breaker sees the outcomes you give it, so a slow success is a success &#8212; I measured a run where every call returned correctly, <strong>100 of them blew the stage budget</strong>, the failure rate stayed at <strong>0&#8239;%</strong> and the breaker never moved.</p>
+        <p>The fix is to record exceeding the budget as a failure, which turned that into <strong>25 over budget and 99 refused instantly</strong>. Failing at 0&#8239;ms rather than at the timeout is the actual win, because the rest of the turn's budget survives for a fallback. So the sentence I would want on the record is that a breaker is a failure detector and only becomes a latency detector if you make the timeout count.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What timeout, then?&#8221; &#8212; which is the deadline question, and it has its own arithmetic.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Do you need a circuit breaker at all?&#8221;
+      <span class="tell">Sounds like a trap and is a genuine question, because the best free source on this argues against them. Knowing the argument and being able to say where a breaker still earns its place is the strongest thing available here.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Often not. The Amazon Builders' Library explicitly prefers a retry token bucket, on the grounds that breakers <em>&#8220;introduce modal behavior into systems that can be difficult to test, and can introduce significant addition time to recovery&#8221;</em>. I measured the bucket doing the load-protection job on its own: retries cut from 245 to 8, peak from 320/s to 20/s, with no state machine and no mode.</p>
+        <p>What a breaker adds is two things, both about me rather than the dependency: it fails calls at <strong>0&#8239;ms instead of at the timeout</strong>, which returns the rest of the deadline to a fallback, and it applies to <em>first</em> attempts rather than only retries, so it caps the latency cost of an upstream that is simply down. Where I have a fallback worth running, that is worth the mode. Where I do not, the bucket is enough and I would rather not ship an untested state.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What fallback?&#8221; &#8212; and having a concrete one is what makes the breaker defensible.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;How would you know your breaker is working, in production?&#8221;
+      <span class="tell">Tests whether you have thought past the happy path into operations. The modal-behaviour criticism is the thing to answer here, and the answer is about observability rather than about code.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Every state change is a logged event with the reason attached &#8212; the failure rate and the sample count that triggered it, not just &#8220;opened&#8221; &#8212; and the state is exported as a metric per dependency. Martin Fowler's write-up makes the same point: any change in breaker state should be logged, and a trip should usually raise an alert.</p>
+        <p>The number I would actually watch is <strong>short-circuited calls</strong>, because it is the only one that distinguishes a breaker doing its job from a breaker that is stuck. And I would test the mode deliberately rather than waiting for an incident: force it open in staging and confirm the fallback path runs, because the criticism of breakers is precisely that the open state is the least exercised code in the system.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Have you ever seen one misfire?&#8221; &#8212; yes, the ungated one, and it refused a hundred healthy requests.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="primary-source">
+  <span class="callout-label">Read this next &#8212; one source, not ten</span>
+  <span class="title"><a href="https://sre.google/sre-book/service-level-objectives/" target="_blank" rel="noopener">Google SRE Book &#8212; Service Level Objectives</a></span>
+  <p>Read it for the error budget, which is where a defensible threshold comes from and the only thing that turns &#8220;fifty percent&#8221; into an argument. The chapter is about choosing objectives rather than about breakers, and that is exactly why it is the right source: it gives you the quantity your threshold is a statement about.</p>
+  <p class="cite">For the component itself, <a href="https://martinfowler.com/bliki/CircuitBreaker.html" target="_blank" rel="noopener">Martin Fowler's CircuitBreaker</a> is the short canonical description, and note its operational line &#8212; <em>&#8220;any change in breaker state should be logged and breakers should reveal details of their state for deeper monitoring&#8221;</em> &#8212; which is the answer to the modal-behaviour criticism. For that criticism itself, read the &#8220;Retries and backoff&#8221; section of <a href="https://d1.awsstatic.com/builderslibrary/pdfs/timeouts-retries-and-backoff-with-jitter.pdf" target="_blank" rel="noopener">Timeouts, retries, and backoff with jitter</a>, which recommends a token bucket in its place.</p>
+</div>
+
+<h2>Recall &#8212; from lessons 0008&#8211;0010</h2>
+
+<div class="recall">
+  <details>
+    <summary>Your breaker opens on a model replica and the calls fail instantly for five seconds. What does 0008 say the dependency is doing with the memory in the meantime, and what does that mean for the probe?</summary>
+    <p class="answer">Nothing good for you. The replica's prefix cache is a fixed pool of blocks under eviction pressure from whatever traffic it is still serving, so five seconds of sending it nothing means your conversations' blocks are candidates to be evicted by someone else's. The probe that eventually succeeds therefore measures a <em>cold</em> path, and the first requests after the breaker closes pay full prefill. That matters twice over: the recovery looks slower than the dependency actually is, and if the timeout counts as a failure, a slow post-recovery request can reopen the breaker immediately. It is an argument for a cooldown short enough that you do not lose your own cache locality.</p>
+    <span class="from">lesson 0008 &#183; the cache is a pool under eviction</span>
+  </details>
+  <details>
+    <summary>You put one breaker in front of a pool of four replicas behind a cache-aware router. Why is that the wrong scope, and what does 0009 say the symptom looks like?</summary>
+    <p class="answer">Because the estimator's scope is the protection's scope, and one replica being sick is not the pool being sick. Under affinity a single degraded replica receives a fixed subset of conversations every turn, so its failures are a steady fraction of total traffic &#8212; enough to pollute a pool-wide failure rate, not obviously enough to look like one machine. A pool-level breaker then either never opens, while a quarter of conversations fail consistently, or opens and blocks the three healthy replicas as well. The scope wants to be per replica, which is also what makes ejecting one from the pool the right remedy rather than failing the whole call.</p>
+    <span class="from">lesson 0009 &#183; affinity gives one replica a fixed subset</span>
+  </details>
+  <details>
+    <summary>0010 measured a retry budget cutting retries from 245 to 8 with no state machine at all. Give the two specific things a breaker still does that the bucket cannot.</summary>
+    <p class="answer">First, it fails at 0&#8239;ms instead of at the timeout. A bucket refuses a retry but the original call still spends its full timeout discovering the upstream is down, whereas an open breaker returns immediately and hands the remaining deadline to a fallback. Second, it covers first attempts. A token bucket by construction only ever sees retries, so when a dependency is simply down every request still pays one full timeout; the breaker caps that. Both are about protecting <em>you</em> rather than the upstream, which is the honest division of labour. If neither applies &#8212; no fallback to spend the saved time on, and load is the only concern &#8212; the bucket is the better choice because it adds no mode.</p>
+    <span class="from">lesson 0010 &#183; the token bucket bounds the total</span>
+  </details>
+</div>
+
+<div class="ask">
+  <p>This is the lesson where I most want to know whether the shape worked, because I wrote it against its own primary source. The Builders' Library argues you probably should not have this component, and rather than skip that I built the lesson so the last lab step is a direct comparison with 0010's token bucket. <strong>Tell me whether ending on &#8220;you may not want this&#8221; is useful or annoying.</strong> My guess is it is the single most useful thing here, because it is the version of the answer nobody else in the interview will have &#8212; but it does mean you finish the lesson with a decision to make instead of a pattern to apply, and that is a real cost.</p>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">Where this lands on the r&#233;sum&#233;</span>
+  <p>This lesson teaches the mechanism from first principles and breaks it in a lab. The chapters opposite defend what you actually did with it, including the numbers on the r&#233;sum&#233;. An interviewer crosses between those two registers without warning.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../resume-mastery/lessons/0001-vendor-evaluation-platform.html">RM 0001 &#183; The vendor-evaluation platform</a>
+      <span class="bridge-why">Gemini and Tavily are two dependencies you do not operate, sitting inside a deadline you promised. This is where the protection around them gets its numbers.</span>
+    </li>
+    <li class="bridge-row">
+      <a href="../../resume-mastery/lessons/0005-agentic-pipeline-debugging.html">RM 0005 &#183; The agentic pipeline debugger</a>
+      <span class="bridge-why">Triage against a flaky upstream, retriggering unattended. Automation never gets bored, which is why the thresholds have to be defensible rather than tuned.</span>
+    </li>
+  </ol>
+</div>
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0010-backoff-with-jitter.html">&#8592; 0010 &#183; Backoff with jitter</a></span>
+  <span><span class="dir">Next</span><a href="0012-timeout-budgets-and-deadline-propagation.html">0012 &#183; Timeout budgets and deadline propagation &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

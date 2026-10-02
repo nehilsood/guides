@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>Stuck or Twice</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0021">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">System Design School</a>
+    <span class="sep">/</span>
+    <span>Tier 2 &#183; Messaging</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Lesson 0021</span>
+    <span class="sep">/</span>
+    <span>Needs Postgres</span>
+  </div>
+  <h1>Stuck or Twice</h1>
+  <p class="standfirst">Kill a worker halfway through a job and the job can only be one of two things afterwards: <strong>lost, or done twice</strong>. Pause the worker instead of killing it and the choice gets starker. Postgres cannot tell a paused process from a busy one, and every mechanism that stops waiting for it &#8212; a lease, a heartbeat, a session timeout &#8212; did the job a second time. The only strategy that waited never duplicated anything, and it was stuck for as long as the pause lasted.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Run a job queue on the Postgres you already have, and kill its workers with a real <code>SIGKILL</code> under six consumer strategies. Count lost jobs and doubled jobs for each. Pause a worker with <code>SIGSTOP</code> and watch the database fail to notice. Then get duplicates with <strong>no failure at all</strong>, from a lease and a slow tail, and predict how many before counting them. The fix that survives all of it puts the dedupe on the far side of the call.</p>
+</div>
+
+<div class="anchor-box">
+  <span class="callout-label">Why you, specifically</span>
+  <blockquote>&#8220;<strong>sayjini.com</strong> &#8212; Built a <strong>voice-only e-commerce experience on ONDC</strong> using LLMs, RAG, and function calling, enabling hands-free catalog search and checkout.&#8221;</blockquote>
+  <p>The chapter that defends this bullet describes a network where nothing is a function call. One search goes to a gateway and sellers answer separately, each as its own callback, and the flow runs through fixed stages to <em>confirm</em> &#8212; the one step that cannot be taken back. Every arrow in that flow is a message handed to somebody else, and the question an interviewer asks about any of them is the same: <em>&#8220;what if the thing handling it dies halfway?&#8221;</em></p>
+  <p>Lesson 0014 answered that for a client retrying a request. This lesson answers it for the worker that does the confirm, on the far side of a queue. That worker dies between placing the order and recording that it did. Or it pauses, a lease runs out, and a second worker places the same order while the first one is still alive. Both of those happened here, on purpose, and the counts are below.</p>
+  <p>The bullet is defended in full in <a href="../../resume-mastery/lessons/0018-voice-commerce-ondc.html">chapter 0018 of R&#233;sum&#233; Mastery</a>. This lesson is the delivery semantics underneath its last paragraph.</p>
+</div>
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>A queue holds jobs until a worker takes one. The worker does the work and then tells the queue it is done, and the queue forgets the job. Two steps: <b>do it</b>, and <b>say so</b>. A worker can die between them, and whichever order it does them in decides what dying costs.</p>
+  <p>Say done first and die, and the job is lost. Do it first and die, and the job is still in the queue, so another worker does it again. There is no order that avoids both. What you can choose is which failure you accept, and then whether the thing the work was done <em>to</em> can recognise a repeat.</p>
+  <dl>
+    <dt>Acknowledge</dt>
+    <dd>The worker telling the queue a job is finished, so it is not handed out again. Here, deleting the row.</dd>
+
+    <dt>At-most-once</dt>
+    <dd>Acknowledge, then work. A crash loses the job; nothing is ever done twice.</dd>
+
+    <dt>At-least-once</dt>
+    <dd>Work, then acknowledge. A crash repeats the job; nothing is ever lost.</dd>
+
+    <dt>Effectively-once</dt>
+    <dd>At-least-once delivery, and an effect that is safe to receive twice. What an observer sees, never what the wire does.</dd>
+
+    <dt>Redelivery</dt>
+    <dd>The same job handed to a worker again because nobody acknowledged it. The mechanism behind every duplicate here.</dd>
+
+    <dt>Lease</dt>
+    <dd>A job taken for a fixed time, after which anyone may take it. SQS calls it the visibility timeout; Pub/Sub, the ack deadline.</dd>
+
+    <dt>Heartbeat</dt>
+    <dd>A worker extending its own lease while it works, so a slow job is not taken from it.</dd>
+
+    <dt>Dedupe key</dt>
+    <dd>What the receiver of an effect refuses to apply twice. The producer's idempotency key from lesson 0014, not the queue's job id.</dd>
+
+    <dt><code>SIGKILL</code>, <code>SIGSTOP</code></dt>
+    <dd>Two ways to stop a process with no warning. Kill ends it, and its connections close. Stop freezes it, and its connections stay open.</dd>
+  </dl>
+</div>
+
+<h2>There is no third order</h2>
+
+<p>The Kafka documentation puts the whole subject in two sentences, and they apply to every queue ever built. A consumer can <em>&#8220;read the messages, then save its position in the log, and finally process the messages,&#8221;</em> which <em>&#8220;corresponds to &#8216;at-most-once&#8217; semantics&#8221;</em>; or it can <em>&#8220;read the messages, process the messages, and finally save its position,&#8221;</em> which is at-least-once. Saving the position is acknowledging. There is no third ordering of two steps.</p>
+
+<p>So exactly-once is not a choice of order. It is at-least-once plus a receiver that refuses a repeat, or it is an effect that commits in the same transaction as the acknowledgement, which only works when the effect is in the same database. Everything else on this page is those two sentences, measured, plus one complication they do not mention: a worker does not have to die for its job to be redelivered. It only has to be slow.</p>
+
+<div class="note">
+  <span class="callout-label">Why holding the lock is not the safe answer it looks like</span>
+  <p>The tempting design holds the job's row lock for the whole of the work. A crash closes the connection, Postgres releases the lock within milliseconds, and another worker takes the job at once. Measured: <strong>under 50&#8239;ms</strong> from the first delivery to the second, against a full second for a lease. That is fast recovery, and it still applied <strong>2 to 6 jobs twice in 12 kills</strong>, because the crash that matters lands after the order was placed and before the delete committed.</p>
+  <p>And the lock has a second failure, which is the lesson's title. Freeze the worker instead of killing it and the operating system keeps its connection open, so Postgres keeps the lock. <strong>The job waited 5.3&#8239;s for a 5&#8239;s pause</strong>, and would have waited for a pause of an hour.</p>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 424" role="img" aria-labelledby="mech0021-t mech0021-d">
+    <title id="mech0021-t">A worker that dies between doing a job and acknowledging it either loses the job or does it twice</title>
+    <desc id="mech0021-d">Two horizontal lanes, the worker above and the seller below, with time running left to right. On the worker lane, the job is claimed, then a request goes down to the seller, where the order is placed, and a response comes back, and only then is the job acknowledged. Two crash points are marked on the worker lane. A crash before the order is placed loses the job if the worker acknowledged first: seven to ten jobs lost in twelve kills. A crash after the order is placed and before the acknowledgement repeats the job: two to seven jobs applied twice in twelve kills. Beneath, a bar for a worker paused for five seconds: a strategy that holds the lock waits the whole five point three seconds and applies it once, and every strategy that stops waiting, a lease, a heartbeat or a session timeout, applies it twice. Then a line with no failure at all: a one hundred and fifty millisecond lease against work with a median of one hundred milliseconds applied between one hundred and seven and one hundred and sixteen of four hundred jobs twice, against one hundred predicted from the tail. Then the fixes: a check on the worker's own side still applied two to nine twice; a key the seller refuses to see twice applied none twice under kills and pauses; and an effect in the same transaction as the acknowledgement applied none twice.</desc>
+
+    <text x="20" y="24" class="strong">Two steps, done and acknowledged. A worker that dies between them chose one failure.</text>
+
+    <!-- MARK 1 &#183; the worker's timeline. -->
+    <text x="20" y="80" class="lbl-dim">worker</text>
+    <path d="M100,76 L800,76" class="rule"/>
+
+    <!-- MARK 2 &#183; the far side of the call. -->
+    <text x="20" y="160" class="lbl-dim">seller</text>
+    <path d="M100,156 L800,156" class="rule"/>
+
+    <!-- MARK 3 &#183; the claim. -->
+    <rect x="110" y="60" width="90" height="30" class="box"/>
+    <text x="126" y="80" class="lbl">claim</text>
+
+    <!-- MARK 4 &#183; the effect, over there. -->
+    <path d="M200,90 L360,140" class="flow"/>
+    <rect x="360" y="140" width="140" height="30" class="good"/>
+    <text x="374" y="160" class="lbl ink-good">order placed</text>
+
+    <!-- MARK 5 &#183; the acknowledgement, last. -->
+    <path d="M500,140 L660,90" class="flow"/>
+    <rect x="660" y="60" width="130" height="30" class="box"/>
+    <text x="676" y="80" class="lbl">ack: delete</text>
+
+    <!-- MARK 6 &#183; dying before the effect. -->
+    <text x="96" y="128" class="lbl ink-bad">&#10005; ack-first: lost, 7&#8211;10 of 12</text>
+
+    <!-- MARK 7 &#183; dying after it. -->
+    <text x="596" y="130" class="lbl ink-bad">&#10005; ack-last: twice, 2&#8211;7</text>
+
+    <!-- MARK 8 &#183; the pause. -->
+    <rect x="20" y="196" width="800" height="28" class="warn"/>
+    <text x="34" y="215" class="lbl ink-warn">paused 5&#8239;s &#183; the lock waits 5.3&#8239;s, once &#183; a lease, a heartbeat or a timeout: twice</text>
+
+    <!-- MARK 9 &#183; no failure at all. -->
+    <text x="20" y="262" class="lbl">no crash, no pause &#183; lease 150&#8239;ms, work median 100&#8239;ms &#183; <tspan class="strong ink-bad">107&#8211;116</tspan> of 400 twice, 100 predicted</text>
+
+    <!-- MARK 10 &#183; the fix everybody writes first. -->
+    <text x="20" y="312" class="lbl ink-bad">the worker checks its own table first, writes it after &#183; still 2&#8211;9 twice</text>
+
+    <!-- MARK 11 &#183; the fix that works: the receiver refuses the key. -->
+    <rect x="20" y="336" width="800" height="28" class="good"/>
+    <text x="34" y="355" class="lbl ink-good">keyed: the seller refuses a key it has seen &#183; 0 twice, under kills and under the pause</text>
+
+    <!-- MARK 12 &#183; or the effect is here, and commits with the ack. -->
+    <text x="20" y="400" class="lbl">same-tx: the effect is a row here, committed with the delete &#183; <tspan class="strong ink-good">0</tspan> twice, no key</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">Say this while you draw it</span>
+    <ol class="narrate">
+      <li>Two lanes: <b>worker</b> on top, <b>seller</b> below. Claim, the order is placed over there, and the ack comes last.</li>
+      <li>Die before the order with the ack already done: <b>lost</b>. Die after the order, before the ack: <b>done twice</b>. No third place to die.</li>
+      <li>Pause the worker instead. The lock <b>waits the whole pause</b>; everything that stops waiting does the job <b>twice</b>.</li>
+      <li>No failure at all: a lease shorter than the slow tail doubles <b>107 to 116 of 400</b>, and the tail predicted 100.</li>
+      <li>The worker checking its own table <b>still doubles</b>, because the record is written after the effect.</li>
+      <li>What works: <b>the seller refuses a key it has seen</b>, or the effect commits <b>with</b> the ack.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. Twelve marks, the standing ceiling. The top is a timing diagram with two crash points and the bottom is five lines, so get the order of the three boxes right and the rest follows.</p>
+  <ul>
+    <li>Two lanes, and <b>claim, order placed, ack</b> in that order, the middle one on the lower lane.</li>
+    <li>The two crosses: <b>before the order, lost</b>; <b>after it, twice</b>.</li>
+    <li>The pause bar: <b>the lock waits, everything else doubles</b>.</li>
+    <li>The three fixes and which one is wrong: <b>own table</b>, <b>seller's key</b>, <b>same transaction</b>.</li>
+  </ul>
+  <span class="timer">Put the order on the seller's lane, not the worker's. If it sits on the worker's lane it looks like part of the worker's transaction, and the whole point is that it is not.</span>
+</div>
+
+<h2>Lab &#8212; kill the workers, count the jobs</h2>
+
+<div class="lab">
+  <header>
+    <span class="kicker">Lab 0021</span>
+    <span class="est">~25 minutes</span>
+    <h3>Six ways to consume one queue, a real SIGKILL, and a pause nobody notices</h3>
+  </header>
+  <div class="body">
+    <div class="prereq">
+      <span>Needs:</span>
+      <span class="chip">anchor/vendor-eval-gateway</span>
+      <span class="chip">Docker &#183; Postgres</span>
+      <span class="chip">~25 min</span>
+    </div>
+
+    <div class="caution">
+      <span class="callout-label">The kill counts wobble; the lease and producer counts do not</span>
+      <p>Workers are real processes, killed on a schedule, and whether a kill lands before or after the order is a matter of microseconds, so steps 1 and 2 moved between runs: across six runs, <b>7 to 10 lost</b> for ack-first, <b>2 to 7 twice</b> for the two plain at-least-once strategies and <b>2 to 9</b> for the local check. The zeros never moved. Steps 4 and 5 are seeded: step 5 repeated exactly, and in step 4 only the shortest lease moved, 107 to 116 in five runs, because a job that finishes within a few milliseconds of its lease depends on scheduling. Every table here is <code>jobs</code>, <code>seller_orders</code> and <code>deliveries</code>, truncated at the start of each run.</p>
+    </div>
+
+    <ol class="steps">
+      <li>
+        <p class="what">Start Postgres, fill a queue with 800 jobs, and drain it with four worker processes while one of them is killed every few hundred milliseconds. Three strategies: acknowledge first, hold the row lock through the work, or take a one-second lease.</p>
+        <pre class="cmd"><span class="prompt">$ </span>cd anchor/vendor-eval-gateway
+<span class="prompt">$ </span>docker compose up -d --wait postgres
+<span class="prompt">$ </span>uv run python -m bench.delivery --experiment crash</pre>
+        <pre class="out">800 jobs, 4 worker processes, one SIGKILL every 0.15-0.45 s, 12 kills, work 40 ms, lease 1.0 s
+strategy        lost  applied twice  redelivered   waited, p50
+ack-first          7              0            0             -
+hold-lock          0              6           11         47 ms
+lease              0              5           11      1,008 ms</pre>
+        <div class="expect broken">
+          <span class="label">The same twelve kills, and each strategy chose which way to fail</span>
+          <p>Acknowledging first lost <strong>7 jobs in 12 kills</strong> and never repeated one. The other two lost nothing and repeated <strong>6 and 5</strong>. Each kill lands somewhere in a 40&#8239;ms job: before the order is placed, or after it and before the delete. That is the only thing that varies, and it decides which column the kill shows up in.</p>
+          <p>The last column is recovery, and it is where the two at-least-once strategies differ. A killed worker's connection closes, Postgres drops its lock, and another worker has the job <strong>47&#8239;ms</strong> after the first one got it. A lease nobody is holding any more still has to run out: <strong>a full second</strong>. Neither is safe. They differ in how long a crashed job waits.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Now the three fixes, under the same kills: the worker's own &#8220;already done?&#8221; table, a key the seller refuses to apply twice, and an effect written in the same transaction as the delete.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.delivery --experiment crash --strategies dedupe-local,keyed,same-tx</pre>
+        <pre class="out">800 jobs, 4 worker processes, one SIGKILL every 0.15-0.45 s, 12 kills, work 40 ms, lease 1.0 s
+strategy        lost  applied twice  redelivered   waited, p50
+dedupe-local       0              4           10      1,015 ms
+keyed              0              0           11      1,016 ms
+same-tx            0              0           10         42 ms</pre>
+        <div class="ba">
+          <span class="label">Before / after &#183; the check everyone writes first changed nothing</span>
+          <p><code>dedupe-local</code> checks <code>processed_jobs</code> before placing the order and writes to it after. It applied <strong>4 twice here, and 2 to 9 across six runs</strong>, which is no better than having no check. The crash that causes a duplicate lands between the order and the record, so it is exactly the crash that stops the record being written. The next worker checks, finds nothing, and places the order again.</p>
+          <p><code>keyed</code> sends the job's key with the order, and the seller's unique index refuses the second one: <strong>zero twice, with 11 redeliveries</strong>. The duplicates still arrive; they just stop mattering. <code>same-tx</code> writes the effect in the worker's own transaction, so it commits with the delete or not at all: zero twice with no key, and the fast recovery of the lock. That is Kafka's recipe, <em>&#8220;letting the consumer store its offset in the same place as its output&#8221;</em>, and it only exists when the output is here.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Now do not kill the worker. Freeze it with <code>SIGSTOP</code> partway into its first job, leave it frozen for five seconds, and let it go. Five ways to consume, and a second worker ready to take over.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.delivery --experiment pause</pre>
+        <pre class="out">two workers, 20 jobs of 160 ms; worker A is stopped with SIGSTOP partway into its first job and resumed 5 s later
+
+                                   first applied  applied   what worker A said on resuming
+hold-lock                            after 5.3 s        1   nothing
+hold-lock, idle-in-tx timeout 2 s    after 2.1 s        2   ack failed: InterfaceError, connection is closed
+lease 2 s                            after 2.1 s        2   ack refused: job 1 had been leased again
+lease 2 s + heartbeat                after 2.2 s        2   ack refused: job 1 had been leased again
+keyed, lease 2 s + heartbeat         after 2.1 s        1   ack refused: job 1 had been leased again</pre>
+        <div class="expect broken">
+          <span class="label">Stuck, or twice &#8212; and nothing on the server could tell which it was</span>
+          <p>Holding the lock applied the job once and <strong>left it waiting 5.3&#8239;s</strong>. A frozen process's sockets stay open, the kernel keeps answering for it, and Postgres sees a session that is idle in a transaction &#8212; the same thing it sees when a worker is waiting on a slow model call. The server's keepalive would not help either. <code>tcp_keepalives_idle</code> is 0 here, which the documentation says <em>&#8220;selects the operating system&#8217;s default&#8221;</em> &#8212; 7&#8239;200&#8239;s in this container &#8212; and a keepalive is answered by the operating system rather than the process, so a frozen one still answers.</p>
+          <p>Every way of <em>not</em> waiting did the job twice. The session timeout from lesson 0019 killed A's transaction at two seconds, B placed the order, and A woke up and placed it again on a connection nobody had killed. The lease ran out and did the same. <strong>The heartbeat changed nothing</strong>, because a frozen process sends none. In all three, A's acknowledgement was refused and <strong>its order was not</strong>. Only the keyed seller got to once.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">No kills and no pauses. Four hundred jobs whose work times follow a lognormal with a 100&#8239;ms median, against four lease lengths, and then the shortest lease again with a heartbeat. The bench prints its own prediction first.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.delivery --experiment lease</pre>
+        <pre class="out">400 jobs, 8 consumers, no crashes; work lognormal, median 100 ms, sigma 0.6
+
+lease                  P(work &gt; lease)  predicted  applied twice
+150 ms                          25.0%        100            108
+300 ms                           3.4%         13             13
+600 ms                           0.1%          1              1
+1200 ms                          0.0%          0              0
+150 ms + heartbeat              25.0%          0              0</pre>
+        <div class="expect">
+          <span class="label">A duplicate needs no failure, only a tail longer than the lease</span>
+          <p>Nothing went wrong in this run and <strong>108 of 400 jobs were done twice</strong>. Every job slower than its lease was handed to a second worker while the first was still working, and both finished. The prediction column is just the lognormal's tail beyond the lease, times 400. At 300 and 600&#8239;ms it lands on the prediction, within one, in every run. At 150&#8239;ms the count ran a little above it, 107 to 116 in five runs, and one plausible reason is that a redelivered job can outlive its lease a second time.</p>
+          <p>So a lease is a bet on your p99, and the bet is written down as a duplicate rate. The heartbeat takes it to zero for a slow worker. Step 3 is the case it cannot cover.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">The other end of the queue. Three hundred confirms, and one enqueue response in ten is lost after the enqueue committed, so the producer sends it again. Consume with no key, with the receiver keyed on the job id, and with the producer's own key on the enqueue.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.delivery --experiment producer</pre>
+        <pre class="out">300 confirms to enqueue; the response to one enqueue in ten is lost after it committed, and the producer retries it
+
+                                         delivered  applied
+no key anywhere                                342      342
+receiver keyed on the job id                   342      342
+producer's key on the enqueue                  300      300</pre>
+        <div class="expect broken">
+          <span class="label">A retried enqueue is a new job, so the job id is the wrong key</span>
+          <p><strong>342 orders for 300 intents</strong>, and keying the receiver on the job id did not remove one of them, because each retry is a different row with a different id. The key has to identify the <em>intent</em>, and only the producer knows it. With it on the enqueue &#8212; <code>ON CONFLICT (key) DO NOTHING</code>, lesson 0014's insert-first &#8212; the retry lands on the same row and there are 300.</p>
+          <p>Pub/Sub's documentation describes the same trap for its own ids, even with exactly-once delivery switched on: <em>&#8220;Multiple unique publishes by the publishing client, across retries, leads to redeliveries with different message IDs.&#8221;</em> A transport's message id dedupes the transport's retries, not yours.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Finally the tests, which check the same six strategies with a raised exception standing in for the kill.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run pytest tests/test_queue.py -q 2&gt;&amp;1 | tail -1</pre>
+        <pre class="out">11 passed in 2.21s</pre>
+        <div class="expect">
+          <span class="label">Each test is one row of the bench, made small enough to keep</span>
+          <p><code>test_a_worker_whose_lease_ran_out_cannot_ack</code> is the one worth reading. The late worker's acknowledgement is refused &#8212; <code>ack()</code> deletes only if the attempt number still matches &#8212; and the test then asserts the effect was applied <strong>twice anyway</strong>. Refusing a stale ack protects the queue. It protects nothing the worker already did, which is why the fix belongs to the receiver.</p>
+          <p><code>test_the_local_dedupe_check_misses_the_crash_it_was_written_for</code> keeps the wrong fix in the suite on purpose, asserting two effects, so nobody later adds it back believing it helps.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+</div>
+
+<div class="evidence" data-evidence-for="0021">
+  <header>
+    <span class="callout-label">Your numbers, not mine</span>
+    <span class="hint">saved in this browser as you type</span>
+  </header>
+  <div class="body">
+    <p>The kill counts move between runs, so write the range you saw. The producer counts should match mine exactly, and the lease counts within a few at the shortest lease. The last row is about your system.</p>
+
+    <div class="rows">
+      <div class="row">
+        <span class="ran">Step 1, <strong>the kills</strong>: jobs lost acknowledging first, and doubled holding the lock</span>
+        <span class="field"><label for="e21-lost">ack-first lost</label><input type="text" id="e21-lost" data-field="lost" placeholder="e.g. 7 of 12 kills"></span>
+        <span class="field"><label for="e21-twice">hold-lock twice</label><input type="text" id="e21-twice" data-field="twice" placeholder="e.g. 6 of 12 kills"></span>
+        <span class="why-row"><label for="e21-where">What decided which column each kill landed in?</label><textarea id="e21-where" data-field="where" placeholder="Where in the job it landed. Before the order was placed, a job already acknowledged is lost; after the order and before the delete, a job not yet acknowledged is redelivered and placed again. Nothing about the strategy removes that instant, it only chooses what it costs."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 2, <strong>the fixes</strong>: doubled by the local check, and by the keyed seller</span>
+        <span class="field"><label for="e21-local">dedupe-local</label><input type="text" id="e21-local" data-field="local" placeholder="e.g. 4 twice"></span>
+        <span class="field"><label for="e21-keyed">keyed</label><input type="text" id="e21-keyed" data-field="keyed" placeholder="e.g. 0 twice, 11 redelivered"></span>
+        <span class="why-row"><label for="e21-record">Why did the worker's own record not help?</label><textarea id="e21-record" data-field="record" placeholder="It is written after the effect, so a crash between the order and the record leaves the order placed and no record of it. The next worker checks, finds nothing, and does it again. The only record that helps is one written by the same operation as the effect, which means on the receiver's side."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 3, <strong>the pause</strong>: how long the lock left the job waiting, and what the lease did</span>
+        <span class="field"><label for="e21-stuck">hold-lock</label><input type="text" id="e21-stuck" data-field="stuck" placeholder="e.g. waited 5.3 s, once"></span>
+        <span class="field"><label for="e21-lease">lease + heartbeat</label><input type="text" id="e21-lease" data-field="lease" placeholder="e.g. twice"></span>
+        <span class="why-row"><label for="e21-tell">Why could neither Postgres nor the heartbeat tell the worker was frozen?</label><textarea id="e21-tell" data-field="tell" placeholder="A stopped process keeps its sockets, and the kernel keeps answering for them, so the session looks idle in a transaction exactly as it does during a slow model call. The heartbeat is sent by the process, so a frozen process sends none, its lease runs out, and when it resumes it carries on."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 4, <strong>the lease with no failures</strong>: predicted and measured duplicates at 150&#8239;ms</span>
+        <span class="field"><label for="e21-pred">predicted</label><input type="text" id="e21-pred" data-field="pred" placeholder="e.g. 100 of 400"></span>
+        <span class="field"><label for="e21-meas">measured</label><input type="text" id="e21-meas" data-field="meas" placeholder="e.g. 108 of 400"></span>
+        <span class="why-row"><label for="e21-bet">What is a lease length a bet on, and how would you pick one?</label><textarea id="e21-bet" data-field="bet" placeholder="On the tail of the work time. The duplicate rate is roughly the probability a job takes longer than the lease, so I would read the p99.9 of the stage off real traces, set the lease above it, and add a heartbeat so that only a stopped worker can lose its lease."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">The decision: <strong>which job in your system is irreversible, and where does its dedupe key live?</strong></span>
+        <span class="field"><label for="e21-job">the job</label><input type="text" id="e21-job" data-field="job" placeholder="e.g. the ONDC confirm call"></span>
+        <span class="field"><label for="e21-key">the key</label><input type="text" id="e21-key" data-field="key" placeholder="e.g. order intent id, sent to the seller"></span>
+        <span class="why-row"><label for="e21-defend">Defend it, including what happens if the receiver cannot dedupe</label><textarea id="e21-defend" data-field="defend" placeholder="The key is minted when the user says yes, carried on the job, and sent with the confirm, so the seller side refuses a repeat. If a receiver cannot dedupe, the honest options are at-most-once with a human follow-up for the lost ones, or reading the far side's state before retrying, and I would say which one I chose."></textarea></span>
+      </div>
+    </div>
+
+    <div class="earned">
+      <span class="callout-label">The bullet this lesson earns</span>
+      <p>&#8220;Built a Postgres job queue and measured its delivery semantics under real process kills: acknowledging first lost <span data-fill="lost" class="placeholder">[run step 1]</span>, acknowledging last doubled <span data-fill="twice" class="placeholder">[run step 1]</span>, and a lease doubled <span data-fill="meas" class="placeholder">[run step 4]</span> with no failure at all. Made the irreversible step effectively-once with a producer-minted key the receiver refuses to apply twice: <span data-fill="keyed" class="placeholder">[run step 2]</span>.&#8221;</p>
+      <p class="caveat">The follow-up will be about the pause. Be ready to say that holding the lock does not double anything and can wait forever, and that everything which stops waiting doubles, which is why the key is on the receiver and not in the queue.</p>
+    </div>
+  </div>
+</div>
+
+<h2 id="underneath-0021">Underneath</h2>
+
+<div class="underneath">
+  <span class="callout-label">One layer down &#183; why exactly-once is a property of the receiver</span>
+
+  <p>Four things. The first is why the choice between losing and doubling cannot be avoided, the second is why a slow worker is indistinguishable from a dead one, the third is where a dedupe has to live to work, and the fourth is what the products that sell exactly-once actually promise.</p>
+
+  <h3>A crash between two steps has chosen one of them</h3>
+
+  <p>The Kafka documentation's discussion of consumer semantics ends where this lab starts. For output that stays inside Kafka it offers transactions; for output anywhere else, <em>&#8220;the limitation is in the need to coordinate the consumer&#8217;s position with what is actually stored as output,&#8221;</em> and it names the classic answer &#8212; a two-phase commit &#8212; only to prefer <em>&#8220;letting the consumer store its offset in the same place as its output.&#8221;</em> That is <code>same-tx</code>, and it is not available when the output is a seller's API.</p>
+
+  <div class="derive">
+    <p>Every strategy, against the two places a kill can land in one job:</p>
+    <span class="eq">strategy       killed before the effect   killed after it, before the ack   measured, 12 kills
+ack-first      lost                       done once                         7-10 lost
+hold-lock      redone, fine               done twice                        2-6 twice
+lease          redone, fine               done twice                        3-7 twice
+dedupe-local   redone, fine               done twice: no record yet         2-9 twice
+keyed          redone, fine               refused by the seller             0
+same-tx        rolled back with the ack   rolled back with the ack          0</span>
+    <p>The middle two columns are the whole argument. <b>No strategy has two good cells unless the effect and the acknowledgement are one operation</b> &#8212; either because they share a transaction, or because the receiver makes the second effect a no-op. Everything else only chooses which bad cell it lives in.</p>
+  </div>
+
+  <h3>Slow and stopped look the same from outside, so a lease is a bet on your tail</h3>
+
+  <p>SQS says so in its own documentation: <em>&#8220;If you don&#8217;t delete it before the timeout expires, the message becomes visible again in the queue and can be retrieved by another consumer,&#8221;</em> and <em>&#8220;due to the at-least-once delivery model of Amazon SQS, there&#8217;s no absolute guarantee that a message won&#8217;t be delivered more than once during the visibility timeout period.&#8221;</em> Its advice for work of unknown length is the heartbeat: <em>&#8220;Implement a heartbeat mechanism to periodically extend the visibility timeout.&#8221;</em> Step 4 says what happens without it; step 3 says where it stops helping.</p>
+
+  <div class="derive">
+    <p>With work times lognormal at median <code>m</code> and spread <code>&#963;</code>, the share of jobs slower than a lease <code>L</code> is a normal tail:</p>
+    <span class="eq">P(work &gt; L) = 1 - &#934;( ln(L / m) / &#963; )          m = 100 ms, &#963; = 0.6, 400 jobs
+
+lease     ln(L/m)/&#963;    P(work &gt; L)   predicted   measured
+150 ms    0.68         25.0 %        100         107-116
+300 ms    1.83          3.4 %         13          12-13
+600 ms    2.99          0.1 %          1           1
+1200 ms   4.14          0.0 %          0           0</span>
+    <p>So you can compute a duplicate rate from a latency distribution before running anything, and lesson 0002 already told you where the tail comes from. <b>A lease set from the median doubles a quarter of the work; one set from the p99 doubles one job in a hundred.</b> The heartbeat removes slowness from the bet entirely and leaves one case: a process that has stopped and will start again.</p>
+  </div>
+
+  <p>That case is not exotic. A garbage-collection pause, a laptop lid, a container being throttled, a node whose network drops for ten seconds and comes back &#8212; each looks, from Postgres and from the queue, exactly like a worker still thinking. <strong>Nothing outside the process can distinguish &#8220;slow&#8221; from &#8220;stopped and about to resume&#8221;</strong>, and so every queue must either wait indefinitely for the one it cannot tell about, or give the job to someone else and accept that both may finish. That is the title, and it is the same impossibility as lesson 0014's lost response, seen from the worker's side. Lesson 0032 adds the fencing token that lets the receiver tell which of the two was first.</p>
+
+  <h3>The dedupe has to live where the effect lands</h3>
+
+  <p>A check on the worker's side fails because of the order of two writes in two systems: the effect, then the record. Reverse them and the job is lost instead. The only record that cannot disagree with the effect is one written <em>by the same operation as the effect</em>, and for an effect in someone else's system, that means the someone else. Google's Pub/Sub guidance for its exactly-once subscriptions says the same thing from the other direction: subscribers should <em>&#8220;maintain information about the progress of processing a message until it is successfully acknowledged&#8221;</em> and <em>&#8220;use the information about the progress of processing a message to prevent duplicate work when an acknowledgment fails.&#8221;</em></p>
+
+  <div class="derive">
+    <p>Where each record is written, and whether a crash can separate it from the effect:</p>
+    <span class="eq">record                              written by               separable from the effect?   twice
+none                                -                        -                           2-7
+worker's processed_jobs, after      the worker, later        yes: crash in between       2-9
+seller's unique key, with the order the same insert          no                          0
+the effect itself, in the ack's txn the same commit          no                          0
+job id as the key, producer retried the same insert          no, but the key is wrong    42 of 300</span>
+    <p>The last row is the one people miss: the record was in the right place and the key named the wrong thing. <b>A dedupe works when it is written by the effect and keyed on the intent</b>, and each half fails without the other.</p>
+  </div>
+
+  <h3>Exactly-once, as it is sold</h3>
+
+  <p>The products that offer exactly-once are precise about it, and the precision is the lesson. Kafka's is exactly-once for Kafka-to-Kafka processing inside transactions. Pub/Sub's exactly-once delivery means no redelivery after a successful acknowledgement, and the page lists what it does not cover: it applies <em>&#8220;within a cloud region&#8221;</em>, only to pull subscriptions, and <em>&#8220;a subscription might receive multiple copies of the same message due to publish side duplicates, even with exactly-once delivery enabled.&#8221;</em> Kafka's own documentation warns that <em>&#8220;many systems claim to provide &#8216;exactly-once&#8217; delivery semantics, but it is important to read the fine print.&#8221;</em></p>
+
+  <p>Read that fine print against step 3 and step 5 and it is the same pair of holes every time: a worker that does the effect and then cannot acknowledge, and a producer whose retry is a new message. <strong>No transport closes either, because both happen outside it.</strong> Which is why the interview answer is not the name of a product feature. It is where the key is minted, where it is checked, and what the receiver does with a key it has already seen.</p>
+
+  <p class="lands">Which lands on the sentence worth keeping: <b>a queue can promise you at-least-once and a lease length; exactly-once is something the receiver does, with a key the producer minted.</b> Everything between them only chooses whether a stopped worker leaves a job stuck or does it twice.</p>
+</div>
+
+<h2>Check yourself</h2>
+
+<div class="quiz" data-quiz-id="0021-q1">
+  <p class="q">A worker checks its own <code>processed_jobs</code> table before placing an order, and writes the job there after the order is placed. Under twelve kills it still placed <strong>2 to 9 orders twice</strong>. Why?</p>
+  <ol class="options">
+    <li data-correct="true">The kill lands after the order and before the record</li>
+    <li>The check reads a stale snapshot of the processed table</li>
+    <li>The lease expires before the check has fully been completed</li>
+    <li>Two workers both insert the same processed row at once</li>
+  </ol>
+  <div class="why">
+    <p>A crash between two writes in two systems separates them, and the duplicate-causing crash is precisely the one between the order and the record. The next worker checks, finds no record, and places the order again. The check is correct about everything it can see; it simply cannot see an effect whose record was never written.</p>
+    <p>None of the distractors is the mechanism. The check reads committed data, the lease is a full second against 40&#8239;ms of work, and a duplicate insert into <code>processed_jobs</code> would conflict harmlessly. The fix is to move the record to where the effect lands, which is what <code>keyed</code> does.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0021-q2">
+  <p class="q">A worker holding a job's row lock is frozen with <code>SIGSTOP</code> for five seconds. Nothing else is configured. What does Postgres do with the lock?</p>
+  <ol class="options">
+    <li data-correct="true">Keeps it, because the session still looks alive</li>
+    <li>Releases it once the TCP keepalive probes fail</li>
+    <li>Releases it when the deadlock detector runs next</li>
+    <li>Hands the job to a waiting worker instead</li>
+  </ol>
+  <div class="why">
+    <p>It keeps it. A stopped process keeps its sockets open and the kernel keeps acknowledging on its behalf, so the session is simply idle in a transaction, which is also what a worker waiting on a slow model call looks like. In the lab the job waited <strong>5.3&#8239;s</strong> for a five-second pause and was applied once.</p>
+    <p>Keepalives would not help even if they were configured, because the operating system answers them on a frozen process&#8217;s behalf. The deadlock detector looks for cycles of waiting sessions, and this is one session holding a lock and one skipping past it. <code>SKIP LOCKED</code> means nobody waits on it at all &#8212; the job just sits there.</p>
+  </div>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">A spoken answer to <em>&#8220;you have a queue of confirm jobs. How do you make sure each order is placed exactly once?&#8221;</em> Read it aloud, then say it again with the page covered.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">A worker takes a confirm job, places the order with the seller, and acknowledges the job. It can die between those two steps.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">Acknowledge first and a crash loses the order. Acknowledge last and a crash places it twice. There is no third order.</p>
+      <p class="line">And a worker does not have to die. A slow one loses its lease, and a paused one looks alive to everything.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">I measured it with real process kills. Acknowledging first lost <b>7 to 10</b> in 12 kills; acknowledging last doubled <b>2 to 7</b>.</p>
+      <p class="line">The fix is a key minted with the intent, sent with the order, and refused by the seller the second time. Zero doubled, under kills and pauses.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">It needs the receiver's cooperation, and the key has to name the intent. Keyed on the job id, a retried enqueue still doubled 42 of 300.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;We use a queue with exactly-once delivery, so each job runs once.&#8221;</span> The follow-up is <em>&#8220;what happens if the worker dies after calling the seller and before acknowledging?&#8221;</em>, and no delivery guarantee answers it, because the job was delivered exactly once and done twice. The version that holds: <span class="quoted">&#8220;delivery is at-least-once; the confirm is effectively-once because the seller refuses a key it has already seen.&#8221;</span></p>
+  <p>The second trap is offering the worker's own dedupe table. It is the first fix anyone writes, it is in this lab, and it doubled as many jobs as having no check at all. If you propose it, say where the record is written relative to the effect before somebody asks.</p>
+</div>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;At-most-once or at-least-once for the confirm step &#8212; which, and why?&#8221;
+      <span class="tell">The opener. The weak answer picks one; the strong one says neither is enough for an irreversible step and says what goes on top.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>At-least-once delivery, because a lost confirm is an order the customer said yes to and never got, and nobody notices until they complain. But at-least-once on its own places some orders twice: in my lab, <strong>2 to 7 in 12 kills</strong> for a worker that acknowledges after the work.</p>
+        <p>So on top of it, the confirm carries a key minted when the user says yes, and the seller side refuses a key it has seen. That turned the same kills into zero duplicates with eleven redeliveries. The redeliveries are the queue doing its job; the key is what makes them harmless.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What if the seller cannot dedupe?&#8221; &#8212; then choose at-most-once plus reconciliation, and say so.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Why not just check a processed table in the worker before doing the job?&#8221;
+      <span class="tell">A trap disguised as a simplification. It tests whether you know where the crash that causes duplicates lands.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Because the record is written after the effect, and the duplicate comes from a crash between the two. I measured it: the worker-side check doubled <strong>2 to 9 jobs in 12 kills</strong>, no better than no check. The next worker checks, sees no record, and places the order again.</p>
+        <p>A record only helps if the same operation writes it and the effect. That is either the receiver's unique key, or &#8212; if the effect is a row in my own database &#8212; the effect and the acknowledgement in one transaction, which also got zero.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Then why keep it?&#8221; &#8212; you do not; it protects against a redelivery a table queue cannot produce.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;How long should the visibility timeout be?&#8221;
+      <span class="tell">Sounds like configuration. It is a question about whether you know a lease produces duplicates on its own.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Longer than the tail of the work, and it is computable. The duplicate rate is about the probability a job outlives its lease. With work at a 100&#8239;ms median I predicted <strong>100 duplicates in 400</strong> for a 150&#8239;ms lease and measured 107 to 116 over five runs, with no failures at all; at 600&#8239;ms it was one.</p>
+        <p>So I would set it from the stage's p99.9, add a heartbeat so a slow worker keeps its job &#8212; that took 150&#8239;ms to zero &#8212; and keep the receiver's key anyway, because a heartbeat cannot cover a paused process.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Why not a very long lease?&#8221; &#8212; a crashed job then waits that long; 1&#8239;s versus under 50&#8239;ms here.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Why not hold the row lock for the whole job? A crash releases it.&#8221;
+      <span class="tell">Sounds like the Postgres-native answer, and half of it is right. The other half is the lesson's title.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It does release on a crash, and fast &#8212; under <strong>50&#8239;ms</strong> to redelivery against a second for a lease. It still doubles, 2 to 6 in 12 kills, because the crash that matters is after the effect and before the commit.</p>
+        <p>Its real failure is a worker that stops without dying. I froze one with SIGSTOP: Postgres kept the lock and the job <strong>waited 5.3&#8239;s</strong> for a five-second pause, and would have waited for an hour. Add a session timeout and it becomes a lease, and doubled. It also holds a transaction open for the whole of the work, which is lesson 0019's horizon on the busiest table.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So which do you use?&#8221; &#8212; a lease with a heartbeat, and the key on the receiver.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Pub/Sub has exactly-once delivery now. Doesn't that solve it?&#8221;
+      <span class="tell">A product question with a semantics answer. The test is whether you have read what the feature promises.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It solves redelivery after a successful acknowledgement, within one region, on pull subscriptions. It does not solve a subscriber that places the order and dies before acknowledging, and the documentation says publish-side retries still arrive as <em>&#8220;redeliveries with different message IDs&#8221;</em>.</p>
+        <p>I measured that second one: a producer retrying lost enqueue responses made <strong>342 jobs for 300 intents</strong>, and a receiver keyed on the job id removed none of them. The producer's own key fixed it. So I would still key the confirm, and treat the feature as fewer redeliveries rather than a guarantee.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Then why use a broker at all?&#8221; &#8212; lesson 0022 argues you may not need one yet.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="primary-source">
+  <span class="callout-label">Read this next &#8212; one source, not ten</span>
+  <span class="title"><a href="https://kafka.apache.org/43/design/design/" target="_blank" rel="noopener">Apache Kafka &#8212; Design, &#8220;Message Delivery Semantics&#8221;</a></span>
+  <p>About two screens, and the clearest statement of the subject anywhere, because it is written by people selling exactly-once who explain precisely what it covers. The two sentences about saving the position before or after processing are this lesson's first step; the paragraph on writing to an external system is its second; and <em>&#8220;it is important to read the fine print&#8221;</em> is its fourth.</p>
+  <p class="cite">Read it against Amazon's <a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-visibility-timeout.html" target="_blank" rel="noopener">SQS visibility timeout</a> page for the lease and the heartbeat, and Google's <a href="https://cloud.google.com/pubsub/docs/exactly-once-delivery" target="_blank" rel="noopener">Pub/Sub exactly-once delivery</a> page for what the feature leaves out. The pause result in step 3 &#8212; that a frozen worker holds its lock with nothing on the server able to tell &#8212; is measured here rather than quoted from anywhere.</p>
+</div>
+
+<h2>Recall &#8212; from lessons 0014, 0017 and 0019</h2>
+
+<div class="recall">
+  <details>
+    <summary>0014 said a sender cannot tell a lost request from a lost response. Which experiment here is that sentence?</summary>
+    <p class="answer">Two of them, one from each end. Step 5 is 0014's case exactly: the producer's enqueue committed and the response was lost, so it sent another, and the queue gained a second job for the same intent &#8212; 342 for 300. Step 3 is the same ambiguity on the consumer's side, and it is the less familiar one. The queue cannot tell a worker that has stopped from a worker that is slow, just as a client cannot tell a request that was lost from one whose reply was. In both cases the party that cannot tell must either wait, possibly forever, or act again and accept a duplicate. The remedy is also the same in both: a key minted before the first attempt, identifying the intent, checked by whoever receives the effect. 0014 built the check; this lesson moved it to the far side of a queue and showed that the job id is the wrong thing to key it on.</p>
+    <span class="from">lesson 0014 &#183; idempotency is a key and a clock</span>
+  </details>
+  <details>
+    <summary>0017 found a transaction held open across an <code>await</code>. Which consumer strategy here does that on purpose, and what does it cost?</summary>
+    <p class="answer"><code>hold-lock</code>. It takes the row lock, then awaits the seller call with the transaction open, then deletes and commits. That is 0017's shape deliberately: the lock is what stops a second worker taking the job, and the connection dropping on a crash is what releases it quickly. The cost is everything 0017 measured, plus two things this lesson adds. A pooled connection is held for the whole of the work, so worker concurrency is capped by the pool rather than by the work. And a frozen worker keeps the lock indefinitely, because nothing on the server can distinguish it from a worker that is merely waiting on its await &#8212; 5.3 seconds for a five-second pause here. The lease strategy exists to avoid both, and trades them for a duplicate whenever a worker outlives its lease.</p>
+    <span class="from">lesson 0017 &#183; the await inside the transaction</span>
+  </details>
+  <details>
+    <summary>0019 set <code>idle_in_transaction_session_timeout</code> so a forgotten session could not stall vacuum. What did the same setting do to a paused worker here?</summary>
+    <p class="answer">It turned a stuck job into a doubled one. With the timeout at two seconds, the frozen worker's session was ended by the server, its lock was released, and the second worker took the job and placed the order. When the first worker resumed, it placed the order again &#8212; on a different pooled connection that nobody had killed &#8212; and only its acknowledgement failed, with the same bare <code>connection is closed</code> 0019 found. So the setting is still right, for the reason 0019 gave: a held transaction pins the horizon for the whole database. But it converts the lock strategy into a lease with the timeout as its length, and inherits the lease's duplicate. It is one more mechanism for not waiting, and every mechanism for not waiting needs the receiver's key.</p>
+    <span class="from">lesson 0019 &#183; the snapshot nobody closed</span>
+  </details>
+</div>
+
+<div class="ask">
+  <p><strong>Tier 2 starts here, with the part of messaging that is the same in every product.</strong> The result I would most like checked against something real is step 3. Any worker that takes jobs from a database is either holding a lock or taking a lease, whether its authors called it that or not. If you run one &#8212; a library, a home-grown loop, anything &#8212; find out which it does, and what happens to a job whose worker is frozen for longer than its timeout.</p>
+  <p>Ask me anything that was unclear, particularly the tail arithmetic in step 4: it is the one place on this page where you can predict a failure count from a latency distribution before running anything, and it is worth being able to do on a whiteboard.</p>
+  <p>The redraw experiment from lesson 0014 is still open. This diagram is at twelve marks.</p>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">Where this lands on the r&#233;sum&#233;</span>
+  <p>This lesson teaches the mechanism from first principles and breaks it in a lab. The chapter opposite defends the voice-commerce bullet, whose confirm step is the job this lesson makes effectively-once.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../resume-mastery/lessons/0018-voice-commerce-ondc.html">RM 0018 &#183; Voice commerce on ONDC</a>
+      <span class="bridge-why">An asynchronous network of callbacks with one irreversible step is exactly where delivery semantics stop being theoretical.</span>
+    </li>
+  </ol>
+</div>
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0020-the-read-that-beat-its-own-write.html">&#8592; 0020 &#183; The read that beat its own write</a></span>
+  <span><span class="dir">Next</span><a href="0022-a-table-before-a-broker.html">0022 &#183; A table before a broker &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

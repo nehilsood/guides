@@ -1,0 +1,254 @@
+/* ==========================================================================
+   diagram.css — the one drawable mechanism per lesson.
+
+   Loaded after course.css by any lesson carrying a <figure class="mech">.
+
+   These diagrams exist to be REDRAWN, not admired. A senior design review or
+   interview asks you to draw the thing on a whiteboard, and a picture you
+   cannot reproduce in sixty seconds from memory has taught you nothing you
+   can use in the room.
+
+   Two rules that follow from that, and they are hard limits:
+
+     1. Twelve marks. A mark is a box, an arrow, a line, or a label. Past
+        twelve, the diagram is explaining two mechanisms and belongs as two
+        diagrams — or, more often, one of the two was not the point.
+     2. Nothing decorative. No shadows, no gradients, no rounded-corner
+        chrome, no icons. Every mark on the page has to be a mark you would
+        bother to draw by hand, because that is the test it has to pass.
+
+   Colour comes only from the course tokens, applied through the classes
+   below rather than hardcoded on the elements — a diagram with #14181F in
+   its markup is invisible in dark mode, and these files are read in both.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Figure container
+   -------------------------------------------------------------------------- */
+
+.mech {
+  max-width: var(--content);
+  margin: 34px 0;
+  padding: 0;
+  border: 1px solid var(--rule);
+  background: var(--paper);
+}
+
+.mech > svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* The viewBox always leaves room for the outermost labels; this padding is
+     breathing room around the whole drawing, not a fix for a clipped one. */
+  padding: 18px 20px 8px;
+  box-sizing: border-box;
+  /* Text inside an SVG does not inherit the page font stack on its own. */
+  font-family: var(--sans);
+}
+
+.mech > figcaption {
+  padding: 14px 20px 16px;
+  border-top: 1px solid var(--rule-soft);
+  background: var(--surface);
+  font-size: 0.93rem;
+  color: var(--ink-2);
+}
+
+.mech > figcaption > .callout-label { color: var(--ink-3); }
+
+/* The narration: what you SAY while you draw it, in the order you draw it.
+   Not a title, and not a description of the finished picture. If you cannot
+   talk through the diagram from this list, the list is wrong. */
+.mech .narrate {
+  list-style: none;
+  counter-reset: mark;
+  padding: 0;
+  margin: 8px 0 0;
+  max-width: none;
+}
+
+/* Indent-and-hang, NOT a grid. These items are mostly raw text with inline
+   <b> in it, and a grid container turns each contiguous text run into its own
+   anonymous grid item — which then auto-flows into the 1.6em marker track and
+   sets the sentence one word per line. `> *` cannot fix that, because a text
+   node is not an element and cannot be placed. Absolute positioning keeps the
+   marker out of flow entirely and leaves the text as text. */
+.mech .narrate > li {
+  counter-increment: mark;
+  position: relative;
+  padding: 3px 0 3px 2.5em;
+  margin: 0;
+}
+
+.mech .narrate > li::before {
+  content: counter(mark) ".";
+  position: absolute;
+  left: 0;
+  top: 3px;
+  width: 1.6em;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink-3);
+  text-align: right;
+}
+
+.mech .narrate b { color: var(--ink); font-weight: 600; }
+
+/* --------------------------------------------------------------------------
+   SVG vocabulary
+
+   The markup names roles; this file decides what a role looks like. Keeps
+   the SVG readable and keeps both themes correct in one place.
+   -------------------------------------------------------------------------- */
+
+.mech svg text {
+  font-size: 12px;
+  fill: var(--ink);
+}
+
+.mech svg .lbl      { font-size: 11.5px; fill: var(--ink-2); }
+.mech svg .lbl-dim  { font-size: 10.5px; fill: var(--ink-3); }
+.mech svg .num      { font-family: var(--mono); font-size: 11px; fill: var(--ink); font-variant-numeric: tabular-nums; }
+.mech svg .mono     { font-family: var(--mono); font-size: 10.5px; fill: var(--ink-2); }
+.mech svg .strong   { font-weight: 650; fill: var(--ink); }
+
+/* Boxes. `.box` is a thing that exists; `.box-2` is a thing inside it. */
+.mech svg .box   { fill: var(--surface);   stroke: var(--rule); stroke-width: 1; }
+.mech svg .box-2 { fill: var(--surface-2); stroke: var(--rule); stroke-width: 1; }
+.mech svg .plain { fill: var(--paper);     stroke: var(--rule); stroke-width: 1; }
+
+/* Semantic fills. Same three states the labs use: this is the thing that
+   works, this is the thing that is broken, this is the thing to watch. */
+.mech svg .accent   { fill: var(--accent-bg); stroke: var(--accent); stroke-width: 1; }
+.mech svg .bad      { fill: var(--bad-bg);    stroke: var(--bad);    stroke-width: 1; }
+.mech svg .good     { fill: var(--good-bg);   stroke: var(--good);   stroke-width: 1; }
+.mech svg .warn     { fill: var(--warn-bg);   stroke: var(--warn);   stroke-width: 1; }
+
+.mech svg .ink-accent { fill: var(--accent-ink); }
+.mech svg .ink-bad    { fill: var(--bad); }
+.mech svg .ink-good   { fill: var(--good); }
+.mech svg .ink-warn   { fill: var(--warn); }
+
+/* Flows. Every line gets `fill:none` explicitly — an unfilled <path> with a
+   curve in it paints a solid blob by default, which is the single most
+   common way a hand-written SVG diagram goes wrong. */
+.mech svg .flow,
+.mech svg .flow-bad,
+.mech svg .flow-good,
+.mech svg .flow-dim,
+.mech svg .rule {
+  fill: none;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+}
+
+.mech svg .flow      { stroke: var(--ink-2); }
+.mech svg .flow-bad  { stroke: var(--bad); }
+.mech svg .flow-good { stroke: var(--good); }
+.mech svg .flow-dim  { stroke: var(--ink-3); stroke-dasharray: 4 3; }
+.mech svg .rule      { stroke: var(--rule); stroke-width: 1; }
+
+/* Arrowheads have to be declared per lesson (a <marker> is document-scoped
+   and cannot inherit a CSS colour through `context-stroke` everywhere yet),
+   so lessons declare them in their own <defs> using these classes. */
+.mech svg .head      { fill: var(--ink-2); stroke: none; }
+.mech svg .head-bad  { fill: var(--bad);   stroke: none; }
+.mech svg .head-good { fill: var(--good);  stroke: none; }
+
+/* --------------------------------------------------------------------------
+   Redraw block — retrieval practice for the picture
+
+   Reading a diagram feels like learning and mostly is not. Covering it and
+   reproducing it is the part that builds storage strength, so every mech
+   figure is followed by one of these.
+   -------------------------------------------------------------------------- */
+
+.redraw {
+  max-width: var(--content);
+  margin: -34px 0 34px;   /* sits flush under the figure it belongs to */
+  padding: 15px 20px 17px;
+  border: 1px solid var(--rule);
+  border-top: none;
+  background: var(--surface-2);
+}
+
+.redraw > .callout-label { color: var(--accent-ink); }
+
+.redraw > p {
+  margin: 0 0 10px;
+  max-width: var(--measure);
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+
+/* The checklist is what MUST be on your version. Not everything in the
+   figure — the three or four marks that carry the mechanism. If you can draw
+   these from memory you can answer the question; the rest is dressing. */
+.redraw ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-width: none;
+}
+
+/* Same indent-and-hang as .narrate, for the same reason: these are text
+   items with inline <b>, so a grid would shred them into one word per line. */
+.redraw ul > li {
+  position: relative;
+  padding: 0 0 5px 27px;
+  margin: 0;
+  font-size: 0.93rem;
+  color: var(--ink-2);
+}
+
+.redraw ul > li::before {
+  content: "\25A1";              /* an empty box: tick it on paper */
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-family: var(--mono);
+  color: var(--ink-3);
+  line-height: 1.5;
+}
+
+.redraw ul > li b { color: var(--ink); font-weight: 600; }
+
+.redraw .timer {
+  display: block;
+  margin-top: 11px;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+}
+
+/* --------------------------------------------------------------------------
+   Print — diagrams are the main reason to print a lesson at all
+   -------------------------------------------------------------------------- */
+
+@media print {
+  .mech {
+    break-inside: avoid;
+    border-color: #999;
+    background: #fff;
+  }
+  .mech > figcaption { background: #f7f7f7; border-top-color: #ccc; }
+
+  /* On paper there is no theme to adapt to, and a light-grey fill that reads
+     fine on screen disappears in a laser print. */
+  .mech svg .box, .mech svg .box-2, .mech svg .plain { fill: #fff; stroke: #666; }
+  .mech svg .accent, .mech svg .good, .mech svg .bad, .mech svg .warn { fill: #f0f0f0; stroke: #333; }
+  .mech svg text, .mech svg .lbl, .mech svg .num, .mech svg .strong { fill: #000; }
+  .mech svg .lbl-dim, .mech svg .mono { fill: #444; }
+  .mech svg .flow, .mech svg .flow-bad, .mech svg .flow-good { stroke: #000; }
+  .mech svg .head, .mech svg .head-bad, .mech svg .head-good { fill: #000; }
+
+  /* Blank space to actually do it in, which is the whole point on paper. */
+  .redraw {
+    break-inside: avoid;
+    background: #fff;
+    border-color: #999;
+    min-height: 4.5cm;
+  }
+}

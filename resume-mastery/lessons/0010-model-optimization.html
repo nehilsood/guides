@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>Model Optimization</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0010">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">R&#233;sum&#233; Mastery</a>
+    <span class="sep">/</span>
+    <span>Batch B &#183; Technical Skills</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Chapter 0010</span>
+  </div>
+  <h1>Model optimization</h1>
+  <p class="standfirst">Four techniques, and the r&#233;sum&#233; gives them equal billing. One you shipped, one you taught, one is arguable and one is not there. The chapter is mostly arithmetic, because on a device the whole decision is a memory budget and you should be able to do it out loud.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Do the memory arithmetic in your head &#8212; parameters times bytes per parameter, plus the KV cache &#8212; and know which of these four techniques you have actually shipped rather than presented.</p>
+</div>
+
+<div class="claim-line">
+  <span class="callout-label">The line being defended</span>
+  <blockquote>&#8220;<strong>Model Optimization:</strong> quantization, layer pruning, knowledge distillation, SLM deployment&#8221;</blockquote>
+  <span class="whose">Technical Skills &#183; line 3 of 4</span>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">For <em>&#8220;talk me through your model optimization experience.&#8221;</em> Lead with the arithmetic, because it is concrete and most candidates are vague here. Then be first to the two items that need qualifying.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">The on-device work at Samsung was a small language model on a television, covering fifty-plus functions from natural language.</p>
+      <p class="line">On a device the whole design is a memory budget, so that is where I would start.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">Weight memory is parameters times bytes per parameter. A billion parameters is <b>two gigabytes at sixteen-bit, one at eight, half at four</b>.</p>
+      <p class="line">Then the KV cache on top, which grows while the person keeps talking. The trap there is using attention heads instead of key-value heads, which overstates it fourfold.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">Quantization was the lever. The reason it also makes things faster is <b>bandwidth, not arithmetic</b>. Generating a token reads essentially every weight, and the chip computes far faster than it can be fed.</p>
+      <p class="line">What it costs is uneven. Fluency survives and precise recall does not. So the evaluation has to be the function-selection task, not a general benchmark.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">Two things on that skills line I would qualify before you ask. <b>Layer pruning</b> I presented to the engineering division rather than deployed.</p>
+      <p class="line">And <b>knowledge distillation</b> I have not shipped. I understand it, including why the teacher's temperature matters, but there is no production work behind it.</p>
+      <p class="line">Worth separating from the 150&#8239;GB preprocessing pipeline, which distilled <em>data</em> rather than a model. Same word, different thing.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;I've worked on quantization, pruning and distillation.&#8221;</span> It flattens shipped, taught and never into one verb. The follow-up is always &#8220;which one, and on what,&#8221; and now you are retreating rather than disclosing. Say which is which first and the same list becomes credible.</p>
+  <p>The other trap is <span class="quoted">&#8220;quantization makes it four times faster.&#8221;</span> It makes the weights four times smaller, and the speed-up follows from bandwidth rather than being a property of the arithmetic. Anyone who works on inference will hear the difference immediately.</p>
+</div>
+
+
+<div class="trace">
+  <span class="callout-label">Walk them through it &#183; one model onto one device</span>
+  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One model, followed from a size that does not fit to one that does. Do the arithmetic out loud. That is what turns this from a vocabulary answer into an engineering one.</p>
+  <p class="tr-case"><b>The picture.</b> Fitting a library into a suitcase. You can reprint the books in smaller type. You can leave some volumes behind. Or you can write a shorter book that says most of the same things. Three different operations, and people use one word for all three.</p>
+  <p class="tr-case"><b>The case.</b> A small language model has to run on a television and pick the right action from over fifty functions, given something said out loud. The memory ceiling is fixed and shared with everything else on the device.</p>
+  <ol>
+    <li class="tr-step">
+      <span class="tr-k">The budget</span>
+      <p><b>What happens.</b> On a device the whole design is a memory budget, so start there rather than with a technique.</p>
+      <p><b>Concretely.</b> Weight memory is the parameter count times the bytes per parameter. That is the entire formula.</p>
+      <p><b>If they ask why.</b> Saying the numbers out loud turns a vague on-device conversation into a concrete one. Most people reach for a technique before they have worked out what has to fit.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The arithmetic</span>
+      <p><b>What happens.</b> Do it for a model with a billion parameters and the choice makes itself.</p>
+      <p><b>Concretely.</b> At sixteen-bit that is two gigabytes. At eight-bit it is one. At four-bit it is half a gigabyte.</p>
+      <p><b>If they ask why.</b> Scale it up and the point lands harder. A seven-billion-parameter model is a data-centre card at full precision and a laptop at four-bit.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The cache</span>
+      <p><b>What happens.</b> Weights are not the whole bill. The keys and values for tokens already processed get stored so they are not recomputed.</p>
+      <p><b>Concretely.</b> That cache grows while the person keeps talking. On a device it often costs more than the weights do.</p>
+      <p><b>If they ask why.</b> The trap here is sizing it with attention heads instead of key-value heads. On a model using grouped attention that overstates the cache fourfold.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Smaller numbers</span>
+      <p><b>What happens.</b> Quantization was the lever. Each number is stored in fewer bits, and the model is unchanged in shape.</p>
+      <p><b>Concretely.</b> Doing it after training is cheap. Simulating the lost precision during training holds accuracy better and costs a training run.</p>
+      <p><b>If they ask why.</b> The reason naive quantization hurts is outliers. One weight far from the rest of its group stretches the scale for everything else in it.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Also faster</span>
+      <p><b>What happens.</b> Smaller weights are not only smaller. They are quicker, and the reason is the interesting part.</p>
+      <p><b>Concretely.</b> Generating one token reads essentially every weight in the model. The chip computes far faster than it can be fed.</p>
+      <p><b>If they ask why.</b> So the speed-up is a memory bandwidth effect rather than an arithmetic one. Knowing that distinction is usually the question being asked.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">What it costs</span>
+      <p><b>What happens.</b> The damage from quantization is uneven, and knowing where it lands is what makes the answer good.</p>
+      <p><b>Concretely.</b> Fluency survives. Precise recall does not. The model still sounds right while getting specific things wrong.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The measurement</span>
+      <p><b>What happens.</b> So the evaluation cannot be a general benchmark. It has to be the function-selection task itself.</p>
+      <p><b>Concretely.</b> Choosing between fifty similar functions depends on small differences in the output distribution. That is exactly the resolution quantization spends.</p>
+      <p><b>If they ask why.</b> A general score barely moved, and that is not reassurance. It is a ruler that does not look where the damage is.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The other two</span>
+      <p><b>What happens.</b> Pruning and distillation get confused with each other constantly, so separate them plainly.</p>
+      <p><b>Concretely.</b> Pruning removes whole transformer blocks from a trained model. Distillation trains a new smaller model to imitate a big one's output distribution.</p>
+      <p><b>If they ask why.</b> One is surgery and one is teaching. Only the second needs a training run, and only the first can be done in an afternoon.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">A near miss</span>
+      <p><b>What happens.</b> Zeroing scattered individual weights sounds like the same move as pruning and is not.</p>
+      <p><b>Concretely.</b> It shrinks a model on paper and usually does not make it faster, because ordinary hardware still multiplies the zeros.</p>
+      <p><b>If they ask why.</b> Removing whole blocks is structured, which is why it actually speeds things up. That is the distinction worth volunteering.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The line</span>
+      <p><b>What happens.</b> Two of the four items on that skills line need qualifying, and I would rather do it myself.</p>
+      <p><b>Concretely.</b> Layer pruning I presented to the engineering division rather than deployed. Knowledge distillation I have not shipped at all.</p>
+      <p><b>If they ask why.</b> There is a near miss to separate it from. The 150 GB preprocessing pipeline distilled data, not a model. Same word, different thing.</p>
+    </li>
+  </ol>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 300" role="img" aria-labelledby="mech0010-t mech0010-d">
+    <defs>
+      <marker id="ar10" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+    </defs>
+    <title id="mech0010-t">The memory budget, and which of the four techniques is evidenced</title>
+    <desc id="mech0010-d">On a device the decision is a memory budget. Weight memory is parameters multiplied by bytes per parameter, so a one billion parameter model is two gigabytes at sixteen bit, one at eight bit and half at four bit. The key value cache is added on top and grows with the conversation. Three techniques reduce the pile in different ways: quantization stores each number in fewer bits, layer pruning removes whole blocks, and distillation trains a smaller student against a teacher's distribution. Of the four items on the resume line, quantization and small model deployment are shipped, layer pruning was presented to a division, and knowledge distillation has no supporting work.</desc>
+
+    <rect class="box" x="8" y="16" width="380" height="118" rx="3"/>
+    <text class="lbl strong" x="24" y="40">The budget, said out loud</text>
+    <text class="lbl-dim" x="24" y="62">weights = parameters &#215; bytes per parameter</text>
+    <text class="num" x="24" y="84">1B at 16-bit = 2&#8239;GB &#183; 8-bit = 1&#8239;GB &#183; 4-bit = 0.5&#8239;GB</text>
+    <text class="lbl-dim" x="24" y="106">KV cache = 2 &#215; layers &#215; kv heads &#215; head dim &#215; bytes, per token</text>
+    <text class="num ink-bad" x="24" y="126">use kv heads, not attention heads &#8212; a 4&#215; error</text>
+
+    <rect class="good" x="404" y="16" width="200" height="118" rx="3"/>
+    <text class="lbl strong ink-good" x="504" y="40" text-anchor="middle">Quantization</text>
+    <text class="lbl-dim" x="504" y="62" text-anchor="middle">fewer bits per number</text>
+    <text class="lbl-dim" x="504" y="80" text-anchor="middle">same shape, same count</text>
+    <text class="lbl-dim" x="504" y="100" text-anchor="middle">faster because bandwidth</text>
+    <text class="lbl-dim" x="504" y="122" text-anchor="middle">outliers are what it costs</text>
+
+    <rect class="box-2" x="620" y="16" width="212" height="118" rx="3"/>
+    <text class="lbl strong" x="726" y="40" text-anchor="middle">Pruning vs distillation</text>
+    <text class="lbl-dim" x="726" y="62" text-anchor="middle">pruning: remove whole blocks</text>
+    <text class="lbl-dim" x="726" y="80" text-anchor="middle">structured, so genuinely faster</text>
+    <text class="lbl-dim" x="726" y="102" text-anchor="middle">distillation: train a student</text>
+    <text class="lbl-dim" x="726" y="122" text-anchor="middle">on the teacher's distribution</text>
+
+    <text class="lbl strong" x="8" y="170">What stands behind each item on the line</text>
+
+    <rect class="good" x="8" y="182" width="200" height="72" rx="3"/>
+    <text class="lbl strong ink-good" x="108" y="206" text-anchor="middle">quantization</text>
+    <text class="lbl-dim" x="108" y="226" text-anchor="middle">quantized MobileLLM</text>
+    <text class="num ink-good" x="108" y="246" text-anchor="middle">shipped</text>
+
+    <rect class="good" x="216" y="182" width="200" height="72" rx="3"/>
+    <text class="lbl strong ink-good" x="316" y="206" text-anchor="middle">SLM deployment</text>
+    <text class="lbl-dim" x="316" y="226" text-anchor="middle">50+ TV functions</text>
+    <text class="num ink-good" x="316" y="246" text-anchor="middle">shipped</text>
+
+    <rect class="warn" x="424" y="182" width="200" height="72" rx="3"/>
+    <text class="lbl strong ink-warn" x="524" y="206" text-anchor="middle">layer pruning</text>
+    <text class="lbl-dim" x="524" y="226" text-anchor="middle">division-wide session</text>
+    <text class="num ink-warn" x="524" y="246" text-anchor="middle">taught, not deployed</text>
+
+    <rect class="bad" x="632" y="182" width="200" height="72" rx="3"/>
+    <text class="lbl strong ink-bad" x="732" y="206" text-anchor="middle">distillation</text>
+    <text class="lbl-dim" x="732" y="226" text-anchor="middle">no supporting work</text>
+    <text class="num ink-bad" x="732" y="246" text-anchor="middle">unsupported</text>
+
+    <text class="num ink-bad" x="8" y="284">Careful: the 150&#8239;GB pipeline &#8220;distilled&#8221; data, not a model. Same word, different operation.</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">What you say while drawing it</span>
+    <ol class="narrate">
+      <li>Start with the budget, because that is the whole on-device conversation.</li>
+      <li>Weights are parameters times bytes each. Say the three numbers: two gigabytes, one, a half.</li>
+      <li>Then the cache formula, and the warning underneath it about key-value heads.</li>
+      <li>Quantization changes bits per number. Same shape, same count, less memory.</li>
+      <li>And it is faster because of bandwidth, not arithmetic. That is the follow-up.</li>
+      <li>Pruning removes blocks. Distillation trains a new student. Different operations.</li>
+      <li>Then the four boxes along the bottom, which are about the r&#233;sum&#233; rather than the technique.</li>
+      <li>Two green, one amber, one red. Say which is which before anyone asks.</li>
+      <li>And the last line, because the word &#8220;distilled&#8221; appears twice on this r&#233;sum&#233; meaning two things.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. One formula, one distinction, four verdicts.</p>
+  <ul>
+    <li>The <b>weight arithmetic</b> and the three numbers. The one mark to keep.</li>
+    <li>The <b>kv heads warning</b>, because it is a four-fold error and it is common.</li>
+    <li><b>Pruning removes, distillation trains.</b></li>
+    <li>The <b>four verdict boxes</b>, and the last line about the word &#8220;distilled.&#8221;</li>
+  </ul>
+  <span class="timer">Say &#8220;two gigabytes, one, a half&#8221; out loud as you write the formula. Three numbers and the budget conversation is grounded.</span>
+</div>
+
+<div class="star">
+  <span class="callout-label">Behavioural &#183; the story for this bullet</span>
+  <p class="frame">For <em>&#8220;tell me about working under a hard constraint&#8221;</em> or <em>&#8220;a time the benchmark did not tell you what you needed.&#8221;</em></p>
+  <ol class="rungs">
+    <li class="rung"><span class="rung-k">Decision</span><p>Whether to judge a shrunken model on general benchmark scores, which barely moved, or on the one task it was actually being shipped to do.</p></li>
+    <li class="rung"><span class="rung-k">Situation</span><p>A small model had to run on a television. It had to pick the right action from over fifty functions, given a natural-language request. The memory ceiling was fixed and shared with everything else on the device.</p></li>
+    <li class="rung"><span class="rung-k">Action</span><p>I worked the budget first: parameters times bytes per parameter, plus the cache, against what the device could actually spare. That makes the bit width a calculation rather than a preference.</p><p>Then I evaluated on function selection rather than on a general benchmark, because quantization damage is uneven. Fluency survives it and precise discrimination does not.</p></li>
+    <li class="rung"><span class="rung-k">Result</span><p>The model fit the ceiling, and the evaluation measured the thing that could actually break. Choosing between fifty similar functions depends on small differences in the output distribution. That is precisely the resolution quantization spends.</p></li>
+    <li class="rung"><span class="rung-k">What it cost</span><p>A general benchmark would have been cheaper and would have looked better. The honest version is that the model got worse in a specific way. I needed a measurement that could see it. A score that barely moves is not reassurance when the damage sits somewhere the score does not look.</p></li>
+  </ol>
+</div>
+
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>A model is a large pile of numbers. Running it on a phone or a television means that pile has to fit. The memory is already mostly spoken for. And the answer has to arrive before the person gives up.</p>
+  <p>There are three ways to make the pile smaller. Store each number in fewer bits. Throw away parts of the model. Or train a smaller model to imitate a bigger one. They are different operations with different costs, and confusing them is the most common way this line goes wrong.</p>
+  <dl>
+    <dt>Parameter</dt>
+    <dd>One number in the model. A billion-parameter model has a billion of them, and how many bytes each takes is the whole memory question.</dd>
+
+    <dt>Quantization</dt>
+    <dd>Storing each number in fewer bits. Sixteen-bit floats down to eight-bit or four-bit integers. The model is unchanged in shape and smaller in memory.</dd>
+
+    <dt>PTQ and QAT</dt>
+    <dd>Post-training quantization happens after training and is cheap. Quantization-aware training simulates the loss of precision during training, costs a training run, and holds accuracy better.</dd>
+
+    <dt>Outlier</dt>
+    <dd>A weight or activation far from the rest of its group. Outliers are why naive quantization hurts, because one extreme value stretches the scale for everything else.</dd>
+
+    <dt>KV cache</dt>
+    <dd>The stored keys and values for tokens already processed, so they are not recomputed. It grows with the conversation, and on a device it often costs more than the weights.</dd>
+
+    <dt>Layer pruning</dt>
+    <dd>Removing whole transformer blocks. Blunt, structured, and it actually speeds things up, unlike removing scattered individual weights.</dd>
+
+    <dt>Sparsity</dt>
+    <dd>Zeroing individual weights. It shrinks a model on paper and usually does not make it faster, because normal hardware still multiplies the zeros.</dd>
+
+    <dt>Knowledge distillation</dt>
+    <dd>Training a small student model on a large teacher's output distribution rather than on hard labels. The soft probabilities carry more information than the answer alone.</dd>
+
+    <dt>SLM</dt>
+    <dd>Small language model. Small enough to run where the data already is, which changes the privacy and latency story more than it changes the quality one.</dd>
+
+    <dt>Memory bandwidth</dt>
+    <dd>How fast weights can be moved to the compute units. Generation is usually limited by this rather than by arithmetic, which is why smaller weights are also faster.</dd>
+  </dl>
+</div>
+
+<div class="primer stack">
+  <span class="callout-label">The technology &#8212; what each named thing is</span>
+  <p>The primer above defines the techniques on this line. This one names the formats and the runtimes that implement them, starting from the ground. Quantization is a word. GGUF, AWQ and vLLM are the things you actually type.</p>
+  <p>Every entry answers four things. What it actually is, in plain words. Where it shows up in this work. What it buys, meaning what goes wrong without it. And the follow-up an interviewer asks once you have said the name.</p>
+  <dl>
+    <dt>Number formats</dt>
+    <dd><i>FP32, FP16, BF16, INT8, INT4</i>A model is billions of numbers, and this is the question of how many bits each one gets. FP32 is four bytes per weight, the format models are usually trained in. FP16 and BF16 are two bytes, and they split the difference differently: BF16 keeps FP32's full exponent range and gives up mantissa precision, which is why training is stabler in it. INT8 and INT4 drop to integers, with a shared scale factor per group of weights to map them back to real values. <b>In the app.</b> Every size and speed figure on this line is really this table. <b>What it buys.</b> Memory, directly and predictably. A seven-billion-parameter model is 28&#8239;GB in FP32, 14&#8239;GB in FP16 and under 4&#8239;GB in INT4, which is the difference between a data-centre GPU and a laptop. <b>The follow-up.</b> Halving the bits roughly halves memory and memory bandwidth. It does not halve latency, because only part of the time is spent moving weights and the rest is compute and overhead.</dd>
+
+    <dt>GGUF</dt>
+    <dd><i>a container, not a method</i>A single-file format that holds already-quantized weights together with everything needed to run them: the tokenizer, the architecture metadata and the quantization levels used, which run from <code>Q2_K</code> at the small and lossy end to <code>Q8_0</code> at the large and faithful one. It also supports splitting layers between CPU and GPU when the whole model will not fit. <b>In the app.</b> It is what a local model is actually distributed and downloaded as. <b>What it buys.</b> One file that runs. No framework install, no separate config, no matching library versions, which is what made local models usable by people who are not ML engineers. <b>The follow-up.</b> GGUF is not a quantization algorithm, it is the container. Saying &#8220;we quantized to GGUF&#8221; is like saying you compressed to ZIP without naming the level, and an interviewer who knows the area will notice.</dd>
+
+    <dt>llama.cpp and Ollama</dt>
+    <dd><i>the local runtimes</i>llama.cpp is an inference engine written in C++ with no framework dependencies, built to run quantized models on whatever hardware is present, including a plain CPU. Ollama wraps it in something friendlier: a command that pulls models by name, a model library, and a small local HTTP API. <b>In the app.</b> They are the path from &#8220;a quantized model exists&#8221; to &#8220;it runs on this laptop&#8221;. <b>What it buys.</b> Zero setup and zero dependencies. No Python environment, no CUDA version to match, and no data leaving the machine, which is often the actual requirement. <b>The follow-up.</b> What they are not for. Neither is a serving stack. Handling many concurrent users efficiently is a different problem with a different answer, which is vLLM further down this list.</dd>
+
+    <dt>GPTQ and AWQ</dt>
+    <dd><i>two post-training methods</i>Both take an already-trained model down to about four bits without retraining it, using a small calibration set to see which weights matter. They differ in how. GPTQ works layer by layer, rounding weights while adjusting the remaining ones to compensate for the error already introduced. AWQ starts from the observation that a small fraction of weights matter disproportionately, identifies them by activation magnitude, protects those, and quantizes the rest hard. <b>In the app.</b> These are the named methods behind the post-training quantization entry in the primer. <b>What it buys.</b> A four-times size reduction for a few minutes of calibration, with no training run and no labelled data. <b>The follow-up.</b> Both hold roughly ninety-odd percent of full-precision quality, and the gap between them is much smaller than the gap between either one and a careless configuration. Which matters more than picking a favourite.</dd>
+
+    <dt>bitsandbytes</dt>
+    <dd><i>and NF4</i>A library that makes low-precision <b>training</b> possible, which is a different job from everything else on this list. Its NF4 format, a four-bit type shaped for normally distributed weights, is what QLoRA fine-tunes through. The model is held in four bits while gradients flow through adapters at higher precision. <b>In the app.</b> It is the entry most often named in the wrong place, which is why it is here. <b>What it buys.</b> Fine-tuning a large model on a single consumer GPU, which otherwise simply cannot hold it. <b>The follow-up.</b> It is not a serving format and its inference speed is not competitive. Use it when you are fine-tuning on a small GPU. Use GPTQ, AWQ or GGUF when you are deploying. Getting that distinction wrong in an interview is a clear tell.</dd>
+
+    <dt>ONNX</dt>
+    <dd><i>Open Neural Network Exchange</i>A common file format for describing a model as a graph of standard operations, plus a runtime that executes that graph. The point is decoupling: a model trained in PyTorch can then run on a phone, in a browser or on an embedded board whose runtime has never heard of PyTorch. <b>In the app.</b> It is the usual route onto mobile, browser and embedded targets. <b>What it buys.</b> One export, many targets, with no Python interpreter required at the far end. It also unlocks hardware-specific accelerators through the same interface. <b>The follow-up.</b> Where it stops. Export is clean for fixed graphs and awkward for anything whose control flow depends on the data. And an operator the target runtime has not implemented is a wall rather than a slowdown, which means it fails at export rather than degrading.</dd>
+
+    <dt>TensorRT-LLM</dt>
+    <dd><i>NVIDIA's compiler</i>Rather than interpreting a model graph at run time, this compiles it ahead of time into a plan of GPU kernels tuned for one specific GPU family. It fuses neighbouring operations into single kernels, chooses implementations by benchmarking them, and bakes in the precision you asked for. <b>In the app.</b> It is the fast end of the serving spectrum, and the reference point everything else is compared against. <b>What it buys.</b> The best latency and throughput available on NVIDIA hardware, often by a wide margin over a generic runtime. <b>The follow-up.</b> The cost is portability and build time. You are compiling for a particular device, so changing GPU generation means building again, and the build is slow. That is a real operational constraint rather than a footnote.</dd>
+
+    <dt>vLLM</dt>
+    <dd><i>and paged attention</i>A serving engine built for the case where many people are talking to one model at once. Its central idea is paged attention. Generating text requires keeping a cache of attention keys and values for every token so far, and the naive approach reserves one contiguous block per request, sized for the longest reply it might produce. vLLM instead stores that cache in fixed-size blocks, allocated on demand, exactly the way an operating system pages virtual memory. <b>In the app.</b> The KV cache in the primer is the thing being managed here. <b>What it buys.</b> Far more concurrent requests on one GPU, because the memory reserved for replies that never got long is no longer wasted. <b>The follow-up.</b> What it actually fixed. Contiguous allocation wastes most of what it reserves, since you must reserve for the worst case. Paging that memory is the whole reason throughput jumps.</dd>
+
+    <dt>LoRA and QLoRA</dt>
+    <dd><i>parameter-efficient fine-tuning</i>Full fine-tuning updates every weight, which needs enough memory for the model, its gradients and the optimiser state, usually several times the model size. LoRA freezes the original weights entirely and trains small low-rank matrices alongside them, so well under one percent of the parameters are updated. QLoRA goes further and holds the frozen base model in four bits while doing it. <b>In the app.</b> It is what makes fine-tuning affordable at these model sizes. <b>What it buys.</b> A training run that fits on one GPU, and an output measured in megabytes instead of tens of gigabytes. <b>The follow-up.</b> Adapters are separable, and that changes serving as much as training. You can hold several adapters against one base model in memory and switch between them per request, which is how one deployment serves several fine-tuned behaviours.</dd>
+
+    <dt>Perplexity</dt>
+    <dd><i>the quality check</i>A measure of how surprised a model is by text it has not seen. Formally it is the exponential of the average negative log-likelihood, and informally it is the number of equally likely options the model feels it is choosing between at each token. Lower is better. It needs no labels and no task, just held-out text. <b>In the app.</b> Every claim on this line says something got smaller without getting worse, and this is the cheapest way to check the second half. <b>What it buys.</b> A fast regression signal after quantizing. If perplexity jumps, something is definitely broken, and you know before running a single benchmark. <b>The follow-up.</b> It is a proxy, not a verdict. A quantized model can hold its perplexity almost exactly and still lose measurably on instruction following or a specific task, so a real task benchmark has to sit beside it.</dd>
+  </dl>
+</div>
+
+
+
+
+
+<h2>The arithmetic you should be able to do out loud</h2>
+
+<p class="breath">Memory for weights is parameters times bytes per parameter. That is it. Say the numbers and the whole on-device conversation becomes concrete instead of vague.</p>
+
+<p>A one-billion-parameter model at sixteen-bit precision is two bytes per parameter, so two gigabytes. At eight-bit it is one gigabyte. At four-bit it is half a gigabyte. Those are the numbers that decide whether something ships on a television.</p>
+
+<p>Then add the part people forget. The KV cache is roughly two, for keys and values, times layers, times key-value heads, times head dimension, times bytes per element, per token. On a long conversation that can rival the weights, and unlike the weights it grows while the user talks.</p>
+
+<p>The trap worth naming is using attention heads rather than key-value heads in that formula. With grouped-query attention those differ by a factor of four or more, and getting it wrong overstates the cache by the same factor.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Count the numbers, multiply by how many bytes each takes, then add what the conversation itself costs to remember.</p>
+
+<h2>Quantization, and what it actually buys</h2>
+
+<p class="breath">Smaller numbers mean less memory, and less memory to move means faster generation. The speed-up is a bandwidth effect, not an arithmetic one, and knowing that distinction is the question.</p>
+
+<p>Generating a token means reading essentially every weight. Modern accelerators can do far more arithmetic than they can be fed, so generation is memory-bandwidth bound. Halving the bytes per weight roughly halves the data moved per token, and the throughput follows.</p>
+
+<p>The cost is accuracy, and it is not spread evenly. Outliers are the reason: a single extreme value in a group stretches the quantization scale, so every ordinary value in that group loses resolution. That is why per-channel scales beat per-tensor ones, and why weight-only quantization is safer than quantizing activations too.</p>
+
+<p>On device there is a second decision that matters more than people expect. Quantizing the KV cache is separate from quantizing the weights, and it is what buys context length rather than model size.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Writing each number more roughly makes the model smaller. Smaller also means quicker, because most of the time goes on fetching numbers rather than multiplying them.</p>
+
+<h2>Pruning and distillation are not the same move</h2>
+
+<p class="breath">Pruning removes parts of a trained model. Distillation trains a new smaller model to imitate a big one. One is surgery, the other is teaching, and only one of them needs a training run.</p>
+
+<p><b>Layer pruning</b> drops whole transformer blocks. It works better than intuition suggests, because middle and later blocks often change the hidden state very little, so removing a few costs less than removing the same parameter count from everywhere. It is also <em>structured</em>, which is why it genuinely speeds things up.</p>
+
+<p>Contrast that with unstructured sparsity, which zeroes scattered individual weights. The model is smaller on paper and usually no faster, because the hardware still multiplies by those zeros unless it has specific support.</p>
+
+<p><b>Knowledge distillation</b> is a different operation entirely. A large teacher produces a full probability distribution over tokens, and a small student is trained against that distribution rather than against the single correct answer. The soft targets carry information about what the teacher thought was <em>nearly</em> right, and that is the part that transfers.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Pruning is taking pieces out of a finished thing. Distillation is building a smaller thing that watched the bigger one work.</p>
+
+<h2>What is actually behind each of the four</h2>
+
+<p class="breath">Two of these are shipped. One was presented to a division rather than deployed. One has nothing on the page at all, and there is a near-miss nearby that is easy to confuse it with.</p>
+
+<p><b>Quantization</b> is solid. The Samsung bullet says a quantized MobileLLM covering fifty-plus television functions. That is a shipped artefact with a real memory constraint behind it.</p>
+
+<p><b>SLM deployment</b> is the same evidence and equally solid. A small model running on a television is the definition.</p>
+
+<p><b>Layer pruning</b> is on the page, but as a technical session delivered across the engineering division rather than as something deployed. That is still a real claim and it is a different one. Presenting a technique to a division is evidence you understand it, not that you shipped it.</p>
+
+<p><b>Knowledge distillation</b> has nothing behind it. The nearby item is the three-stage preprocessing pipeline that <em>distilled</em> 150&#8239;GB of Confluence exports into pretraining data. That is data curation and it uses the same English word for a completely different operation. Letting those blur together is the single easiest way to get caught on this line.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Two you built, one you taught, and one that shares a word with something else on your r&#233;sum&#233; that is not the same thing.</p>
+
+
+
+
+
+<section class="qset" id="toolbox">
+  <h2>Toolbox</h2>
+  <p class="qset-note">Every noun on the line, defined out loud, from the ground up. This is the line where a vague answer is most obvious, because the whole field is made of specific formats with specific trade-offs. Each answer says what the thing is, what it buys, and where it stops.</p>
+  <ul class="qa-index">
+    <li><a href="#c10-t1">The number formats</a></li>
+    <li><a href="#c10-t2">What GGUF actually is</a></li>
+    <li><a href="#c10-t3">GPTQ, AWQ or bitsandbytes</a></li>
+    <li><a href="#c10-t4">What ONNX is for</a></li>
+    <li><a href="#c10-t5">What paged attention fixed</a></li>
+    <li><a href="#c10-t6">LoRA and QLoRA</a></li>
+    <li><a href="#c10-t7">Proving it still works</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c10-t1">
+      <p class="qa-q">Walk me from FP32 down to INT4. What are they and what breaks?</p>
+      <p class="qa-a">A model is billions of numbers, and this is how many bits each one gets. FP32 is four bytes a weight, the format models are usually trained in. FP16 and BF16 are two bytes. BF16 keeps FP32's full exponent range and gives up precision instead, which is why training is stabler in it. INT8 and INT4 drop to integers, with a shared scale factor per group of weights. What it buys is memory, directly. At FP32 a seven-billion-parameter model is 28&#8239;GB. At FP16 it is 14&#8239;GB, and at INT4 it is under 4&#8239;GB. That is a data-centre GPU against a laptop. What breaks first is outliers, because one extreme weight drags the scale for its whole group.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying four-bit is four times faster. It is about four times smaller. Speed depends on whether you were bandwidth-bound, and often you were.</p>
+    </li>
+    <li class="qa-item" id="c10-t2">
+      <p class="qa-q">What is GGUF?</p>
+      <p class="qa-a">A file format, not a quantization method. It holds already-quantized weights together with everything needed to run them. The tokenizer, the architecture metadata, and the quantization levels used. Those run from Q2_K at the small and lossy end to Q8_0 at the large and faithful one. It also lets you split layers between CPU and GPU when the whole model will not fit. What it buys is one file that runs. No framework install, no separate config, no matching library versions. That is what made local models usable by people who are not ML engineers. Saying you quantized to GGUF is like saying you compressed to ZIP. The container is named. The setting is not.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Listing GGUF alongside GPTQ and AWQ as a third method. They answer different questions, and mixing them up is the tell.</p>
+    </li>
+    <li class="qa-item" id="c10-t3">
+      <p class="qa-q">GPTQ, AWQ, bitsandbytes. When would you use each?</p>
+      <p class="qa-a">GPTQ and AWQ are both post-training four-bit methods for serving. Both use a small calibration set to see which weights matter, and neither retrains the model. GPTQ works layer by layer, rounding weights while adjusting the rest to compensate for error already introduced. AWQ starts from the observation that a small fraction of weights matter disproportionately, finds them by activation magnitude, protects those, and quantizes the rest hard. What they buy is a fourfold size cut for minutes of calibration, with no training run and no labels. Bitsandbytes is the odd one out. It is for four-bit fine-tuning on a small GPU, not for deployment, and its inference speed is not competitive.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Naming bitsandbytes as a serving format. It is the QLoRA library, and putting it in the deployment answer says you have read about this rather than done it.</p>
+    </li>
+    <li class="qa-item" id="c10-t4">
+      <p class="qa-q">What is ONNX for, and where does it stop?</p>
+      <p class="qa-a">A common file format describing a model as a graph of standard operations, plus a runtime that executes that graph. The point is decoupling. A model trained in PyTorch can run on a phone, in a browser or on an embedded board whose runtime has never heard of PyTorch. What it buys is one export and many targets, with no Python interpreter at the far end. It also unlocks hardware accelerators through the same interface. It stops at control flow. Export is clean for a fixed graph and awkward for anything that branches on data. An unsupported operator is a wall, not a slowdown, so it fails at export rather than degrading.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating export as a formality. It is where on-device projects actually stall, and saying so shows you shipped one.</p>
+    </li>
+    <li class="qa-item" id="c10-t5">
+      <p class="qa-q">What is paged attention, and what problem did it solve?</p>
+      <p class="qa-a">Generating text requires keeping a cache of attention keys and values for every token so far. That is the KV cache, and it grows as the reply grows. Before vLLM it was one contiguous block per request, sized for the longest possible reply. You cannot know in advance how long an answer runs. So most of that reservation sat unused. Paged attention stores the cache in fixed-size blocks allocated on demand, exactly the way an operating system pages virtual memory. What it buys is far more concurrent requests on one GPU, because the memory reserved for replies that never got long is no longer wasted.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing vLLM as &#8220;faster inference.&#8221; It is a memory result that shows up as throughput, and the mechanism is the answer.</p>
+    </li>
+    <li class="qa-item" id="c10-t6">
+      <p class="qa-q">What is LoRA, and what does QLoRA add?</p>
+      <p class="qa-a">Full fine-tuning updates every weight. That needs memory for the model, its gradients and the optimiser state, usually several times the model size. LoRA freezes the original weights entirely and trains small low-rank matrices alongside them. Well under one percent of parameters are updated. QLoRA does the same while the frozen base sits in four bits, cutting memory again. What that buys is a training run that fits on one GPU, and an output measured in megabytes rather than tens of gigabytes. The adapter stays separate, which changes serving too. You can hold several against one base model and switch per request.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it cheaper full fine-tuning. It is a different thing with a rank you chose, and the rank is the knob an interviewer will ask about.</p>
+    </li>
+    <li class="qa-item" id="c10-t7">
+      <p class="qa-q">You shrank a model. How do you know it still works?</p>
+      <p class="qa-a">Perplexity first, because it is cheap. It measures how surprised the model is by text it has not seen, and lower is better. Informally it is how many equally likely options the model feels it is choosing between at each token. It needs no labels and no task, just held-out text. What that buys is a fast regression signal. If perplexity jumps, something is definitely broken, and you know before running a benchmark. Then a task benchmark, because perplexity can hold almost exactly while instruction following degrades. Quote both, with the sizes and the hardware. A compression claim without a quality number beside it is not a result.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Quoting a size reduction alone. Anyone can make a model smaller. The claim is that it stayed useful, and that needs its own number.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="fundamentals">
+  <h2>Fundamentals</h2>
+  <p class="qset-note">Question two is the one to be fluent in. Anyone who works on deployment will ask for the arithmetic within a minute.</p>
+  <ul class="qa-index">
+    <li><a href="#c10-f1">What quantization is</a></li>
+    <li><a href="#c10-f2">The memory arithmetic</a></li>
+    <li><a href="#c10-f3">Why smaller is faster</a></li>
+    <li><a href="#c10-f4">PTQ or QAT</a></li>
+    <li><a href="#c10-f5">What it costs</a></li>
+    <li><a href="#c10-f6">Pruning versus sparsity</a></li>
+    <li><a href="#c10-f7">What distillation is</a></li>
+    <li><a href="#c10-f8">Why on-device at all</a></li>
+    <li><a href="#c10-f9">Which you have shipped</a></li>
+    <li><a href="#c10-f10">The riskiest claim</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c10-f1">
+      <p class="qa-q">What is quantization, in one sentence?</p>
+      <p class="qa-a">Storing each weight in fewer bits than it was trained in. Sixteen-bit floats become eight-bit or four-bit integers, with a scale factor to map them back. The model keeps its shape and its parameter count. Only the precision of each number changes.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying it makes the model smaller without saying how. The mechanism is bits per number, and that is what every follow-up builds on.</p>
+    </li>
+    <li class="qa-item" id="c10-f2">
+      <p class="qa-q">A one-billion-parameter model. How much memory for the weights?</p>
+      <p class="qa-a">Parameters times bytes per parameter. At sixteen-bit that is two bytes each, so two gigabytes. At eight-bit, one gigabyte. At four-bit, half a gigabyte. Then add the KV cache separately, which is roughly two times layers times key-value heads times head dimension times bytes, per token.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Forgetting the cache. On a long conversation it can rival the weights, and unlike the weights it grows as the user keeps talking.</p>
+    </li>
+    <li class="qa-item" id="c10-f3">
+      <p class="qa-q">Why does a smaller model generate faster?</p>
+      <p class="qa-a">Because generation is memory-bandwidth bound rather than compute bound. Producing one token means reading essentially every weight, and the chip can do far more arithmetic than it can be fed. Halve the bytes per weight and you roughly halve the data moved per token.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying the arithmetic is faster. On most hardware it is not the bottleneck, and naming bandwidth is what shows you have thought about it.</p>
+    </li>
+    <li class="qa-item" id="c10-f4">
+      <p class="qa-q">Post-training quantization or quantization-aware training?</p>
+      <p class="qa-a">Post-training first, because it is cheap and often good enough. It needs a small calibration set and no training run. Quantization-aware training simulates the precision loss during training so the model adapts to it. It holds accuracy better at low bit widths and costs a training run, so it is the answer when four-bit post-training is not acceptable.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Naming the expensive one by default. The right answer is to try the cheap one and measure before paying for the other.</p>
+    </li>
+    <li class="qa-item" id="c10-f5">
+      <p class="qa-q">What does quantization cost you?</p>
+      <p class="qa-a">Accuracy, unevenly. Outliers are the reason: one extreme value in a group stretches the scale, so every ordinary value in that group loses resolution. That is why per-channel scales beat per-tensor ones. Weight-only quantization is safer than quantizing activations too, because activations have worse outliers.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying it costs a little accuracy and stopping. Naming outliers is what separates having read about it from having done it.</p>
+    </li>
+    <li class="qa-item" id="c10-f6">
+      <p class="qa-q">Layer pruning or unstructured sparsity?</p>
+      <p class="qa-a">Layer pruning, on ordinary hardware. Removing whole blocks is structured, so the model genuinely runs faster. Unstructured sparsity zeroes scattered weights, which shrinks the model on paper while the hardware still multiplies by those zeros. Sparsity only pays off with specific hardware support.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating parameter count as the goal. The goal is latency and memory, and one of those two techniques delivers both.</p>
+    </li>
+    <li class="qa-item" id="c10-f7">
+      <p class="qa-q">What is knowledge distillation?</p>
+      <p class="qa-a">Training a small student model against a large teacher's full output distribution instead of against hard labels. The soft probabilities say what the teacher thought was nearly right, and that extra signal is what transfers. It needs a training run and a teacher, which makes it much more expensive than quantization.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing it as training on the teacher's answers. The distribution is the point. Hard answers alone would be ordinary supervised learning.</p>
+    </li>
+    <li class="qa-item" id="c10-f8">
+      <p class="qa-q">Why run a model on a device at all?</p>
+      <p class="qa-a">Privacy and latency, in that order. The data never leaves the device, which for a television means what somebody says in their living room stays there. And there is no network round trip, so a short response is fast. It is not about quality, because the device model will be worse.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Leading with cost. Inference cost matters at scale and it is rarely why a consumer device runs a model locally.</p>
+    </li>
+    <li class="qa-item" id="c10-f9">
+      <p class="qa-q">Which of these four have you actually shipped?</p>
+      <p class="qa-a">Quantization and small-model deployment, both from the Samsung on-device work over a quantized MobileLLM. Layer pruning I presented to the engineering division rather than deployed. Knowledge distillation I would not claim as shipped, and I would say all of that before being asked.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Letting four items stand equally. The line reads as four deployed techniques and two of them are not.</p>
+    </li>
+    <li class="qa-item" id="c10-f10">
+      <p class="qa-q">What is the riskiest claim on this line?</p>
+      <p class="qa-a">Knowledge distillation, because nothing supports it and there is a near-miss on the same r&#233;sum&#233;. The 150&#8239;GB preprocessing pipeline <em>distilled</em> Confluence exports into training data, which is data curation rather than model distillation. If those blur together in an answer, an interviewer will separate them for me.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Using the preprocessing work to cover it. Same word, completely different operation, and the conflation is exactly what gets caught.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="deep-dive">
+  <h2>Deep dive</h2>
+  <p class="qset-note">These go where a deployment engineer goes. Several are arithmetic, and arithmetic is where hand-waving stops working.</p>
+  <ul class="qa-index">
+    <li><a href="#c10-d1">Per-channel scales</a></li>
+    <li><a href="#c10-d2">Weights or activations</a></li>
+    <li><a href="#c10-d3">Quantizing the KV cache</a></li>
+    <li><a href="#c10-d4">Where four-bit hurts most</a></li>
+    <li><a href="#c10-d5">Which layers to prune</a></li>
+    <li><a href="#c10-d6">Healing after pruning</a></li>
+    <li><a href="#c10-d7">Distillation temperature</a></li>
+    <li><a href="#c10-d8">Choosing between the three</a></li>
+    <li><a href="#c10-d9">No batching on device</a></li>
+    <li><a href="#c10-d10">Measuring the damage</a></li>
+    <li><a href="#c10-d11">Thermal and sustained load</a></li>
+    <li><a href="#c10-d12">When not to shrink</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c10-d1">
+      <p class="qa-q">Why do per-channel scales beat per-tensor ones?</p>
+      <p class="qa-a">Because one scale has to cover every value it is shared with. Per tensor, a single outlier anywhere stretches the scale for the whole tensor and everything else loses resolution. Per channel, the damage is contained to that channel. The cost is storing more scale factors, which is small next to the weights.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying it is more accurate without the mechanism. The mechanism is that outliers only ruin the group they are in.</p>
+    </li>
+    <li class="qa-item" id="c10-d2">
+      <p class="qa-q">Why is weight-only quantization safer than quantizing activations?</p>
+      <p class="qa-a">Weights are fixed and can be inspected before deployment, so their distribution is known. Activations depend on the input and have much worse outliers, which vary run to run. Quantizing them risks a scale chosen from calibration data that does not cover what arrives in production.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating them as the same operation. Static versus input-dependent is the whole difference in risk.</p>
+    </li>
+    <li class="qa-item" id="c10-d3">
+      <p class="qa-q">When would you quantize the KV cache rather than the weights?</p>
+      <p class="qa-a">When context length is the constraint rather than model size. Weight quantization is a fixed one-off saving. Cache quantization scales with conversation length, so on a device holding a long session it buys more. They are independent decisions and it is worth saying so, because people assume one implies the other.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating quantization as a single switch. Weights and cache are separate, and they buy different things.</p>
+    </li>
+    <li class="qa-item" id="c10-d4">
+      <p class="qa-q">Where does four-bit quantization hurt most?</p>
+      <p class="qa-a">On anything needing precision rather than fluency. Arithmetic, exact recall of rare tokens, and long-context tasks where small errors compound. Conversational fluency survives four-bit surprisingly well, which is dangerous, because the model still sounds fine while getting specific things wrong.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying accuracy drops uniformly. It does not, and the uneven damage is what makes evaluation after quantization necessary rather than optional.</p>
+    </li>
+    <li class="qa-item" id="c10-d5">
+      <p class="qa-q">If you were pruning layers, how would you choose which?</p>
+      <p class="qa-a">Measure how much each block changes the hidden state, by comparing its input and output representations. Blocks that barely move it are the cheapest to remove. In practice the middle and later blocks are usually the redundant ones, and the first few are not. The first blocks do the most structural work.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Proposing to prune uniformly. The whole finding that makes layer pruning viable is that redundancy is not evenly distributed.</p>
+    </li>
+    <li class="qa-item" id="c10-d6">
+      <p class="qa-q">After removing blocks, what do you do?</p>
+      <p class="qa-a">A short healing fine-tune, because the remaining blocks were trained expecting the ones that are gone. Without it the drop is much worse than the parameter reduction suggests. That is also why pruning is more expensive than quantization in practice, even though the removal itself is trivial.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating pruning as free. Deletion is free and recovering the accuracy is not.</p>
+    </li>
+    <li class="qa-item" id="c10-d7">
+      <p class="qa-q">Why does distillation use a temperature on the teacher's outputs?</p>
+      <p class="qa-a">To soften the distribution so the student sees more than the top answer. A confident teacher puts almost all mass on one token, and the information worth transferring is the relative ordering of the rest. Raising temperature flattens it, exposing what the teacher thought was nearly right.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Confusing it with sampling temperature at inference. Same word, different use, and knowing that distinction is the question.</p>
+    </li>
+    <li class="qa-item" id="c10-d8">
+      <p class="qa-q">You need a model four times smaller. Which technique?</p>
+      <p class="qa-a">Quantization first, because four-bit from sixteen-bit is exactly a factor of four and it costs no training run. Only if that fails accuracy would I look further, and then it depends on whether I have a training budget. Pruning needs a healing run and distillation needs a full one.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Reaching for distillation first. It is the most expensive option and it is rarely the first thing to try.</p>
+    </li>
+    <li class="qa-item" id="c10-d9">
+      <p class="qa-q">Why does batching not help on a device?</p>
+      <p class="qa-a">Because there is one user and one request. In a server, batching amortises the cost of reading weights across many sequences, so bandwidth is shared. On a device every token pays the full weight read. That is exactly why quantization matters more on device than it does in a datacentre.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Missing the connection. The absence of batching is the reason the bandwidth argument is so much stronger on device.</p>
+    </li>
+    <li class="qa-item" id="c10-d10">
+      <p class="qa-q">How do you know a quantized model is still good enough?</p>
+      <p class="qa-a">Evaluate on the actual task, not on general benchmarks. For a television, that means the function-calling set: does it still pick the right function from a natural-language request. A general benchmark can barely move while the thing you shipped for degrades, because the damage is uneven.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Quoting a perplexity delta. Perplexity moves very little under quantization and hides exactly the failures you care about.</p>
+    </li>
+    <li class="qa-item" id="c10-d11">
+      <p class="qa-q">What does sustained load do to an on-device model?</p>
+      <p class="qa-a">Heat, then throttling. A benchmark run cold gives a latency number the device cannot hold. A smaller model helps twice here: less data moved per token, and less sustained power, so the throttle point arrives later. It is a real constraint that server-side work never has.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Quoting only cold latency. On a consumer device the sustained number is the one users experience.</p>
+    </li>
+    <li class="qa-item" id="c10-d12">
+      <p class="qa-q">When would you not shrink a model?</p>
+      <p class="qa-a">When the task needs precision the small model cannot hold, and the data is allowed to leave the device. Then a server call with a larger model is simply better. The on-device argument is privacy and latency, and if neither is binding, the constraint is self-imposed.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Assuming on-device is always the goal. It is a constraint with benefits, not a virtue.</p>
+    </li>
+  </ol>
+</section>
+
+<div class="quiz" data-quiz-id="0010-q1">
+  <p class="q">You quantize weights from sixteen-bit to four-bit on a memory-bound device. What is the primary win?</p>
+  <ol class="options">
+    <li data-correct="true">Weights now occupy roughly a quarter of previous memory</li>
+    <li>Arithmetic runs four times quicker on the same silicon</li>
+    <li>Accuracy rises because the model then generalises rather better</li>
+    <li>The usable context window grows by exactly that factor</li>
+  </ol>
+  <div class="why">
+    <p>A quarter of the memory, and a speed-up that follows from it. Generation is memory-bandwidth bound, so moving a quarter of the bytes per token makes it faster. The arithmetic itself is not the bottleneck, which is why the second option is the tempting wrong one.</p>
+    <p>Context length is a separate decision. The KV cache is not the weights, and quantizing it is an independent choice that scales with conversation length rather than model size.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0010-q2">
+  <p class="q">Layer pruning removes entire transformer blocks and often costs less accuracy than expected. Why?</p>
+  <ol class="options">
+    <li data-correct="true">Deeper blocks change the hidden state surprisingly little here</li>
+    <li>Early blocks hold almost none of the model knowledge</li>
+    <li>Removing blocks lets the rest be retrained far faster</li>
+    <li>The attention heads are duplicated across every single block</li>
+  </ol>
+  <div class="why">
+    <p>Redundancy is not evenly spread. Measuring how much each block moves the representation between its input and output shows that many middle and later blocks move it very little, so removing a few of those costs less than removing the same parameter count from everywhere.</p>
+    <p>The early blocks are the opposite: they do the most structural work and are the worst candidates. That is why pruning is chosen by measurement rather than applied uniformly, and why a short healing fine-tune follows it.</p>
+  </div>
+</div>
+
+<section class="qset" id="edges">
+  <h2>Edges and exceptions</h2>
+  <p class="qset-note">Half about the techniques failing, half about the line overstating. That is the right split for a skills claim with two unbacked items.</p>
+  <ul class="qa-index">
+    <li><a href="#c10-e1">Fluent but wrong</a></li>
+    <li><a href="#c10-e2">A bad calibration set</a></li>
+    <li><a href="#c10-e3">Function calling after quantization</a></li>
+    <li><a href="#c10-e4">Cache growth mid-conversation</a></li>
+    <li><a href="#c10-e5">Asked about distillation</a></li>
+    <li><a href="#c10-e6">Taught versus shipped</a></li>
+    <li><a href="#c10-e7">Two meanings of distilled</a></li>
+    <li><a href="#c10-e8">What you would change</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c10-e1">
+      <p class="qa-q">Your quantized model sounds fine and gets specific facts wrong. What happened?</p>
+      <p class="qa-a">Exactly what quantization does. Fluency is robust to precision loss and exact recall is not, so the model keeps its register while losing rare tokens and precise values. It is the dangerous failure, because nothing looks broken. It is only caught by task-specific evaluation.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it a regression to debug. It is the expected shape of the damage, and expecting it is the answer.</p>
+    </li>
+    <li class="qa-item" id="c10-e2">
+      <p class="qa-q">Post-training quantization goes badly. First thing you check?</p>
+      <p class="qa-a">The calibration set. Scales are chosen from it, so if it does not resemble production inputs the ranges are wrong from the start. After that, whether scales are per tensor rather than per channel, and whether activations were quantized along with the weights.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Jumping to a different bit width. The usual cause is calibration, and changing the width hides it rather than fixing it.</p>
+    </li>
+    <li class="qa-item" id="c10-e3">
+      <p class="qa-q">A quantized model has to choose between fifty similar functions. What is the risk?</p>
+      <p class="qa-a">This is the worst case for quantization. Discriminating between near-identical options depends on small differences in the output distribution, and that is exactly the resolution you spent. The model still produces a confident choice, just a slightly wrong one. It is why the evaluation has to be the function-selection task itself.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Assuming a structured output format protects you. A schema guarantees a valid function name, not the right one.</p>
+    </li>
+    <li class="qa-item" id="c10-e4">
+      <p class="qa-q">The KV cache grows past the device's memory mid-conversation.</p>
+      <p class="qa-a">Something has to go, and the choice is a product decision rather than a technical one. Evict the oldest turns, summarise them, or refuse to continue. Quantizing the cache buys headroom and does not remove the ceiling. The failure to avoid is silently dropping context while continuing to answer confidently.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Only naming a bigger cache. It grows without bound and the interesting answer is what you drop and whether the user knows.</p>
+    </li>
+    <li class="qa-item" id="c10-e5">
+      <p class="qa-q">The interviewer asks what you distilled.</p>
+      <p class="qa-a">Say plainly that I have not shipped model distillation. I understand it well, including why the temperature on the teacher's outputs matters. What is on my r&#233;sum&#233; nearby is data distillation, which is filtering and deduplicating a corpus. Same word, different operation, and I would not let them blur.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Answering with the preprocessing pipeline as though it were the same thing. That is the specific trap this line sets.</p>
+    </li>
+    <li class="qa-item" id="c10-e6">
+      <p class="qa-q">Is presenting a technique to a division the same as having used it?</p>
+      <p class="qa-a">No, and I would draw the line myself. Preparing a division-wide session on layer pruning means I understood it well enough to teach it and answer questions. It does not mean I pruned a production model. Both are real, and saying which one is which is what keeps the rest of the list credible.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Blurring them. Teaching is genuinely strong evidence of understanding, and it is undermined by being passed off as deployment.</p>
+    </li>
+    <li class="qa-item" id="c10-e7">
+      <p class="qa-q">Why is the word &#8220;distilled&#8221; a problem on this r&#233;sum&#233; specifically?</p>
+      <p class="qa-a">Because it appears twice with two meanings. The skills line names knowledge distillation, a model technique. The Samsung bullet says a pipeline distilled 150&#8239;GB into pretraining data, which is corpus curation. A reader who connects them concludes the first is evidenced, and it is not.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Not having noticed. An interviewer reading both lines will, and being the one who points it out is much better.</p>
+    </li>
+    <li class="qa-item" id="c10-e8">
+      <p class="qa-q">What would you change about this line?</p>
+      <p class="qa-a">Drop knowledge distillation, and mark layer pruning as taught if the format allows it. That leaves quantization and small-model deployment, both shipped and both defensible in detail. I would also rather the Samsung bullet said which quantization, because the bit width is the interesting part.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Keeping four items for breadth. Two defended items read stronger than four where half collapse under one question.</p>
+    </li>
+  </ol>
+</section>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;How much memory does a 7B model need at 4-bit?&#8221;
+      <span class="tell">A direct arithmetic check. It takes five seconds and it instantly separates people who have deployed from people who have read.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>About 3.5 gigabytes for the weights, since four-bit is half a byte per parameter. Then the KV cache on top, which is two for keys and values, times layers, times key-value heads, times head dimension, times bytes per element, per token. On a long conversation that can rival the weights. The trap is using attention heads rather than key-value heads, which overstates it by four or more under grouped-query attention.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Why does quantization speed things up?&#8221;
+      <span class="tell">Testing whether you understand the bottleneck. The wrong answer is that the arithmetic is faster, and it is very common.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Bandwidth. Generating a token means reading essentially every weight, and modern accelerators can do far more arithmetic than they can be fed. Halving the bytes per weight roughly halves the data moved per token, so throughput follows. On a device the effect is stronger still, because there is one user and no batching to amortise the weight read across sequences.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;What did quantization cost you in accuracy?&#8221;
+      <span class="tell">Looking for whether you measured it and on what. A general benchmark answer is the weak one here.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The honest answer is that the damage is uneven, so the number depends entirely on what you measure. Fluency survives low bit widths well, which is dangerous because the model still sounds right. What degrades is precise discrimination, and choosing between fifty similar functions is exactly that. So the evaluation had to be the function-selection task rather than perplexity, which barely moves.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Tell me about the distillation you did.&#8221;
+      <span class="tell">The trap question on this line, because a plausible-sounding wrong answer is sitting right there on the same r&#233;sum&#233;.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>I have not shipped model distillation, and I would rather say that than reach for something adjacent. I understand it: a student trained against the teacher's softened output distribution rather than hard labels, where the value is in what the teacher thought was nearly right. The pipeline on my r&#233;ésum&#233; that distilled 150 gigabytes was corpus curation, which shares the word and not the operation.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Pruning or quantization, if you had to pick one?&#8221;
+      <span class="tell">A judgment question. The right answer considers the training budget, which most candidates skip entirely.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Quantization, almost always first. Sixteen-bit to four-bit is exactly a factor of four, it needs no training run, and it is reversible if the accuracy is unacceptable. Pruning removes blocks and then needs a healing fine-tune, because the remaining blocks were trained expecting the ones you deleted. So the deletion is trivial and recovering the accuracy is not, which makes it the second thing to try rather than the first.</p>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="recall">
+  <details>
+    <summary>Chapter 0002 answers &#8220;scale it to a million concurrent&#8221; with KV cache arithmetic. Restate that formula and say which term is the common mistake.</summary>
+    <p class="answer">Bytes per token is two, for keys and values, times layers, times key-value heads, times head dimension, times bytes per element. The common mistake is using attention heads rather than key-value heads, which under grouped-query attention overstates the cache by a factor of four or more. The same formula and the same trap apply on a device, except there the ceiling is fixed and shared with the rest of the system.</p>
+    <span class="from"><a href="0002-llm-gateway-and-streaming.html">Chapter 0002 &#183; KV cache arithmetic</a></span>
+  </details>
+  <details>
+    <summary>Chapter 0004 argues that a metric can look healthy while the thing you care about degrades. How does that apply to a quantized model?</summary>
+    <p class="answer">Identically. There the 99.2% composite is mostly count accuracy and a distribution cosine, so it can stay high while individual mappings are wrong. Here perplexity and general benchmarks barely move under quantization while precise discrimination degrades. In both cases the summary metric is measuring something adjacent to what matters, and the fix is the same: evaluate the task you actually shipped for.</p>
+    <span class="from"><a href="0004-hybrid-lineage-extraction.html">Chapter 0004 &#183; what the metric cannot see</a></span>
+  </details>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">The lessons behind this chapter</span>
+  <p>System Design School teaches these mechanisms from first principles and breaks them in a lab. This chapter defends what you did with them. An interviewer moves between those two registers without warning.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0008-kv-cache-and-prefix-caching.html">SDS 0008 &#183; KV cache and prefix caching</a>
+      <span class="bridge-why">Quantization and the KV cache are two levers on the same memory ceiling, and this is where that arithmetic gets built properly.</span>
+    </li>
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0003-cache-aside-and-friends.html">SDS 0003 &#183; Cache-aside and friends</a>
+      <span class="bridge-why">Caching is the cheapest lever on a serving path, and the only one that needs no new hardware.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0039 &#183; The eval harness as a regression gate &#8212; not yet built</span>
+      <span class="bridge-why">Quantization damage is uneven, so the gate has to be the shipped task rather than a general benchmark.</span>
+    </li>
+  </ol>
+</div>
+
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0009-llm-and-agents.html">&#8592; 0009 &#183; LLM and agents</a></span>
+  <span><span class="dir">Next</span><a href="0011-infrastructure.html">0011 &#183; Infrastructure &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

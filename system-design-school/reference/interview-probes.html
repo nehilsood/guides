@@ -1,0 +1,1316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>Interview Probes</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <script src="../assets/theme.js"></script>
+</head>
+<body>
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="../lessons/index.html">System Design School</a>
+    <span class="sep">/</span>
+    <span>Reference</span>
+    <span class="sep">/</span>
+    <span>generated from every built lesson</span>
+  </div>
+  <h1>Interview Probes</h1>
+  <p class="standfirst">Every probe from every built lesson, with what it is testing and a model
+  answer. 107 questions, 107 with answers. This is the file to reread the night before a
+  loop — and the way to use it is out loud, one probe at a time, answer first and reveal second.</p>
+</header>
+
+<div class="note">
+  <span class="callout-label">Generated file — do not hand-edit</span>
+  <p>Built by <code>build_probes.py</code> from the lesson sources, so it cannot drift from what the
+  lessons actually say. Change a probe in its lesson, then re-run the script.</p>
+  <p>The model answers are written to be <em>said</em>, not read. If one takes more than about
+  twenty seconds out loud, it is too long for a real conversation — cut it down to the sentence
+  that carries it and keep the number.</p>
+</div>
+<h2>0001 &#183; Latency Budget Arithmetic</h2>
+
+<p class="cite">From <a href="../lessons/0001-latency-budget-arithmetic.html">lesson 0001</a>.</p>
+
+<div class="probes">
+  <ol>
+    <li>
+      “Walk me from the moment the candidate stops speaking to the moment the avatar starts. Give me the millisecond budget for each hop.”
+      <span class="tell">They want the table, not a story. Having it memorised is the difference between sounding like the architect and sounding like a maintainer.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Eight hops. Voice-activity detection has to wait out a silence window before it can conclude the turn ended &#8212; about 250&#8239;ms and not negotiable, because shortening it means interrupting people. Then speech recognition commits a final transcript, 300. Gateway ingress, 12. Retrieval &#8212; embed the query and search &#8212; 165. Time to first token, 880. Speech synthesis to first audio, 350. First video frame, 90. Network to the client, 55.</p>
+        <p>That sums to about 2.1 seconds, and the shape matters more than the total: <strong>one hop is 42&#8239;% of it</strong>, and the two hops I fully own are 3&#8239;% between them.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Which of those did you measure and which did you estimate?&#8221; &#8212; the right answer names them separately, because a hop you cannot measure independently is a hop you cannot defend.</b></span>
+      </details>
+    </li>
+    <li>
+      “Is 2.1 s time-to-first-word or time-to-complete? Which one does the candidate actually experience?”
+      <span class="tell">If you cannot answer instantly, the number stops being evidence. Know which metric your bullet quotes.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The one the candidate experiences is <strong>time to first word</strong> &#8212; the avatar starting to speak is the perceptible event, and after that they are listening rather than waiting. Time to complete matters for something different: whether they can interrupt, and how quickly the next turn can start.</p>
+        <p>So they are two numbers with two purposes, and quoting one figure without saying which is the actual weakness in how I had written it down.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Which one is your 2.1 s?&#8221; &#8212; and if the honest answer is &#8220;I would have to check how that was gathered&#8221;, say that, then say what you would check.</b></span>
+      </details>
+    </li>
+    <li>
+      “You have 5.9 s of headroom. Why not add a second verification pass to every turn?”
+      <span class="tell">The trap is to say yes. Headroom is variance absorption; spending it on mean-case work is how you build something that breaches under load.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Because the headroom is not spare capacity, it is the room reserved for things going wrong. Modelling the turn out, even p99.9 only reaches about 60&#8239;% of the ceiling &#8212; and that model contains no retry, no upstream stall and no cold model. A single retry on the largest hop is nearly another second on its own.</p>
+        <p>A second verification pass would double the hop that is already 42&#8239;% of the turn, and it would do it on <em>every</em> turn to catch a problem on a few. If it is worth doing, it belongs off the critical path or behind a confidence threshold.</p>
+        <span class="invites">Invites &#183; <b>&#8220;When <em>would</em> you spend the headroom?&#8221; &#8212; on a retry with a propagated deadline, which is lesson 0012: spend it on reliability you can bound, not on work you always do.</b></span>
+      </details>
+    </li>
+    <li>
+      “Which of those hops are on the critical path and which could run concurrently?”
+      <span class="tell">Retrieval does not depend on the final ASR transcript — a partial is usually enough to start embedding. Saying so unprompted reads as senior.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The test is whether a hop consumes the previous hop's output. Recognition needs the audio, retrieval needs the transcript, the model needs the retrieved context &#8212; that chain is genuinely serial and no amount of concurrency touches it.</p>
+        <p>Two things can come off it. The avatar's first frame does not need the synthesised audio, so it can render under synthesis &#8212; about 90&#8239;ms. And retrieval can start on a partial transcript rather than the final one, hiding it under recognition &#8212; about 177. Both together are 267&#8239;ms, against 440 for halving the big hop, which is why I did the arithmetic before the refactor.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Is overlapping retrieval with ASR actually free?&#8221; &#8212; no: it means embedding a partial transcript and possibly re-running on the final one, so it trades wasted work for latency.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<h2>0002 &#183; p50 Is a Lie</h2>
+
+<p class="cite">From <a href="../lessons/0002-p50-is-a-lie.html">lesson 0002</a>.</p>
+
+<div class="probes">
+  <ol>
+    <li>
+      “You said 2.1 s median. What is p95, p99, and how did you measure them?”
+      <span class="tell">The third clause is the real question. Answering the first two without it is the trap — a confident wrong p99 is worse than “I know our tooling is closed-loop, so treat that figure as a floor.”</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The &#8220;how&#8221; is the important half, so I would lead with it: it depends entirely on the load model, and most tools give you a number that cannot see your worst minutes. I ran the same server through an identical two-second freeze twice &#8212; fixed workers reported p99 at 149&#8239;ms, rate-scheduled arrival reported 1934&#8239;ms. Thirteen times apart.</p>
+        <p>And I can show it is structural rather than bad luck: six workers over 1200 requests is 0.5&#8239;% of samples, so nothing below p99.5 could have contained the freeze at all.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So what is your real p99?&#8221; &#8212; the open-loop one, and it is the number I would put an SLO on because it includes queueing, which is what the user feels.</b></span>
+      </details>
+    </li>
+    <li>
+      “Your pipeline has five stages. If each is fast at p99, why is the whole thing slow at p99?”
+      <span class="tell">They are testing whether you know tails compound in probability along the critical path. Have the <code>0.99ⁿ</code> arithmetic ready.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Because percentiles do not compose by addition. If each of five serial stages independently meets its p99, the chance a turn misses <em>every</em> tail is 0.99&#8309;, which is 0.951 &#8212; so <strong>4.9&#8239;% of turns hit at least one stage's tail</strong>.</p>
+        <p>Which means a stage's p99 is roughly the pipeline's <em>p95</em>. The parts each look fine and the whole is not, and no stage owner is wrong. It is also why averaging p99s across services produces a figure with no interpretation &#8212; to combine tails you need the distributions, which is what histograms are for.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So how do you fix it?&#8221; &#8212; either shorten the critical path so there are fewer tails to hit, or bound each stage with a propagated deadline, which is lesson 0012.</b></span>
+      </details>
+    </li>
+    <li>
+      “How would you know if your gateway froze for two seconds last Tuesday?”
+      <span class="tell">A dashboard of medians would not show it. This is the bridge to lesson 0032 — you need percentile histograms and traces, not averages.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Honestly? Right now, probably not &#8212; and that is the uncomfortable half of this lesson. A two-second freeze inside an 8-second budget breaches nothing, so no alert fires, and if the dashboard is a median or even a p99 from a fixed-worker probe, six samples out of thousands will not move it.</p>
+        <p>What would catch it is a histogram rather than pre-aggregated percentiles, so the tail is still reconstructable after the fact, plus an alert on the <em>rate of change</em> of the tail rather than on a threshold. A synthetic prober at a fixed arrival rate would also see it, because it cannot stop asking.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What would you alert on, concretely?&#8221; &#8212; and the honest answer is that I have the measurement discipline now and not yet the alerting, which is lesson 0033.</b></span>
+      </details>
+    </li>
+    <li>
+      “Would you rather have a p50 of 2 s or a p50 of 3 s with a much tighter p99?”
+      <span class="tell">Usually the second, and the SRE book says why: people tolerate a slightly slower system far better than a highly variable one. Saying that unprompted signals you have thought about users, not just graphs.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The 3-second one, without much hesitation, because I have a <em>budget</em> rather than a target. Nothing rewards me for finishing a turn in two seconds instead of three &#8212; the conversation is human-paced. What hurts is a turn that breaches 8 seconds, because at that point the candidate is sitting in silence wondering if it broke.</p>
+        <p>So the second option is strictly better: it converts headroom I was not using into variance I no longer have. The general form is that a hard ceiling makes the tail the thing you optimise, and the median mostly a comfort.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Is that always true?&#8221; &#8212; no. If the median sat close to the ceiling, or if cost scaled with time, I would be trading real money for variance and would want the numbers first.</b></span>
+      </details>
+    </li>
+    <li>
+      “What is the difference between service time and response time here?”
+      <span class="tell">Service time is how long the work took; response time includes the queueing before it started. A closed loop measures something closer to the former and calls it the latter.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Service time is how long the work took once it started. Response time is how long the caller waited, which includes queueing before it started. For one turn that is the difference between &#8220;the model took 880&#8239;ms&#8221; and &#8220;the candidate waited 2.9 seconds&#8221;.</p>
+        <p>And it is exactly what the two tables measure. A closed-loop worker cannot queue behind itself &#8212; it is never waiting for two things at once &#8212; so it reports something close to service time. Open loop lets requests pile up and measures from when each was <em>due</em>, which is a response time. They are not two measurements of one quantity.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Which one does your dashboard show?&#8221; &#8212; server-side spans are service time, and if that is all you have you are blind to queueing at the edge by construction.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<h2>0003 &#183; Cache-Aside and Friends</h2>
+
+<p class="cite">From <a href="../lessons/0003-cache-aside-and-friends.html">lesson 0003</a>.</p>
+
+<div class="probes">
+  <ol>
+    <li>
+      “You cache embeddings. What is in the cache key?”
+      <span class="tell">If the model version is not in your answer, they have found a real bug. Say the key structure out loud: <code>emb:{model_version}:{sha256(normalised_text)}</code>.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Two things: the <strong>model version</strong> and a SHA-256 of the normalised query text &#8212; stripped and lowercased. So <code>emb:fake-embed-v1:&lt;hash&gt;</code>.</p>
+        <p>The model version is the field that matters. Without it, changing embedding models leaves every previously cached vector valid-looking and semantically wrong &#8212; retrieval quality degrades and nothing errors, which is a failure mode with no signal at all. With it in the key, a model change is a cache miss rather than a bug.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What determines the value that is not in the key?&#8221; &#8212; the answer here is nothing, which is exactly why this cache has no invalidation problem. Normalisation is the sneaky one: change strip/lower and you silently change the key space.</b></span>
+      </details>
+    </li>
+    <li>
+      “What happens to your 8 s budget when the cache is cold — say, right after a deploy?”
+      <span class="tell">Modal behaviour. Every request takes the slow path simultaneously, which is worse than the pre-cache baseline because you also sized capacity around the warm path.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Every request pays the full uncached hop, so 165 milliseconds instead of 47 &#8212; which against an 8-second budget is survivable on its own. The problem is not the cost per request, it is that <em>all</em> of them pay it at once, and for a popular key they pay it concurrently.</p>
+        <p>I measured that: 200 concurrent requests for one cold key produced 200 identical embedding calls. So the real answer to &#8220;what happens after a deploy&#8221; is a thundering herd, and the fix is single-flight plus jittered TTLs rather than a bigger cache.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So how do you warm it?&#8221; &#8212; and the honest answer is that warming and single-flight solve different halves: warming reduces how often you are cold, single-flight bounds what being cold costs.</b></span>
+      </details>
+    </li>
+    <li>
+      “Would you cache the LLM completions too?”
+      <span class="tell">The senior answer is conditional: at temperature 0, keyed on the full prompt plus system prompt plus model version, for the rubric path only. Never for anything conversational.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Only where the prompt is genuinely deterministic, which for us is a small slice. A completion is a function of the prompt <em>and</em> the sampling parameters and the model version, so all three have to be in the key or the cache is lying &#8212; and at temperature above zero it is lying by design, because the whole point is that the same prompt gives different output.</p>
+        <p>The place it does pay is not a response cache at all, it is the <strong>prefix cache</strong>: the shared system prompt is identical on every request, and caching its KV state cuts time-to-first-word without pretending two completions are the same.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What is your prefix-cache hit rate?&#8221; &#8212; which is lesson 0008, and it is a question about the GPU bill rather than about latency.</b></span>
+      </details>
+    </li>
+    <li>
+      “Why not write-through?”
+      <span class="tell">Because nothing is being written. Embeddings are derived, not authored — write-through answers a question this workload does not ask.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Because there is no write. Nothing in the system <em>updates</em> an embedding &#8212; they are computed on demand from text, so there is no write path for a write-through cache to sit in front of. Write-through answers &#8220;how do I keep the cache consistent with writes&#8221;, and I do not have that question.</p>
+        <p>What I do have is the read-side race cache-aside is famous for: a reader that misses, then a writer that updates and invalidates, then the reader installing its stale value. That cannot fire here because the key contains everything that determines the value &#8212; there is no second version of the same key.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Where in your system <em>would</em> you use write-through?&#8221; &#8212; somewhere with real mutation and a read-your-writes requirement, like rubric scores, and there the answer is that they should not be in a cache at all.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<h2>0004 &#183; Eviction, and Why LRU Is Wrong</h2>
+
+<p class="cite">From <a href="../lessons/0004-eviction-and-why-lru-is-wrong.html">lesson 0004</a>.</p>
+
+<div class="probes">
+  <ol>
+    <li>
+      “What is your Redis eviction policy?”
+      <span class="tell">“I don't know, whatever the default is” is honest and is also two different answers: <code>noeviction</code> if someone ran the open-source image, <code>volatile-lru</code> if it came from Memorystore or ElastiCache. Both can be silently refusing writes right now — the second one while displaying a policy name that looks deliberate. Run the <code>config get</code> from step 1 against your real cluster before your next interview.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>&#8220;It depends who provisioned it, and I have checked mine.&#8221; Open-source Redis ships <code>noeviction</code>, which refuses writes rather than evicting; Memorystore and ElastiCache ship <code>volatile-lru</code>, which evicts only keys with a TTL and therefore evicts nothing at all if nothing in the keyspace has one. Both of those are a frozen cache wearing different labels.</p>
+        <p>Then give the number: on our workload I measured <code>allkeys-lru</code> keeping 5 of 200 hot keys through a batch sweep against 200 of 200 under <code>allkeys-lfu</code>, so we run LFU with <code>lfu-decay-time</code> set deliberately.</p>
+        <span class="invites">Invites &#183; <b>&#8220;How much headroom is there between <code>maxmemory</code> and the pod's memory limit?&#8221; &#8212; because <code>maxmemory</code> is an admission check, not a wall, and one Lua script can carry you 3.6&#215; past it.</b></span>
+      </details>
+    </li>
+    <li>
+      “Your batch job runs at 2 a.m. and interactive latency is bad at 8 a.m. Why?”
+      <span class="tell">Cache flushed by the sweep under LRU, then a cold-start morning. This is a favourite question because it requires connecting two subsystems that look unrelated on a dashboard.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The 2 a.m. sweep evicted the 8 a.m. hot set. Every key the batch touched looked freshly used to a recency policy, so it displaced the entries the interactive path depends on, and the morning starts cold.</p>
+        <p>The fix is not more memory, it is the right sort key: LFU puts every once-touched batch key at a count of one and evicts those first. If you cannot change the policy, give batch writes a short TTL and run <code>volatile-ttl</code>, which is more explicit and costs memory per key for the expiry.</p>
+        <span class="invites">Invites &#183; <b>&#8220;How would you have caught this from a dashboard?&#8221; &#8212; <code>evicted_keys</code> against the <code>keyspace_hits</code>/<code>keyspace_misses</code> ratio, correlated by hour. Neither alone shows it.</b></span>
+      </details>
+    </li>
+    <li>
+      “Is Redis's LRU a true LRU?”
+      <span class="tell">No — sampled approximation with a candidate pool, tunable via <code>maxmemory-samples</code>. Answering this correctly is a strong signal that you have read the docs rather than a blog post.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>No, and it does not need to be. A true LRU list costs pointers per object, which on small values is a large slice of the thing you were trying to store. Redis samples <code>maxmemory-samples</code> keys per round &#8212; five by default &#8212; and keeps a pool of the best candidates across rounds.</p>
+        <p>It works because you never need <em>the</em> coldest key, only a key from the cold tail. If the hot fraction is 20&#8239;%, the chance all five samples are hot is 0.2&#8309;, about 0.03&#8239;%. That is why the same default holds from ten thousand keys to ten million: the error depends on skew, not on size.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So when would you raise <code>maxmemory-samples</code>?&#8221; &#8212; when the hot fraction is large, near 50&#8239;%, where the error is 3&#8239;% rather than 0.03&#8239;%. On a sharply skewed cache it buys nothing but CPU.</b></span>
+      </details>
+    </li>
+    <li>
+      “On the TV, you had a hard memory ceiling. How did you decide what to keep resident?”
+      <span class="tell">Straight from your Samsung work, and now you can answer it in eviction-policy vocabulary rather than ad hoc terms.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>At the time, by hand and by instinct &#8212; I kept the function definitions that got invoked most and let the long tail reload. What I could not do then was name it, and it was a frequency policy with a manual decay.</p>
+        <p>Said properly now: a fixed ceiling with a heavily skewed access pattern is exactly the condition where recency and frequency diverge, because a handful of TV functions account for most invocations. Anything that walks the full function catalogue once &#8212; a sync, a reindex &#8212; is a sweep, and under a recency rule it evicts the handful that matter.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What would you measure to prove the policy was right?&#8221; &#8212; hot-set survival across a sweep, which is the one experiment in this lesson and takes ten minutes.</b></span>
+      </details>
+    </li>
+    <li>
+      “What is your prefix-cache hit rate, and what evicts a prefix?”
+      <span class="tell">The scaling question from your own prep notes, asked as an eviction question. A shared system prompt is the hottest possible key and the one you least want evicted — which is the case for frequency over recency, in the place where it costs real money.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>A shared system prompt is the hottest possible key and the one you least want evicted, because a prefix miss is not a slower read &#8212; it is re-running prefill and paying for it in GPU time. So this is an eviction question with a line-item cost.</p>
+        <p>What evicts a prefix is another tenant's traffic filling the same KV cache, and under a recency rule a burst of unrelated long prompts will do it. That is the case for frequency over recency in the place where it is most expensive, and it is also why routing has to be prefix-aware &#8212; round-robin across replicas throws the hit away at the load balancer.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So how do you route to keep the prefix warm?&#8221; &#8212; which is lesson 0009, and the honest answer today is that I do not yet, and that is the gap.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<h2>0005 &#183; Stampede, Penetration, Avalanche</h2>
+
+<p class="cite">From <a href="../lessons/0005-stampede-penetration-avalanche.html">lesson 0005</a>.</p>
+
+<div class="probes">
+  <ol>
+    <li>
+      “A popular cache key expires and you get 500 concurrent requests. Walk me through what happens.”
+      <span class="tell">Name it as a stampede, describe the upstream amplification, then give single-flight <em>and</em> stale-while-revalidate as options with the tradeoff between them. Naming the failure first is what separates a confident answer from a groping one.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>All 500 miss, because the value takes 600&#8239;ms to compute and there is nothing in the cache to stop them for that whole window. So you get 500 identical computations of one value, 500&#215; the provider bill, and a latency spike on a path with a hard budget.</p>
+        <p>I have actually run this: 200 concurrent requests for one cold key gave exactly 200 embedding calls. The fix is a lock per key so one computes &#8212; and critically the waiters re-check the cache after acquiring it, which took it to one call.</p>
+        <span class="invites">Invites &#183; <b>&#8220;And if the process holding the lock dies?&#8221; &#8212; the lock needs a timeout longer than p99 of the compute, and the waiters need a decision: compute anyway, serve stale, or shed.</b></span>
+      </details>
+    </li>
+    <li>
+      “You added a lock per key. What is the bug?”
+      <span class="tell">They are checking for the double-check. If you also mention that in-process locks do not span replicas, you are answering the follow-up before it arrives.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The waiters have to <strong>re-check the cache after they get the lock</strong>. Without that, waiting taught them nothing: each one computes in turn, so 200 parallel misses become 200 serial ones. At 600&#8239;ms each that is two minutes, against 600&#8239;ms for the stampede I was fixing.</p>
+        <p>The second bug is scope. An <code>asyncio.Lock</code> covers one process, so with four uvicorn workers you get four computations, not one &#8212; better than 200 and not what the diagram claims. Beyond one replica it has to be a Redis lock, and then it needs a timeout and a fencing token.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Is a naive Redis lock safe?&#8221; &#8212; no, and that is lesson 0030: a lock without a fencing token cannot stop a stalled holder from acting after its lease expired.</b></span>
+      </details>
+    </li>
+    <li>
+      “Your cache hit rate is 2%. Is the cache helping?”
+      <span class="tell">No — you are paying a round trip for almost nothing. Either the workload has no repetition, or you are being penetrated. Measure the repeat rate before defending the cache.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Almost certainly not, and I would want to know which of two very different problems it is. If the keys are unique per request &#8212; a user's raw query text, say &#8212; then there is nothing to hit and the cache is pure added latency plus a Redis to operate.</p>
+        <p>If the keys should repeat but do not, the key is wrong: too much in it, unnormalised text, or something per-request like a timestamp or a request id. That is a bug with a two-minute fix. And 2&#8239;% with high cardinality is the penetration shape, where the answer is caching negatives or a Bloom filter rather than a better key.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So what hit rate would justify it?&#8221; &#8212; the break-even is where hit_rate &#215; saving exceeds the added round trip on every miss, which for a 600 ms compute against a 1 ms GET is a very low bar.</b></span>
+      </details>
+    </li>
+    <li>
+      “Why does latency spike every hour on the hour?”
+      <span class="tell">Avalanche from uniform TTLs, probably set at warm-up. The tell is periodicity: a sawtooth on a fixed interval is almost always an expiry cliff.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Everything was written at the same time, so everything expires at the same time. A TTL of one hour set during a deploy or a warm-up loop means the entire keyspace has the same expiry instant, and on that instant every key is a miss simultaneously &#8212; an avalanche rather than a stampede.</p>
+        <p>Jitter fixes it: &#177;10&#8239;% on a 3600-second TTL smears expiry across 720 seconds. I verified the spread &#8212; stored keys came back with TTLs between 3266 and 3946 rather than all reading 3600.</p>
+        <span class="invites">Invites &#183; <b>&#8220;How much jitter is enough?&#8221; &#8212; size it: keys &#247; (2jT) is your recompute rate at the smear, so 20 000 keys at &#177;10 % of an hour is about 28 per second.</b></span>
+      </details>
+    </li>
+    <li>
+      “Would you rather serve a 5-minute-stale embedding or make the user wait 600 ms?”
+      <span class="tell">For an embedding, stale every time — the value is a pure function and does not meaningfully change. Knowing <em>which</em> cached values tolerate staleness is the judgement being tested.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Stale, easily, and for this data it is not even close. An embedding is a pure function of the text and the model version &#8212; a five-minute-old vector for unchanged text is not stale, it is <em>correct</em>. The model version is in the cache key, so the only thing that could invalidate it changes the key.</p>
+        <p>Which is the general form of the answer: the question is not how old the value is, it is what could have changed underneath it. For a rubric score I would answer the other way, because someone can re-run an evaluation and the old number is then wrong rather than old.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So would you serve stale <em>while</em> refreshing?&#8221; &#8212; yes: stale-while-revalidate gives every caller a fast answer and lets one caller refresh, which is single-flight with the waiting removed.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<h2>0006 &#183; Redis Is Not Magic</h2>
+
+<p class="cite">From <a href="../lessons/0006-redis-is-not-magic.html">lesson 0006</a>.</p>
+
+<div class="probes">
+  <ol>
+    <li>
+      “Your Redis restarts. What breaks?”
+      <span class="tell">For your embedding cache: nothing breaks, latency rises to the uncached baseline until it warms. Being able to say “nothing, and here is why that is by design” is a much stronger answer than describing a durability setup you did not need.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Nothing breaks &#8212; and that is a deliberate property, not luck. Everything in there is a derived embedding, recomputable in about 167&#8239;ms, so a restart is a cold cache and a latency blip on the first request per key. The gateway degrades to the uncached path and keeps serving, which I proved by stopping Redis with the service running.</p>
+        <p>If the answer were &#8220;we lose rubric scores&#8221;, the fix would not be AOF. It would be that the rubric scores never belonged in a cache.</p>
+        <span class="invites">Invites &#183; <b>&#8220;How long is that blip, and how many keys deep?&#8221; &#8212; which is a question about your cold-start thundering herd, so it walks straight into lesson 0005.</b></span>
+      </details>
+    </li>
+    <li>
+      “Would you put the rubric scores in Redis?”
+      <span class="tell">No. They are the output of record and belong in Postgres, where you have transactions and a durability story you can audit. Cache the expensive inputs, persist the audited outputs.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>No. They are not derived from anything &#8212; if we lose one we cannot recompute it, we have to re-run an evaluation &#8212; so the acceptable loss window is zero, and Redis's best offer at a price I would pay is one second.</p>
+        <p>I could take <code>appendfsync always</code> and close it, and it measured 80 000 writes a second, which is plenty. But then I would be paying 0.54&#8239;ms of fsync per write to make a cache behave like a database that is already sitting next to it and does this properly, with transactions I also want.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What would make you change your mind?&#8221; &#8212; write volume Postgres could not take, and a loss window someone had actually agreed to in writing.</b></span>
+      </details>
+    </li>
+    <li>
+      “Redis is single-threaded. Is that a problem at your scale?”
+      <span class="tell">Not for throughput at cache-sized workloads — but one slow command blocks all clients, so the real answer is about banning <code>KEYS</code>, watching <code>slowlog</code>, and keeping values small.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Not at our scale, and single-threaded is mostly why it is fast &#8212; no locks, no context switching, and every command is atomic for free, which is what makes a Lua script a usable unit of work.</p>
+        <p>What it does mean is that one slow operation stalls <em>everything</em>. A <code>KEYS *</code> on a large keyspace is an outage, not a slow query. And it makes persistence a latency concern: a <code>fork()</code> for a snapshot pauses the one thread for as long as it takes the kernel to copy the page tables.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So what is your slowest command?&#8221; &#8212; the honest answer is that I should have <code>SLOWLOG</code> on a dashboard and do not yet.</b></span>
+      </details>
+    </li>
+    <li>
+      “How would you scale this cache past one node?”
+      <span class="tell">Replication for read scale and failover; Redis Cluster for sharded keyspace. The routing question underneath it is consistent hashing, which is lesson 0026 — say that you know the mechanism has a name and you will get there.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The first move is not a second node, it is checking whether I need one, because a single Redis is doing 300 000 writes a second on a laptop. If the constraint is memory rather than throughput &#8212; which for an embedding cache it will be &#8212; then it is Redis Cluster and the keyspace gets hashed across shards.</p>
+        <p>What that costs is multi-key atomicity: my keys are independent single-key <code>GET</code>/<code>SET</code>s, so I get away with it, but the moment anything wants two keys in one transaction they have to share a hash slot.</p>
+        <span class="invites">Invites &#183; <b>&#8220;How do keys map to shards, and what happens when you add one?&#8221; &#8212; consistent hashing, and that is lesson 0026, where I implement the ring and measure how many keys move.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<h2>0007 &#183; SSE vs WebSocket for Tokens</h2>
+
+<p class="cite">From <a href="../lessons/0007-sse-vs-websocket-for-tokens.html">lesson 0007</a>.</p>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;Your users say the response hangs and then dumps everything at once. Where do you look?&#8221;
+      <span class="tell">They want a path, not a guess. Walk the hops from the model to the browser and name what each one can do to a stream. Getting to compression rather than stopping at buffering is the whole signal here, and saying you measured it is what makes it credible.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>First I would confirm which one it is, because &#8220;hangs then dumps&#8221; and &#8220;slow first token&#8221; have different causes. If the frames all arrive together, generation was fine and something in the path accumulated them &#8212; so I walk the hops: our own handler, then any proxy, then the client library. On our side I check that the frames leave when they are produced, which I can do with <code>curl -N</code> against the pod directly.</p>
+        <p>Then the proxy, and I would go to <strong>compression before buffering</strong>. I have measured this: stock nginx buffering cost three milliseconds, and turning on gzip took first word from 393&#8239;ms to 3&#8239;796 &#8212; all 182 frames in one flush, status 200, nothing else wrong. The last hop to rule out is the client, since <code>curl</code> without <code>-N</code> reproduces the same symptom entirely locally.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So how would you catch it next time?&#8221; &#8212; a time-to-first-word percentile measured at the client, not in the handler, because every server-side signal in that failure was healthy.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Why SSE and not WebSocket?&#8221;
+      <span class="tell">A protocol tour scores nothing. The answer is that SSE is sufficient because the data flows one way, and the interesting half is naming the case where that stops being true. Do not claim a performance reason; there is not one.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Because the traffic is one-directional and SSE is ordinary HTTP. It goes through our existing gateway, ingress, auth and observability with no special handling, and reconnection with <code>Last-Event-ID</code> is in the protocol rather than in my code. WebSocket would be a second transport to operate for no gain &#8212; it is not faster, it does not compress better, and it is broken by the same proxies.</p>
+        <p>Where that flips is cancellation. Right now if a client hangs up mid-generation we keep producing tokens and keep paying for them, because there is no channel for the client to say stop &#8212; it has to be a second HTTP request against the completion id. If we shipped barge-in, where a user interrupts the avatar mid-sentence, I would want that channel and I would move.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What happens today when the client disconnects?&#8221; &#8212; honestly, we generate to completion unless something notices the write failed, so we pay for tokens nobody read.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;You quote 2.1 seconds median time-to-first-word. How is that measured?&#8221;
+      <span class="tell">The trap from lesson 0002, wearing a streaming costume. Where the clock starts and stops decides the number, and measuring inside the handler flatters you by exactly the amount of the failure in this lesson. Name the instrument, then name what it cannot see.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Wall clock from the request leaving the client to the first frame arriving at it, and it has to be at the client, because everything downstream of our handler is invisible from inside it. The gateway logs its own first-frame time as <code>gateway.ttfw</code>, which is useful for splitting our latency from the model's, but it is not the user's number &#8212; in the compression failure I measured, the handler's figure stayed at 390&#8239;ms while the client saw 3&#8239;796.</p>
+        <p>I would also be careful about what counts as the first frame. My first measurement of the gzip path read 14&#8239;milliseconds, which was the compression header arriving, not a token. The instrument has to look at the first decoded <code>data:</code> line or it reports a number better than reality.</p>
+        <span class="invites">Invites &#183; <b>&#8220;And the p95 and p99?&#8221; &#8212; the question median always invites, which is lesson 0002, and the answer needs an open-loop generator or it is flattering me.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Twenty-six times the bytes sounds bad. Would you stop streaming?&#8221;
+      <span class="tell">A test of whether you can price a tradeoff rather than recite it. The answer is no, and the reason is that the cheap fix already exists and you measured it &#8212; but you should say when the answer <em>would</em> be yes.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>No, because compression takes it back. The uncompressed cost was 37&#8239;655 bytes against 1&#8239;461 for one response, but gzip brought that to 2&#8239;588 &#8212; under twice the non-streaming size, for a first word nine and a half times sooner. That is not a close decision, and it stays open because the same header that keeps streaming alive is what lets both wins coexist.</p>
+        <p>Where I would reconsider is a client paying per byte on a metered connection, or an internal service-to-service hop where no human is waiting. Streaming to something that only acts on the finished text buys nothing and costs the envelope, so those calls should be <code>stream=false</code> &#8212; and some of ours probably still are not.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Which of your callers are machines?&#8221; &#8212; a question about whether streaming became a default rather than a decision, and the answer is that it did.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;A million concurrent sessions. What does the connection model do to you?&#8221;
+      <span class="tell">Straight out of your own prep notes. The move is to convert sessions into concurrent generations before saying anything about infrastructure, then name what a long-lived connection costs the layer in front. Do not answer with replicas.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>First I would separate concurrent sessions from concurrent generations, because they differ by a lot. If a turn takes eight seconds and a person speaks every thirty, in-flight generations are about eight thirtieths of a million &#8212; call it 267&#8239;000. That is the number that sizes anything, and it is the one people skip.</p>
+        <p>Then the connection model bites before the model servers do. Each in-flight turn holds an open connection for the whole generation, so the gateway is holding hundreds of thousands of sockets and the proxy in front is doing the same &#8212; and because the session is stateful, the load balancer's placement decision is not free either, which is the routing problem in the next lesson. The honest answer is that I have measured the single-node path carefully and have not measured this, and the first thing I would look at is file descriptors and proxy connection limits rather than GPUs.</p>
+        <span class="invites">Invites &#183; <b>&#8220;And what decides which replica a session lands on?&#8221; &#8212; prefix-cache affinity, which is lesson 0009, and round-robin actively throws the win away.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<h2>0008 &#183; KV Cache and Prefix Caching</h2>
+
+<p class="cite">From <a href="../lessons/0008-kv-cache-and-prefix-caching.html">lesson 0008</a>.</p>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;How much memory does one conversation cost on the GPU?&#8221;
+      <span class="tell">A pure arithmetic question, and it is astonishing how many people answer it with an adjective. Give the formula, then a number, then the capacity consequence. If you name <code>kv_heads</code> rather than attention heads you have already separated yourself from most candidates.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It is computable: two &#8212; for keys and values &#8212; times layers, times key-value heads, times head dimension, times sequence length, times bytes per element. On a Llama-3-8B shape that is thirty-two layers and eight key-value heads at head dimension one twenty-eight, so <strong>128&#8239;KiB per token</strong>, which at an 8k context is <strong>exactly one gibibyte per conversation</strong>.</p>
+                <p>The reason I care is capacity. An 80&#8239;GiB card minus 16 of weights and a few for activations leaves about sixty conversations, and that is the real concurrency limit of a replica &#8212; not CPU and not requests per second. It is also why the key-value head count matters: using attention heads instead would have told me fifteen, and I would have provisioned four times the hardware.</p>
+        <span class="invites">Invites &#183; <b>&#8220;And at 128k context?&#8221; &#8212; three conversations a card, which is the answer to why long context is priced the way it is.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Your system prompt is 2 000 tokens. Isn't that wasteful?&#8221;
+      <span class="tell">A trap that rewards knowing the mechanism. The instinctive answer is yes, and it is wrong on a cache hit. But the correct answer has a real condition attached, and stating the condition is the point.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Not on a hit, and that surprised me too. Because it is the same prefix every call, its key-value blocks are already resident, so prefill only covers the part that differs &#8212; in my measurements first-word time was flat whether the shared prefix was 128 tokens or 2&#8239;048. And the blocks are shared, so a thousand concurrent sessions store one copy of it rather than a thousand.</p>
+        <p>The condition is that it has to be byte-identical and it has to be at the <em>front</em>. Anything varying near the top &#8212; a timestamp, a tenant name &#8212; invalidates everything below it, and then that 2&#8239;000 tokens is pure cost on every single request. So the rule I follow is not &#8220;keep it short&#8221;, it is &#8220;keep it identical, and put anything that varies after it&#8221;.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What varies in yours today?&#8221; &#8212; which is a question about whether I have actually read the prompt-assembly code, and the honest answer is that I found two fields that should move.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Scale it to a million concurrent interviews. What breaks first?&#8221;
+      <span class="tell">Your prep notes flag the red flags on this one: jumping to replicas and a queue, no KV arithmetic, treating a stateful streaming service as stateless REST. Do the concurrency conversion out loud before you draw anything &#8212; that step is the test.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>First, a million concurrent <em>sessions</em> is not a million concurrent <em>generations</em>. If a turn takes eight seconds and a person speaks every thirty, then eight thirtieths are in flight &#8212; about <strong>267&#8239;000 concurrent decodes</strong>. That is the number that sizes everything, and it is four times smaller than the one in the question.</p>
+        <p>Then the key-value cache is what breaks, before the gateway and long before CPU. At a gibibyte per conversation that is <strong>260&#8239;TiB</strong> of cache, roughly four thousand accelerators for cache alone, which is not a scaling plan &#8212; so the design has to change shape. Smaller model, quantized cache to halve the bytes, shorter contexts with aggressive session eviction, and prefix sharing so the common preamble is stored once. Those are multiplicative, and together they are the difference between impossible and expensive.</p>
+        <span class="invites">Invites &#183; <b>&#8220;How do sessions land on replicas, then?&#8221; &#8212; because prefix reuse only works if the same conversation returns to the same replica, which is lesson 0009.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;First word is fine but the answer reads slowly once it starts. What do you do?&#8221;
+      <span class="tell">A test of whether you know prefill and decode are different bottlenecks, or just have one story about latency. The wrong move is to reach for prefix caching, which is the lever you just learned and does nothing here.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>That is decode, not prefill, so everything I would do for first-word time is irrelevant to it. Decode generates one token at a time and reads the whole key-value cache at each step, so it is bound by memory bandwidth rather than compute &#8212; in my measurements inter-token latency did not move at all when prefix caching took first word from 815&#8239;ms to 99.</p>
+        <p>The levers that do apply are different: a smaller or quantized cache so each step moves fewer bytes, a smaller model, better batching so the bandwidth is amortised across concurrent sequences, or simply generating fewer tokens by asking for a shorter answer. I would measure inter-token latency separately from first word before touching any of them, because they are two metrics and one number hides both.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Why would batching help if it adds queueing?&#8221; &#8212; because decode is bandwidth-bound, so concurrent sequences share the weight reads; and it is a genuine latency-versus-throughput trade.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;You said the cache has a fixed ceiling. What happens when it fills?&#8221;
+      <span class="tell">This is lesson 0004 in new clothes, and saying so is the strong move. A prefix cache is a hard-ceilinged, heavily skewed cache with an eviction policy, so the whole eviction lesson applies &#8212; only a miss costs GPU-seconds instead of a Redis round trip.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Something gets evicted, and which something is a policy decision I should be able to defend. It is the same structure as any bounded cache with a skewed access pattern: a small set of blocks &#8212; the shared preamble &#8212; is worth enormous amounts, and a long tail of per-conversation blocks is worth almost nothing once that conversation ends.</p>
+        <p>Which means it has the scan problem too. A burst of one-off long contexts is a sweep of cold blocks under a recency policy, and it can push out the shared prefix that thousands of sessions were hitting &#8212; exactly the failure I reproduced in Redis with a batch job under <code>allkeys-lru</code>. The difference is the cost of being wrong: there a miss was a round trip, here it is prefill time and a queue.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So would you pin the shared prefix?&#8221; &#8212; yes, and that is a real feature in serving stacks; the honest follow-up is that I have not measured the eviction pattern on ours.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<h2>0009 &#183; Cache-Aware Routing</h2>
+
+<p class="cite">From <a href="../lessons/0009-cache-aware-routing.html">lesson 0009</a>.</p>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;Your sessions are stateful and you have four replicas. What is the load balancer doing?&#8221;
+      <span class="tell">Your prep notes flag this as one of the things that breaks before the GPUs do. Start from what the replicas hold, not from the balancer's feature list &#8212; the answer is a property of the prompt. Naming the quantity round-robin optimises, and why it is the wrong one, is the signal.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>By default, the wrong thing. Each replica holds its own prefix cache, so the replica that served a conversation's last turn is strictly better at its next turn &#8212; and round-robin equalises request counts, which was the right objective only while replicas were interchangeable. The probability a turn lands where its prefix lives is about one over the replica count, so the loss grows as I scale out.</p>
+        <p>I measured it: round-robin, least-outstanding and whole-prompt hashing all landed near <strong>47&#8239;% hit rate</strong>, and routing by a hash of the conversation-identifying prefix got <strong>78&#8239;%</strong> with p99 first word falling from 396&#8239;ms to 172. The cost is load balance &#8212; 48-48 became 35-55 &#8212; and a cache cliff when a replica dies.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What exactly do you hash?&#8221; &#8212; which is the real question, because hashing too little sends everything to one replica and hashing too much is round-robin.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Why not just route to whichever replica has the best cache for the request?&#8221;
+      <span class="tell">A good question with a counter-intuitive answer, and it is the strongest thing you can bring to this topic: you tried it, it had the best hit rate, and it was unusable. Say the failure and the mechanism behind it.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>I did try that &#8212; track which block hashes each replica has been sent, route to the longest match, break ties on load. It produced the highest hit rate I measured, <strong>79.6&#8239;%</strong>, and it put <strong>all 192 requests on one replica</strong> with three idle.</p>
+        <p>The reason is structural rather than a bug. After the first request, one replica holds the globally shared preamble, so it has the longest match for every conversation from then on &#8212; and because the match lengths are never equal, the load tiebreak never fires. Unbounded &#8220;route to the best cache&#8221; has a fixed point and the fixed point is one server. Adding a load ceiling fixed the balance and cost eight points of hit rate, because every diverted request installs a duplicate copy of its blocks elsewhere.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So plain hashing beat the smarter router?&#8221; &#8212; yes, on both hit rate and tail, because it cannot be talked out of its decision.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;What breaks when you add a replica?&#8221;
+      <span class="tell">Tests whether you have thought past steady state. Two things break, and the second one &#8212; that autoscaling now has a latency cost &#8212; is the part most people have not considered.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>A share of conversations gets remapped to a replica that does not hold their history, so every one of them pays full prefill on its next turn. With plain modulo hashing that is almost <em>all</em> of them, which is the argument for consistent hashing here rather than modulo &#8212; it moves roughly one over N of the keys instead of nearly all.</p>
+        <p>Which means scaling out is no longer latency-free, and that changes how I would autoscale: prefer scaling ahead of demand rather than reactively, because adding capacity during a spike causes a prefill burst at exactly the wrong moment. The same reasoning applies to a rolling deploy, and it is worse there, because every replica is replaced.</p>
+        <span class="invites">Invites &#183; <b>&#8220;And when one dies?&#8221; &#8212; its share of conversations all miss at once, which is a stampede, so it needs coalescing per prefix and headroom to absorb the prefill.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Would you actually put this in production?&#8221;
+      <span class="tell">A judgement question, and the strong answer is conditional with a measurement attached. Adopting a technique because it is interesting is the failure being probed for; so is dismissing it without a number.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Only after measuring one thing: how much of the cacheable prefix is per-conversation rather than shared by everybody. That ratio decides it. With a long shared system prompt and short turns, round-robin already reached <strong>76&#8239;%</strong> in my tests, because every replica caches the global span after one request each &#8212; so affinity buys about ten points and costs me the cliff and the deploy behaviour. I would not take that trade.</p>
+        <p>With a short preamble and a growing conversation, it was 47 against 78 and I would. So the answer is that it depends on how we write prompts, and it can change without anyone touching the balancer &#8212; someone lengthening the system prompt moves the boundary and can silently turn my hash window into a constant.</p>
+        <span class="invites">Invites &#183; <b>&#8220;How would you notice that happening?&#8221; &#8212; load spread across replicas, alerted on; it is the signal that catches both failure modes.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Suppose I told you routing made no measurable difference in your test. What would you check?&#8221;
+      <span class="tell">This happened, so answer from experience rather than hypothetically. It is really a question about benchmark scepticism, which is lesson 0002's territory, and the specific arithmetic accident is memorable enough to be worth telling.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>That is what my first run said, and the workload was wrong. Every conversation was advancing in lockstep, so dispatch order was the same rotation every round &#8212; and with 24 conversations over 4 replicas, 24 divides by 4, so each conversation returned to the same replica every time. <strong>Round-robin was accidentally perfect affinity</strong>, at 79&#8239;% instead of 47.</p>
+        <p>What gave it away was the control: whole-prompt hashing did not move at all between the two workloads, because it scatters regardless of arrival order. When one row shifts thirty points and another does not move, the workload changed rather than the thing under test. Adding staggered starts and variable think time made the difference appear, and it is closer to how people actually talk.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So how do you know the second workload is right?&#8221; &#8212; I do not, fully; what I can say is which property it fixed and that the deterministic strategies reproduce exactly.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<h2>0010 &#183; Backoff with Jitter</h2>
+
+<p class="cite">From <a href="../lessons/0010-backoff-with-jitter.html">lesson 0010</a>.</p>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;You have retries between five pipeline stages. What happens when the provider starts failing?&#8221;
+      <span class="tell">The trap is answering with the textbook number. Establish the shape first, then give your own figure. Volunteering that the famous number does not apply to you is the whole signal here.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Less than people expect, because the stages are serial. The number usually quoted is 243&#215;, and that is 3<sup>5</sup> for a five-deep <em>nested</em> stack where each layer retries the layer below &#8212; attempts multiply because each one is a whole subtree. Ours are in a row, so they add: I measured <strong>15 calls</strong> if every stage is flaky, and <strong>3</strong> in practice because the run halts at the stage that failed. That is 3&#215; normal load, not 243&#215;.</p>
+        <p>The amplifier I would actually go looking for is nesting I did not write &#8212; the provider SDK retries by default, and if that sits inside a client wrapper that also retries, inside my loop, that is three layers and 27&#215;.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So what does bound it?&#8221; &#8212; a shared token bucket, because neither backoff nor jitter changes the count.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Why jitter? Isn't exponential backoff already spreading the load out?&#8221;
+      <span class="tell">Easy to answer correctly and shallowly. The strong version says what backoff does to the gaps as well as the spikes, and then volunteers the cost, which almost nobody knows.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Backoff spreads retries <em>over time</em> but not <em>across clients</em>. If everyone failed at the same instant they all wait the same 200&#8239;ms, so they arrive together. I measured that as five walls of 49 with silence between them &#8212; backoff relocated the contention rather than reducing it. Full jitter turned that into a decaying stream and took the peak from <strong>490/s to 320/s</strong>.</p>
+        <p>The cost surprised me. Full jitter averages half the backoff, so the same attempt count spans half the wall clock: my retry window went from <strong>5000&#8239;ms to 2507&#8239;ms</strong> and, against a four-second outage, completions fell from <strong>49 of 49 to 3</strong>. Jitter is the right default and it means raising the attempt count or the cap to keep the same coverage.</p>
+        <span class="invites">Invites &#183; <b>&#8220;How did you pick the attempt count?&#8221; &#8212; from the outage length I want to survive, and then checked it fits the per-stage budget.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;How many retries should a stage get, and how did you choose?&#8221;
+      <span class="tell">A number with no derivation behind it is the failure mode. Derive it from the budget out loud, then give the percentile it breaks at, because that is the part that sounds like someone who measured.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It falls out of the budget. The turn budget is 8&#8239;s over five stages, so a stage owns <strong>1600&#8239;ms</strong>. Three attempts cost <code>3T</code> plus two backoff gaps averaging 100 and 200&#8239;ms, so <code>3T + 300 &#8804; 1600</code> gives <strong>T &#8804; 433&#8239;ms</strong>. Two attempts allow <strong>T &#8804; 750&#8239;ms</strong>.</p>
+        <p>Then the measurement: our stage is <strong>387&#8239;ms at p50, 670 at p90, 1042 at p99</strong>. So three attempts fit at the median, two at p90, and one at p99. The uncomfortable part is that the requests fast enough for three attempts are the ones that succeeded, and the slow ones I want to retry have no room. For those the answer is a hedge or a fallback rather than a retry.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What is a hedge?&#8221; &#8212; a second request sent before the first has failed, which costs capacity rather than time.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;What stops retries taking the provider down when it is already struggling?&#8221;
+      <span class="tell">The expected answer is a circuit breaker. Knowing that the best primary source on this explicitly prefers a token bucket, and being able to say why, is the thing that separates a read topic from a studied one.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>A retry budget: a token bucket per dependency, shared by everything that calls it, refilling at about <strong>10&#8239;%</strong> of real request rate. Retries spend tokens and are refused when it is empty. I measured it cutting retries from 245 to 8 and peak load from 320/s to 20/s, with <strong>48 of 56 retry requests denied</strong>.</p>
+        <p>I would say what it does not do, too: completion went to zero. It bounds the amplifier, it does not rescue the request. The Amazon Builders' Library recommends this <em>instead of</em> a circuit breaker &#8212; their argument is that breakers add modal behaviour that is hard to test and can lengthen recovery &#8212; so if I did add a breaker I would want to say what it buys over the bucket.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So would you use a breaker at all?&#8221; &#8212; which is the whole of the next conversation, and worth having an answer to.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Your batch of 49 datasets all start at once. Is that a problem in itself?&#8221;
+      <span class="tell">Tests whether you have generalised jitter past retries. The Builders' Library's wider point is that periodic and scheduled work should be jittered too, and it has a nice operational detail attached.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Yes, and it is the same problem one layer out. Forty-nine simultaneous starts is a synchronised arrival spike before any failure happens; the retry storm just makes it visible. The fix is to jitter the launches, not only the retries &#8212; the same source recommends adding jitter to all timers, periodic jobs and delayed work, because clients that run &#8220;once a minute&#8221; line up on the first second of the minute.</p>
+        <p>One detail worth keeping: for scheduled work they pick the jitter <em>deterministically per host</em> rather than randomly, so that if something does overload, it overloads the same way each time and is therefore debuggable. Random jitter makes an overload happen at random, which is much harder to chase.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What would you jitter first?&#8221; &#8212; the batch launch, because it is one line and it removes the spike that starts everything.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<h2>0011 &#183; The Breaker You Have to Defend</h2>
+
+<p class="cite">From <a href="../lessons/0011-the-breaker-you-have-to-defend.html">lesson 0011</a>.</p>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;You have a circuit breaker on the model call. What does it open at?&#8221;
+      <span class="tell">A number on its own fails this. The signal is the derivation, and the strongest version volunteers that a different service calling the same upstream should use a different number.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The threshold comes from the error budget rather than from a default. At <strong>99.9&#8239;%</strong> over thirty days we have <strong>43 minutes</strong> of unavailability for the whole month, so one ten-minute outage spends <strong>23&#8239;%</strong> of it &#8212; that makes being slow to open expensive and a false open comparatively cheap, so we open on a tighter threshold over a smaller window.</p>
+        <p>The consequence I would flag is that this is not a property of the dependency. A service with a 99&#8239;% SLO calling the identical upstream has 432 minutes of budget, the same outage costs 2.3&#8239;%, and it should open later and over a wider window. Same code, opposite tuning.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What window size?&#8221; &#8212; which is really a question about how many failures you are willing to absorb before opening.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Walk me through the states.&#8221;
+      <span class="tell">An invitation to recite, and reciting is the failure. Answer it in one sentence and spend the rest on the estimator, because that is where every bug and every threshold lives.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Closed passes calls and records outcomes, open fails them instantly without touching the dependency, half-open admits exactly one probe which either closes it or reopens it. The states are the easy half though &#8212; what decides the transitions is a <strong>failure estimator</strong>, and that is the part worth talking about.</p>
+        <p>I ran the same breaker with two estimators on identical traffic. A 50-call sliding window opened after <strong>25 failures</strong>; an EWMA at &#945;&#8239;=&#8239;0.1 opened after <strong>7</strong>, about 900&#8239;ms earlier. Eighteen fewer user-visible errors, from a component the state diagram does not contain. The window is also why one probe is enough in half-open: it is a deliberately cheap experiment, and an experiment costing a thousand requests is not one you can repeat every few seconds.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Which estimator did you pick?&#8221; &#8212; and the honest answer names the trade rather than a winner.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Your upstream is not down &#8212; it is three times slower than usual. What does your breaker do?&#8221;
+      <span class="tell">The best question on this topic, because partial degradation is far more common than hard failure and most breakers sleep through it. Give the measured version, not the theoretical one.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>By default, nothing, and that is a real bug rather than a subtlety. A breaker sees the outcomes you give it, so a slow success is a success &#8212; I measured a run where every call returned correctly, <strong>100 of them blew the stage budget</strong>, the failure rate stayed at <strong>0&#8239;%</strong> and the breaker never moved.</p>
+        <p>The fix is to record exceeding the budget as a failure, which turned that into <strong>25 over budget and 99 refused instantly</strong>. Failing at 0&#8239;ms rather than at the timeout is the actual win, because the rest of the turn's budget survives for a fallback. So the sentence I would want on the record is that a breaker is a failure detector and only becomes a latency detector if you make the timeout count.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What timeout, then?&#8221; &#8212; which is the deadline question, and it has its own arithmetic.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Do you need a circuit breaker at all?&#8221;
+      <span class="tell">Sounds like a trap and is a genuine question, because the best free source on this argues against them. Knowing the argument and being able to say where a breaker still earns its place is the strongest thing available here.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Often not. The Amazon Builders' Library explicitly prefers a retry token bucket, on the grounds that breakers <em>&#8220;introduce modal behavior into systems that can be difficult to test, and can introduce significant addition time to recovery&#8221;</em>. I measured the bucket doing the load-protection job on its own: retries cut from 245 to 8, peak from 320/s to 20/s, with no state machine and no mode.</p>
+        <p>What a breaker adds is two things, both about me rather than the dependency: it fails calls at <strong>0&#8239;ms instead of at the timeout</strong>, which returns the rest of the deadline to a fallback, and it applies to <em>first</em> attempts rather than only retries, so it caps the latency cost of an upstream that is simply down. Where I have a fallback worth running, that is worth the mode. Where I do not, the bucket is enough and I would rather not ship an untested state.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What fallback?&#8221; &#8212; and having a concrete one is what makes the breaker defensible.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;How would you know your breaker is working, in production?&#8221;
+      <span class="tell">Tests whether you have thought past the happy path into operations. The modal-behaviour criticism is the thing to answer here, and the answer is about observability rather than about code.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Every state change is a logged event with the reason attached &#8212; the failure rate and the sample count that triggered it, not just &#8220;opened&#8221; &#8212; and the state is exported as a metric per dependency. Martin Fowler's write-up makes the same point: any change in breaker state should be logged, and a trip should usually raise an alert.</p>
+        <p>The number I would actually watch is <strong>short-circuited calls</strong>, because it is the only one that distinguishes a breaker doing its job from a breaker that is stuck. And I would test the mode deliberately rather than waiting for an incident: force it open in staging and confirm the fallback path runs, because the criticism of breakers is precisely that the open state is the least exercised code in the system.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Have you ever seen one misfire?&#8221; &#8212; yes, the ungated one, and it refused a hundred healthy requests.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<h2>0012 &#183; Timeout Budgets and Deadline Propagation</h2>
+
+<p class="cite">From <a href="../lessons/0012-timeout-budgets-and-deadline-propagation.html">lesson 0012</a>.</p>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;You promised an 8-second turn. What enforces it?&#8221;
+      <span class="tell">The question behind the r&#233;sum&#233; bullet. Answering with the p50 misses it entirely &#8212; this is about the ceiling, not the distribution. Saying where it is <em>not</em> enforced is the honest opening.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It was enforced at the edge and nowhere below it, which means it was a measurement rather than a guarantee. Each of five stages had its own timeout, so the ceiling was five times the timeout, doubled again by one retry per stage. With 5&#8239;s stage timeouts that is a 50&#8239;s ceiling for an 8&#8239;s budget, and I measured a worst case of <strong>11 880&#8239;ms</strong> with no timeout violated anywhere.</p>
+        <p>The fix is a single absolute deadline built at the edge and passed to every stage, with each bounded by <code>min(its own timeout, remaining)</code>. That put the maximum at <strong>8 001&#8239;ms</strong> on every run, and moved the median by about 15&#8239;ms &#8212; it is a tail intervention, so it costs the common case nothing.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What did it cost?&#8221; &#8212; 26 turns of 200 that used to finish late now fail, which is the trade.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Why not just set every stage's timeout to the budget divided by the number of stages?&#8221;
+      <span class="tell">Sounds like the obvious fix and is worth having measured, because it fails in a direction people do not expect. Give the number, not the theory.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>I tried it: 8&#8239;000 over five stages is 1&#8239;600&#8239;ms each, and it does keep every turn inside the budget &#8212; zero over, out of 200. It also <strong>failed 53 of those 200 turns</strong>, because an equal slice assumes the stages cost the same and that each one's latency is a point rather than a spread. A 1&#8239;600&#8239;ms limit sits well inside our stage distribution, so it refuses work that would have finished in time.</p>
+        <p>A deadline gets this right without anyone allocating anything: each stage asks what is left, so a stage that runs long simply leaves less for the next one, instead of every stage getting its fixed fifth regardless. That is the real advantage over a static split &#8212; it reallocates automatically, in the direction the actual run went.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So what do you do when a stage runs out?&#8221; &#8212; fail fast with a distinct error, or degrade, but never extend.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;How does this interact with your retries?&#8221;
+      <span class="tell">The composition question, and the place two lessons meet. The specific detail &#8212; checking remaining time before starting an attempt &#8212; is in the SRE book and almost never in real code.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It is what makes the retry arithmetic enforceable. I had worked out that three attempts fit a 1&#8239;600&#8239;ms stage only while a call stays under <strong>433&#8239;ms</strong>, but nothing at runtime knew how much of the slice the earlier attempts had eaten, so the third started regardless. With a deadline, an attempt is checked against the time remaining and refused if it cannot finish &#8212; <strong>25 refusals in 200 turns</strong>.</p>
+        <p>The reason to refuse rather than start is that a late attempt is pure load: it costs the provider a full call and returns after anyone stopped caring. The SRE book puts it as checking there is enough time left before each stage, and treats work past a client's deadline as resources spent while no progress is made.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What about the request already in flight when the deadline passes?&#8221; &#8212; cancel it, and that is where SSE having no upstream channel bites.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Would a bulkhead help here?&#8221;
+      <span class="tell">A trap worth recognising. Bulkheads are good and they do not solve this, and being able to say which quantity each control bounds is the whole answer.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Not with this problem, no. A bulkhead bounds <em>concurrency</em> &#8212; how many calls to one dependency are in flight &#8212; so it stops a slow dependency consuming every worker. It bounds nothing about duration, so a turn can still run to fifty seconds inside it.</p>
+        <p>It can actually make the symptom worse. Capping concurrency at 8 when 20 requests arrive means 12 of them wait for a slot <em>before</em> starting their own timeout, and that queueing time is invisible to every per-call limit in the system. I would want all three controls, with each doing its own job: a timeout for one call, a deadline for the request total, and a bulkhead for how many run at once.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So where does queueing time show up?&#8221; &#8212; only in an end-to-end measurement, which is why the deadline starts at the edge.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Where does the deadline physically live once you cross a service boundary?&#8221;
+      <span class="tell">Checks whether you have implemented this or only read about it. The monotonic-clock detail and the distinct error type are the two things that sound like experience.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>In-process it is an object threaded through the call path, enforced with <code>asyncio.timeout</code> given <code>remaining_ms()</code> rather than a constant. Across a boundary the same instant travels as a header and is rebuilt on the other side &#8212; gRPC does it natively with <code>grpc-timeout</code>; over HTTP it is a header you agree on plus middleware that converts it back. Both halves have to exist or the budget stops at your edge.</p>
+        <p>Two details I would not skip. The clock is <code>time.monotonic</code>, never wall clock, because NTP can step a wall clock backwards and a deadline that moves backwards fires early with nothing in the logs to explain it. And &#8220;deadline exceeded&#8221; is its own error type rather than a generic timeout, because a slow hop might be worth retrying and an expired deadline never is.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What if a downstream ignores the header?&#8221; &#8212; then your own deadline still fires, which is why it is enforced on both sides.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<h2>0013 &#183; Admit, Queue, or Shed</h2>
+
+<p class="cite">From <a href="../lessons/0013-admit-queue-or-shed.html">lesson 0013</a>.</p>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;Now scale it to a million concurrent.&#8221;
+      <span class="tell">The question your prep notes leave open. It is not asking for an architecture diagram &#8212; it is asking what happens in the first minute of overload, and the honest answer starts with what your system does today rather than what you would build.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Today it queues, and the queue has no length limit &#8212; that is the default that arrives with a semaphore rather than a decision anyone made. I measured it at roughly twice capacity: goodput fell to <strong>44&#8239;%</strong>, the queue reached <strong>345 deep</strong>, and the upstream's failure rate was <strong>zero</strong> throughout, because every call succeeded and simply arrived after the client's deadline.</p>
+        <p>So the first change is not more capacity, it is a door. Bound the queue from a Little's-law target, price admission in tokens rather than requests, and return a fast <code>429</code> with <code>Retry-After</code>. That does not serve more people &#8212; goodput went 44&#8239;% to 43 &#8212; it means the people you do serve get an answer inside the budget and everybody else finds out immediately.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So what would you actually add capacity for?&#8221; &#8212; to move the knee, which is the only thing that raises goodput.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;How did you choose the queue depth?&#8221;
+      <span class="tell">Most answers are a round number and a shrug. Deriving it is the whole difference, and it takes one line of arithmetic you can do at a whiteboard.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>From Little's law, <code>L = &#955;W</code>. Rearranged, the time an item waits is the depth divided by the rate the queue drains at. We serve about 21 a second, so a depth of 16 is <strong>762&#8239;ms</strong> of queueing on top of about 390&#8239;ms of service &#8212; a predicted p50 of 1 167. Measured 1 197, within 3&#8239;%.</p>
+        <p>The reason to do it that way round is that it inverts the usual argument. People treat queue depth as a capacity knob and pick a number that feels safe. It is a <strong>p99 knob</strong>: choosing 256 instead of 16 is choosing twelve seconds of waiting against an eight-second budget, which is a promise broken before the request does anything.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What if your service rate varies?&#8221; &#8212; then so does the promise, which is an argument for bounding age as well as depth.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;You have a queue you do not control &#8212; a load balancer, a broker. What do you do?&#8221;
+      <span class="tell">The question where the obvious answer is measurably useless. Having the zero is what makes this one memorable.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The standard advice is to check on dequeue whether the request has already expired and throw it away if so. I implemented that and measured it discarding <strong>nothing at all &#8212; zero of 576</strong>. A request reaching the front with 166&#8239;ms left has not expired, so it gets admitted, and then it needs 380&#8239;ms.</p>
+        <p>The check has to be <em>&#8220;does a call still fit in the time remaining?&#8221;</em>, not &#8220;has it expired?&#8221; That discarded 92 and served 29 more. It needs a latency estimate, which the Builders' Library is honest about being hard &#8212; cache hits and misses cost differently and you do not know which you have &#8212; but a rough estimate beats a check that never fires. For the load balancer itself, the fix is configuration: spillover rather than a surge queue, which is why AWS's Application Load Balancer rejects excess instead of queueing it.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What if your estimate is wrong?&#8221; &#8212; you shed work that would have made it, so estimate low and bound the age too.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;What do you shed first?&#8221;
+      <span class="tell">Sounds like a technical question and is not. The strongest answer states the ordering, gives the measured redistribution, and names the part that is not yours to decide.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>First, the thing worth being clear about: ordering does not change <em>how many</em> you serve. I measured four policies at the same offered load and served 247, 234, 246, 247 &#8212; capacity had already decided that. It changes <em>who</em>, and by a lot: a priority floor took interactive requests from about <strong>132 of 311 to 230</strong>, while retries went from 67 to <strong>3 of 161</strong>.</p>
+        <p>For us the live interview turn is protected and batch re-scoring and retries go first, because a late token in a live session is worthless and the session is unrecoverable. The honest weakness is that &#8220;this is a retry&#8221; is self-reported, so a client that lies gets served better &#8212; which is why the Builders' Library pushes the classification to the edge rather than deriving it at each hop.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Who signs off on that ranking?&#8221; &#8212; the product owner, and it should be written down before the incident.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Your rate limit is 100 requests per second per tenant. What is wrong with that here?&#8221;
+      <span class="tell">Checks whether you have thought about LLM workloads specifically rather than porting a REST-API habit. The ratio is the answer and it is large enough to be memorable.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It prices a 200k-token context and a twenty-token ping the same. I measured a tenant sending <strong>17&#8239;% of the requests and consuming 65&#8239;% of the capacity</strong>, because prefill time is roughly linear in prompt length. A request-counting limiter reports that tenant as a minor user right up to the moment everyone else's latency triples.</p>
+        <p>So the bucket is priced in tokens, and per tenant rather than globally &#8212; a single global bucket cannot be fair because the tenant draining it looks identical to legitimate aggregate demand. With per-tenant buckets the quiet tenant went from about 400 to <strong>480 of 480 served</strong> and her p50 from about 500&#8239;ms to <strong>87</strong>. The sizing trap worth mentioning: the burst has to exceed your largest single request, or that request is refused forever rather than throttled.</p>
+        <span class="invites">Invites &#183; <b>&#8220;How do you price it before you have run it?&#8221; &#8212; you cannot, which is why the limit is derived from a load test rather than chosen.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<h2>0014 &#183; Idempotency Is a Key and a Clock</h2>
+
+<p class="cite">From <a href="../lessons/0014-idempotency-is-a-key-and-a-clock.html">lesson 0014</a>.</p>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;Your pipeline has retry loops. What stops a stage running twice?&#8221;
+      <span class="tell">The question behind the r&#233;sum&#233; bullet. Answering &#8220;idempotency keys&#8221; is the start of the answer, not the answer &#8212; the interviewer is waiting to hear whether you know what happens under concurrency.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Right now, nothing &#8212; the stage interface has said so in a docstring since the first commit. So I measured what that costs: sixteen concurrent duplicates of one request applied the side effect <strong>sixteen times</strong>, with no error raised anywhere, because every caller read the key table before any caller wrote to it.</p>
+        <p>The fix is an idempotency key inserted <em>before</em> the work, against a unique constraint on tenant, operation and key, catching the violation rather than checking first. That gives one apply and zero user-visible errors. The version that only adds the constraint is also correct and returns fifteen 500s to clients doing something entirely legal, which is worth knowing because it is what you get if you add the index after an incident and stop there.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What does the loser see?&#8221; &#8212; in-progress or the stored response, which is why there are three record states.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;How likely is that race really? Surely it needs heavy load.&#8221;
+      <span class="tell">The push-back that keeps this bug in production. The number makes it unarguable, and it is a small number.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Two callers. I swept it &#8212; 2, 4, 8, 16, 32 simultaneous duplicates &#8212; and the applies track the caller count throughout; the worst case I ever measured at sixteen callers was fourteen applies of one request. There is no concurrency below which it is safe, and no threshold to stay under.</p>
+        <p>&#8220;We have never seen it&#8221; means duplicates have not yet arrived close enough together, which is a statement about traffic rather than about the code. A client-side retry storm arranges exactly that: an outage ends, every client that was retrying wakes at the same moment, and without jitter they arrive together by construction. That is the lesson before this one, and it is the thing that turns this from theoretical into an incident.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Would a lock fix it?&#8221; &#8212; a lock is a read then a write, so it shrinks the window rather than closing it.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;What is the key, and what is it scoped to?&#8221;
+      <span class="tell">Checks whether you have designed one or used one. The scope answer is short and the reason for it is the memorable part.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The client mints it before its first attempt &#8212; a v4 UUID &#8212; and it identifies an <em>intent</em>, not a payload. It is deliberately not a hash of the body, because two identical charges a minute apart are two charges and a payload hash would merge them silently.</p>
+        <p>Scope is tenant plus operation, so the constraint is on the triple rather than on the key alone. A global key space lets one customer's UUID collide with another's, and worse, lets a key minted for <code>cancel</code> satisfy a <code>confirm</code>. Alongside it I store a fingerprint of the request, so the same key with a different body is rejected rather than replayed &#8212; and the fingerprint sorts the JSON keys first, or a client whose map ordering varies gets a conflict on an honest retry.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Why reject rather than replay?&#8221; &#8212; replaying tells them their new request was carried out, which is worse than an error.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;How long do you keep the keys?&#8221;
+      <span class="tell">Sounds like an operations question and is the one that separates having implemented this from having read about it. If your answer is about table size, the follow-up will end badly.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Long enough to outlive the longest retry window any client of ours can produce, which makes it a correctness parameter rather than a cleanup schedule. I measured the failure: with the lifetime shorter than the window, the same request applied <strong>twice</strong> &#8212; one caller, two attempts, no concurrency &#8212; with the unique index present and working perfectly. There is nothing left to collide with.</p>
+        <p>Our automated retriers are the easy case; they run six attempts over two to five seconds. The binding constraint is a human re-running a failed dataset the next morning, so 24 hours is the floor and the number came from the slowest retrier rather than the busiest. Stripe prunes at 24 hours and documents the consequence directly &#8212; a key reused after pruning starts a new request &#8212; which is the right way round: state it rather than let people assume it is safe.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What if a broker redelivers a week later?&#8221; &#8212; then a day is not enough, and the broker's retention sets yours.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Could you do this without the database &#8212; in Redis, or in memory?&#8221;
+      <span class="tell">A good-faith question with a precise answer. What you need is not a database, it is one atomic conditional write, and being able to say that shows you understand the mechanism rather than the recipe.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>In memory, no &#8212; and the reason is instructive. A single-threaded event loop makes the check and the write atomic by accident, so an in-memory store reports this bug as absent. It has no window to lose, which makes it useless as a stand-in for the thing that does.</p>
+        <p>Redis, yes, because <code>SET key value NX</code> is exactly the primitive required: one atomic conditional write where the loser is told. What the database gives you on top is durability and the ability to store the response transactionally with the work, which matters when the apply and the record must land together. So the requirement is not &#8220;a database&#8221;, it is <strong>one atomic compare-and-set on the key</strong>, plus somewhere durable to keep the answer for as long as the lifetime demands.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What if the process dies between the insert and the apply?&#8221; &#8212; the row is stuck in-progress, which is why that state needs a timeout of its own.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<h2>0015 &#183; The Wait No Timeout Can See</h2>
+
+<p class="cite">From <a href="../lessons/0015-the-wait-no-timeout-can-see.html">lesson 0015</a>.</p>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;What is your connection pool size, and where did the number come from?&#8221;
+      <span class="tell">Almost always asked as small talk and almost never followed up when the answer is a number with a reason. It is a cheap way to find out whether you have ever run out of connections.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It comes from Little's law: the pool is the concurrency limit, so the ceiling is pool size divided by how long a connection is held. I measured the hold time at about 91&#8239;ms for our read path, so five connections caps a replica at roughly <strong>55 requests a second</strong>, and 53 is what arrived.</p>
+        <p>The reason it matters more in an async service is that nothing else limits the requests in flight. A threaded app with twenty workers can never ask for a twenty-first connection; an async one asks for as many as there are requests, so the pool becomes the queue. At the default of five under forty concurrent requests, <strong>eighty per cent of the median request was spent waiting for a connection</strong> and the query time never moved.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So why not make it enormous?&#8221; &#8212; because every connection is a Postgres backend process, and the limit is shared across replicas.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Request latency is up but every query is fast. Where do you look?&#8221;
+      <span class="tell">The diagnostic version, and the one that separates people who have read about pools from people who have been paged about one. The pair of facts in the question is the clue.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Between the two, and there are only a few candidates: the connection pool, a proxy, or the event loop being blocked. I would measure checkout time directly, because nothing measures it by default &#8212; time the call that acquires a connection, separately from the query.</p>
+        <p>The reason it hides so well is that it is on the wrong side of every database instrument. The query log has no statement to record, <code>pg_stat_statements</code> has no execution, and the connection count is flat at the pool size, which reads as stable rather than saturated. Even the per-stage timeout misses it, because that wraps a call which has not started. I have measured this one: 363&#8239;ms of a 454&#8239;ms request, with the database idle.</p>
+        <span class="invites">Invites &#183; <b>&#8220;How would you have alerted on it?&#8221; &#8212; on the ratio of request time to query time, not on either alone.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;You have six replicas. How many connections is that, and is it a problem?&#8221;
+      <span class="tell">Arithmetic, and the answer is expected to be immediate. Getting it wrong slowly is worse than getting it wrong fast.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Fifteen per replica at SQLAlchemy's defaults, because the ceiling is <code>pool_size</code> plus <code>max_overflow</code>, so ninety. Against a default <code>max_connections</code> of 100 with a few reserved for superusers, the <strong>seventh replica is the one that cannot start</strong> &#8212; and it fails at deploy time rather than under load, which is why it surprises people.</p>
+        <p>The fix is not a bigger <code>max_connections</code>, because each connection is a backend process with its own work memory, so you are trading a hard limit for a memory ceiling and a slower server. It is a transaction pooler, which decouples client connections from server connections &#8212; two hundred clients over four backends in the configuration I have been running. That has its own cost, which is the next question.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What does the pooler break?&#8221; &#8212; anything the server remembers between transactions.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;What breaks when you put pgbouncer in transaction mode in front of an app?&#8221;
+      <span class="tell">Checks whether you understand the mechanism or have memorised a list. The mechanism produces the list; the list does not produce the mechanism.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Anything the server remembers between transactions, because a backend is lent for one transaction and then handed to somebody else. That is prepared statements, session-level <code>SET</code>, temporary tables, <code>LISTEN</code>/<code>NOTIFY</code> and session-scoped advisory locks &#8212; and the list falls out of the one sentence rather than needing to be memorised.</p>
+        <p>Prepared statements are the one you hit first, because a fast driver creates them without being asked. I measured it: twelve asyncpg clients through a transaction pooler, and <strong>nine to twelve of twelve fail per run</strong> with &#8220;prepared statement does not exist&#8221;. The survivors are the ones that happened to land back on the same backend, which is exactly the variability that gets it filed as a flake in staging.</p>
+        <span class="invites">Invites &#183; <b>&#8220;How do you fix it?&#8221; &#8212; in the driver or in the proxy, and the two have different prices.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Would you bound the wait for a connection, and at what?&#8221;
+      <span class="tell">Looks like a tuning question and is a design one. There is a wrong answer that sounds careful, which is to set it to the request budget.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>At what is <em>left</em> of the request deadline when the connection is asked for, not at the budget. I measured all three: the default of thirty seconds and a bound set to the whole eight-second budget produced <strong>identical results</strong> &#8212; 160 of 160 served, p99 about three seconds &#8212; because the wait was shorter than either. A bound above every other bound in the system is a configuration entry with no behaviour.</p>
+        <p>And bounding it too tightly is worse than not bounding it. At half a second the same run refused <strong>130 of 160</strong> requests that would have finished comfortably inside the budget. That is the opposite verdict from the load-shedding lesson, and the thing that distinguishes them is whether the queued work is already dead: there the queue was deeper than the budget, so refusing cost nothing.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So how do you know what's left?&#8221; &#8212; you propagate it, which is the deadline object from two lessons ago.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<h2>0016 &#183; The Update That Was Never Refused</h2>
+
+<p class="cite">From <a href="../lessons/0016-the-update-that-was-never-refused.html">lesson 0016</a>.</p>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;Two workers read a row, modify it, and write it back. What happens?&#8221;
+      <span class="tell">Deliberately open. The interviewer is waiting to hear whether you say &#8220;one update is lost&#8221; or whether you also say that nothing fails, which is the part that makes it hard to find.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>At the default level, one of them wins and the other is silently overwritten. I measured it &#8212; eight writers each adding one to the same score produced a final value of <strong>one</strong>, with <strong>zero errors</strong> and every writer reporting success. That is the part that matters operationally: there is nothing to alert on, because from the database's side two transactions wrote a number and both writes committed.</p>
+        <p>It is the mirror image of an idempotency failure. There a request applies twice; here it applies zero times while reporting success. Same cause both times: a gap between the read and the write that somebody else fits through.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So raise the isolation level?&#8221; &#8212; that changes what you are told, not what happens.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Would REPEATABLE READ fix that?&#8221;
+      <span class="tell">The obvious follow-up, and the answer that sounds right is wrong by itself. The measured version is short and unarguable.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Not on its own. At repeatable read the same eight writers produced a final value of <strong>one again</strong> &#8212; identical to the broken run &#8212; except that seven of them failed with 40001 instead of succeeding quietly. Nothing is more correct yet; the database has just started telling you.</p>
+        <p>The fix is the retry loop, and Postgres's documentation puts it in one sentence: applications at this level <em>&#8220;must be prepared to retry transactions due to serialization failures&#8221;</em>. With the loop, all eight land. So the level and the loop are one change, and shipping only the first converts a data bug into an error rate.</p>
+        <span class="invites">Invites &#183; <b>&#8220;How many retries?&#8221; &#8212; which is the question almost nobody has measured an answer to.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;How many times would you retry, and where does that number come from?&#8221;
+      <span class="tell">Sounds like a tuning detail. It is the second bug hiding underneath the fix, and it fails the same way the original did.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>At least the number of writers that can contend for one row, because under full contention they succeed one at a time and the n-th has to lose n&#8722;1 times. I broke it deliberately: sixteen writers against a budget of eight, and <strong>exactly eight survived</strong> &#8212; on every run. The other eight were dropped as quietly as the original lost updates were.</p>
+        <p>Which means the loop is not a general answer. If the number of contending writers is unbounded, no fixed budget is safe, and the right move is to stop contending &#8212; a single statement that computes from the current value rather than from a remembered one, so there is no gap and no retry.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What does that statement look like?&#8221; &#8212; one UPDATE with the arithmetic in it, and no SELECT at all.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;What is write skew, and which level catches it?&#8221;
+      <span class="tell">The question that separates reading the isolation table from understanding the mechanism underneath it. The table says SERIALIZABLE; the follow-up is always why.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Two transactions each check a rule, each find room, and each write to a <em>different</em> row. Individually both were correct about what they saw; together they break the invariant. I ran it &#8212; two evaluators each adding weight 0.6 under a limit of 1.0, ending at <strong>1.2 with no error</strong> at both read committed and repeatable read.</p>
+        <p>Repeatable read cannot catch it by construction, because it is snapshot isolation and it resolves conflicts on what you <em>wrote</em>. These two wrote to rows nobody else touched. Serializable also tracks read-write dependencies, and it says so in a distinct message. The rule I take from it: <strong>if the invariant spans rows, a row-level mechanism cannot enforce it</strong> &#8212; not a version column, not <code>FOR UPDATE</code>.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What if you can't use SERIALIZABLE?&#8221; &#8212; lock something that represents the set, or make it a constraint.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Why does Postgres not implement READ UNCOMMITTED?&#8221;
+      <span class="tell">A trivia question with a structural answer. Reciting &#8220;it maps to read committed&#8221; gets a nod; saying why gets a follow-up conversation.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Because under MVCC there is nothing there to read. An uncommitted row version is not visible to any other transaction &#8212; visibility is decided by comparing the writing transaction against your snapshot &#8212; so a dirty read has no mechanism to happen through. The level is accepted and ignored: I asked for it and the server <strong>reported it back as &#8216;read uncommitted&#8217; while behaving as read committed</strong>, which means a configuration audit that greps for the setting passes.</p>
+        <p>The layer above is stricter than the database: SQLAlchemy refuses the value outright rather than passing it on. Two components, two different answers to the same request, and only one of them is visible from the application.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What else does the database accept and ignore?&#8221; &#8212; a fair question, and worth knowing for your own stack.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<h2>0017 &#183; The Await Inside the Transaction</h2>
+
+<p class="cite">From <a href="../lessons/0017-the-await-inside-the-transaction.html">lesson 0017</a>.</p>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;Walk me through what a request does against the database in your turn path.&#8221;
+      <span class="tell">Sounds like an architecture warm-up. The interviewer is listening for where you say the transaction begins relative to the model call, and most people say it without noticing.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The important part is what the transaction does <em>not</em> contain: the model call happens first, holding nothing, and the transaction is a write and a commit. It used to be the other way round, which is the version most people write, because wrapping the whole unit of work in one session looks like the careful thing to do.</p>
+        <p>I measured what that cost. Twenty-four concurrent turns went from <strong>0.9 a second to 5.5</strong> by moving one line, and <strong>seventeen of the twenty-four had been blowing the eight-second budget</strong>. The reason is that the transaction holds two scarce things until commit &#8212; its row locks and its pooled connection &#8212; and an await releases neither.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What did that break?&#8221; &#8212; the read and the write stop being atomic, which is the previous lesson's problem.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;If every worker writes a different row, does the problem go away?&#8221;
+      <span class="tell">A good-faith question that sounds like it should end the conversation. The measured answer is no, and it is the most useful thing in this lesson.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It removes half of it. I ran exactly that case &#8212; a row per worker, so zero lock contention &#8212; and throughput was <strong>4.0 instead of 5.5</strong>. The remaining loss is the connection pool: a transaction cannot span connections, so it pins one for its whole life, and twenty-four transactions holding one each against a pool of five is a queue.</p>
+        <p>Which is the thing worth knowing about this bug: <strong>two resources, two failures, and they have to be removed separately</strong>. Only shortening the transaction removes both, and it removes them regardless of the row layout &#8212; the two shortened rows in my table were identical to each other.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So how big should the pool be?&#8221; &#8212; which is a Little's law question with a computable answer.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;How would you have found this from monitoring?&#8221;
+      <span class="tell">The diagnostic version. Most answers describe what they would look at now that they know the answer; the good one names why the obvious places are empty.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Not from the database dashboard, which is the problem. CPU is low, the connection count is flat at the pool size, and no query has a bad plan &#8212; all correct, because the transaction doing the damage is issuing no statements. The lock waiting shows up in the slow-query log as a slow <code>SELECT</code>, which sends the investigation in the wrong direction.</p>
+        <p>The place it is actually recorded is <code>log_lock_waits</code>, which is <strong>off by default</strong>. With it on I got fifty-three lines in five minutes saying &#8220;still waiting for AccessExclusiveLock on tuple &#8230; after 1000&#8239;ms&#8221;. So my answer is: turn it on, and alert on the ratio of request time to query time, because the signature of this class of bug is that the first rises while the second does not.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What else is off by default that you'd turn on?&#8221; &#8212; a genuinely good conversation to be invited into.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Two of your workers deadlocked. What happened and what do you change?&#8221;
+      <span class="tell">Checks whether you know that a deadlock is an ordering bug rather than a load problem, and whether you know what the detector costs.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Two transactions took the same two rows in opposite orders, which happens as soon as the rows come from a set rather than from literals. I reproduced it: two workers, two rows, a model call in between, and one of them got <strong>40P01 after about two seconds</strong> &#8212; roughly a second of model call and roughly a second of <code>deadlock_timeout</code>, because Postgres does not look for a cycle until that timer expires.</p>
+        <p>Two changes. The structural one is <strong>consistent lock ordering</strong>, which usually means sorting the ids before locking anything &#8212; a code convention, not a setting. The one that removes the window entirely is holding no locks across the call, which is the same fix as the rest of this. And the setting matters too: at the default ten-second timeout, the deadlock is reported after an eight-second budget has already expired, so it never appears in the incident at all.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Would you lower deadlock_timeout then?&#8221; &#8212; it also controls the lock-wait log, and lowering it costs a check on every waiter.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;You moved the model call out of the transaction. What did that break?&#8221;
+      <span class="tell">The question that separates a fix from an understanding. If the answer is &#8220;nothing&#8221;, the interviewer now knows you have not thought about what the transaction was doing.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Atomicity of the read and the write. The transaction was, incidentally, protecting against the row changing between reading the score and writing it back &#8212; so shortening it reopens exactly the lost-update case I can measure separately: eight concurrent writers, final value one, no errors raised.</p>
+        <p>So it is one change rather than two. The transaction gets short <em>and</em> the write stops depending on a remembered value &#8212; either a single statement that computes from the current value, or a version check that fails and retries. Shipping only the first half buys six times the throughput and a silent correctness bug, which is a strictly worse trade than the one I started with.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Which of those two would you pick?&#8221; &#8212; the single statement, unless the new value is not expressible as a function of the old one.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<h2>0018 &#183; Lock, Retry, or Don&#x27;t Read</h2>
+
+<p class="cite">From <a href="../lessons/0018-lock-retry-or-dont-read.html">lesson 0018</a>.</p>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;Two workers write the same row. Optimistic or pessimistic?&#8221;
+      <span class="tell">Phrased as a two-way choice on purpose. The answer that scores is the one that notices there are four options and that the question presupposes a gap.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Both of those are answers to the same thing &#8212; the gap between reading the value and writing what depends on it &#8212; so my first question is whether the gap has to exist. If the new value is a function of the old one, it does not: one statement that adds to the current value has no gap, and I measured it at <strong>0.06&#8239;s against 0.70 for the lock</strong>, with the same correct answer.</p>
+        <p>Where the gap is unavoidable, because the new value comes from a model or a person, I take the lock. I measured optimistic across five contention levels and it never beat the row lock &#8212; equal where conflicts are rare, and <strong>136 transactions for 16 writes</strong> where they are common. The case for optimistic is not throughput; it is a gap you cannot hold a transaction across at all.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Why 136?&#8221; &#8212; it is a triangular number, and it is exact.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Surely optimistic wins when contention is low?&#8221;
+      <span class="tell">The standard follow-up, stated as fact. Disagreeing is only safe if you have the measurement, and this is the one place in the batch worth disagreeing.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>That is what I expected and it did not reproduce. Sixteen writers spread across one, two, four, eight and sixteen rows: <strong>optimistic was equal at best and never faster</strong>, and I re-ran it with a gap five times longer in case the gap was too short to matter. Same verdict.</p>
+        <p>The reason is that the thing optimistic avoids is not the expensive part. An uncontended row lock is one clause on a statement you were already issuing. What costs is holding a pooled connection for the length of the gap, and <strong>both strategies do that identically</strong> &#8212; so they queue the same way and differ only in whether the loser waits or repeats. Waiting is cheaper than repeating.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Then when would you ever use optimistic?&#8221; &#8212; when the gap spans something you cannot keep a transaction open across.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;What does your retry loop cost when everybody hits the same row?&#8221;
+      <span class="tell">Asks for a number. Most answers are &#8220;a few retries&#8221;; the good one is a formula, because the shape is exactly derivable.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p><strong>N(N+1)&#247;2 transactions for N writes</strong>, because each successful write invalidates every read taken before it, so the writers land one at a time and the n-th has lost n&#8722;1 times. Measured exactly: sixteen writers started 136 transactions with 120 conflicts, eight writers started 36 with 28. Not approximately &#8212; identical on every run, because the counts are decided by ordering rather than timing.</p>
+        <p>The consequence is that it is quadratic, so doubling the contention quadruples the wasted work, and the retry budget has to grow linearly with the writer count. I broke that deliberately in the previous lesson: sixteen writers against a budget of eight dropped <strong>exactly eight writes</strong>, as quietly as the bug the retry loop was added to fix.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So what do you do when the writer count is unbounded?&#8221; &#8212; stop contending; the loop cannot be the answer.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Would <code>SKIP LOCKED</code> help here?&#8221;
+      <span class="tell">Offered as a helpful suggestion and usually a test. It is the right answer to the neighbouring problem, and accepting it uncritically is the failure.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Not for a contended score, no &#8212; it answers a different question. It does not protect a value; it changes which row a worker takes when the one it wanted is busy. On a work table I measured it taking the same thirty-two jobs seven times faster, <strong>and plain <code>FOR UPDATE</code> already had zero duplicate claims</strong>. It bought throughput, not correctness.</p>
+        <p>The test I use is one question: is the row you skipped interchangeable with the one you took instead? For a queued job, yes. For a rubric score, no &#8212; skipping it means it is never written and nothing reports that. The documentation says as much itself: it gives <em>&#8220;an inconsistent view of the data, so this is not suitable for general purpose work&#8221;</em>.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What about NOWAIT?&#8221; &#8212; the third option in the same clause, for when waiting is worse than failing.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Your fastest implementation gave the wrong answer. How would a load test have caught that?&#8221;
+      <span class="tell">A sharp question and the honest answer is that it would not. What is being tested is whether you know which of your gates could have caught it.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It would not, and that is the part worth saying plainly. The broken version was <strong>ten times faster than the correct ones</strong> &#8212; 0.07&#8239;s against 0.70 &#8212; because it does no coordinating, and a load test that measures throughput cannot distinguish fast-because-efficient from fast-because-not-doing-the-work. It also raised no errors, so an error-rate gate sees nothing.</p>
+        <p>What catches it is asserting the invariant: sixteen writers each adding one should leave sixteen. That is a test rather than a benchmark, and it is why the assertion I wrote checks <em>both</em> that every writer reported success and that the total is wrong &#8212; checking only the total would let a version that crashed loudly pass as fixed.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What else in your system is only checkable by invariant?&#8221; &#8212; anything where failure is a missing write rather than an error.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<h2>0019 &#183; The Snapshot Nobody Closed</h2>
+
+<p class="cite">From <a href="../lessons/0019-the-snapshot-nobody-closed.html">lesson 0019</a>.</p>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;Autovacuum is on and the table still grows. Why?&#8221;
+      <span class="tell">The opening question, and the weak answer tunes autovacuum. The strong one asks what vacuum is not being allowed to remove.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The first thing I would check is not autovacuum's settings but whether it is <em>allowed</em> to remove anything. <code>VACUUM VERBOSE</code> prints a line saying how many rows are <em>&#8220;dead but not yet removable&#8221;</em> and how old the removable cutoff is. If that number is large, autovacuum is running fine and being held back by an open snapshot somewhere.</p>
+        <p>In the lab, one idle session was enough to keep <strong>499&#8239;900 dead rows</strong> unremovable and grow a table from 143 pages to 7&#8239;213, with autovacuum's work being done after every round. Tuning its thresholds would have made it run more often and remove exactly as little.</p>
+        <span class="invites">Invites &#183; <b>&#8220;How do you find the session?&#8221; &#8212; <code>pg_stat_activity</code>, sorted by how far behind <code>backend_xmin</code> is.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;It's only a SELECT. How can it block vacuum?&#8221;
+      <span class="tell">Stated as disbelief, and the expected answer is &#8220;REPEATABLE READ&#8221;. The better one names the protocol, because it applies to READ COMMITTED too.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Because what vacuum respects is the snapshot, not locks and not transaction ids. Under READ COMMITTED people expect the snapshot to be dropped when the statement ends, and under psql it is. Under asyncpg it is not: the extended protocol runs the statement through a portal, and the documentation says an unnamed portal lives until <em>&#8220;the end of the transaction, or as soon as the next Bind&#8221;</em>. The portal keeps its snapshot.</p>
+        <p>I checked that rather than inferring it. The same parenthesis says a simple query destroys the portal, so I sent one down the same connection: <strong>the pin disappeared, and came back with the next extended statement</strong>. So under async SQLAlchemy, any transaction that has read anything holds the horizon until it commits.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So what do you change?&#8221; &#8212; shorter transactions first; a timeout second, as the backstop.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;How would you find the session that is doing it?&#8221;
+      <span class="tell">Practical, and the trap is sorting by duration. A long-running query that took its snapshot a second ago is not the problem.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p><code>pg_stat_activity</code>, filtered to sessions where <code>backend_xmin</code> or <code>backend_xid</code> is set, and sorted by <code>age()</code> of those rather than by <code>xact_start</code>. Age counts the transactions committed since the snapshot was taken, which is what predicts the bloat. A report that has been running for an hour but refreshed its snapshot a second ago is less harmful than a notebook idle since lunch.</p>
+        <p>The one to recognise is <code>idle in transaction</code> with a last query that is a finished SELECT. That is exactly what it looked like in the lab: fifty transactions behind after one second. And the same view is not the only place: a replica with <code>hot_standby_feedback</code> on pins the primary's horizon from another machine, and shows up in <code>pg_stat_replication</code> instead.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What else pins it?&#8221; &#8212; replicas with feedback on, and replication slots. Lesson 0020 measures the first.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Would you set <code>idle_in_transaction_session_timeout</code>? To what?&#8221;
+      <span class="tell">A yes is expected. What is being tested is whether you know what it kills and what the application sees when it does.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Yes, on the application's own connections rather than server-wide, and above the longest await we intend to hold a transaction across &#8212; which, after moving model calls out of transactions, is none. So something like ten seconds: far above a legitimate gap between statements and far below a forgotten session.</p>
+        <p>The part worth saying is what it costs. In the lab the timeout let vacuum remove all 4&#8239;999 rows, and the held turn failed with <strong><code>connection is closed</code> and no SQLSTATE</strong>. The reason is only in the server log. So it has to ship with the application recognising that failure, or it looks like a network problem to whoever is on call.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What about a long report query?&#8221; &#8212; that is <code>statement_timeout</code> or <code>transaction_timeout</code>; this one only fires while idle.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;The table is already bloated. How do you get the space back?&#8221;
+      <span class="tell">The trap is &#8220;run VACUUM&#8221;. The follow-up after that is always &#8220;and did the table get smaller?&#8221;</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Plain vacuum will not do it. It removes the dead rows and marks the space reusable inside the table, and the documentation is explicit that it <em>&#8220;will not return the space to the operating system&#8221;</em> except for empty pages at the very end. In the lab, after the session closed and vacuum ran, the table was <strong>still 7&#8239;213 pages</strong> with zero dead rows.</p>
+        <p>Getting it back means rewriting the table: <code>VACUUM FULL</code>, which takes an <code>ACCESS EXCLUSIVE</code> lock and roughly the table's size again in disk while it runs, or an online rewrite tool. For a results table that only grows, I would not want to be doing either on a schedule. I would partition it by time, so retention is dropping a partition &#8212; which removes a file and leaves nothing to vacuum.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Why not just DELETE old runs?&#8221; &#8212; because a DELETE is more dead rows, and vacuum is what just failed.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<h2>0020 &#183; The Read That Beat Its Own Write</h2>
+
+<p class="cite">From <a href="../lessons/0020-the-read-that-beat-its-own-write.html">lesson 0020</a>.</p>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;Your replica is a fraction of a millisecond behind. Why would anybody see stale data?&#8221;
+      <span class="tell">A setup. The weak answer argues the lag is small; the strong one says staleness is a race and names the other runner.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Because staleness is not about the lag on its own. It is a race between replay and the caller's next statement, and a read straight after a write is usually faster than a fraction of a millisecond. I measured it: <strong>0.2&#8239;ms of lag, and a raw asyncpg client missed its own write 493 times in 500</strong>.</p>
+        <p>The same replica through our ORM missed none, because the pool checkout and reset took longer than replay. That is the dangerous part: the idle test passes for a reason unrelated to the replica. Under write load the ORM path failed most of the time as well.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So how do you fix it?&#8221; &#8212; wait for the specific write, not for time to pass.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;How do you give a user read-your-writes with a replica in the path?&#8221;
+      <span class="tell">The core question. Three answers are common; the one that scores says where each one charges the cost and picks deliberately.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>A write token. After the commit returns, read the primary's WAL position and carry it with the session. A read that follows goes to the replica and waits until <code>pg_last_wal_replay_lsn()</code> has passed the token, with a short timeout and the primary as the fallback. Under load that was <strong>zero stale reads at 26 to 52&#8239;ms p99</strong>, and it charges only the reads that need the guarantee.</p>
+        <p>The detail I would call out is <em>after</em> the commit. I also measured the token read one statement earlier, inside the transaction: it points before the commit record and returned stale data <strong>5 to 54 times in 500 under load, never when idle</strong>. And the wait itself has to run outside a transaction, or its own snapshot can pause the replay it is waiting for.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Why not just read the primary after a write?&#8221; &#8212; you can, for a window; it works and it gives back part of what the replica was for.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Why not use synchronous replication and make the problem go away?&#8221;
+      <span class="tell">Sounds like a simplification. It is a test of whether you know what synchronous commit does to availability.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p><code>remote_apply</code> does make it go away &#8212; every commit waits until the replica has replayed it, so every reader sees it. It costs every write that wait: under load the write p99 went to <strong>29 to 54&#8239;ms</strong>, against 4 to 12 without it. That is the price when things are healthy.</p>
+        <p>The price when they are not is worse. With the replica stopped, the commit does not return at all, and when the client gave up after three seconds <strong>the write had already committed on the primary</strong> &#8212; the server's own message says so. So a replica added for read capacity can halt writes, and a client timeout produces an error for a write that succeeded, which needs idempotency to retry safely.</p>
+        <span class="invites">Invites &#183; <b>&#8220;How would you make it survive a replica failure?&#8221; &#8212; more than one synchronous candidate, and accept that it is now an availability design.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Analysts want to run hour-long reports on the replica. Any problem?&#8221;
+      <span class="tell">Sounds like the textbook use of a replica. It is the question that connects replicas to vacuum, and the one-sided answer is the failure.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Yes, and it is a forced choice. The replica replays the primary's vacuum, and if a report still needs rows vacuum removed, one side loses. With <code>hot_standby_feedback</code> off, the default, the replica pauses replay and then cancels the report &#8212; after 2.5&#8239;s in my lab with the delay at two seconds. With it on, the primary is told what the report needs and <strong>vacuum there removed 0 of 5&#8239;000 dead rows</strong>.</p>
+        <p>And off has a second cost people miss: while replay is paused for that report, every other session on the replica is reading stale data, for up to thirty seconds by default. So for hour-long reports I would give them their own replica with feedback off and a long delay, and keep the replica that serves the application on short queries only.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Where have you seen that bloat before?&#8221; &#8212; lesson 0019: an open snapshot is an open snapshot, whichever machine it is on.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Where does a read replica sit on your scaling ladder, and what is the next rung?&#8221;
+      <span class="tell">A framing question. What is being tested is whether you know what a replica does <em>not</em> scale.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It is the first rung after the cheap ones &#8212; pool sizing, indexes, caching &#8212; and it scales exactly one thing: read capacity. Writes still go to one server, the WAL still comes from it, and every replica adds a sender on the primary and another pool each application instance has to hold, so lesson 0015's pool-times-replicas arithmetic now applies twice.</p>
+        <p>It also changes the semantics, which the earlier rungs did not: from here on some reads can be in the past, and every read path has to say whether it can tolerate that. The next rungs are partitioning the data so writes split, and then sharding across servers, and each costs more than the last in exactly this way &#8212; more guarantees that used to be free and now have to be designed.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What would you partition first?&#8221; &#8212; the results table from 0019, by time, because it only ever grows.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<h2>0021 &#183; Stuck or Twice</h2>
+
+<p class="cite">From <a href="../lessons/0021-stuck-or-twice.html">lesson 0021</a>.</p>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;At-most-once or at-least-once for the confirm step &#8212; which, and why?&#8221;
+      <span class="tell">The opener. The weak answer picks one; the strong one says neither is enough for an irreversible step and says what goes on top.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>At-least-once delivery, because a lost confirm is an order the customer said yes to and never got, and nobody notices until they complain. But at-least-once on its own places some orders twice: in my lab, <strong>2 to 7 in 12 kills</strong> for a worker that acknowledges after the work.</p>
+        <p>So on top of it, the confirm carries a key minted when the user says yes, and the seller side refuses a key it has seen. That turned the same kills into zero duplicates with eleven redeliveries. The redeliveries are the queue doing its job; the key is what makes them harmless.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What if the seller cannot dedupe?&#8221; &#8212; then choose at-most-once plus reconciliation, and say so.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Why not just check a processed table in the worker before doing the job?&#8221;
+      <span class="tell">A trap disguised as a simplification. It tests whether you know where the crash that causes duplicates lands.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Because the record is written after the effect, and the duplicate comes from a crash between the two. I measured it: the worker-side check doubled <strong>2 to 9 jobs in 12 kills</strong>, no better than no check. The next worker checks, sees no record, and places the order again.</p>
+        <p>A record only helps if the same operation writes it and the effect. That is either the receiver's unique key, or &#8212; if the effect is a row in my own database &#8212; the effect and the acknowledgement in one transaction, which also got zero.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Then why keep it?&#8221; &#8212; you do not; it protects against a redelivery a table queue cannot produce.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;How long should the visibility timeout be?&#8221;
+      <span class="tell">Sounds like configuration. It is a question about whether you know a lease produces duplicates on its own.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Longer than the tail of the work, and it is computable. The duplicate rate is about the probability a job outlives its lease. With work at a 100&#8239;ms median I predicted <strong>100 duplicates in 400</strong> for a 150&#8239;ms lease and measured 108, with no failures at all; at 600&#8239;ms it was one.</p>
+        <p>So I would set it from the stage's p99.9, add a heartbeat so a slow worker keeps its job &#8212; that took 150&#8239;ms to zero &#8212; and keep the receiver's key anyway, because a heartbeat cannot cover a paused process.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Why not a very long lease?&#8221; &#8212; a crashed job then waits that long; 1&#8239;s versus under 50&#8239;ms here.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Why not hold the row lock for the whole job? A crash releases it.&#8221;
+      <span class="tell">Sounds like the Postgres-native answer, and half of it is right. The other half is the lesson's title.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It does release on a crash, and fast &#8212; under <strong>50&#8239;ms</strong> to redelivery against a second for a lease. It still doubles, 2 to 6 in 12 kills, because the crash that matters is after the effect and before the commit.</p>
+        <p>Its real failure is a worker that stops without dying. I froze one with SIGSTOP: Postgres kept the lock and the job <strong>waited 5.3&#8239;s</strong> for a five-second pause, and would have waited for an hour. Add a session timeout and it becomes a lease, and doubled. It also holds a transaction open for the whole of the work, which is lesson 0019's horizon on the busiest table.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So which do you use?&#8221; &#8212; a lease with a heartbeat, and the key on the receiver.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Pub/Sub has exactly-once delivery now. Doesn't that solve it?&#8221;
+      <span class="tell">A product question with a semantics answer. The test is whether you have read what the feature promises.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It solves redelivery after a successful acknowledgement, within one region, on pull subscriptions. It does not solve a subscriber that places the order and dies before acknowledging, and the documentation says publish-side retries still arrive as <em>&#8220;redeliveries with different message IDs&#8221;</em>.</p>
+        <p>I measured that second one: a producer retrying lost enqueue responses made <strong>342 jobs for 300 intents</strong>, and a receiver keyed on the job id removed none of them. The producer's own key fixed it. So I would still key the confirm, and treat the feature as fewer redeliveries rather than a guarantee.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Then why use a broker at all?&#8221; &#8212; lesson 0022 argues you may not need one yet.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<h2>0022 &#183; A Table Before a Broker</h2>
+
+<p class="cite">From <a href="../lessons/0022-a-table-before-a-broker.html">lesson 0022</a>.</p>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;Why not just use Pub/Sub? You&#8217;re on GCP already.&#8221;
+      <span class="tell">The opener. It tests whether you can argue against the default on something other than cost.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Because the job would stop being atomic with the write that causes it. I measured the dual write: committing the interview and then publishing orphaned <strong>24 runs</strong> during one 1.5-second broker stall, and publishing first left jobs for runs that never committed when the producer was killed. A jobs table in the same transaction had zero of either in every run.</p>
+        <p>Pub/Sub is the right answer the day a second service needs the same events &#8212; that is a subscription each, and a table queue cannot do it. Until then it adds a system and a consistency problem to solve a durability problem.</p>
+        <span class="invites">Invites &#183; <b>&#8220;And when you do need Pub/Sub?&#8221; &#8212; write to a table in the transaction and relay it: the outbox, lesson 0027.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Doesn&#8217;t a Postgres queue fall over under load?&#8221;
+      <span class="tell">The folklore question. The strong answer names the actual failure, which is not load.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Not from throughput first &#8212; four consumers claimed 1&#8239;100 a second on a laptop. What kills it is an open transaction elsewhere. Every job deleted after that transaction's snapshot stays in the index, so each claim walks past them: one idle session took claims from <strong>a few pages to over 1&#8239;600</strong> on a queue that was nearly empty.</p>
+        <p>With headroom that is invisible. At 1&#8239;100 a second the median claim went from 1.9 to 4.8&#8239;ms and the consumers fell 4&#8239;400 jobs behind; closing the session fixed it within ten seconds. So the defence is an idle-in-transaction timeout on every pool, plus an alert on the oldest transaction's age, not a bigger database.</p>
+        <span class="invites">Invites &#183; <b>&#8220;How did you find the idle session?&#8221; &#8212; lesson 0019's pg_stat_activity query.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Could you use the same table for the audit service as well?&#8221;
+      <span class="tell">A fan-out question in disguise. The test is whether you know a queue has one reader.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Not as a queue: the scorer deletes each job as it finishes, and the audit reader got <strong>0 of 1&#8239;000</strong>. A copy per reader works, doubling writes and deletes and coupling every producer to every reader.</p>
+        <p>What it needs is a log: append-only, never deleted, with a position per reader, which gave both 1&#8239;000 and made a rerun free. I can build that in a table, but it needs a careful reader, and this is the point where I would seriously consider Pub/Sub &#8212; or Kafka if replay matters.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What is careful about the reader?&#8221; &#8212; ids are not commit order.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;You have an events table with a serial id. Why can&#8217;t consumers just remember the last id they read?&#8221;
+      <span class="tell">Sounds trivial. It is the question that separates having built one of these from having read about it.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Because an id is handed out at insert and the row becomes visible at commit. A producer that inserts first and commits second leaves its row behind a higher id the reader has already passed, and it is never read. With eight producers, <strong>324 to 709 of 2&#8239;000</strong> events were skipped, silently, across nine runs.</p>
+        <p>The fix is to read only rows written by transactions older than the snapshot's <code>xmin</code>, ordered by transaction id then row id, because nothing can be added below that. It missed nothing, and its cost is that one open writer anywhere holds every reader &#8212; over two seconds in the lab.</p>
+        <span class="invites">Invites &#183; <b>&#8220;How does Kafka avoid it?&#8221; &#8212; the broker assigns the offset at append, in order.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;So when would you move to Kafka?&#8221;
+      <span class="tell">The closing question. A list of features loses; three conditions, each tied to something you measured, wins.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>When I need a log rather than a queue and the table version&#8217;s costs start to bite. Replay: rescoring every stored interview against a changed rubric. Several independent readers, each at its own pace. Ordered history per key.</p>
+        <p>And the price of the table log is what pushes it: its safe reader waits for the slowest writer in the database, so a single slow transaction stalls every consumer. Kafka gives those three without that coupling, and costs brokers, partitions and operations I do not run today. For fan-out alone, Pub/Sub is enough.</p>
+        <span class="invites">Invites &#183; <b>&#8220;And the job still has to get into Kafka atomically?&#8221; &#8212; yes: an outbox table, lesson 0027.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="ask">
+  <p><strong>Bring me the ones that came out badly.</strong> A probe you could not answer out loud
+  is worth more than five you could — it names the exact place the lesson did not land, and that is
+  what the next lesson should be built around.</p>
+</div>
+
+<div class="pager">
+  <span><span class="dir">Back to</span><a href="../lessons/index.html">&#8592; the course dashboard</a></span>
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>Execution Forecasting and Dependency Resolution</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0007">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">R&#233;sum&#233; Mastery</a>
+    <span class="sep">/</span>
+    <span>Batch A &#183; Innovaccer</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Chapter 0007</span>
+  </div>
+  <h1>Execution forecasting and dependency resolution</h1>
+  <p class="standfirst">Five lines of pandas, and the whole chapter is in the choice of <code>alpha</code>. This is the smallest system on the r&#233;sum&#233; and the one where you can most easily sound like you understand statistics or like you do not. It also contains a word that names something never written.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Defend a forecasting choice on its failure mode rather than its accuracy &#8212; and have the weekday answer ready, because it is the first thing anyone who has run a scheduler will ask.</p>
+</div>
+
+<div class="claim-line">
+  <span class="callout-label">The line being defended</span>
+  <blockquote>&#8220;Built the <strong>execution-forecasting layer</strong> of a daily workflow planner (EWMA, Prophet) &#8212; inferring each pipeline's run cadence from execution history to predict its next run date, driving an auto-generated daily execution plan with parent&#8211;child dependency resolution in place of manually tracked schedules.&#8221;</blockquote>
+  <span class="whose">Innovaccer &#183; bullet 3 of 3</span>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">A spoken answer to <em>&#8220;tell me about the forecasting layer.&#8221;</em> This is a small system, so depth is the only thing that impresses. Get to the weekday failure fast, because owning it is the whole performance.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">A platform runs thousands of pipelines, and a lot of them have no trustworthy schedule. Somebody kept a spreadsheet of what was supposed to run today.</p>
+      <p class="line">The idea was to stop reading intent and start reading evidence.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">Take the distinct days a pipeline ran, difference them into gaps, and take an <b>exponentially weighted mean</b> of those gaps. Add it to the last run.</p>
+      <p class="line">Alpha is a half, so the newest gap carries half the weight, the one before a quarter. It adapts to a real change in cadence within a few runs.</p>
+      <p class="line">Then two details that matter. The test is <b>greater than or equal</b>, so overdue work stays on the plan.</p>
+      <p class="line">And if a pipeline's parent is already scheduled, the child is dropped. The parent will trigger it anyway.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">The decision I would defend is using history rather than the declared schedule. It is less precise than reading a cron expression. It is also right more often, because configuration drifts and history does not.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">The honest limitation, and I would rather raise it. <b>An interval has no calendar in it.</b></p>
+      <p class="line">A weekday job gives gaps of one, one, one, one, three. The weighted mean is about 1.4, so after a Friday run it predicts <b>Saturday</b>, a day that job has never run.</p>
+      <p class="line">That is exactly what Prophet would fix, and I should be clear: Prophet is a strategy branch in the design with no implementation behind it. EWMA is what runs.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;We used EWMA and Prophet to forecast execution.&#8221;</span> It is the bracket in the r&#233;sum&#233; read aloud, and it names one library that was never written. The enum branch calls <code>_analyze_with_prophet</code> and that method does not exist. Say &#8220;EWMA implemented, Prophet designed for and not built, and here is the failure that motivated it&#8221; &#8212; which is a better engineering story than two working algorithms would have been.</p>
+  <p>The other trap is calling this <span class="quoted">&#8220;time series forecasting.&#8221;</span> It is a weighted average of date differences. Using the grander phrase invites questions about stationarity and seasonality that the implementation cannot answer, and the plain description is entirely respectable.</p>
+</div>
+
+
+
+<div class="trace">
+  <span class="callout-label">Walk them through it &#183; one pipeline, end to end</span>
+  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One pipeline, followed from its run history to its place on today's plan. The dates are illustrative. The arithmetic and the defect are exactly as shipped.</p>
+  <p class="tr-case"><b>The picture.</b> Working out when the bin lorry comes by writing down when it actually came, rather than by reading the council's timetable. The timetable says what somebody intended. The notebook says what happened. When the two disagree, the notebook is right.</p>
+  <p class="tr-case"><b>The case.</b> A pipeline called <code>daily_sales_load</code> has run on and off for months. Its declared schedule is either missing or not trusted. Today is Tuesday. The question is whether it belongs on today's plan.</p>
+  <ol>
+    <li class="tr-step">
+      <span class="tr-k">The history</span>
+      <p><b>What happens.</b> We do not read the pipeline's declared schedule. We read the record of when it actually ran.</p>
+      <p><b>Concretely.</b> The distinct days it ran, not every execution row. A retry storm on one morning is still one day.</p>
+      <p><b>If they ask why.</b> Configuration drifts and history does not. Using distinct dates is also what stops a burst of retries producing gaps of zero days.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The gaps</span>
+      <p><b>What happens.</b> Those dates get differenced into intervals, which is the number of days between consecutive runs.</p>
+      <p><b>Concretely.</b> Say the recent gaps come out as three, two, two, one. The whole forecast is built from that series and nothing else.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The average</span>
+      <p><b>What happens.</b> We take an exponentially weighted mean of those gaps rather than a plain average.</p>
+      <p><b>Concretely.</b> Alpha is 0.5. The newest gap carries half the weight, the one before it a quarter, the one before that an eighth.</p>
+      <p><b>If they ask why.</b> Alpha is the only tuning parameter and it decides how fast the forecast forgets. At a half it adapts to a real change in cadence within a few runs, and it is noisy.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The date</span>
+      <p><b>What happens.</b> Add that weighted mean to the last run date. That is the prediction.</p>
+      <p><b>Concretely.</b> Five lines of work in total. Distinct days, difference them, weight them, add, compare.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Due or not</span>
+      <p><b>What happens.</b> If today is on or past that predicted date, the pipeline is due.</p>
+      <p><b>Concretely.</b> The test is greater than or equal rather than equal. That detail matters more than it looks.</p>
+      <p><b>If they ask why.</b> With a strict equality, anything missed yesterday silently drops off forever. Overdue work has to stay on the plan until it runs.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The parent</span>
+      <p><b>What happens.</b> Before it goes on the plan, one more question. Does anything trigger this pipeline when it finishes?</p>
+      <p><b>Concretely.</b> If its parent is already on today's plan, the child is dropped from the list. The parent will trigger it anyway.</p>
+      <p><b>If they ask why.</b> Without that lookup the child runs twice. Once because its parent finished and once because the plan said so.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The plan</span>
+      <p><b>What happens.</b> What comes out is a generated list of what should run today.</p>
+      <p><b>Concretely.</b> That list replaced a hand-maintained spreadsheet across thousands of pipelines.</p>
+      <p><b>If they ask why.</b> The real win is not accuracy. It is that the errors became measurable against execution history instead of living invisibly in a spreadsheet.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Where it breaks</span>
+      <p><b>What happens.</b> Here is the limitation, and I would rather raise it than be asked.</p>
+      <p><b>Concretely.</b> An interval has no calendar inside it. A weekday job gives gaps of one, one, one, one, three.</p>
+      <p><b>If they ask why.</b> Those gaps give a weighted mean of roughly one and a half days. So after a Friday run it predicts Saturday. That job has never once run on a Saturday.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The word Prophet</span>
+      <p><b>What happens.</b> Calendars and seasonality are exactly what Prophet exists to handle, and my bullet names it.</p>
+      <p><b>Concretely.</b> Prophet is a strategy branch in the design with no implementation behind it. EWMA is what runs.</p>
+      <p><b>If they ask why.</b> A strategy pattern makes interchangeable algorithms easy, and it also makes it easy to ship a branch that dispatches to a method nobody wrote.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The trade</span>
+      <p><b>What happens.</b> I knew about the weekday defect when I shipped it, so the honest framing is a choice rather than an oversight.</p>
+      <p><b>Concretely.</b> The replacement for a spreadsheet had to exist before it could be good. The interface for fixing it properly is in place and still unused.</p>
+      <p><b>If they ask why.</b> That is what I would say plainly. I left a known defect behind an interface designed to fix it, and nobody has filled the slot.</p>
+    </li>
+  </ol>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 300" role="img" aria-labelledby="mech0007-t mech0007-d">
+    <defs>
+      <marker id="ar7" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+      <marker id="ar7b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head" style="fill:var(--bad)"/>
+      </marker>
+    </defs>
+    <title id="mech0007-t">Intervals from history, weighted towards the recent, then a dependency filter</title>
+    <desc id="mech0007-d">Execution history is reduced to the distinct days a pipeline ran, then differenced into intervals in days. An exponentially weighted mean with alpha of one half is taken over those intervals, so the newest gap carries half the weight and older gaps decay geometrically. That mean is added to the last run date to predict the next one. If today is on or past that date, the pipeline is due. Before it reaches the plan, a parent check removes any workflow whose parent is already scheduled, because the parent will trigger it. The weakness is that intervals carry no calendar, so a weekday job predicts a weekend date.</desc>
+
+    <rect class="box" x="8" y="16" width="166" height="54" rx="3"/>
+    <text class="lbl strong" x="91" y="38" text-anchor="middle">Execution history</text>
+    <text class="lbl-dim" x="91" y="56" text-anchor="middle">distinct run days only</text>
+
+    <path class="flow" marker-end="url(#ar7)" d="M 178 43 H 214"/>
+
+    <rect class="box" x="218" y="16" width="166" height="54" rx="3"/>
+    <text class="lbl strong" x="301" y="38" text-anchor="middle">Intervals in days</text>
+    <text class="lbl-dim" x="301" y="56" text-anchor="middle">diff, drop the first</text>
+
+    <path class="flow" marker-end="url(#ar7)" d="M 388 43 H 424"/>
+
+    <rect class="box-2" x="428" y="16" width="200" height="54" rx="3"/>
+    <text class="lbl strong" x="528" y="38" text-anchor="middle">EWMA, alpha 0.5</text>
+    <text class="lbl-dim" x="528" y="56" text-anchor="middle">weights .5 &#183; .25 &#183; .125</text>
+
+    <path class="flow" marker-end="url(#ar7)" d="M 632 43 H 668"/>
+
+    <rect class="box" x="672" y="16" width="160" height="54" rx="3"/>
+    <text class="lbl strong" x="752" y="38" text-anchor="middle">Predicted date</text>
+    <text class="lbl-dim" x="752" y="56" text-anchor="middle">last run + interval</text>
+
+    <path class="flow" marker-end="url(#ar7)" d="M 752 74 V 104"/>
+
+    <rect class="box" x="596" y="108" width="236" height="48" rx="3"/>
+    <text class="lbl strong" x="714" y="130" text-anchor="middle">today &gt;= predicted ?</text>
+    <text class="lbl-dim" x="714" y="147" text-anchor="middle">overdue stays overdue</text>
+
+    <path class="flow" marker-end="url(#ar7)" d="M 596 132 H 520"/>
+
+    <rect class="warn" x="272" y="108" width="244" height="48" rx="3"/>
+    <text class="lbl strong ink-warn" x="394" y="130" text-anchor="middle">parent already scheduled ?</text>
+    <text class="lbl-dim" x="394" y="147" text-anchor="middle">if yes, drop the child</text>
+
+    <path class="flow" marker-end="url(#ar7)" d="M 272 132 H 200"/>
+
+    <rect class="accent" x="8" y="108" width="188" height="48" rx="3"/>
+    <text class="lbl strong ink-accent" x="102" y="137" text-anchor="middle">daily execution plan</text>
+
+    <rect class="bad" x="8" y="186" width="560" height="78" rx="3"/>
+    <text class="lbl strong ink-bad" x="24" y="208">The weekday problem</text>
+    <text class="lbl-dim" x="24" y="228">A Monday-to-Friday job gives intervals 1, 1, 1, 1, 3</text>
+    <text class="lbl-dim" x="24" y="246">EWMA of those is about 1.4, so Friday plus one predicts Saturday</text>
+    <text class="num ink-bad" x="24" y="262">an interval has no calendar in it</text>
+
+    <text class="lbl-dim" x="592" y="208">This is the gap Prophet fills</text>
+    <text class="lbl-dim" x="592" y="226">and Prophet is an enum branch</text>
+    <text class="num ink-bad" x="592" y="246">_analyze_with_prophet</text>
+    <text class="lbl-dim" x="592" y="262">is never defined</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">What you say while drawing it</span>
+    <ol class="narrate">
+      <li>Start from execution history, and take only the distinct days it ran.</li>
+      <li>Difference those to get intervals in days.</li>
+      <li>Take an exponentially weighted mean, alpha one half. Say the weights out loud: a half, a quarter, an eighth.</li>
+      <li>Add that to the last run to get a predicted date.</li>
+      <li>Then the test: is today on or past it? Greater than or equal, so overdue work stays on the list.</li>
+      <li>Before the plan, the parent check. If the parent is already scheduled, drop the child.</li>
+      <li>That gives the daily plan, and it replaced a spreadsheet.</li>
+      <li>Then draw the box at the bottom, because it is the question you will be asked.</li>
+      <li>One, one, one, one, three averages to about 1.4, and Friday plus that is Saturday.</li>
+      <li>And that is why there is a Prophet branch with nothing behind it.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. A straight pipeline across the top, one filter, and one box that admits the weakness.</p>
+  <ul>
+    <li>The <b>four boxes</b> across the top. History, intervals, EWMA, predicted date.</li>
+    <li><b>Greater than or equal</b>, and why. Overdue stays overdue.</li>
+    <li>The <b>parent filter</b> before the plan.</li>
+    <li>The <b>weekday box</b>. The one mark to keep, because it is the whole interview.</li>
+  </ul>
+  <span class="timer">Say &#8220;one, one, one, one, three&#8221; out loud as you draw the bottom box. Five numbers and the limitation explains itself.</span>
+</div>
+
+<div class="star">
+  <span class="callout-label">Behavioural &#183; the story for this bullet</span>
+  <p class="frame">For <em>&#8220;tell me about a time you chose the simpler solution&#8221;</em> or <em>&#8220;a limitation you shipped with deliberately.&#8221;</em></p>
+  <ol class="rungs">
+    <li class="rung"><span class="rung-k">Decision</span><p>Whether to model calendars properly from the start, or ship an interval average that would be visibly wrong for weekday pipelines.</p></li>
+    <li class="rung"><span class="rung-k">Situation</span><p>The planner needed to know what was due each day, across thousands of pipelines, many with no trustworthy schedule. The replacement for a hand-maintained spreadsheet had to exist before it could be good.</p></li>
+    <li class="rung"><span class="rung-k">Action</span><p>I built the interval-average version and put a strategy pattern around it. A calendar-aware method could then be added without changing callers. EWMA at alpha a half, with distinct dates so retry storms could not produce zero-day gaps.</p><p>I also wrote the comparison as greater than or equal rather than equal. Anything missed then stays on the plan, instead of falling off it silently.</p></li>
+    <li class="rung"><span class="rung-k">Result</span><p>The generated plan replaced the spreadsheet, and its errors became measurable against real execution history rather than invisible. The dependency check stopped children being run twice when a parent was already scheduled.</p></li>
+    <li class="rung"><span class="rung-k">What it cost</span><p>It is wrong for every weekday pipeline, and it predicts weekends. I knew that shipping it. The strategy slot for a calendar-aware method is still empty. So the honest statement is that I left a known defect behind an interface designed to fix it. That interface is still unused.</p></li>
+  </ol>
+</div>
+
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>A platform runs thousands of data pipelines. In principle each has a schedule. In practice many do not, or have one nobody trusts, and somebody keeps a spreadsheet of what is supposed to run today.</p>
+  <p>This layer throws the spreadsheet away. It looks at when each pipeline actually ran in the past, works out roughly how often that is, and predicts when it is due next. Anything due today goes on a generated plan. The second half is dependency: if a pipeline is going to be triggered by its parent, it must not also be listed on its own.</p>
+  <dl>
+    <dt>Cadence</dt>
+    <dd>How often something runs. Daily, weekly, every third day. Here it is not read from a config. It is inferred from the gaps between past runs.</dd>
+
+    <dt>Execution history</dt>
+    <dd>The record of when a pipeline actually ran. More trustworthy than a declared schedule, because it is what happened rather than what was intended.</dd>
+
+    <dt>Interval</dt>
+    <dd>The number of days between two consecutive runs. The whole forecast is built from a series of these.</dd>
+
+    <dt>EWMA</dt>
+    <dd>Exponentially weighted moving average. An average where recent values count for more, with the weight decaying as you go back in time.</dd>
+
+    <dt>Alpha</dt>
+    <dd>The decay knob, between zero and one. Here it is <b>0.5</b>, meaning the newest interval carries half the weight, the one before it a quarter, and so on.</dd>
+
+    <dt>Prophet</dt>
+    <dd>A forecasting library that handles seasonality, trends and holidays. It appears in this system as a named strategy with no implementation behind it.</dd>
+
+    <dt>Strategy pattern</dt>
+    <dd>Choosing between interchangeable algorithms behind one interface. Useful, and it makes it easy to ship a branch that dispatches to a method nobody wrote.</dd>
+
+    <dt>Parent&#8211;child</dt>
+    <dd>One pipeline triggering another when it finishes. If the parent is running today, the child will run anyway, so listing it separately would run it twice.</dd>
+
+    <dt>Execution plan</dt>
+    <dd>The generated list of what should run today. The output of this layer, and the thing that replaces the hand-maintained spreadsheet.</dd>
+
+    <dt>Cron</dt>
+    <dd>The five-field schedule format. Relevant here mainly because its day-of-week numbering differs from the platform's, which is a conversion with an off-by-one in it.</dd>
+  </dl>
+</div>
+
+<div class="primer stack">
+  <span class="callout-label">The technology &#8212; what each named thing is</span>
+  <p>The primer above names the parts of the forecasting problem. This one names the libraries and the arithmetic, starting from the ground. Both methods in the bullet are named products, and a named product invites a question about what it does.</p>
+  <p>Every entry answers four things. What it actually is, in plain words. Where this system uses it. What it buys, meaning what goes wrong without it. And the follow-up an interviewer asks once you have said the name.</p>
+  <dl>
+    <dt>pandas</dt>
+    <dd><i>the dataframe library</i>Python's library for working with tables in memory. A <code>Series</code> is one labelled column and a <code>DataFrame</code> is a set of them sharing an index. The idea that makes it fast and short is that operations apply to whole columns at once rather than row by row in a Python loop. <b>In the app.</b> <code>diff().dt.days.dropna()</code> turns a list of run timestamps into a list of gaps in three calls. <b>What it buys.</b> Date arithmetic, alignment and missing-value handling that would otherwise be fifty lines of index juggling, and it runs in C rather than in the interpreter. <b>The follow-up.</b> What <code>dropna</code> is quietly throwing away. The first difference is always empty because there is nothing before it, and dropping that is correct. A gap missing for any other reason is a hole in the recorded history, and this code cannot tell the two cases apart.</dd>
+
+    <dt>Time series</dt>
+    <dd><i>the data shape</i>Data where every observation carries a timestamp and the order is part of the meaning. You cannot shuffle it, you cannot treat the rows as independent samples, and the distance between two points is itself information. That is what separates it from an ordinary table. <b>In the app.</b> Execution history is one, with the twist that the quantity being modelled is the gap between runs rather than any measured value. <b>What it buys.</b> A whole family of methods designed for exactly this shape, which is why the problem is tractable at all. <b>The follow-up.</b> What makes this particular series awkward. It is short and irregular. A pipeline with nine recorded runs gives you eight intervals, and eight points is not enough to fit anything with confidence.</dd>
+
+    <dt>Exponentially weighted mean</dt>
+    <dd><i><code>ewm(alpha=0.5).mean()</code></i>An average that takes recency seriously. A plain mean gives a run from a year ago exactly the same say as yesterday's. An exponentially weighted mean halves the weight with every step back, so at alpha 0.5 the newest interval contributes half the answer, the one before a quarter, the one before that an eighth. <b>In the app.</b> A pipeline that used to run weekly and now runs daily should be forecast from the daily part of its history. <b>What it buys.</b> Adaptation without a change detector. Schedules change, and this follows the change automatically within a few runs rather than averaging the old and new behaviour into a number that matches neither. <b>The follow-up.</b> How fast it forgets. At alpha 0.5 roughly the last three intervals decide the answer, so one unusual gap moves the forecast a long way. That responsiveness is the point and it is also the failure mode, and the honest answer says both.</dd>
+
+    <dt>Prophet</dt>
+    <dd><i>Meta's forecasting library</i>A forecasting tool that fits an additive model, meaning it decomposes a series into parts that are summed: a piecewise-linear trend that can bend at detected changepoints, seasonal cycles expressed as Fourier terms, holiday effects, and noise. It was built for daily business metrics with strong weekly and yearly rhythms, and it is deliberately usable without tuning. <b>In the app.</b> It is named in the bullet as the second strategy. <b>What it buys.</b> Seasonality, which the weighted mean cannot represent at all. A pipeline that skips weekends is a pattern, not noise, and only a seasonal model can express it. <b>The follow-up.</b> Whether it actually runs. Prophet wants a reasonably long and regular history, and a handful of irregular run dates is not that. A named strategy whose branch is never taken is a wording problem rather than a modelling one, and it is far cheaper to fix in the r&#233;sum&#233;.</dd>
+
+    <dt>Forecast error</dt>
+    <dd><i>MAE and MAPE</i>Two ways of saying how wrong the predictions were. Mean absolute error is the average size of the miss in the units you measured, which is days here. Mean absolute percentage error divides each miss by the true value first, so a two-day miss on a weekly pipeline counts as a much bigger failure than the same two days on a monthly one. <b>In the app.</b> The bullet claims a prediction, and a prediction without an error figure is only an assertion. <b>What it buys.</b> A number that makes the claim falsifiable, and a way to tell whether a change to the method helped. <b>The follow-up.</b> Which one to quote. Days are more honest for scheduling, because the consequence is discrete. The plan either lands on the right day or it does not, and a percentage blurs that.</dd>
+
+    <dt>Backtesting</dt>
+    <dd><i>how you would get that number</i>Pretending to stand at a date in the past, forecasting forward from only what was known then, and comparing against what actually happened next. Walk that cut-off forward through the history and you get many honest predictions from data you already have. <b>In the app.</b> Every run date needed to do this is already recorded, so it costs no new data collection. <b>What it buys.</b> An error figure today instead of in three months. Without it, validating a forecaster means waiting for the future to arrive. <b>The follow-up.</b> Leakage. The forecast must only ever see runs before the cut-off. Fit on the whole history and then score against part of it, and the resulting number is meaningless in a way that leaves no trace and looks excellent.</dd>
+
+    <dt>Cron</dt>
+    <dd><i>the five-field format</i>The scheduling syntax used almost everywhere. Five fields: minute, hour, day of month, month, day of week, with <code>*</code> meaning every. <code>0 6 * * 1</code> is six in the morning every Monday. <b>In the app.</b> It is the declared schedule, and this layer deliberately does not trust it. <b>What it buys.</b> A stated intention to compare reality against. The gap between the cron expression and the observed run history is itself the signal that something is wrong. <b>The follow-up.</b> The day-of-week trap, which is a genuine bug generator. Cron numbers Sunday as 0. Python's <code>weekday()</code> numbers Monday as 0. The two are off by one everywhere, and the resulting whole-day error only appears on one day in seven, which is exactly how it reaches production.</dd>
+
+    <dt>DAG</dt>
+    <dd><i>directed acyclic graph</i>Nodes joined by one-way arrows, where following the arrows can never bring you back to where you started. Pipelines that trigger other pipelines form one naturally: a child runs after its parent, and nothing can be its own ancestor. <b>In the app.</b> &#8220;Dependency resolution&#8221; is a claim about walking this structure. <b>What it buys.</b> A forecast that accounts for why a pipeline runs. Predicting a child's next run from its own history alone ignores the fact that it only runs when its parent does. <b>The follow-up.</b> How far the walk actually goes. Checking the immediate parent is a single lookup. Resolving a dependency properly is a traversal, because a grandparent that is not running today decides whether the grandchild runs at all, and the immediate parent will look perfectly healthy.</dd>
+
+    <dt><code>datetime</code> and <code>timedelta</code></dt>
+    <dd><i>Python's date arithmetic</i>Two types that do different jobs. A <code>datetime</code> is a point in time, a specific instant. A <code>timedelta</code> is a length of time with no position. Adding a duration to a point gives another point, and subtracting two points gives a duration. <b>In the app.</b> <code>last_date + timedelta(days=ewm_interval)</code> is the entire forecast, in one line. <b>What it buys.</b> Correct calendar arithmetic for free. Month lengths, leap years and daylight-saving shifts are handled by the library rather than by you. <b>The follow-up.</b> Time zones and day boundaries. A naive <code>datetime</code> carries no zone at all, &#8220;today&#8221; begins at different instants in different regions, and a daily plan generated near midnight can be a full day out for half its users.</dd>
+  </dl>
+</div>
+
+
+
+
+<h2>Inferring a schedule instead of reading one</h2>
+
+<p class="breath">The declared schedule is not the source of truth. What a pipeline actually did is. The whole design follows from preferring evidence over configuration.</p>
+
+<p>The obvious implementation reads each workflow's cron expression and computes the next fire time. That is exact, it is cheap, and it is wrong in this environment, because a large share of pipelines either carry no schedule or carry one that stopped matching reality.</p>
+
+<p>So the analyzer takes execution history, derives the intervals between runs, and forecasts from those. It is less precise than a cron expression and it is right more often, which is the trade worth naming out loud.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Rather than reading what a job says it does, look at what it has actually been doing, and assume it carries on.</p>
+
+<h2>The five lines that do the work</h2>
+
+<p class="breath">Take the distinct days a pipeline ran. Difference them to get gaps. Take an exponentially weighted mean of those gaps. Add it to the last run. If today is on or past that date, it is due.</p>
+
+<p>In code: unique execution dates, <code>diff().dt.days.dropna()</code> for the intervals, <code>intervals.ewm(alpha=0.5).mean().iloc[-1]</code> rounded to an integer, then <code>last_date + timedelta(days=ewm_interval)</code>. Finally <code>needs_execution = current_date &gt;= predicted_next_date</code>.</p>
+
+<p>Two small decisions inside that are worth pointing at. Taking <b>unique</b> dates means several runs on one day collapse to one, so a retry storm cannot produce a zero-day interval and drag the average to nothing. And the comparison is <b>greater than or equal</b>, not equal, so a pipeline that was missed yesterday stays on the plan today rather than dropping off it.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Work out the usual gap between runs, weighting recent gaps more, and add it to the last run. If that date has arrived or passed, put it on today's list.</p>
+
+<h2>What alpha of 0.5 actually chooses</h2>
+
+<p class="breath">Alpha is the only tuning parameter and it decides how fast the forecast forgets. At 0.5 the most recent gap carries half the weight and everything older shares the rest. That adapts quickly and it is noisy.</p>
+
+<p>Write the weights out, because being able to say them is the difference between using a library and understanding it. The newest interval gets 0.5, the one before 0.25, then 0.125. After four or five observations the older history is contributing almost nothing.</p>
+
+<p>That is a deliberate position. A pipeline whose cadence genuinely changed from weekly to daily is tracked within a few runs. The cost is that one unusual gap moves the prediction a long way, and the most common unusual gap is an outage.</p>
+
+<p>So the honest framing is that alpha 0.5 optimises for adapting to real change, and pays for it by being sensitive to disruption. A smaller alpha would be steadier and slower. I would not defend 0.5 as derived, because it was chosen.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>It mostly pays attention to the last few gaps. Good when a job's rhythm really changes, bad when the last gap was an accident.</p>
+
+<h2>The weekday problem, and the word Prophet</h2>
+
+<p class="breath">A job that runs Monday to Friday has gaps of one, one, one, one, three. An average of those is not a calendar. It will predict Saturday, and Saturday is a day this job has never once run.</p>
+
+<p>This is the concrete limitation and it is worth volunteering, because anyone who has operated a scheduler will think of it immediately. EWMA models an <em>interval</em>. It has no concept of a week, a weekend, a month end or a holiday. Averaging one, one, one, one and three gives something near one point four, and adding that to Friday lands on the weekend.</p>
+
+<p>That is exactly the gap Prophet fills, and it is why Prophet appears in the design. <code>WorkflowExecutionAnalyzer</code> has an <code>AnalysisMethod</code> enum and dispatches to <code>_analyze_with_prophet</code> for one branch. That method is not defined anywhere in the system.</p>
+
+<p>So the r&#233;sum&#233; naming both is a claim about intent rather than shipped code. The version to say: <em>EWMA is implemented and running, Prophet is the strategy the design leaves room for, and the weekday case is the reason it exists.</em></p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>The maths knows about gaps, not about weekends. Prophet is the tool that knows about weekends, and we designed a slot for it rather than building it.</p>
+
+<h2>Dependency resolution, which prevents a double run</h2>
+
+<p class="breath">If a pipeline is triggered by its parent finishing, and the parent is already on today's plan, then listing the child separately runs it twice. One lookup prevents that.</p>
+
+<p><code>_is_parent_scheduled</code> asks the event handler for a workflow's parent, and returns true if that parent is in the set of already-scheduled workflows. If it is, the child is left off the plan, because it will be triggered anyway.</p>
+
+<p>Note the shape of the check: it looks one level up, and it consults the <em>set scheduled in this run</em>. That makes it a single-level guard within one planning pass rather than a full dependency graph traversal. For a two-level parent and child relationship that is sufficient and cheap.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Do not put a job on the list if the job that starts it is already on the list.</p>
+
+
+
+
+<section class="qset" id="toolbox">
+  <h2>Toolbox</h2>
+  <p class="qset-note">Every noun in the bullet, defined out loud, from the ground up. Two of them are library names, and naming a library in a r&#233;sum&#233; is an invitation to be asked what it fits. Each answer says what the thing is, what it does here, and what you would lose without it.</p>
+  <ul class="qa-index">
+    <li><a href="#c07-t1">What pandas computes here</a></li>
+    <li><a href="#c07-t2">What makes this series awkward</a></li>
+    <li><a href="#c07-t3">What Prophet actually fits</a></li>
+    <li><a href="#c07-t4">How to measure the forecast</a></li>
+    <li><a href="#c07-t5">What backtesting is</a></li>
+    <li><a href="#c07-t6">Cron and the day-of-week trap</a></li>
+    <li><a href="#c07-t7">What dependency resolution needs</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c07-t1">
+      <p class="qa-q">What is pandas, and what does <code>ewm(alpha=0.5).mean()</code> compute?</p>
+      <p class="qa-a">Pandas is Python's library for tables in memory. A Series is one labelled column and a DataFrame is several sharing an index. The idea that makes it short and fast is simple. Operations apply to whole columns at once, in C, rather than row by row in a Python loop. What it buys here is date arithmetic and missing-value handling that would otherwise be fifty lines. The call computes an average where each older value counts half as much as the one after it. Newest interval a half, the one before a quarter, and so on. What that buys is adaptation without a change detector. A pipeline that moved from weekly to daily is forecast from the daily part. About the last three intervals decide the answer.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;A weighted average.&#8221; Say the weights. Halving is what makes it forget fast, and forgetting fast is the behaviour you chose.</p>
+    </li>
+    <li class="qa-item" id="c07-t2">
+      <p class="qa-q">What is a time series, and what makes this one awkward?</p>
+      <p class="qa-a">A time series is data where every observation carries a timestamp and the order is part of the meaning. You cannot shuffle it and you cannot treat the rows as independent samples. The distance between two points is itself information. That is what separates it from an ordinary table, and it is why a whole family of methods exists for the shape. This one is awkward because it is short and irregular. Nine recorded runs give you eight intervals, which is not enough to fit anything with confidence. The thing being modelled is the gap, not a value. A pipeline paused for a month leaves an interval that never meant anything.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Talking about seasonality on eight points. With that much history the honest method is a weighted average, and saying so is a strength.</p>
+    </li>
+    <li class="qa-item" id="c07-t3">
+      <p class="qa-q">What does Prophet actually fit?</p>
+      <p class="qa-a">An additive model, meaning it splits a series into parts that are summed. A piecewise-linear trend that can bend at detected changepoints. Seasonal cycles expressed as Fourier terms. Holiday effects. And noise. It is built for long daily business series with weekly and yearly structure, and it is deliberately usable without tuning. What it would buy is seasonality, which a weighted mean cannot represent at all. A pipeline that skips weekends is a pattern rather than noise. But that is not what this data is. If the branch that would call it has no method body, say so plainly rather than letting the name imply a model that never ran.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing Prophet vaguely as &#8220;time-series forecasting.&#8221; The follow-up is what it assumes about the data, and this data breaks those assumptions.</p>
+    </li>
+    <li class="qa-item" id="c07-t4">
+      <p class="qa-q">How would you tell whether the forecast is any good?</p>
+      <p class="qa-a">Mean absolute error in days is the number to quote. It is the average size of the miss, in the unit you actually care about. It says how far the predicted date sits from the real one. The percentage version divides by the true interval first, and it is worse here. The consequence is discrete, because the plan is either right for today or it is not. What an error figure buys is a claim that can be falsified, and a way to tell whether a change helped. You also need a baseline. Predicting the last interval again is the one to beat, and plenty of methods do not.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Quoting an error with no baseline. Any number sounds good alone, and most forecasting methods lose to repeating the last value.</p>
+    </li>
+    <li class="qa-item" id="c07-t5">
+      <p class="qa-q">What is backtesting, and what is easy to get wrong?</p>
+      <p class="qa-a">Pretending to stand at a date in the past. You forecast forward from only what was known then, and compare against what actually happened next. Walk that cut-off forward through the history and you get many honest predictions from data you already have. What it buys is an error figure today instead of in three months. Without it, validating a forecaster means waiting for the future to arrive. Everything you need here is already recorded. The mistake is leakage. The forecast must only ever see runs before the cut-off. Fit on the whole history and score against part of it, and the number is meaningless in a way nothing in the output will show.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it testing. A test has a right answer. A backtest has a score, and the score needs a baseline beside it.</p>
+    </li>
+    <li class="qa-item" id="c07-t6">
+      <p class="qa-q">What is cron, and what is the day-of-week trap?</p>
+      <p class="qa-a">Cron is the scheduling syntax used almost everywhere. Five fields: minute, hour, day of month, month, day of week, with a star meaning every. What it buys this system is a stated intention to compare reality against. The gap between the cron expression and the observed run history is itself the signal that something is wrong. The trap is numbering. Cron calls Sunday zero. Python's weekday calls Monday zero. Mixing them shifts every schedule by one day. It is a whole-day error, and it only shows itself on one day in seven, which is exactly how it survives testing and reaches production.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Waving at cron as trivia. It is the declared schedule this layer exists to distrust, and the off-by-one is a real defect you can name.</p>
+    </li>
+    <li class="qa-item" id="c07-t7">
+      <p class="qa-q">What does &#8220;parent&#8211;child dependency resolution&#8221; have to do?</p>
+      <p class="qa-a">Work out whether a pipeline will be triggered by something upstream before deciding it needs its own slot. Pipelines that trigger other pipelines form a directed acyclic graph. Arrows point one way and nothing can be its own ancestor. What walking it buys is a forecast that accounts for why a pipeline runs. Predicting a child from its own history alone ignores that it only runs when its parent does. Doing it properly means a traversal, because a grandparent not running today decides whether the grandchild runs at all. The immediate parent will look perfectly healthy. Checking only that parent is one lookup, and it is a narrower claim.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying resolution when the code does a lookup. If it checks one level, say one level. The word implies a traversal and the interviewer will ask for it.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="fundamentals">
+  <h2>Fundamentals</h2>
+  <p class="qset-note">This bullet looks small, so an interviewer will go deeper on it faster. Questions four and five are where that happens.</p>
+  <ul class="qa-index">
+    <li><a href="#c07-f1">What it does</a></li>
+    <li><a href="#c07-f2">Why not read the cron</a></li>
+    <li><a href="#c07-f3">The five lines</a></li>
+    <li><a href="#c07-f4">What EWMA is</a></li>
+    <li><a href="#c07-f5">What alpha chooses</a></li>
+    <li><a href="#c07-f6">Why unique dates</a></li>
+    <li><a href="#c07-f7">Why greater or equal</a></li>
+    <li><a href="#c07-f8">The dependency check</a></li>
+    <li><a href="#c07-f9">Where Prophet is</a></li>
+    <li><a href="#c07-f10">The riskiest claim</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c07-f1">
+      <p class="qa-q">In two sentences, what does this layer do?</p>
+      <p class="qa-a">It works out how often each pipeline actually runs. It does that from execution history rather than from a configured schedule. From there it predicts the next run date. Anything due today goes onto a generated daily plan, which replaced a hand-maintained one.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it machine learning. It is a weighted average over date differences, and dressing it up invites a question you will not enjoy.</p>
+    </li>
+    <li class="qa-item" id="c07-f2">
+      <p class="qa-q">Why not just read each pipeline's cron expression?</p>
+      <p class="qa-a">Because a lot of them do not have one, or have one that stopped matching what the pipeline really does. History is evidence and configuration is intent. Inferring from history is less precise than a cron expression, and it is right more often in this environment. That is the trade.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying cron would be harder. It would be easier and exact. The reason is that it is exact about the wrong thing.</p>
+    </li>
+    <li class="qa-item" id="c07-f3">
+      <p class="qa-q">Walk me through the prediction, line by line.</p>
+      <p class="qa-a">Take the distinct dates the pipeline ran. Difference them to get intervals in days and drop the empty first one. Take an exponentially weighted mean of those intervals and round to an integer. Add that many days to the last run date. If today is on or past it, the pipeline is due.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Skipping the rounding. Days are integers here, and the rounding step is where a 1.4-day cadence becomes a one-day one.</p>
+    </li>
+    <li class="qa-item" id="c07-f4">
+      <p class="qa-q">What is an exponentially weighted moving average?</p>
+      <p class="qa-a">An average where recent observations count for more, with the weight decaying geometrically as you go back. Unlike a simple moving average it has no window. Every past value contributes something, just less and less. The decay rate is the single parameter.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing it as a rolling average. The absence of a window is the defining property, and it is why old history never has to be discarded.</p>
+    </li>
+    <li class="qa-item" id="c07-f5">
+      <p class="qa-q">Alpha is 0.5. What does that choose?</p>
+      <p class="qa-a">How quickly the forecast forgets. At 0.5 the newest interval carries half the weight, the one before a quarter, then an eighth. After four or five observations the older history barely counts. That adapts fast to a genuine change in cadence and it is sensitive to one unusual gap.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Not being able to state the weights. They are halves and it is the one piece of arithmetic in this bullet.</p>
+    </li>
+    <li class="qa-item" id="c07-f6">
+      <p class="qa-q">Why take unique dates rather than all executions?</p>
+      <p class="qa-a">Because several runs on the same day would produce zero-day intervals. A retry storm on one afternoon would drag the mean towards zero and the pipeline would be predicted as due every single day afterwards. Collapsing to distinct days makes the interval a genuine cadence rather than a run count.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it deduplication. Name the failure it prevents, because that is what the question is for.</p>
+    </li>
+    <li class="qa-item" id="c07-f7">
+      <p class="qa-q">The check is greater than or equal, not equal. Why does that matter?</p>
+      <p class="qa-a">Because a pipeline that was missed has to stay on the plan. With an equality test, a workflow whose predicted date was yesterday falls off today and is never scheduled again. Greater than or equal means anything overdue stays overdue until it runs.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating it as a detail. A one-character difference here is the gap between a planner that recovers and one that silently drops work.</p>
+    </li>
+    <li class="qa-item" id="c07-f8">
+      <p class="qa-q">How does the parent-child resolution work?</p>
+      <p class="qa-a">Before adding a workflow to the plan, it asks whether that workflow has a parent and whether the parent is already scheduled in this run. If so, the child is left off, because finishing the parent will trigger it. Without that check a child with a scheduled parent would run twice.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing it as a dependency graph. It is a one-level lookup against the set scheduled in this pass, and saying so is more accurate.</p>
+    </li>
+    <li class="qa-item" id="c07-f9">
+      <p class="qa-q">Where is Prophet in this system?</p>
+      <p class="qa-a">In the enum and the dispatch, not in the implementation. <code>WorkflowExecutionAnalyzer</code> has an analysis-method enum and a branch that calls <code>_analyze_with_prophet</code>, and that method is not defined anywhere. EWMA is the default and the only one that runs. I would say that before anybody reads the class.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing Prophet work you did not do. The interesting version is why the slot exists, which is the weekday problem.</p>
+    </li>
+    <li class="qa-item" id="c07-f10">
+      <p class="qa-q">What is the riskiest claim in this bullet?</p>
+      <p class="qa-a">The word Prophet. It reads as two implemented algorithms and there is one. The right framing is that the design uses a strategy pattern with EWMA implemented, and Prophet named as the intended second strategy for seasonality. That is still a real design decision and it survives a follow-up.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Hoping nobody asks. It is a named library in a bracket, which makes it one of the most askable things on the whole page.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="deep-dive">
+  <h2>Deep dive</h2>
+  <p class="qset-note">Half of these are about the statistics and half about what the planner does when reality misbehaves. Both halves get asked.</p>
+  <ul class="qa-index">
+    <li><a href="#c07-d1">EWMA against a simple mean</a></li>
+    <li><a href="#c07-d2">Choosing alpha properly</a></li>
+    <li><a href="#c07-d3">The weekday failure</a></li>
+    <li><a href="#c07-d4">What Prophet would add</a></li>
+    <li><a href="#c07-d5">An outage in the history</a></li>
+    <li><a href="#c07-d6">Two runs only</a></li>
+    <li><a href="#c07-d7">Never run at all</a></li>
+    <li><a href="#c07-d8">Rounding to integer days</a></li>
+    <li><a href="#c07-d9">Deeper dependency chains</a></li>
+    <li><a href="#c07-d10">Why streaming the queue</a></li>
+    <li><a href="#c07-d11">The cron day-of-week shift</a></li>
+    <li><a href="#c07-d12">Measuring the forecast</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c07-d1">
+      <p class="qa-q">Why EWMA rather than a simple mean of all intervals?</p>
+      <p class="qa-a">Because a simple mean treats a gap from six months ago as equal to last week's. Pipelines change cadence, and when one moves from weekly to daily the simple mean takes many observations to catch up. EWMA weights the recent and tracks the change in a few runs.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying EWMA is more accurate. It is more responsive, and responsiveness costs stability. Naming the trade is the answer.</p>
+    </li>
+    <li class="qa-item" id="c07-d2">
+      <p class="qa-q">How would you actually choose alpha rather than picking 0.5?</p>
+      <p class="qa-a">Backtest it. The history is already there. Hold out the last known run for each pipeline, predict it at several alphas, and measure the error in days. Then pick the alpha that minimises it across the fleet, or per cadence class. That turns a chosen number into a measured one.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Defending 0.5 with reasoning. It was a default. Saying how you would justify it is worth more than pretending it was justified.</p>
+    </li>
+    <li class="qa-item" id="c07-d3">
+      <p class="qa-q">A pipeline runs every weekday. What does your forecast do?</p>
+      <p class="qa-a">It predicts a weekend date. The intervals are one, one, one, one, three, and an exponentially weighted mean of those is around 1.4, which rounds to one. Friday plus one is Saturday, a day this pipeline has never run. The model knows about gaps and nothing about calendars.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Not having this ready. It is the first thing anybody who has operated a scheduler will think of, and being ahead of it is most of the credibility here.</p>
+    </li>
+    <li class="qa-item" id="c07-d4">
+      <p class="qa-q">What would Prophet actually add?</p>
+      <p class="qa-a">Seasonality as a first-class concept. It decomposes a series into trend plus periodic components, so a weekly cycle is modelled rather than averaged away. It also takes a holiday calendar. For the weekday case it would learn that Saturday and Sunday are not run days, which no interval average can express.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing Prophet generically. Tie it to the specific failure in your own system, or it sounds like a library you read about.</p>
+    </li>
+    <li class="qa-item" id="c07-d5">
+      <p class="qa-q">The platform is down for ten days. What happens to the forecasts afterwards?</p>
+      <p class="qa-a">Every affected pipeline gets one ten-day interval. At alpha 0.5 that carries half the weight immediately. A daily pipeline would then be predicted as roughly five-daily on the next pass. Since the test is greater than or equal it stays on the plan, so it still runs. It recovers over the following few runs.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying it breaks. The greater-or-equal test saves it. The prediction is wrong for a few days and the scheduling outcome is still right.</p>
+    </li>
+    <li class="qa-item" id="c07-d6">
+      <p class="qa-q">A pipeline has run exactly twice. What does the forecast do?</p>
+      <p class="qa-a">There is one interval, so the exponentially weighted mean is that interval. The forecast is entirely determined by a single observation. That is not wrong, and it is not a forecast in any useful sense either. It argues for a minimum history before trusting a prediction, and there is no such threshold today.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Claiming EWMA handles it gracefully. It returns a number. Whether that number means anything is a separate question and the honest answer is no.</p>
+    </li>
+    <li class="qa-item" id="c07-d7">
+      <p class="qa-q">A pipeline has never run. What happens?</p>
+      <p class="qa-a">There are no intervals, so the differenced series is empty and taking its last element raises. That is the edge case I would check first in this code. The right behaviour is to fall back to the declared schedule if one exists. Otherwise leave it off the plan rather than fail the pass.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Assuming it returns a default. Following the pandas operations through to an empty series is the answer, and it shows you read the code rather than the description.</p>
+    </li>
+    <li class="qa-item" id="c07-d8">
+      <p class="qa-q">The interval is rounded to whole days. What does that cost?</p>
+      <p class="qa-a">Precision below a day, which does not matter, and an accumulating bias, which can. A true cadence of 1.4 days rounds to one. So the prediction runs ahead of reality and the pipeline is marked due early. With a greater-or-equal test it appears on the plan early and stays there, which is the safe direction.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Dismissing it because days are the unit. Rounding always biases in one direction, and knowing which direction is safe is the point.</p>
+    </li>
+    <li class="qa-item" id="c07-d9">
+      <p class="qa-q">A grandparent triggers a parent which triggers a child. Does the check handle it?</p>
+      <p class="qa-a">Only one level. It asks for the immediate parent and whether that parent is in the scheduled set. If the grandparent is scheduled but the parent is not directly on the plan, the child's check passes and it gets scheduled independently. For two-level relationships it is correct, and for deeper chains it needs a traversal.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Claiming it resolves the graph. It resolves one edge, which was enough for the shapes present, and saying so is the accurate answer.</p>
+    </li>
+    <li class="qa-item" id="c07-d10">
+      <p class="qa-q">Why process workflows through a queue rather than loading them all?</p>
+      <p class="qa-a">Memory. The planner runs across the whole fleet. Materialising every workflow with its execution history at once is a large footprint for no benefit. Pulling one at a time keeps the working set to a single workflow. The work is independent per workflow, so nothing is lost.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it streaming for its own sake. It is bounded memory over an unbounded fleet, and the reason it is safe is that the work does not need a global view.</p>
+    </li>
+    <li class="qa-item" id="c07-d11">
+      <p class="qa-q">There is a day-of-week conversion with a modulo in it. What is that about?</p>
+      <p class="qa-a">Cron and the platform number the days differently. The conversion subtracts one and takes the result modulo seven. It is worth mentioning because off-by-one errors in day numbering are silent. A job scheduled a day early every week looks like a business rule rather than a bug.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Skipping it as trivial. Calendar off-by-ones are the classic silent failure, and noticing one is a good signal.</p>
+    </li>
+    <li class="qa-item" id="c07-d12">
+      <p class="qa-q">How would you know whether the forecasting is any good?</p>
+      <p class="qa-a">Compare predicted dates against what actually happened. That needs no new instrumentation, because the history is the ground truth. Two numbers matter. Mean absolute error in days tells you how close it is. The share of pipelines that ran on an unplanned day tells you what the plan missed, and that is what operators feel.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Proposing only an error metric. A planner is judged on what it missed, not on its average closeness.</p>
+    </li>
+  </ol>
+</section>
+
+<div class="quiz" data-quiz-id="0007-q1">
+  <p class="q">A pipeline runs every weekday. EWMA has just seen its Friday run. What does it predict next?</p>
+  <ol class="options">
+    <li data-correct="true">Saturday, since the average interval is near one</li>
+    <li>Monday, since it detected the weekly working pattern</li>
+    <li>Tuesday, since it averages over the whole fortnight</li>
+    <li>Friday, since it repeats the most recent interval</li>
+  </ol>
+  <div class="why">
+    <p>Saturday. The intervals are one, one, one, one, three, and their exponentially weighted mean is about 1.4, which rounds to one. Friday plus one day is Saturday, a day this pipeline has never run.</p>
+    <p>An interval average has no calendar in it. It cannot represent &#8220;not at weekends&#8221; because it only ever models the size of a gap. That is precisely the gap Prophet was meant to fill, and it is why the strategy branch exists.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0007-q2">
+  <p class="q">A workflow is due today, and its parent is already on today's plan. What happens?</p>
+  <ol class="options">
+    <li data-correct="true">The child is skipped, as the parent triggers it</li>
+    <li>Both are scheduled, and the later one is discarded</li>
+    <li>The child runs first, so the parent reuses it</li>
+    <li>The parent is skipped, since the child covers it</li>
+  </ol>
+  <div class="why">
+    <p>The child is left off. <code>_is_parent_scheduled</code> looks up the immediate parent and checks whether it is in the set scheduled in this pass. If it is, the child will be triggered when the parent finishes, so scheduling it separately would run it twice.</p>
+    <p>Worth being precise about the limit: this is one lookup against one level, not a graph traversal. A grandparent-parent-child chain where only the grandparent is planned will still schedule the child independently.</p>
+  </div>
+</div>
+
+<section class="qset" id="edges">
+  <h2>Edges and exceptions</h2>
+  <p class="qset-note">A forecasting layer is mostly edges. Several of these have no good answer in the current code, and saying so is the right move.</p>
+  <ul class="qa-index">
+    <li><a href="#c07-e1">A pipeline that stopped</a></li>
+    <li><a href="#c07-e2">Month-end jobs</a></li>
+    <li><a href="#c07-e3">Backfills in the history</a></li>
+    <li><a href="#c07-e4">Double-running risk</a></li>
+    <li><a href="#c07-e5">Timezones</a></li>
+    <li><a href="#c07-e6">Trusting the plan</a></li>
+    <li><a href="#c07-e7">Cold start</a></li>
+    <li><a href="#c07-e8">What you would change</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c07-e1">
+      <p class="qa-q">A pipeline was decommissioned and stopped running. What does the planner do?</p>
+      <p class="qa-a">Keeps predicting it. The last interval still exists, the predicted date passes, and because the test is greater than or equal it stays due forever. The plan slowly fills with dead pipelines. The fix is a staleness rule: if the last run is many intervals ago, stop predicting and flag it instead.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying it drops off. Greater-or-equal is exactly what stops it dropping off, and the property that saves missed runs also accumulates ghosts.</p>
+    </li>
+    <li class="qa-item" id="c07-e2">
+      <p class="qa-q">A pipeline runs on the last day of every month.</p>
+      <p class="qa-a">The intervals are 28, 30, 31, 31 and 30 days. EWMA gives something around 30. Adding 30 days to the 31st of January predicts the 2nd of March. That is wrong in a way that repeats every year. Calendar rules cannot be expressed as an interval, which is the weekday failure in a different costume.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating it as a new problem. It is the weekday failure again, and recognising the shared cause is the answer worth giving.</p>
+    </li>
+    <li class="qa-item" id="c07-e3">
+      <p class="qa-q">Somebody backfills six months of data by running a pipeline fifty times in one afternoon.</p>
+      <p class="qa-a">Those collapse to a single distinct date, so the interval series barely notices. That is the unique-dates decision paying off. What it does leave is a large gap before that day and a large gap after it. Those will pull the forecast around for a few runs before it settles.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Missing that unique dates already handles most of it. The residual effect is on the neighbouring intervals, not on the fifty runs.</p>
+    </li>
+    <li class="qa-item" id="c07-e4">
+      <p class="qa-q">What is the worst thing this layer can cause?</p>
+      <p class="qa-a">Running a pipeline that should not have run. A missed prediction is recoverable, because the greater-or-equal test keeps it on the plan until it runs. A spurious one puts real work into production early, and for a pipeline with side effects that is the expensive direction. The parent check exists precisely to stop the most likely version of it.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying a missed run is worse. The design is deliberately asymmetric and knowing which way it leans is the point.</p>
+    </li>
+    <li class="qa-item" id="c07-e5">
+      <p class="qa-q">The fleet spans timezones. Does that matter here?</p>
+      <p class="qa-a">Yes, because everything is in whole days and a day boundary is timezone-dependent. A run at 23:30 in one zone and 00:30 in another are the same moment and different dates. That would show up as a zero or two-day interval that is not real. Normalising to one zone before taking distinct dates is the fix.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying it does not matter for daily granularity. Daily granularity is exactly what makes the boundary matter.</p>
+    </li>
+    <li class="qa-item" id="c07-e6">
+      <p class="qa-q">Why would an operator trust a generated plan more than their spreadsheet?</p>
+      <p class="qa-a">Because the spreadsheet drifts and nothing tells you. It is maintained by hand, it goes stale quietly, and its errors are invisible until something does not run. The generated plan is derived from what actually happened, so it is wrong in ways you can measure. I would rather have a measurably imperfect plan than an unmeasurable one.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Claiming it is more accurate. It is more <em>checkable</em>, and that is the better argument and the honest one.</p>
+    </li>
+    <li class="qa-item" id="c07-e7">
+      <p class="qa-q">A brand new pipeline is onboarded. How does it get scheduled?</p>
+      <p class="qa-a">It does not, by this layer, because there is no history to infer from. That is the cold-start gap and it is real. The sensible design is to fall back to the declared schedule until enough runs exist, then switch to inference. Roughly three or four intervals is where an alpha of 0.5 stops being dominated by one observation.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Ignoring cold start. Any system that learns from history has one, and having a threshold in mind is what makes the answer concrete.</p>
+    </li>
+    <li class="qa-item" id="c07-e8">
+      <p class="qa-q">What would you change, in order?</p>
+      <p class="qa-a">Add a calendar-aware method, because the weekday and month-end failures are the same bug and they are the ones operators see. Then backtest alpha rather than leaving it at a default. Then a staleness rule for decommissioned pipelines. Implementing Prophet is one way to do the first, and a day-of-week histogram would cover most of it far more cheaply.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Putting Prophet first as a library rather than as a capability. The requirement is calendar awareness, and there is a much cheaper way to get most of it.</p>
+    </li>
+  </ol>
+</section>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;What happens to a job that only runs on weekdays?&#8221;
+      <span class="tell">The single most likely question on this bullet. Anyone who has run a scheduler thinks of it within seconds, and getting there first is the whole performance.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It predicts a weekend, and I would rather tell you than be asked. The intervals are one, one, one, one, three, and their weighted mean is about 1.4, rounding to one. Friday plus one is Saturday. An interval average has no calendar in it, so it cannot express &#8220;not at weekends.&#8221; That is exactly the gap a seasonality-aware method fills, and it is why the design has a second strategy slot.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Why alpha equals 0.5?&#8221;
+      <span class="tell">Testing whether a parameter was chosen or inherited. Conceding it and describing the experiment is stronger than any justification.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It was a default rather than a derived value, and I would not pretend otherwise. What it buys is fast adaptation: the newest gap carries half the weight, so a genuine cadence change is tracked in a few runs, at the cost of being pulled around by one unusual gap. To justify it properly I would backtest, holding out each pipeline's last run and measuring error in days across several alphas. The history is already there, so it is about a day of work.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Tell me about the Prophet part.&#8221;
+      <span class="tell">A direct question about a named library in a bracket. There is one honest answer and it is better than the dishonest one.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Prophet is in the design and not in the implementation. There is an analysis-method enum and a branch that dispatches to <code>_analyze_with_prophet</code>, and that method is never defined. EWMA is the default and the only one that runs. The reason the slot exists is the weekday failure, which needs seasonality rather than a better average. I would also say a day-of-week histogram would cover most of that case far more cheaply than the library would.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;What is the worst thing a wrong prediction causes?&#8221;
+      <span class="tell">Looking for whether you understand the asymmetry. The design already leans one way and you should be able to say which.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Running something that should not have run. A missed prediction is recoverable because the due test is greater than or equal, so anything overdue stays on the plan until it runs. A spurious prediction puts real work into production early, and for a pipeline with side effects that is the expensive direction. The parent check exists to stop the most likely version of that, which is a child being scheduled when its parent will trigger it anyway.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;A pipeline gets decommissioned. What does your planner do?&#8221;
+      <span class="tell">A quiet question with an uncomfortable answer, and the uncomfortable answer is the right one.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It keeps predicting it forever. The last interval still exists, the predicted date passes, and because the test is greater than or equal it stays due permanently. So the plan slowly accumulates dead pipelines. The same property that rescues a missed run is what creates the ghosts. The fix is a staleness rule: if the last run is several intervals in the past, stop predicting and surface it for review instead.</p>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="recall">
+  <details>
+    <summary>This chapter's forecast is a mean over intervals, and the bullet before it reports an average similarity over 368 cases. Which System Design School lesson is the shared warning, and what should you ask for in both cases?</summary>
+    <p class="answer">Lesson 0002. A mean tells you about the middle and nothing about the cases that hurt. For the forecast, the useful number is not mean absolute error in days but the share of pipelines that ran on a day the plan did not include, because that is the failure an operator experiences. Ask for the distribution and the tail in both systems, not the average.</p>
+    <span class="from"><a href="../../system-design-school/lessons/0002-p50-is-a-lie.html">SDS 0002 &#183; p50 is a lie</a></span>
+  </details>
+  <details>
+    <summary>Both this chapter and chapter 0005 sit in the same platform and both make a decision that is hard to reverse. What is the shared design principle in how they fail?</summary>
+    <p class="answer">Both are deliberately asymmetric, and in the same direction: failing towards doing nothing is cheaper than failing towards acting. Chapter 0005's wrong RETRY is self-correcting while a wrong OVERLOOK loses a real failure. Here a missed prediction stays on the plan while a spurious one puts work into production early. In both systems the design leans away from the irreversible side, and being able to name which side that is for a given system is the point.</p>
+    <span class="from"><a href="0005-agentic-pipeline-debugging.html">Chapter 0005 &#183; asymmetric failure</a></span>
+  </details>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">The lessons behind this chapter</span>
+  <p>System Design School teaches these mechanisms from first principles and breaks them in a lab. This chapter defends what you did with them. An interviewer moves between those two registers without warning.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0002-p50-is-a-lie.html">SDS 0002 &#183; p50 is a lie</a>
+      <span class="bridge-why">A forecast judged on mean error hides the pipelines it missed entirely, and those are the only ones an operator notices.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0014 &#183; Idempotency keys &#8212; not yet built</span>
+      <span class="bridge-why">The whole parent-child check exists to prevent a double run, which is the problem idempotency solves properly.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0032 &#183; Locks and liveness &#8212; not yet built</span>
+      <span class="bridge-why">Two planner replicas generating the same daily plan is a claiming problem, and nothing here coordinates them.</span>
+    </li>
+  </ol>
+</div>
+
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0006-layered-validation.html">&#8592; 0006 &#183; Layered validation on an autonomous path</a></span>
+  <span><span class="dir">Next</span><a href="0008-languages.html">0008 &#183; Languages: Python, SQL, C++ &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

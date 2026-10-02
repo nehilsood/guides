@@ -1,0 +1,1059 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>The Silent Parser</title>
+<script src="../assets/visit.js"></script>
+</head>
+<body>
+<div class="prep-sitebar">
+  <a href="../index.html">&#8592;&#160;Interview prep</a>
+  <span>Guide 0005</span>
+  <span>Question 4 &#183; Deep prep sheet</span>
+</div>
+<style>
+.prep-sitebar{
+  max-width:1060px; margin:0 auto; padding:20px 24px 0;
+  font-family:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:10.5px; font-weight:500; letter-spacing:0.13em; text-transform:uppercase;
+  opacity:0.6; display:flex; gap:12px; flex-wrap:wrap; align-items:baseline;
+}
+.prep-sitebar a{color:inherit; text-decoration:none; border-bottom:1px solid currentColor; padding-bottom:1px}
+.prep-sitebar a:hover{opacity:1}
+.prep-sitebar span::before{content:"/"; margin-right:12px; opacity:0.5}
+</style>
+
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --ground:#edecef; --card:#fafafb; --card-2:#f3f2f6; --sunk:#e1dfe7;
+  --ink:#17151d; --ink-2:#454152; --ink-3:#736e82;
+  --rule:#d2cfda; --rule-2:#e4e1ea;
+  --wire:#3b32a6; --wire-ink:#2e2786; --wire-soft:#e5e3f7;
+  --bad:#a3243f; --bad-soft:#f8e3e8;
+  --good:#1b6a4e; --good-soft:#dbeee5;
+  --warn:#8a5a0a; --warn-soft:#f6ecd9;
+  --steel:#6a7186;
+  --display:"Instrument Serif",Georgia,"Times New Roman",serif;
+  --body:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#111017; --card:#1a1822; --card-2:#201d2a; --sunk:#0c0b12;
+    --ink:#eceaf2; --ink-2:#b4afc2; --ink-3:#847f94;
+    --rule:#302c3d; --rule-2:#262231;
+    --wire:#9d95ff; --wire-ink:#b3abff; --wire-soft:#221d4a;
+    --bad:#e88a9d; --bad-soft:#331722;
+    --good:#5fc49a; --good-soft:#0f2a20;
+    --warn:#dcae5c; --warn-soft:#2c2212;
+    --steel:#9aa0b5;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#111017; --card:#1a1822; --card-2:#201d2a; --sunk:#0c0b12;
+  --ink:#eceaf2; --ink-2:#b4afc2; --ink-3:#847f94;
+  --rule:#302c3d; --rule-2:#262231;
+  --wire:#9d95ff; --wire-ink:#b3abff; --wire-soft:#221d4a;
+  --bad:#e88a9d; --bad-soft:#331722;
+  --good:#5fc49a; --good-soft:#0f2a20;
+  --warn:#dcae5c; --warn-soft:#2c2212;
+  --steel:#9aa0b5;
+}
+*{box-sizing:border-box}
+body{background:var(--ground); color:var(--ink); font-family:var(--body); font-size:17px; line-height:1.62; -webkit-font-smoothing:antialiased}
+.wrap{max-width:1060px; margin:0 auto; padding:0 24px 96px}
+p{max-width:68ch; margin:0 0 1.05em}
+a{color:var(--wire-ink); text-underline-offset:2px}
+strong{font-weight:600}
+em{font-style:italic}
+kbd,code,.mono{font-family:var(--mono); font-size:0.87em; font-variant-ligatures:none}
+code{background:var(--card-2); border:1px solid var(--rule-2); border-radius:3px; padding:0.08em 0.34em; color:var(--ink-2)}
+
+/* ---------- masthead ---------- */
+.mast{padding:56px 0 0}
+.kick{font-family:var(--mono); font-size:10.5px; font-weight:500; letter-spacing:0.15em; text-transform:uppercase; color:var(--ink-3); display:flex; gap:13px; flex-wrap:wrap; align-items:baseline; margin-bottom:26px}
+.kick span:not(:last-child)::after{content:"\00B7"; margin-left:13px; color:var(--rule)}
+h1{font-family:var(--display); font-weight:400; font-size:clamp(46px,8vw,86px); line-height:0.94; letter-spacing:-0.022em; margin:0 0 14px; text-wrap:balance}
+.sub{font-family:var(--body); font-weight:400; font-size:clamp(16px,2.1vw,19.5px); color:var(--ink-3); letter-spacing:-0.004em; margin:0 0 36px; max-width:52ch; line-height:1.5}
+
+.qcard{background:var(--card); border:1px solid var(--rule); border-left:4px solid var(--wire); padding:26px 30px; margin:0 0 14px}
+.qcard .lab{font-family:var(--mono); font-size:10px; letter-spacing:0.17em; text-transform:uppercase; color:var(--wire-ink); font-weight:600; margin-bottom:12px}
+.qcard blockquote{margin:0; font-family:var(--display); font-size:24px; line-height:1.36; color:var(--ink); max-width:60ch}
+.qcard blockquote p{max-width:none; margin:0}
+
+.verdict{background:var(--wire-soft); border:1px solid color-mix(in srgb, var(--wire) 26%, transparent); border-left:4px solid var(--wire); padding:22px 30px; margin:0 0 52px}
+.verdict .lab{font-family:var(--mono); font-size:10px; letter-spacing:0.17em; text-transform:uppercase; color:var(--wire-ink); font-weight:600; margin-bottom:10px}
+.verdict p{margin:0; font-size:18px; line-height:1.56; color:var(--ink); max-width:72ch}
+
+/* ---------- structure ---------- */
+.part{margin:0 0 66px; scroll-margin-top:20px}
+.parthead{display:flex; gap:18px; align-items:baseline; border-top:2px solid var(--ink); padding-top:14px; margin-bottom:24px}
+.pnum{font-family:var(--mono); font-size:12px; font-weight:600; color:var(--wire-ink); letter-spacing:0.05em; flex:0 0 auto; padding-top:10px}
+h2{font-family:var(--display); font-weight:400; font-size:clamp(28px,4vw,41px); line-height:1.06; letter-spacing:-0.014em; margin:0; text-wrap:balance}
+h3{font-family:var(--body); font-weight:600; font-size:19px; letter-spacing:-0.012em; margin:34px 0 10px; color:var(--ink); text-wrap:balance}
+h4{font-family:var(--body); font-weight:600; font-size:15.5px; letter-spacing:-0.006em; margin:22px 0 6px; color:var(--ink)}
+.lede{font-size:18.5px; color:var(--ink-2); max-width:66ch; margin-bottom:22px; line-height:1.55}
+
+ul,ol{max-width:68ch; padding-left:1.25em; margin:0 0 1em}
+li{margin-bottom:0.42em}
+ul.tight li,ol.tight li{margin-bottom:0.18em}
+ol.beats{counter-reset:b; list-style:none; padding-left:0; max-width:70ch}
+ol.beats>li{counter-increment:b; position:relative; padding-left:44px; margin-bottom:16px}
+ol.beats>li::before{content:counter(b); position:absolute; left:0; top:3px; font-family:var(--mono); font-size:11px; font-weight:600; color:var(--card); background:var(--wire); width:25px; height:25px; border-radius:2px; display:grid; place-items:center}
+
+/* ---------- callouts ---------- */
+.box{border:1px solid var(--rule); background:var(--card); padding:20px 24px; margin:22px 0}
+.box>:last-child{margin-bottom:0}
+.box .lab{font-family:var(--mono); font-size:10px; letter-spacing:0.16em; text-transform:uppercase; font-weight:600; margin-bottom:10px; color:var(--ink-3)}
+.box.say{border-left:3px solid var(--good); background:var(--good-soft); border-color:color-mix(in srgb, var(--good) 26%, transparent)}
+.box.say .lab{color:var(--good)}
+.box.dont{border-left:3px solid var(--bad); background:var(--bad-soft); border-color:color-mix(in srgb, var(--bad) 26%, transparent)}
+.box.dont .lab{color:var(--bad)}
+.box.key{border-left:3px solid var(--wire); background:var(--wire-soft); border-color:color-mix(in srgb, var(--wire) 26%, transparent)}
+.box.key .lab{color:var(--wire-ink)}
+.box.warn{border-left:3px solid var(--warn); background:var(--warn-soft); border-color:color-mix(in srgb, var(--warn) 30%, transparent)}
+.box.warn .lab{color:var(--warn)}
+.plain{border-left:3px solid var(--steel); background:var(--card-2); padding:14px 20px; margin:16px 0; font-size:16px; color:var(--ink-2)}
+.plain>:last-child{margin-bottom:0}
+.plain b{font-family:var(--mono); font-size:10px; letter-spacing:0.14em; text-transform:uppercase; color:var(--ink-3); display:block; margin-bottom:6px; font-weight:500}
+
+.formula{font-family:var(--mono); font-size:13px; background:var(--sunk); border:1px solid var(--rule); padding:16px 20px; margin:18px 0; overflow-x:auto; white-space:pre; line-height:1.7; color:var(--ink)}
+.formula .cm{color:var(--ink-3)}
+.formula .hi{color:var(--bad); font-weight:600}
+.formula .ok{color:var(--good); font-weight:600}
+
+/* ---------- tables ---------- */
+.tw{overflow-x:auto; margin:22px 0; border:1px solid var(--rule); background:var(--card)}
+table{border-collapse:collapse; width:100%; font-family:var(--body); font-size:14.5px}
+th{text-align:left; font-weight:600; font-size:10px; letter-spacing:0.12em; text-transform:uppercase; color:var(--ink-3); padding:12px 16px; border-bottom:1px solid var(--rule); background:var(--card-2); white-space:nowrap}
+td{padding:11px 16px; border-bottom:1px solid var(--rule-2); color:var(--ink-2); vertical-align:top; line-height:1.45}
+tr:last-child td{border-bottom:none}
+td:first-child{color:var(--ink); font-weight:600}
+.num{font-family:var(--mono); font-variant-numeric:tabular-nums; white-space:nowrap}
+.up{color:var(--good); font-weight:600}
+.dn{color:var(--bad); font-weight:600}
+.flat{color:var(--ink-3)}
+td .mono{font-size:12.5px; color:var(--wire-ink)}
+
+/* ---------- figures ---------- */
+figure{margin:28px 0; border:1px solid var(--rule); background:var(--card); padding:24px}
+figcaption{font-family:var(--body); font-size:13px; color:var(--ink-3); margin-top:18px; line-height:1.5; max-width:72ch}
+
+/* pipeline */
+.pipe{max-width:640px; margin:0 auto}
+.stage{border:1px solid var(--rule); background:var(--card-2); padding:12px 16px; position:relative; border-radius:2px}
+.stage+.stage{margin-top:26px}
+.stage+.stage::before{content:""; position:absolute; left:26px; top:-26px; height:26px; width:1px; background:var(--rule)}
+.stage .sn{font-family:var(--mono); font-size:9.5px; letter-spacing:0.14em; text-transform:uppercase; color:var(--ink-3); display:block; margin-bottom:5px; font-weight:500}
+.stage .sb{font-family:var(--body); font-weight:600; font-size:15px; color:var(--ink); display:block; line-height:1.35}
+.stage .sd{font-family:var(--mono); font-size:11.5px; color:var(--ink-3); display:block; margin-top:5px; line-height:1.5}
+.stage.ok{border-left:3px solid var(--good)}
+.stage.brk{border-left:3px solid var(--bad); background:var(--bad-soft); border-color:color-mix(in srgb, var(--bad) 32%, transparent)}
+.stage.brk .sn{color:var(--bad)}
+.stage.grey{border-left:3px solid var(--steel)}
+.stage .tag{position:absolute; right:14px; top:12px; font-family:var(--mono); font-size:9.5px; letter-spacing:0.12em; text-transform:uppercase; font-weight:600; color:var(--bad)}
+@media(max-width:560px){.stage .tag{position:static; display:block; margin-top:8px}}
+
+/* two layers */
+.layers{max-width:720px; margin:0 auto; display:grid; gap:16px}
+.layer{border:1px solid var(--rule); background:var(--card-2); padding:17px 20px; border-radius:2px}
+.layer .ln{font-family:var(--mono); font-size:9.5px; letter-spacing:0.14em; text-transform:uppercase; color:var(--ink-3); display:block; margin-bottom:9px; font-weight:500}
+.layer.portable{border-left:3px solid var(--good); background:var(--good-soft); border-color:color-mix(in srgb, var(--good) 26%, transparent)}
+.layer.portable .ln{color:var(--good)}
+.layer.brittle{border-left:3px solid var(--bad); background:var(--bad-soft); border-color:color-mix(in srgb, var(--bad) 28%, transparent)}
+.layer.brittle .ln{color:var(--bad)}
+.layer p{font-size:15px; margin:0 0 0.6em; max-width:none; color:var(--ink-2)}
+.layer p:last-child{margin-bottom:0}
+.nd{font-family:var(--mono); font-size:12px; background:var(--card); border:1px solid var(--rule); padding:6px 10px; border-radius:2px; color:var(--ink); display:inline-block; margin:3px 5px 3px 0; white-space:nowrap}
+.nd.hz{border-color:color-mix(in srgb, var(--bad) 45%, transparent); color:var(--bad); background:transparent}
+
+/* two-column compare */
+.tree{display:grid; grid-template-columns:repeat(auto-fit,minmax(270px,1fr)); gap:20px}
+.tcol{border:1px solid var(--rule); background:var(--card-2); padding:18px 20px; border-radius:2px}
+.tcol .th{font-family:var(--mono); font-size:9.5px; letter-spacing:0.14em; text-transform:uppercase; color:var(--ink-3); margin-bottom:12px; font-weight:500}
+.tcol p{font-size:15px; max-width:none; margin:0 0 0.6em; color:var(--ink-2)}
+.tcol p:last-child{margin-bottom:0}
+.tcol.bad{border-color:color-mix(in srgb, var(--bad) 30%, transparent)} .tcol.bad .th{color:var(--bad)}
+.tcol.good{border-color:color-mix(in srgb, var(--good) 30%, transparent)} .tcol.good .th{color:var(--good)}
+
+/* bar chart */
+.chart{display:grid; grid-template-columns:minmax(120px,190px) minmax(0,1fr) 92px; gap:9px 14px; align-items:center; font-variant-numeric:tabular-nums}
+.chart .rl{font-family:var(--body); font-size:13px; font-weight:500; color:var(--ink-2); line-height:1.3}
+.chart .trk{background:var(--sunk); height:22px; border-radius:2px; overflow:hidden; box-shadow:inset -1px 0 0 var(--rule-2); position:relative}
+.chart .trk i{display:block; height:100%; background:var(--bad); border-radius:0 2px 2px 0}
+.chart .trk i.g{background:var(--good)}
+.chart .vl{font-family:var(--mono); font-size:11.5px; font-weight:500; color:var(--ink); text-align:right}
+.chart .axis{grid-column:2; display:flex; justify-content:space-between; border-top:1px solid var(--rule); padding-top:6px; margin-top:4px}
+.axis b{font-family:var(--mono); font-size:10px; font-weight:500; color:var(--ink-3)}
+
+/* numbered steps */
+.steps{counter-reset:st; margin:24px 0 0}
+.step{counter-increment:st; display:grid; grid-template-columns:44px 1fr; gap:18px; padding:20px 0; border-bottom:1px solid var(--rule)}
+.step:first-child{border-top:2px solid var(--ink)}
+.step::before{content:counter(st); font-family:var(--mono); font-size:13px; font-weight:600; color:var(--wire-ink); padding-top:4px}
+.step h4{margin:0 0 6px}
+.step p{font-size:16px; margin-bottom:0.5em}
+.step p:last-child{margin-bottom:0}
+.stops{display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:0 20px; margin-top:12px; font-size:14.5px}
+.stops div{border-top:1px solid var(--rule-2); padding-top:8px}
+.stops b{font-family:var(--mono); font-size:9.5px; letter-spacing:0.13em; text-transform:uppercase; display:block; margin-bottom:4px; font-weight:500}
+.stops .ys b{color:var(--good)} .stops .no b{color:var(--bad)}
+.stops p{font-size:14.5px; line-height:1.5; margin:0; color:var(--ink-2); max-width:none}
+
+/* follow-ups */
+.fu{border-top:1px solid var(--rule); padding:24px 0}
+.fu:first-of-type{border-top:2px solid var(--ink)}
+.fuq{display:flex; gap:14px; align-items:baseline; margin-bottom:12px}
+.fuq b{font-family:var(--mono); font-size:11px; font-weight:600; color:var(--wire-ink); flex:0 0 auto; padding-top:5px; letter-spacing:0.04em}
+.fuq p{font-family:var(--body); font-weight:600; font-size:17.5px; letter-spacing:-0.012em; color:var(--ink); margin:0; max-width:62ch}
+.fua{padding-left:39px}
+.fua>:last-child{margin-bottom:0}
+@media(max-width:600px){.fua{padding-left:0}}
+
+/* misc */
+.grid2{display:grid; grid-template-columns:repeat(auto-fit,minmax(275px,1fr)); gap:18px; margin:22px 0}
+.probe{border:1px solid var(--rule); background:var(--card); border-top:3px solid var(--wire); padding:18px 20px}
+.probe h4{margin:0 0 8px; font-size:16px}
+.probe .tag{font-family:var(--mono); font-size:9.5px; letter-spacing:0.14em; text-transform:uppercase; color:var(--wire-ink); display:block; margin-bottom:7px; font-weight:600}
+.probe p{font-size:15px; line-height:1.55; margin:0; max-width:none; color:var(--ink-2)}
+.probe.hz{border-top-color:var(--bad)} .probe.hz .tag{color:var(--bad)}
+dl.gloss{margin:20px 0; display:grid; grid-template-columns:auto 1fr; gap:0}
+dl.gloss dt{font-family:var(--mono); font-size:12px; font-weight:600; color:var(--ink); padding:10px 20px 10px 0; border-top:1px solid var(--rule-2); white-space:nowrap}
+dl.gloss dd{margin:0; padding:10px 0; border-top:1px solid var(--rule-2); font-size:15px; color:var(--ink-2); line-height:1.5}
+@media(max-width:640px){
+  dl.gloss{grid-template-columns:1fr}
+  dl.gloss dt{border-top:1px solid var(--rule-2); padding-bottom:0}
+  dl.gloss dd{border-top:none; padding-top:2px}
+}
+.srcs{font-size:14px; line-height:1.6}
+.srcs li{margin-bottom:8px; color:var(--ink-3)}
+footer{border-top:2px solid var(--ink); margin-top:20px; padding-top:16px; font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-3)}
+:focus-visible{outline:2px solid var(--wire); outline-offset:2px}
+@media (prefers-reduced-motion: reduce){*{animation:none!important; transition:none!important}}
+
+/* ---------- spoken script: four beats, about 75 seconds ----------
+   Lines are capped at 46ch on purpose. You read a script aloud in short
+   lines; a full measure turns it back into prose. Every child of a beat is
+   placed explicitly in column 2, because with auto-placement a second
+   spoken line lands in the narrow label track and sets at a different
+   width from the first, which makes the script unreadable as a script. */
+.spoken{max-width:46rem; margin:34px 0 0; padding:20px 24px 22px; border:2px solid var(--wire); background:var(--wire-soft)}
+.spoken>.slab{font-family:var(--mono); font-size:10px; letter-spacing:0.16em; text-transform:uppercase; font-weight:700; color:var(--wire-ink); display:block; margin-bottom:10px}
+.spoken>.frame{margin:0 0 15px; max-width:none; font-size:0.92em; line-height:1.5; color:var(--ink-2)}
+.spoken ol.sbeats{display:grid; gap:13px; margin:0; padding:0; list-style:none; max-width:none}
+.spoken ol.sbeats>li{display:grid; grid-template-columns:minmax(7.5em,max-content) 1fr; gap:4px 18px; margin:0; padding-bottom:13px; border-bottom:1px solid var(--rule)}
+.spoken ol.sbeats>li:last-child{padding-bottom:0; border-bottom:none}
+.spoken ol.sbeats>li>*{grid-column:2}
+.spoken ol.sbeats>li>.beat{grid-column:1; grid-row:1; font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:0.11em; text-transform:uppercase; color:var(--wire-ink); padding-top:6px; white-space:nowrap}
+.spoken .line{margin:0; max-width:46ch; font-family:var(--body); font-size:1.06em; line-height:1.55; color:var(--ink)}
+.spoken .line+.line{margin-top:7px}
+.spoken .line b{font-weight:700}
+.spoken .line code{font-size:0.86em}
+@media(max-width:620px){
+  .spoken ol.sbeats>li{grid-template-columns:1fr; gap:3px 0}
+  .spoken ol.sbeats>li>*{grid-column:1}
+  .spoken ol.sbeats>li>.beat{grid-column:1; grid-row:1; padding-top:0}
+}
+
+/* ---------- evidence: your numbers, not mine ----------
+   The one interactive block on the page. Everything above argues from
+   published figures; this is where the answer stops being general. The
+   earned answer underneath refuses to read as finished while it still
+   contains a number nobody measured - an unfilled slot renders red, in
+   mono, saying where to get it. Storage is best-effort localStorage in
+   this browser: empty fields with visible placeholders is the resting
+   state, not an error. */
+.evidence{border:1px solid var(--wire); background:var(--card); margin:26px 0 0}
+.evidence>header{display:flex; flex-wrap:wrap; gap:4px 16px; align-items:baseline; justify-content:space-between; padding:13px 20px 11px; background:var(--wire)}
+.evidence>header .elab{font-family:var(--mono); font-size:10px; letter-spacing:0.16em; text-transform:uppercase; font-weight:700; color:var(--card)}
+.evidence>header .hint{font-family:var(--mono); font-size:10px; letter-spacing:0.05em; color:var(--wire-soft)}
+.evidence .ebody{padding:16px 20px 18px}
+.evidence .ebody>p{max-width:64ch; font-size:15.5px; color:var(--ink-2); margin:0 0 0.8em}
+.evidence .ebody>:last-child{margin-bottom:0}
+.evidence .rows{display:grid; gap:0; margin:14px 0 0; border-top:1px solid var(--rule)}
+.evidence .row{display:grid; grid-template-columns:minmax(11em,1.15fr) minmax(6em,0.6fr) minmax(6em,0.6fr); gap:6px 16px; padding:12px 0 13px; border-bottom:1px solid var(--rule-2); align-items:start}
+.evidence .row:last-child{border-bottom:1px solid var(--rule)}
+.evidence .ran{font-size:15px; line-height:1.45; color:var(--ink); max-width:none}
+.evidence .field{display:grid; gap:3px; min-width:0}
+.evidence .field>label{font-family:var(--mono); font-size:9.5px; font-weight:700; letter-spacing:0.11em; text-transform:uppercase; color:var(--ink-3)}
+.evidence input[type="text"]{font-family:var(--mono); font-size:12.5px; color:var(--ink); background:var(--sunk); border:1px solid var(--rule); border-bottom:2px solid var(--ink-3); border-radius:2px; padding:6px 8px; width:100%; min-width:0}
+.evidence input[type="text"]:focus-visible{outline:2px solid var(--wire); outline-offset:1px; border-bottom-color:var(--wire)}
+.evidence input[type="text"].filled{border-bottom-color:var(--good); background:var(--card)}
+.evidence .why-row{grid-column:1 / -1; display:grid; gap:4px; margin-top:9px}
+.evidence .why-row>label{font-family:var(--display); font-size:14px; line-height:1.45; color:var(--ink-2); max-width:62ch}
+.evidence textarea{font-family:var(--display); font-size:14.5px; line-height:1.5; color:var(--ink); background:var(--sunk); border:1px solid var(--rule); border-radius:2px; padding:8px 10px; width:100%; min-height:76px; resize:vertical}
+.evidence textarea:focus-visible{outline:2px solid var(--wire); outline-offset:1px}
+.evidence textarea.filled{border-color:var(--good); background:var(--card)}
+.evidence input::placeholder,.evidence textarea::placeholder{color:var(--ink-3); opacity:0.9}
+.evidence .earned{margin:20px 0 0; padding:15px 18px; background:var(--good-soft); border-left:3px solid var(--good)}
+.evidence .earned .elab{font-family:var(--mono); font-size:10px; letter-spacing:0.16em; text-transform:uppercase; font-weight:700; color:var(--good); display:block; margin-bottom:9px}
+.evidence .earned p{margin:0; max-width:64ch; font-size:16px; line-height:1.55; color:var(--ink)}
+.evidence .earned p+p{margin-top:10px}
+.evidence .earned .placeholder{color:var(--bad); font-family:var(--mono); font-size:0.86em}
+.evidence .earned .caveat{font-size:14.5px; color:var(--ink-2)}
+@media(max-width:700px){.evidence .row{grid-template-columns:1fr}}
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <div class="kick"><span>Senior AI Engineer</span><span>Google DeepMind</span><span>Agent infrastructure round</span></div>
+  <h1>The Silent Parser</h1>
+  <p class="sub">You swapped the model. Nothing in your code changed, nothing threw, every dashboard stayed green &#8212; and the agent stopped calling tools. Here is exactly where the call died, and why it had to die quietly.</p>
+
+  <div class="qcard">
+    <div class="lab">The question</div>
+    <blockquote><p>"You swap your agent's backbone from DeepSeek to Qwen to cut costs. Same prompts, same tool schemas. Suddenly tool calls silently stop executing. No errors, no crashes. What broke?"</p></blockquote>
+  </div>
+
+  <div class="verdict">
+    <div class="lab">The one-sentence answer</div>
+    <p>Your <strong>tool schema</strong> is portable and your <strong>tool-call format is not</strong>. The schema lives on the API boundary, where everything is OpenAI-shaped and nothing changed. The format lives on the <em>token</em> boundary, where every model family emits its own markup and the serving stack needs a matching parser to recognise it. You swapped the dialect and kept the transcriptionist &#8212; so the model called the tool, the parser saw plain prose, the agent loop saw a finished answer, and nothing anywhere had a reason to raise.</p>
+  </div>
+</header>
+
+<section class="part">
+  <div class="parthead"><div class="pnum">00</div><h2>What the interviewer is actually testing</h2></div>
+  <p class="lede">This question is a debugging question wearing an architecture costume. It hands you a symptom with no stack trace and watches where your mind goes first. Four things are being checked at once.</p>
+  <div class="grid2">
+    <div class="probe">
+      <span class="tag">Probe 1</span>
+      <h4>Do you blame the model or the system?</h4>
+      <p>"The new model is worse" is the first instinct and it is almost always the wrong one. A senior engineer's reflex on a silent failure is <em>the pipeline lost the signal</em>, not <em>the source stopped sending</em>. Which one you reach for is most of the signal in this question.</p>
+    </div>
+    <div class="probe">
+      <span class="tag">Probe 2</span>
+      <h4>Do you know what a chat template is?</h4>
+      <p>Whether you understand that the tidy <code>messages</code> and <code>tools</code> arrays in your request get flattened into one token string by a Jinja template shipped with the model &#8212; and that this template is a per-model artifact, not a standard.</p>
+    </div>
+    <div class="probe hz">
+      <span class="tag">Probe 3</span>
+      <h4>Can you explain why it was silent?</h4>
+      <p>Anyone can say "add error handling." The interesting question is <em>why there was no error to handle</em>. If you can articulate that a parse miss is structurally indistinguishable from a plain-text answer, you have understood the bug rather than memorised it.</p>
+    </div>
+    <div class="probe hz">
+      <span class="tag">Probe 4</span>
+      <h4>Do you ship contracts or vibes?</h4>
+      <p>The fix is not a patch, it is a gate. Do you reach for a versioned contract between model and harness with a blocking CI test &#8212; or do you propose to "keep an eye on it" and roll back the cheaper model?</p>
+    </div>
+  </div>
+
+  <div class="box dont">
+    <div class="lab">Do not say</div>
+    <p><strong>"Qwen is just worse at tool calling. Let's go back to DeepSeek."</strong></p>
+    <p>Three things go wrong here at once. It is <em>probably factually false</em> &#8212; the model most likely emitted a perfectly well-formed call. It is <em>unfalsifiable as stated</em>, because you have offered no measurement that would distinguish "model is worse" from "harness is deaf." And it is <em>expensive in a way that compounds</em>: you have not lost one model swap, you have concluded that model swaps are dangerous, which forfeits the cost lever permanently and quietly couples your product to a single vendor.</p>
+    <p>There is a version of "the model is worse" that <em>is</em> a senior answer. It comes later, after the template and the parser are proven, and it arrives with an AST-matched golden set attached. See <a href="#f12">F12</a>.</p>
+  </div>
+</section>
+
+<section class="part">
+  <div class="parthead"><div class="pnum">01</div><h2>The answer, at three lengths</h2></div>
+  <p class="lede">Interviewers interrupt. The first thirty seconds must contain the diagnosis, not the setup &#8212; so lead with the two-layer split and let them pull the rest out of you.</p>
+
+  <div class="box say">
+    <div class="lab">Say this &#8212; 30 seconds</div>
+    <p>"Tool calling isn't one standard, it's two layers. The <em>schema</em> layer is portable &#8212; my JSON Schema goes to any model unchanged. The <em>format</em> layer isn't: each model family is trained to emit tool calls in its own markup, so Qwen wraps them in <code>&lt;tool_call&gt;</code> tags and DeepSeek uses its own, and the serving stack needs a parser matched to that family to lift them into the <code>tool_calls</code> field.</p>
+    <p>I swapped the model and left the parser pointed at the old dialect. So the parser found nothing it recognised and dumped the call into <code>content</code> as prose. My agent loop saw no <code>tool_calls</code> and a <code>finish_reason</code> of <code>stop</code>, concluded the model was done, and returned raw markup to the user. Nothing raised, because <em>nothing was wrong</em> as far as any single component could tell &#8212; a model answering in plain text is legal.</p>
+    <p>The fix is to treat the chat template and the tool-call parser as a versioned contract between the model and the harness, with a canary in CI that fails the deploy if a known prompt stops producing a parsed tool call."</p>
+  </div>
+
+  <h3>The two-minute version, as beats</h3>
+  <ol class="beats">
+    <li><strong>Separate the two layers out loud.</strong> Schema is portable; emitted format is not. Say this first, because every other sentence depends on it.</li>
+    <li><strong>Name the three candidates, in likelihood order.</strong> (A) parser mismatch in the serving stack, (B) the loop's silent exit on a missing <code>tool_calls</code> field, (C) a hand-rolled prompt that no longer matches the model's own chat template. A and B are the same incident seen from two sides; C is a separate, compounding bug.</li>
+    <li><strong>Explain the silence as a design property, not an oversight.</strong> Every tool-call parser is an <em>extractor</em>, not a <em>validator</em>. An extractor that finds nothing correctly returns nothing. No component in the chain has the information required to know the model <em>meant</em> to call a tool.</li>
+    <li><strong>Say what you'd look at first.</strong> Grep the raw <code>content</code> field for tool-call markup. If prose contains <code>&lt;tool_call&gt;</code> or <code>[TOOL_CALLS]</code>, you are done diagnosing in under a minute.</li>
+    <li><strong>Give the fix as a contract, not a patch.</strong> Render with <code>apply_chat_template</code>, pin the parser to the model family and fail closed at boot if it is unmapped, and add a blocking CI canary that asserts a parsed tool call.</li>
+    <li><strong>Close on the generalisation.</strong> A model swap is a breaking change to the harness. It should go through the same gate as a database migration, because it is the same kind of change: the wire format moved underneath a caller that was not told.</li>
+  </ol>
+
+  <div class="box key">
+    <div class="lab">The one line worth memorising</div>
+    <p>"A model swap is also a tool-call format swap. The fix is to treat chat templates and parsers as a <strong>versioned contract between the model and the harness</strong>, with a CI test that fails loudly &#8212; before blaming model capability."</p>
+  </div>
+
+  <div class="plain">
+    <b>In plain words</b>
+    <p>You hired a new interpreter who is fluent, and kept the stenographer who only knows how to take down the old interpreter's shorthand. The interpreter is doing the job perfectly. The minutes come out blank. And because blank minutes are a legal outcome &#8212; sometimes nobody says anything worth recording &#8212; no alarm rings.</p>
+  </div>
+
+  <div class="spoken">
+    <span class="slab">Say it out loud &#183; about 75 seconds</span>
+    <p class="frame">The three above are written answers. This one is a script &#8212; four beats, short lines, built to be said. A spoken answer to <em>&#8220;you swapped the backbone and tool calls silently stopped executing. What broke?&#8221;</em> Read it aloud, then say it again with the page covered.</p>
+    <ol class="sbeats">
+      <li>
+        <span class="beat">Situation</span>
+        <p class="line">We swapped the backbone from DeepSeek to Qwen to cut costs. Same prompts, same tool schemas.</p>
+        <p class="line">Tool calls stopped executing, and nothing went red.</p>
+      </li>
+      <li>
+        <span class="beat">Mechanism</span>
+        <p class="line">Tool calling is two layers. The schema is portable, and it didn&#8217;t change. The emitted format isn&#8217;t &#8212; each family writes its calls in its own markup, and the server needs a matching parser to lift them out.</p>
+        <p class="line">I swapped the dialect and kept the old parser. A valid call landed in the content field as prose. The loop saw no tool calls and a normal finish reason, so it decided the model was done.</p>
+        <p class="line">Nothing raised, because a model answering in plain text is legal.</p>
+      </li>
+      <li>
+        <span class="beat">What I did</span>
+        <p class="line">Render every prompt with the model&#8217;s own chat template, never a hand-built string. Pin the parser to the model revision, and refuse to boot if it&#8217;s unmapped.</p>
+        <p class="line">And a canary in CI: one prompt that must come back with a parsed tool call, and one that must not.</p>
+      </li>
+      <li>
+        <span class="beat">What it cost</span>
+        <p class="line">Nothing catches this at runtime. A parser can&#8217;t know the model <em>meant</em> to call a tool &#8212; only a test that already knows the answer can.</p>
+        <p class="line">And our dashboards improved during the outage: one turn instead of twelve, cost down.</p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section class="part">
+  <div class="parthead"><div class="pnum">02</div><h2>Fundamentals: the two layers of "tool calling"</h2></div>
+  <p class="lede">Almost everyone who uses tool calling has only ever seen the top layer, because the top layer is the one the SDK shows you. The bug lives entirely in the bottom one.</p>
+
+  <div class="plain">
+    <b>In plain words</b>
+    <p>You hand the model a <em>menu</em> &#8212; here are the dishes, here is what each one needs. The menu format is standard everywhere. But the way a model <em>writes down its order</em> is a house style it learned in training, and every house writes it differently. Your kitchen only reads one house's handwriting.</p>
+  </div>
+
+  <figure>
+    <div class="layers">
+      <div class="layer portable">
+        <span class="ln">Layer 1 &#8212; the API boundary &#8212; portable</span>
+        <p>What you send: a <code>messages</code> array and a <code>tools</code> array of JSON Schema definitions. This is the OpenAI-compatible shape that DeepSeek, Qwen, Mistral, Anthropic and everyone else accepts. <strong>Nothing here changed when you swapped models, and nothing here needed to.</strong></p>
+        <p><span class="nd">tools:[{name, description, parameters}]</span><span class="nd">tool_choice:"auto"</span></p>
+      </div>
+      <div class="layer brittle">
+        <span class="ln">Layer 2 &#8212; the token boundary &#8212; per-family</span>
+        <p>What actually reaches the model: one flat string, produced by the model's own <strong>chat template</strong>, which renders your tools into the exact layout that model family was mid-trained on. What the model emits back is tokens in that same house style &#8212; and a <strong>tool-call parser</strong> in the serving stack has to recognise that markup and lift it into a structured <code>tool_calls</code> field.</p>
+        <p><span class="nd hz">&lt;tool_call&gt;{...}&lt;/tool_call&gt;</span><span class="nd hz">[TOOL_CALLS][{...}]</span><span class="nd hz">&lt;|python_tag|&gt;{...}</span><span class="nd hz">[get_price(sku="x")]</span></p>
+      </div>
+    </div>
+    <figcaption>The abstraction is real, and it is incomplete. Layer 1 is a standard your code owns and your tests cover. Layer 2 is an artifact the model vendor ships, changes at their cadence, and your tests never look at. A model swap leaves Layer 1 byte-identical while replacing Layer 2 wholesale &#8212; which is precisely why nothing in your diff and nothing in your suite reacts.</figcaption>
+  </figure>
+
+  <h3>What a chat template actually is</h3>
+  <p>It is a <strong>Jinja template shipped inside the model's <code>tokenizer_config.json</code></strong>. Its job is to turn structured messages into the single token string the model was trained to continue. When you pass <code>tools=[...]</code> to <code>tokenizer.apply_chat_template()</code>, each function is converted into a JSON schema and handed to that template, which decides where and how tool definitions appear in the prompt. Some models ship more than one template and select a dedicated <code>tool_use</code> variant when tools are present.</p>
+
+  <p>Two consequences follow, and both matter in the interview:</p>
+  <ul>
+    <li><strong>The template is the specification.</strong> If you want to know what markup a model emits for a tool call, render an assistant turn that <em>contains</em> a tool call through its own template and read the output. You do not need to guess or search; the answer ships with the weights.</li>
+    <li><strong>Hand-rolling the prompt means overriding the specification.</strong> The moment you build the prompt string yourself, you are asserting that you know the layout better than the people who trained on it. Occasionally true. Usually not.</li>
+  </ul>
+
+  <h3>What a tool-call parser actually is</h3>
+  <p>It is the inverse function, and it lives in your inference server, not in the model. In vLLM it is selected by <code>--tool-call-parser</code> alongside <code>--enable-auto-tool-choice</code>. It scans the generated text for that family's markup, extracts name and arguments, and populates the OpenAI-compatible <code>tool_calls</code> array so your client sees structure instead of prose.</p>
+
+  <div class="box key">
+    <div class="lab">The property that makes this bug silent</div>
+    <p>A tool-call parser is an <strong>extractor</strong>, not a <strong>validator</strong>. It answers "is there a tool call in this text?" &#8212; and <em>no</em> is a completely legitimate answer, because models are allowed to reply in plain prose. So a parser that understands nothing about the incoming dialect and a parser correctly observing that the model chose to answer in words produce <strong>byte-identical output</strong>: an empty <code>tool_calls</code>, a populated <code>content</code>, and <code>finish_reason: "stop"</code>.</p>
+    <p>This is worth saying out loud in the interview, because it kills the obvious follow-up before it is asked: <em>you cannot fix this inside the parser.</em> The parser does not have the information. The only component that can ever know the model intended to call a tool is one that already knows the right answer &#8212; which is the definition of a test, not a runtime check.</p>
+  </div>
+
+  <h3>The response shape, and why the loop exits cleanly</h3>
+  <p>An OpenAI-compatible response carries both a <code>content</code> string and a <code>tool_calls</code> array, plus a <code>finish_reason</code>. A real tool call comes back as <code>finish_reason: "tool_calls"</code> with the array populated and content usually empty. Your agent loop is written &#8212; correctly &#8212; as: <em>if there are tool calls, execute them and iterate; otherwise this is the final answer, return it.</em></p>
+  <div class="formula"><span class="cm"># what the loop expects</span>
+finish_reason = <span class="ok">"tool_calls"</span>   tool_calls = [{name:"get_price", ...}]   content = ""
+
+<span class="cm"># what a dialect mismatch produces &#8212; every field individually legal</span>
+finish_reason = <span class="hi">"stop"</span>          tool_calls = <span class="hi">[]</span>                        content = <span class="hi">"&lt;tool_call&gt;{\"name\": \"get_price\", ...}&lt;/tool_call&gt;"</span>
+
+<span class="cm"># the loop's decision, which is correct given its inputs</span>
+if not tool_calls: return content   <span class="cm"># &#8592; exits here, returns markup to the user</span></div>
+  <p>Read that middle line as an interviewer would: there is no field whose value is invalid. The failure is not in any component. It is in the <em>gap between two components that were each behaving correctly</em> &#8212; which is the textbook signature of a missing contract, and exactly the vocabulary you want to be using here.</p>
+</section>
+
+<section class="part">
+  <div class="parthead"><div class="pnum">03</div><h2>Where exactly the call dies</h2></div>
+  <p class="lede">Trace one request end to end and point at the stage. Being able to do this out loud, in order, is the difference between an answer that sounds read and one that sounds lived.</p>
+
+  <figure>
+    <div class="pipe">
+      <div class="stage ok">
+        <span class="sn">Stage 1 &#8212; your code</span>
+        <span class="sb">Build the request</span>
+        <span class="sd">messages[] + tools[] as JSON Schema &#8212; unchanged by the swap</span>
+      </div>
+      <div class="stage ok">
+        <span class="sn">Stage 2 &#8212; serving stack</span>
+        <span class="sb">Render with the chat template</span>
+        <span class="sd">tokenizer_config.json &#8594; one flat prompt string</span>
+      </div>
+      <div class="stage ok">
+        <span class="sn">Stage 3 &#8212; the model</span>
+        <span class="sb">Emit a well-formed tool call</span>
+        <span class="sd">&lt;tool_call&gt;{"name":"get_price","arguments":{...}}&lt;/tool_call&gt;</span>
+      </div>
+      <div class="stage brk">
+        <span class="sn">Stage 4 &#8212; serving stack</span>
+        <span class="tag">the call dies here</span>
+        <span class="sb">Tool-call parser scans the output</span>
+        <span class="sd">parser = deepseek_v3, markup = hermes-style &#8594; zero matches, zero errors</span>
+      </div>
+      <div class="stage grey">
+        <span class="sn">Stage 5 &#8212; serving stack</span>
+        <span class="sb">Assemble the response</span>
+        <span class="sd">tool_calls: [] &#183; content: the raw markup &#183; finish_reason: "stop"</span>
+      </div>
+      <div class="stage grey">
+        <span class="sn">Stage 6 &#8212; agent loop</span>
+        <span class="sb">No tool calls &#8594; this must be the final answer</span>
+        <span class="sd">loop terminates normally, turn count = 1</span>
+      </div>
+      <div class="stage grey">
+        <span class="sn">Stage 7 &#8212; user</span>
+        <span class="sb">Receives XML they were never meant to see</span>
+        <span class="sd">HTTP 200 &#183; latency normal &#183; no exception anywhere in the trace</span>
+      </div>
+    </div>
+    <figcaption>Seven stages, one break. Note where the break is <em>not</em>: not in your code, not in the template, not in the model. Everything downstream of stage 4 behaves correctly on the inputs it was given, which is why the incident produces a clean trace and a 200.</figcaption>
+  </figure>
+
+  <div class="box warn">
+    <div class="lab">This is not hypothetical</div>
+    <p>A filed vLLM issue against Qwen2.5-Coder-14B-Instruct-AWQ shows the exact shape: the parser initialises and reports itself correctly, and the <code>tool_calls</code> array still comes back empty while the model's call sits in <code>content</code> as <code>"&lt;tools&gt;\n{\n \"name\": \"get_weather\", \"arguments\": {...}\n}\n&lt;/tools&gt;"</code>. The reporter's workaround was a regex over the content field to rebuild <code>tool_calls</code> by hand. Worth having in your pocket: it makes the answer concrete, and it shows that "the parser is configured" and "the parser works for this checkpoint" are different claims.</p>
+  </div>
+
+  <h3>The same failure, one layer up</h3>
+  <p>If you are not running your own inference server, do not assume you are safe &#8212; assume the break moved. Behind a hosted API the provider owns the parser, so stage 4 is theirs and usually correct. The equivalent break then happens in the <em>adapter</em>: a gateway or routing library translating between provider shapes, coercing argument types, flattening parallel calls, or silently dropping a field the target provider does not support. Same class of bug, same silence, different stage number. <a href="#f6">F6</a> covers it.</p>
+</section>
+
+<section class="part">
+  <div class="parthead"><div class="pnum">04</div><h2>The dialects</h2></div>
+  <p class="lede">You do not need to memorise this table. You need to be able to say, with confidence, that the table <em>is long</em> &#8212; because the length of it is the whole argument.</p>
+
+  <div class="tw">
+  <table>
+    <thead><tr><th>Family</th><th>What the model emits</th><th>vLLM parser flag</th><th>Worth knowing</th></tr></thead>
+    <tbody>
+      <tr><td>Qwen 2.5 / 3</td><td class="mono">&lt;tool_call&gt;{json}&lt;/tool_call&gt;</td><td><span class="mono">hermes</span></td><td>Hermes-style, borrowed from Nous Research; already wired into Qwen's shipped template</td></tr>
+      <tr><td>Qwen3-Coder</td><td class="mono">&lt;function_calls&gt;&#8230;&lt;/function_calls&gt;</td><td><span class="mono">qwen3_xml</span></td><td>Same vendor, <em>different dialect</em> &#8212; the trap inside the trap</td></tr>
+      <tr><td>Mistral</td><td class="mono">[TOOL_CALLS][{json}]</td><td><span class="mono">mistral</span></td><td>Template requires tool-call IDs of exactly 9 digits; parallel calls are shaky on 7B</td></tr>
+      <tr><td>Llama 3.1 / 3.2</td><td class="mono">&lt;|python_tag|&gt;{json}</td><td><span class="mono">llama3_json</span></td><td>No parallel tool calls; arrays sometimes serialised as strings</td></tr>
+      <tr><td>Llama 4</td><td class="mono">[get_price(sku="x")]</td><td><span class="mono">llama4_pythonic</span></td><td>Pythonic output; must not mix prose and calls in one generation</td></tr>
+      <tr><td>DeepSeek V3 / R1</td><td class="mono">XML-style wrapper tokens</td><td><span class="mono">deepseek_v3</span></td><td>Calls them <em>function</em> calls; reasoning text can leak into the payload</td></tr>
+      <tr><td>DeepSeek V3.1</td><td class="mono">(changed again)</td><td><span class="mono">deepseek_v31</span></td><td>A <em>point release</em> got its own parser. Remember this one.</td></tr>
+      <tr><td>FunctionGemma</td><td class="mono">&lt;start_function_call&gt;&#8230;</td><td><span class="mono">functiongemma</span></td><td>Designed to be fine-tuned per task</td></tr>
+      <tr><td>GLM 4.5 / 4.7</td><td class="mono">family-specific</td><td><span class="mono">glm45</span>, <span class="mono">glm47</span></td><td>Two flags for two minor versions</td></tr>
+      <tr><td>Kimi K2, Granite, xLAM, Jamba, InternLM, Hunyuan, Cohere, Olmo 3, Apertus, LongCat&#8230;</td><td class="mono">&#8212;</td><td class="mono">one each</td><td>vLLM ships <strong>20+</strong> distinct tool-call parsers</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="box key">
+    <div class="lab">The argument the table makes</div>
+    <p>There are more than twenty parsers because there is no standard &#8212; and three rows show the problem is sharper than "one parser per vendor." <strong>Qwen3-Coder needs a different parser from Qwen3. DeepSeek V3.1 needs a different parser from V3. GLM 4.7 needs a different parser from 4.5.</strong> The dialect is not a property of the vendor, or even of the model. It is a property of <em>the checkpoint</em>.</p>
+    <p>Which means the unit of your contract is not "we use Qwen." It is the exact revision. If you are serving from a floating tag, the format can change underneath you without a deploy on your side &#8212; the same incident with nobody to blame at all.</p>
+  </div>
+
+  <h3>Why every vendor picked a different one</h3>
+  <p>Not carelessness. The tool-call format is taught to the model during mid-training, so it has to be chosen before anyone knows which convention will win, and it has to tokenise well under that model's own tokenizer &#8212; a markup that costs three tokens on one vocabulary can cost nine on another. It also has to be unambiguous against whatever else the model is trained to emit, which for reasoning models now includes thinking blocks. By the time a de facto standard emerges, several hundred million dollars of training runs are already committed to the alternatives. This is a coordination failure with real economics behind it, and it is not going away on the timescale of your deploy.</p>
+</section>
+
+<section class="part">
+  <div class="parthead"><div class="pnum">05</div><h2>Why it was silent &#8212; three independent layers of quiet</h2></div>
+  <p class="lede">The newsletter calls this "the silent failure." It is worth pulling apart, because it is silent three separate times, and each silence needs a different countermeasure. Getting this section right is what makes the answer sound senior.</p>
+
+  <div class="tw">
+  <table>
+    <thead><tr><th>Silence</th><th>Why nothing fired</th><th>What would have caught it</th></tr></thead>
+    <tbody>
+      <tr><td>The parser did not raise</td><td>It is an extractor. Finding no tool call is a valid, expected result &#8212; the model is allowed to answer in prose.</td><td>Nothing, at this layer. The parser lacks the information. <em>Say this explicitly.</em></td></tr>
+      <tr><td>The loop did not raise</td><td><code>tool_calls == []</code> plus <code>finish_reason: "stop"</code> is exactly what a finished answer looks like. The loop's logic is correct.</td><td>A strict mode: if tools were offered and content matches tool-call markup, treat it as an error.</td></tr>
+      <tr><td>The dashboards stayed green</td><td>Requests succeeded, latency <em>improved</em> (one turn instead of twelve), error rate was zero, token spend dropped. Every SLI moved the right way.</td><td>A tool-call rate SLI per model revision. Nothing else in a normal dashboard can see this.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="box warn">
+    <div class="lab">The cruellest detail</div>
+    <p>Your latency and cost graphs <em>improved</em>. An agent that used to make twelve tool calls now makes zero, returns in one turn, and burns a fraction of the tokens. If anybody was watching a cost dashboard that week, the model swap looked like a spectacular success. The failure disguises itself as the win you deployed it for &#8212; which is why "we'd have noticed" is not a defence, and why the detection has to be a specific assertion rather than general vigilance.</p>
+  </div>
+
+  <h3>And offline evals miss it too</h3>
+  <p>The standard defence is "our eval suite would catch a regression." Usually not, for three reasons. Most eval harnesses score the <em>final text</em>, and the agent still produces final text. Many benchmark tasks are partially answerable from parametric knowledge, so a tool-less answer can still score non-zero &#8212; sometimes well. And a good number of eval harnesses do their own prompt rendering, so they may not even be exercising the template and parser path that production uses. An eval that does not assert on tool invocation cannot see a tool-invocation bug.</p>
+
+  <div class="plain">
+    <b>The same bug you have already met</b>
+    <p>This is <strong>mojibake</strong>. A document encoded in UTF-8 read as Latin-1 does not throw &#8212; it produces text. Wrong text, legal text. The bytes were fine, the writer was fine, the reader was fine <em>by its own rules</em>; only the agreement between them was missing. Nobody fixes mojibake by improving the writer. You fix it by declaring the encoding and failing when it is absent. Everything in section 08 is that move, applied to tool calls.</p>
+  </div>
+</section>
+
+<section class="part">
+  <div class="parthead"><div class="pnum">06</div><h2>The compounding bug: the chat template trap</h2></div>
+  <p class="lede">The parser mismatch is one incident seen twice. This is a genuinely separate failure, and it is the one that makes you blame the model a second time &#8212; with data that appears to support you.</p>
+
+  <div class="plain">
+    <b>In plain words</b>
+    <p>If you write the prompt yourself instead of letting the model's own template write it, the model is now reading a document laid out in a format it has never seen. It will still try. It will do noticeably worse. And this time the degradation is real, so the graph agrees with your wrong conclusion.</p>
+  </div>
+
+  <p>Instruction-tuned models are trained on one specific prompt layout, and reliability drops when the prompt at inference belongs to a different distribution from the one used in fine-tuning. This is not a small effect. Measured on structured-output validity, simply applying the model's chat format rather than a raw string moves the numbers a long way:</p>
+
+  <figure>
+    <div class="chart">
+      <div class="rl">Llama-3.1 &#8212; raw string</div>
+      <div class="trk"><i style="width:62.2%"></i></div>
+      <div class="vl">0.622</div>
+      <div class="rl">Llama-3.1 &#8212; chat format</div>
+      <div class="trk"><i class="g" style="width:78.1%"></i></div>
+      <div class="vl">0.781</div>
+      <div class="rl">Llama-3.2 &#8212; raw string</div>
+      <div class="trk"><i style="width:32.1%"></i></div>
+      <div class="vl">0.321</div>
+      <div class="rl">Llama-3.2 &#8212; chat format</div>
+      <div class="trk"><i class="g" style="width:55.1%"></i></div>
+      <div class="vl">0.551</div>
+      <div class="rl">Gemma &#8212; raw string</div>
+      <div class="trk"><i style="width:28.7%"></i></div>
+      <div class="vl">0.287</div>
+      <div class="rl">Gemma &#8212; chat format</div>
+      <div class="trk"><i class="g" style="width:57.6%"></i></div>
+      <div class="vl">0.576</div>
+      <div class="axis"><b>0</b><b>0.25</b><b>0.50</b><b>0.75</b><b>1.0</b></div>
+    </div>
+    <figcaption>Output validity with and without the model's own chat format, from a Hugging Face evaluation write-up. Gemma roughly doubles; Llama-3.2 gains 23 points. Read it as a floor rather than a headline &#8212; the point is not the exact figures but that prompt layout moves a model's measured competence by tens of points, so "the new model is worse" is a claim you cannot make until the template is right.</figcaption>
+  </figure>
+
+  <div class="box key">
+    <div class="lab">Why this is the dangerous one</div>
+    <p>The parser bug produces a symptom that <em>looks like</em> a model problem. The template bug produces an actual model problem &#8212; lower quality, worse instruction-following, more malformed arguments &#8212; caused entirely by you. If you have both at once, and most teams who hand-rolled prompts do, then you run a comparison, observe that the new model really is worse on your harness, and rationally conclude you should roll back. <strong>Your experiment was sound. Your instrument was broken.</strong></p>
+  </div>
+
+  <h3>The rule, and the one legitimate exception</h3>
+  <p>Render every prompt with <code>tokenizer.apply_chat_template(messages, tools=tools, add_generation_prompt=True)</code>, or let the serving stack do it, and never with a hand-built f-string. The exception is when you have deliberately fine-tuned on your own format &#8212; in which case the format you trained on and the template you serve with must be the same artifact, checked into the same repo, versioned together. If they can drift apart, they will. <a href="#f9">F9</a>.</p>
+</section>
+
+<section class="part">
+  <div class="parthead"><div class="pnum">07</div><h2>Ten minutes to a diagnosis</h2></div>
+  <p class="lede">If the interviewer says "okay, you are on call and it is happening right now" &#8212; this is the answer. Four checks, in this order, cheapest first, each one cutting the space in half.</p>
+
+  <div class="tw">
+  <table>
+    <thead><tr><th>#</th><th>Check</th><th>How</th><th>What it tells you</th></tr></thead>
+    <tbody>
+      <tr><td class="num">1</td><td>Is the call in <code>content</code>?</td><td>Grep raw responses for <code>&lt;tool_call&gt;</code>, <code>[TOOL_CALLS]</code>, <code>&lt;|python_tag|&gt;</code>, <code>&lt;function_call</code>, <code>&lt;tools&gt;</code>.</td><td><strong>A hit ends the investigation.</strong> The model called the tool; the parser did not hear it. Confirms A.</td></tr>
+      <tr><td class="num">2</td><td>What is the <code>finish_reason</code> mix?</td><td>Group by model revision over the deploy boundary.</td><td>If <code>tool_calls</code> went to zero and <code>stop</code> absorbed it at the exact deploy timestamp, this is configuration, not capability.</td></tr>
+      <tr><td class="num">3</td><td>What prompt actually went in?</td><td>Log the fully rendered prompt string, or diff your builder's output against <code>apply_chat_template</code>.</td><td>A diff here means you also have C, and any quality comparison you have run so far is void.</td></tr>
+      <tr><td class="num">4</td><td>Does the right parser fix it?</td><td>Replay one captured prompt against the same model with the family-matched parser.</td><td>A parsed <code>tool_calls</code> on the identical input is the clean proof. Now you have a regression test, not just a fix.</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="box warn">
+    <div class="lab">If check 1 comes back empty</div>
+    <p>Then the model genuinely is not emitting calls, and you have a different problem &#8212; which is a good thing to volunteer unprompted, because it shows you are diagnosing rather than pattern-matching. The branches worth naming: tool definitions are missing from the rendered prompt entirely (a template that ignores <code>tools</code>, or a serving flag like <code>--enable-auto-tool-choice</code> that was never set); <code>tool_choice</code> is being dropped by an adapter; the schema uses a construct the new template renders badly; or the model is emitting its calls inside a reasoning block that is being stripped before the parser runs. That last one is common on reasoning models and catches people out.</p>
+  </div>
+
+  <div class="tree">
+    <div class="tcol bad">
+      <div class="th">What a junior engineer reports</div>
+      <p>"Qwen isn't calling tools. Success rate dropped from 94% to 61% after the swap. Recommend we revert to DeepSeek."</p>
+      <p>True sentences, useless conclusion. No mechanism, no measurement that separates the hypotheses, and the recommendation forecloses the cost saving permanently.</p>
+    </div>
+    <div class="tcol good">
+      <div class="th">What the same engineer reports a level up</div>
+      <p>"The model is emitting valid Hermes-style calls; our server is still running the DeepSeek parser, so they land in <code>content</code> and the loop exits early. Replaying yesterday's traffic with <code>--tool-call-parser hermes</code> recovers the calls on 100% of a 200-request sample. Separately, our prompt builder is hand-rolled, so the quality numbers from the swap are not trustworthy &#8212; I want to re-run them on templated prompts before we conclude anything about capability."</p>
+    </div>
+  </div>
+</section>
+
+<section class="part">
+  <div class="parthead"><div class="pnum">08</div><h2>The fix: a versioned contract between model and harness</h2></div>
+  <p class="lede">Five controls. As with any real hardening story, the part that proves you have shipped it is knowing what each one does <em>not</em> cover &#8212; so each step below carries both halves.</p>
+
+  <div class="steps">
+    <div class="step">
+      <div>
+        <h4>Render with the model's own chat template. Always.</h4>
+        <p>Call <code>apply_chat_template(messages, tools=tools, add_generation_prompt=True)</code>, or hand rendering to the serving stack entirely. Delete every hand-built prompt string in the repo, including the "temporary" one in the eval harness &#8212; especially that one, because it is the reason your offline numbers disagree with prod.</p>
+        <div class="stops">
+          <div class="ys"><b>Catches</b><p>Distribution mismatch, degraded instruction-following, malformed arguments, and the false "the new model is worse" reading that follows from all three.</p></div>
+          <div class="no"><b>Does not catch</b><p>Anything on the way back. A perfectly rendered prompt still gets parsed by whatever parser is configured.</p></div>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div>
+        <h4>Pin the parser to the model family, and fail closed at startup.</h4>
+        <p>The (model revision &#8594; parser) mapping belongs in config, next to the model id, reviewed by the same person who changes the model id. If a model is deployed with no mapping, the service should <strong>refuse to boot</strong>. The default in most stacks is fail-open: no parser means everything becomes content, quietly. That default is the bug, and saying so is a strong beat in the answer.</p>
+        <div class="stops">
+          <div class="ys"><b>Catches</b><p>The entire class of "we added a model and forgot" &#8212; which is how this happens the second and third time.</p></div>
+          <div class="no"><b>Does not catch</b><p>A mapping that exists and is wrong, or right for the family but broken on this specific checkpoint. Configuration present is not configuration correct.</p></div>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div>
+        <h4>A blocking CI canary: a prompt that must produce a parsed tool call.</h4>
+        <p>This is the load-bearing control, because it is the only place in the system that knows the right answer. Send an unambiguous single-tool request through the <em>real</em> serving path and assert four things: at least one entry in <code>tool_calls</code>; the function name is the expected one; the arguments parse as JSON and satisfy the schema; and <code>finish_reason</code> is <code>tool_calls</code>. Pair it with a <strong>negative canary</strong> &#8212; a prompt that must <em>not</em> produce a call &#8212; so an over-eager parser cannot pass by inventing calls. Run both against every model revision, and block the deploy on failure.</p>
+        <div class="stops">
+          <div class="ys"><b>Catches</b><p>Parser mismatch, template drift, adapter regressions, a vendor changing the format under a floating tag. All of it, before users see it.</p></div>
+          <div class="no"><b>Does not catch</b><p>Format drift that appears only on long contexts, multi-turn state, or parallel calls &#8212; your canary is one easy prompt. Widen it as you find gaps.</p></div>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div>
+        <h4>A runtime alarm on tool-call markup appearing in <code>content</code>.</h4>
+        <p>In production you have no ground truth, so use a proxy oracle: if tools were offered and the returned <code>content</code> matches a union regex of known tool-call markup, that is a parse failure &#8212; page on it. Alongside it, track <code>tool_call_rate</code> (responses with at least one parsed call &#247; requests where tools were offered), sliced by model revision. That single ratio is the one metric that would have caught this incident on day one, and it is missing from almost every agent dashboard.</p>
+        <div class="stops">
+          <div class="ys"><b>Catches</b><p>Live dialect mismatches within minutes, including for models you have never tested, and any silent drift a canary never reaches.</p></div>
+          <div class="no"><b>Does not catch</b><p>A dialect whose markup is not in your regex. Treat the alarm as a net, not a proof &#8212; the canary is the proof.</p></div>
+        </div>
+      </div>
+    </div>
+    <div class="step">
+      <div>
+        <h4>Version the triple, and log it on every request.</h4>
+        <p>The contract has three parts and they are one object: <strong>model id + revision SHA</strong>, <strong>hash of the chat template</strong>, <strong>parser identifier</strong>. Pin the revision rather than a floating tag, hash the template at boot, and stamp all three onto every request and every span &#8212; the OpenTelemetry GenAI conventions give you a standard place to put them. Then a change to any one of the three is a breaking change to the harness, visible in a diff, gated like a schema migration. Because that is what it is.</p>
+        <div class="stops">
+          <div class="ys"><b>Catches</b><p>Silent upstream changes, and it turns "when did this start?" from an archaeology project into a group-by.</p></div>
+          <div class="no"><b>Does not catch</b><p>Nothing by itself &#8212; it is the bookkeeping that makes the other four diagnosable. Ship it, and do not claim it as a control on its own.</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="box key">
+    <div class="lab">The sixth thing, which is not a control</div>
+    <p><strong>Log the raw generated text, always, before parsing.</strong> Not a control, a precondition: every diagnosis in section 07 is impossible without it, and the moment you strip the pre-parse output for token-cost reasons you have made this class of bug permanently invisible. Sample it if the volume hurts, but never drop it entirely.</p>
+  </div>
+
+  <div class="box warn">
+    <div class="lab">Be liberal in what you accept &#8212; not here</div>
+    <p>Postel's law is the wrong instinct for an agent harness, and it is worth saying so if the interviewer reaches for it. "Accept anything that might be a tool call" is how you end up with a parser that quietly accepts <em>nothing</em>. When tools were offered, the harness should be strict: a response that neither parses as a tool call nor reads as clean prose is an error, not content. The tolerance belongs in a bounded repair step you can measure (<a href="#f11">F11</a>), not in a shrug.</p>
+  </div>
+</section>
+
+<section class="part">
+  <div class="parthead"><div class="pnum">09</div><h2>How you would prove it &#8212; and prove the fix</h2></div>
+  <p class="lede">The half most candidates skip. Anyone can propose a fix; the separator is being able to say what you would measure, what number would change, and what result would tell you that you were wrong.</p>
+
+  <h3>The instruments</h3>
+  <div class="tw">
+  <table>
+    <thead><tr><th>Metric</th><th>Definition</th><th>Reads as</th><th>Why it matters here</th></tr></thead>
+    <tbody>
+      <tr><td>Tool-call rate</td><td>responses with &#8805;1 parsed call &#247; requests with tools offered</td><td class="num">0.00 after swap</td><td>The single metric that catches this incident on day one</td></tr>
+      <tr><td>Content-markup rate</td><td>responses whose <code>content</code> matches known tool-call markup</td><td class="num">&#8594; near 1.0</td><td>The proxy oracle. Non-zero is always a bug.</td></tr>
+      <tr><td>Finish-reason mix</td><td>share of <code>stop</code> vs <code>tool_calls</code>, by revision</td><td class="num">step change</td><td>Locates the change to a deploy timestamp, not a week</td></tr>
+      <tr><td>Turns per task</td><td>model calls until the loop exits</td><td class="dn">12 &#8594; 1</td><td>Looks like a win. Pair it with task success or it lies to you.</td></tr>
+      <tr><td>Task success</td><td>on a golden set with verifiable answers</td><td class="dn">the real drop</td><td>The only outcome metric; everything above is a leading indicator of it</td></tr>
+      <tr><td>Parse-repair rate</td><td>calls recovered by a repair pass &#247; calls attempted</td><td class="flat">baseline drift</td><td>Rising repair rate is early warning of format drift</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>The experiments, in the order you would run them</h3>
+  <ol class="beats">
+    <li><strong>The replay.</strong> Take 200 captured prompts from the broken window and replay them against the same model revision with the family-matched parser. Everything but the parser is held constant. If tool-call rate goes from 0 to near-baseline, the diagnosis is proven and the hypothesis "the model is worse" is dead &#8212; because the model never changed between the two arms.</li>
+    <li><strong>The template A/B.</strong> Same model, same parser, two prompt renderings: your hand-rolled builder versus <code>apply_chat_template</code>. Measure argument validity and task success. This isolates bug C from bug A, and it is the experiment that tells you whether your earlier model comparison was measuring anything at all.</li>
+    <li><strong>The capability comparison &#8212; last, not first.</strong> Only now, with template and parser correct on both arms, compare DeepSeek against Qwen on a golden set. Score tool calls with a deterministic AST match against a reference invocation, the way BFCL does, rather than string equality or an LLM judge &#8212; string equality punishes harmless argument ordering, and a judge adds variance to the exact place you need precision.</li>
+    <li><strong>The regression lock.</strong> Whatever the replay recovered becomes the canary set. A bug you fixed without leaving a test behind is a bug you have scheduled for re-release.</li>
+  </ol>
+
+  <div class="box key">
+    <div class="lab">The falsifier &#8212; offer it before you are asked</div>
+    <p>"If I replay the identical prompts with only the parser changed and the tool-call rate stays at zero, my diagnosis is wrong and it is not a dialect problem. Then I would check whether the tool definitions are reaching the rendered prompt at all, and whether the calls are being emitted inside a reasoning block that gets stripped before parsing."</p>
+    <p>Volunteering the condition under which you would be wrong is the cheapest seniority signal available in any interview, and this question gives you an unusually clean one.</p>
+  </div>
+</section>
+
+<section class="part">
+  <div class="parthead"><div class="pnum">10</div><h2>Twelve follow-ups, with answers</h2></div>
+  <p class="lede">These are where the interview actually goes. Each answer is written as something you could say, not as notes to yourself.</p>
+
+  <div class="fu" id="f1">
+    <div class="fuq"><b>F1</b><p>You have prod logs and ten minutes. No repro, no staging. Find it.</p></div>
+    <div class="fua">
+      <p>"Three queries. First, group <code>finish_reason</code> by model revision across the deploy boundary &#8212; if <code>tool_calls</code> collapses into <code>stop</code> at a timestamp, I have the change window and it is configuration, not drift. Second, regex the <code>content</code> field for known markup; a hit tells me the model is still calling tools and the parser is deaf, which is the whole diagnosis. Third, check whether we are logging the rendered prompt at all &#8212; if we are not, that is the first thing I add afterwards, because without it the next incident is equally blind."</p>
+      <p>"If I am fortunate the first query is enough, because the failure is a step function at a deploy, not a slope."</p>
+    </div>
+  </div>
+
+  <div class="fu" id="f2">
+    <div class="fuq"><b>F2</b><p>You need to serve a brand-new model and your stack has no parser for it. What do you do?</p></div>
+    <div class="fua">
+      <p>"First, fail closed rather than serve it unparsed &#8212; an unmapped model should not boot, because serving it silently is strictly worse than not serving it. Then I write the parser, and the good news is I do not have to guess the format: <strong>the chat template is the specification.</strong> I render an assistant turn that contains a tool call through the model's own template and read what comes out. That gives me the exact markup the model was trained to produce."</p>
+      <p>"Then a round-trip test: template-render a call, parse it back, assert I recover the original name and arguments. That test is cheap, it is derived from the vendor's own artifact, and it keeps working when they update the template. If I need something in production before the parser is ready, a generic pythonic or regex extractor behind a loud feature flag is acceptable for days, not months."</p>
+    </div>
+  </div>
+
+  <div class="fu" id="f3">
+    <div class="fuq"><b>F3</b><p>Isn't this what structured outputs and constrained decoding are for? Just force the grammar.</p></div>
+    <div class="fua">
+      <p>"They solve a neighbouring problem, not this one. Constrained decoding &#8212; XGrammar is the default in vLLM and SGLang now &#8212; guarantees that generated tokens satisfy a grammar, and it is genuinely effective: unconstrained schema compliance sits around 90&#8211;94% and guided decoding pushes it past 96%, as high as 98.2%. But that is a guarantee about the <em>shape of the arguments</em>. My failure was that the harness never learned a call happened at all. You can constrain a model into perfect JSON and still drop it into <code>content</code> because nothing recognised the wrapper."</p>
+      <p>"There is also a cost worth naming: forcing a grammar the model was not trained to emit fights the distribution. You get valid syntax and worse decisions. So I would use constrained decoding to harden argument validity <em>after</em> the parser and template are matched &#8212; complement, not substitute. It is a good follow-up precisely because the confident wrong answer is 'yes, that fixes it.'"</p>
+    </div>
+  </div>
+
+  <div class="fu" id="f4">
+    <div class="fuq"><b>F4</b><p>What exactly is in this "versioned contract"? Make it concrete.</p></div>
+    <div class="fua">
+      <p>"Three fields, checked into config together, treated as one unit: the model id with a pinned revision SHA rather than a floating tag; a hash of the chat template taken at boot; and the parser identifier. On every request and every span I stamp all three &#8212; the OpenTelemetry GenAI conventions give a standard home for model and finish-reason attributes, so it rides existing plumbing rather than becoming a bespoke logging project."</p>
+      <p>"The point of the hash is that it catches the case with no deploy on my side: a vendor republishes <code>tokenizer_config.json</code> under the same tag and the layout moves underneath me. With a pinned SHA that cannot happen; with a hash, if it somehow does, the service notices instead of the users. And because the three fields live together, changing the model id in a pull request visibly touches the contract, which is the social half of the fix &#8212; a reviewer sees a format change rather than a one-line config tweak."</p>
+    </div>
+  </div>
+
+  <div class="fu" id="f5">
+    <div class="fuq"><b>F5</b><p>Write me the canary test. What does it assert?</p></div>
+    <div class="fua">
+      <p>"A positive and a negative, both through the real serving path &#8212; not a mock, because the whole point is to exercise template and parser together."</p>
+      <p><strong>Positive:</strong> one unambiguous single-tool request, for instance 'What is the price of SKU A17 in Japan?' with a single <code>get_price(sku, country)</code> tool. Assert four things: <code>len(tool_calls) &#8805; 1</code>; the name equals <code>get_price</code>; the arguments parse as JSON and validate against the schema; and <code>finish_reason == "tool_calls"</code>. Deliberately not asserting the argument <em>values</em>, so the test fails on format breakage rather than on model variance.</p>
+      <p><strong>Negative:</strong> 'Say hello.' Assert <code>tool_calls</code> is empty and <code>content</code> matches no tool-call markup. Without this, a sloppy parser that hallucinates calls passes your suite, and an over-eager regex extractor is a real thing people ship.</p>
+      <p>"Both run per model revision, blocking, at temperature zero. And I would add a third tier over time as I find gaps &#8212; parallel calls, a multi-turn tool-result round trip, one long-context case &#8212; because the single easy prompt is a floor, not a guarantee."</p>
+    </div>
+  </div>
+
+  <div class="fu" id="f6">
+    <div class="fuq"><b>F6</b><p>We use a hosted API, not vLLM. Does any of this apply?</p></div>
+    <div class="fua">
+      <p>"The parser stops being yours, so stage 4 is the provider's problem and is usually right. But the failure does not disappear &#8212; it moves up a layer into the adapter. Anything that translates between provider shapes, a gateway or a routing library, can drop <code>tool_choice</code>, flatten parallel calls into one, coerce an integer argument to a string, or silently discard a schema construct the target provider does not support. All of those are silent by exactly the same mechanism, because the adapter is also an extractor."</p>
+      <p>"There are provider-side dialect differences too: strict-schema modes, whether parallel calls are supported, how a tool result is represented on the way back. So the contract is the same and only the fields change &#8212; provider plus model plus adapter version, and the same canary. If anything, I care <em>more</em> about the canary here, because I cannot read the parser's source when I want to know what it does."</p>
+    </div>
+  </div>
+
+  <div class="fu" id="f7">
+    <div class="fuq"><b>F7</b><p>Your eval suite ran green through all of this. Why?</p></div>
+    <div class="fua">
+      <p>"Because it scored the wrong object. Most suites grade the final text, and the agent still produced final text. Some tasks are partially answerable from parametric knowledge, so a tool-less answer can score non-zero and sometimes well &#8212; a currency question does not always need a live rate to look plausible. And many eval harnesses render prompts their own way, so they may not exercise the template and parser path production uses at all, which means they were never testing the thing that broke."</p>
+      <p>"The correction is that an agent eval must assert on <em>invocation</em>, not just outcome: which tools were called, with what arguments, in what order. That is the axis BFCL evaluates on, with a deterministic AST matcher against a reference invocation. If my suite cannot express 'this task must have called <code>get_price</code> four times', it cannot detect a tool-calling regression by construction."</p>
+    </div>
+  </div>
+
+  <div class="fu" id="f8">
+    <div class="fuq"><b>F8</b><p>You are streaming responses. Does that change anything?</p></div>
+    <div class="fua">
+      <p>"It makes it worse, and it is where the real bugs are. A streaming tool-call parser is a state machine reassembling markup across chunk boundaries &#8212; a tag can split mid-token, arguments arrive as partial JSON, and the parser must decide when a call is complete without having seen the end. These parsers are empirically the buggier path; vLLM has open issues on streaming tool-call handling specifically."</p>
+      <p>"So two things. I assert the contract on the non-streaming path in CI, where the surface is smallest and the failure is unambiguous. Then I add a reconciliation test: run the same prompt streamed and unstreamed, assemble the streamed deltas, and assert the two <code>tool_calls</code> structures are identical. That catches the boundary bugs without making my primary contract test depend on the flakiest component in the stack."</p>
+    </div>
+  </div>
+
+  <div class="fu" id="f9">
+    <div class="fuq"><b>F9</b><p>We fine-tuned this model ourselves. Does the template still matter?</p></div>
+    <div class="fua">
+      <p>"It matters more, because now there are two ways to be wrong. Fine-tuning teaches a format &#8212; whatever format your training data was rendered in. If you trained on ChatML and serve through a template that emits something else, you have manufactured a distribution mismatch in-house and it will show up as degraded quality that no upstream vendor can explain to you."</p>
+      <p>"So the rule is that the rendering used to build training data and the template used to serve must be the <em>same artifact</em>, versioned in the same repo, applied by the same code path. If they can drift, they will, and the drift is invisible: the model still answers, just worse. Concretely I would make the data-prep script import the serving template rather than reimplement it, and add a test asserting a training example round-trips through the serving path unchanged."</p>
+    </div>
+  </div>
+
+  <div class="fu" id="f10">
+    <div class="fuq"><b>F10</b><p>You route between three models for cost. How do you architect so this cannot happen?</p></div>
+    <div class="fua">
+      <p>"Template and parser become per-route properties rather than global configuration &#8212; that is the whole design. Each route carries its own contract triple, and the router's only job is to pick a route, never to know about formats. Behind the route I normalise into one internal tool-call type as early as possible, so everything downstream &#8212; the loop, the executor, the traces &#8212; sees a single shape regardless of which model produced it."</p>
+      <p>"Then the canary runs per route, not once, and the deploy gate is the conjunction: no route ships without a green contract test. I would also alarm on tool-call rate sliced by route, because with routing the classic failure is partial &#8212; the cheap model gets the bug, it handles 15% of traffic, and the aggregate barely moves. An aggregate metric over a heterogeneous fleet is how you hide exactly this bug from yourself."</p>
+    </div>
+  </div>
+
+  <div class="fu" id="f11">
+    <div class="fuq"><b>F11</b><p>Parser matches, template is right, and 2% of calls still come back unparsed. Now what?</p></div>
+    <div class="fua">
+      <p>"That 2% is real and expected &#8212; Qwen's own documentation says outright that the model is not guaranteed to follow the protocol and that production code should have countermeasures in place. So I treat it as a measured error budget rather than a mystery."</p>
+      <p>"Three moves. <strong>Log the raw text</strong>, always, or none of the rest is possible. <strong>Bounded repair</strong>: one deterministic pass that fixes the known failure shapes &#8212; a missing closing tag, a trailing comma, arguments emitted as a JSON string instead of an object &#8212; and if repair fails, one re-ask with the parse error fed back, then give up and surface a real error. Never an unbounded retry loop; that is how a 2% parse problem becomes a latency incident. <strong>Measure the repair rate</strong> as a first-class metric, because a rising repair rate is the earliest possible warning that a checkpoint or template has drifted, well before the canary would trip."</p>
+    </div>
+  </div>
+
+  <div class="fu" id="f12">
+    <div class="fuq"><b>F12</b><p>Suppose you fix all of it and Qwen genuinely is worse. Were you just defending the new model?</p></div>
+    <div class="fua">
+      <p>"No &#8212; I was defending the measurement. 'The model is worse' is a perfectly good conclusion; it just cannot be the <em>first</em> one, because until the template and parser are correct, my instrument is broken and every number I have is uninterpretable. Order matters: fix the harness, then compare."</p>
+      <p>"And when I do compare, I compare on invocation rather than prose. A golden set of tasks with reference tool-call sequences, scored by deterministic AST match &#8212; did it call the right function with arguments equivalent to the reference &#8212; which is how BFCL keeps its results reproducible without an LLM judge. If Qwen loses that on a matched harness, then it loses, and I will say so with the numbers attached."</p>
+      <p>"The thing I would push back on is reverting <em>before</em> that test. Not because I like the model, but because the conclusion 'swaps are dangerous' is far more expensive than one bad swap &#8212; it is how a team ends up permanently unable to take a cost win."</p>
+    </div>
+  </div>
+</section>
+
+<section class="part">
+  <div class="parthead"><div class="pnum">11</div><h2>Your evidence</h2></div>
+  <p class="lede">The one block on this page that is not finished. Fill it in and the answer stops being an argument you can reproduce and becomes one only you can give.</p>
+
+<div class="evidence" data-evidence-for="0005">
+  <header>
+    <span class="elab">Your numbers, not mine</span>
+    <span class="hint">saved in this browser as you type</span>
+  </header>
+  <div class="ebody">
+    <p>Two of these four rows you can answer in the next ten minutes, from your own dashboards. That is unusual for an interview question, and it is why this one is worth filling in before the round rather than after it.</p>
+    <p>If the answer to row 2 is &#8220;no&#8221;, write &#8220;no&#8221;. It is the most useful thing on this page.</p>
+    <div class="rows">
+      <div class="row">
+        <span class="ran">The swap you have done, or the one you are being asked to do</span>
+        <span class="field"><label for="e5-models">models</label><input type="text" id="e5-models" data-field="models" placeholder="e.g. GPT-4o -> Qwen3-32B"></span>
+        <span class="field"><label for="e5-stack">the stack</label><input type="text" id="e5-stack" data-field="stack" placeholder="e.g. vLLM, hermes parser"></span>
+        <span class="why-row"><label for="e5-owner">Who owns the tool-call parser in your stack, and did anyone check?</label><textarea id="e5-owner" data-field="owner" placeholder="Self-hosted means it is yours and it is a flag. Hosted means it is the provider&#8217;s and your exposure moves into the adapter &#8212; a gateway or routing library that can drop tool_choice, flatten parallel calls, or coerce argument types. Say which world you are in, and whether the mapping was ever reviewed by a human."></textarea></span>
+      </div>
+      <div class="row">
+        <span class="ran">What you can see today &#8212; the two things that make this diagnosable at all</span>
+        <span class="field"><label for="e5-rate">tool-call rate</label><input type="text" id="e5-rate" data-field="rate" placeholder="e.g. not measured"></span>
+        <span class="field"><label for="e5-raw">raw text logged</label><input type="text" id="e5-raw" data-field="raw" placeholder="e.g. no - stripped before storage"></span>
+        <span class="why-row"><label for="e5-diagnose">Could you diagnose this from production logs right now, without shipping anything?</label><textarea id="e5-diagnose" data-field="diagnose" placeholder="Walk the three queries: finish_reason grouped by model revision across the deploy boundary, a regex over content for tool-call markup, and whether the rendered prompt is logged at all. Then say honestly which of the three you could run today. Two out of three is common. Zero out of three is also common, and worth admitting."></textarea></span>
+      </div>
+      <div class="row">
+        <span class="ran">The canary: the one test that would have caught this before a user did</span>
+        <span class="field"><label for="e5-canary">what it is</label><input type="text" id="e5-canary" data-field="canary" placeholder="e.g. 2 prompts, blocking, per revision"></span>
+        <span class="field"><label for="e5-caught">what it caught</label><input type="text" id="e5-caught" data-field="caught" placeholder="e.g. a template change in August"></span>
+        <span class="why-row"><label for="e5-asserts">What does it assert, exactly?</label><textarea id="e5-asserts" data-field="asserts" placeholder="Four things on the positive case: at least one parsed tool call, the right function name, arguments that parse and validate, and finish_reason of tool_calls. Plus a negative canary that must produce no call. If you do not have one yet, write what you would assert &#8212; the specificity is the signal."></textarea></span>
+      </div>
+      <div class="row">
+        <span class="ran">The decision: what the contract costs you in velocity</span>
+        <span class="field"><label for="e5-contract">the contract</label><input type="text" id="e5-contract" data-field="contract" placeholder="e.g. model SHA + template hash + parser id"></span>
+        <span class="field"><label for="e5-vcost">what it cost</label><input type="text" id="e5-vcost" data-field="vcost" placeholder="e.g. 3 days, slower model upgrades"></span>
+        <span class="why-row"><label for="e5-pushback">What did fail-closed cost you, and did anyone push back?</label><textarea id="e5-pushback" data-field="pushback" placeholder="Refusing to boot on an unmapped model is the right default and it will annoy somebody the first time it fires. Say what it blocked, who complained, and why you kept it &#8212; or if you traded it for something weaker, say what and why. The trade is more interesting than the principle."></textarea></span>
+      </div>
+    </div>
+    <div class="earned">
+      <span class="elab">The answer this guide earns</span>
+      <p>&#8220;We swapped <span data-fill="models" class="placeholder">[row 1]</span> on <span data-fill="stack" class="placeholder">[row 1]</span>. What made this findable was <span data-fill="rate" class="placeholder">[row 2]</span>, and whether we log <span data-fill="raw" class="placeholder">[row 2]</span> &#8212; <span data-fill="diagnose" class="placeholder">[row 2]</span>. The gate now is <span data-fill="canary" class="placeholder">[row 3]</span>, plus a versioned contract of <span data-fill="contract" class="placeholder">[row 4]</span>. It cost <span data-fill="vcost" class="placeholder">[row 4]</span>.&#8221;</p>
+      <p class="caveat">The follow-up is <em>&#8220;isn&#8217;t this what structured outputs solve?&#8221;</em> It is not &#8212; that constrains argument shape, not whether the harness heard a call at all. Say it before they finish asking.</p>
+    </div>
+  </div>
+</div>
+
+</section>
+
+
+<section class="part">
+  <div class="parthead"><div class="pnum">12</div><h2>Numbers, flags and literals worth carrying in</h2></div>
+  <p class="lede">Not to recite. To reach for when a claim needs weight &#8212; one concrete detail lands harder than three general ones.</p>
+
+  <div class="tw">
+  <table>
+    <thead><tr><th>Fact</th><th>Figure</th><th>Use it when</th></tr></thead>
+    <tbody>
+      <tr><td>Tool-call parsers shipped by vLLM</td><td class="num">20+</td><td>Proving there is no standard. The count <em>is</em> the argument.</td></tr>
+      <tr><td>Parsers for one vendor's variants</td><td class="num">deepseek_v3 / deepseek_v31 &#183; glm45 / glm47 &#183; hermes / qwen3_xml</td><td>Showing the dialect belongs to the checkpoint, not the vendor</td></tr>
+      <tr><td>Chat format vs raw string, output validity</td><td class="num">0.622 &#8594; 0.781 (Llama-3.1)</td><td>Arguing the template trap causes real, measurable degradation</td></tr>
+      <tr><td>Same, weaker models</td><td class="num">0.321 &#8594; 0.551 &#183; 0.287 &#8594; 0.576</td><td>Showing the effect grows as the model gets smaller</td></tr>
+      <tr><td>Schema compliance, unconstrained</td><td class="num">90&#8211;94%</td><td>Framing what constrained decoding buys &#8212; and does not</td></tr>
+      <tr><td>Schema compliance, guided decoding</td><td class="num">96&#8211;98.2%</td><td>Same &#8212; a real gain, on the wrong axis for this bug</td></tr>
+      <tr><td>XGrammar speedup over earlier grammar-constrained decoding</td><td class="num">up to 100&#215;</td><td>Answering "isn't constrained decoding slow?" &#8212; not any more</td></tr>
+      <tr><td>Mistral tool-call ID length</td><td class="num">exactly 9 digits</td><td>An example of how petty and real template coupling gets</td></tr>
+      <tr><td>Parallel tool calls</td><td class="num">Llama 3: no &#183; Llama 4: yes</td><td>Showing capability differences hide inside a "same schema" swap</td></tr>
+      <tr><td>BFCL v4 scoring</td><td class="num">deterministic AST match</td><td>Proposing how to compare models without an LLM judge</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>The flags</h3>
+  <div class="formula"><span class="cm"># the three that matter, and the failure mode of each</span>
+--enable-auto-tool-choice     <span class="cm"># unset &#8594; the model is never allowed to call tools at all</span>
+--tool-call-parser &lt;family&gt;   <span class="cm"># wrong value &#8594; calls land in content, silently. THIS incident.</span>
+--chat-template &lt;path&gt;        <span class="cm"># overriding the shipped template &#8594; the section 06 trap, by hand</span>
+
+<span class="cm"># the client-side rendering call you should never replace with an f-string</span>
+tokenizer.apply_chat_template(messages, tools=tools, add_generation_prompt=True)</div>
+
+  <h3>The markup, for the grep in section 07</h3>
+  <div class="formula">&lt;tool_call&gt;{"name": ..., "arguments": {...}}&lt;/tool_call&gt;     <span class="cm"># Hermes / Qwen</span>
+[TOOL_CALLS][{"name": ..., "arguments": {...}}]              <span class="cm"># Mistral</span>
+&lt;|python_tag|&gt;{"name": ..., "parameters": {...}}             <span class="cm"># Llama 3.1</span>
+[get_price(sku="A17", country="JP")]                         <span class="cm"># pythonic / Llama 4</span>
+&lt;start_function_call&gt;call:get_price{...}&lt;end_function_call&gt;  <span class="cm"># FunctionGemma</span>
+&lt;function_calls&gt;...&lt;/function_calls&gt;                         <span class="cm"># Qwen3-Coder</span></div>
+</section>
+
+<section class="part">
+  <div class="parthead"><div class="pnum">13</div><h2>Glossary</h2></div>
+  <p class="lede">Every term above, in one line each. If you cannot define these cold, the follow-ups will find it.</p>
+  <dl class="gloss">
+    <dt>Chat template</dt><dd>A Jinja template shipped in the model's <code>tokenizer_config.json</code> that flattens messages and tool definitions into the exact token string the model was trained to continue. Per-model, not a standard.</dd>
+    <dt>apply_chat_template</dt><dd>The tokenizer method that runs that template. Passing <code>tools=[...]</code> converts each function to a JSON schema and hands it to the template; some models select a dedicated <code>tool_use</code> variant when tools are present.</dd>
+    <dt>Tool-call parser</dt><dd>Server-side component that scans generated text for a family's tool-call markup and lifts it into the structured <code>tool_calls</code> field. An extractor, not a validator &#8212; which is why its failure is silent.</dd>
+    <dt>Mid-training</dt><dd>The stage between pre-training and post-training where capabilities like tool-call formatting are instilled. It is where a model's dialect is fixed, and why it cannot be prompted away.</dd>
+    <dt>Dialect</dt><dd>Informal name for a family's emitted tool-call markup. Property of a checkpoint, not a vendor: Qwen3 and Qwen3-Coder differ, as do DeepSeek V3 and V3.1.</dd>
+    <dt>finish_reason</dt><dd>Why generation stopped. <code>tool_calls</code> means a call was parsed; <code>stop</code> means a normal end. A dialect mismatch turns the first into the second with no other visible change.</dd>
+    <dt>Fail closed</dt><dd>Refusing to serve when configuration is missing, rather than serving degraded. Here: an unmapped (model, parser) pair should prevent boot. Most stacks default to fail-open.</dd>
+    <dt>Canary test</dt><dd>A known prompt with a known required outcome, run against the real serving path. The only component in the system that can know the model <em>meant</em> to call a tool, because it was told.</dd>
+    <dt>Proxy oracle</dt><dd>A runtime check standing in for ground truth you do not have in prod &#8212; here, "tool-call markup appearing in <code>content</code> is always a bug."</dd>
+    <dt>Constrained decoding</dt><dd>Restricting generation to tokens a grammar permits, so output satisfies a schema by construction. XGrammar is the default backend in vLLM and SGLang.</dd>
+    <dt>XGrammar</dt><dd>Splits the vocabulary into context-independent tokens, precomputed once, and context-dependent ones checked per step &#8212; which is how grammar-constrained decoding became near-free.</dd>
+    <dt>AST match</dt><dd>Comparing a predicted tool invocation to a reference by parsed structure rather than string equality. How BFCL stays deterministic and reproducible without an LLM judge.</dd>
+    <dt>BFCL</dt><dd>Berkeley Function Calling Leaderboard. v4 extends from single-call accuracy to agentic evaluation, scored with a deterministic AST matcher.</dd>
+    <dt>Tool-call rate</dt><dd>Responses with at least one parsed call divided by requests where tools were offered. The one SLI that makes this incident visible on day one.</dd>
+    <dt>Mojibake</dt><dd>Text corrupted by decoding bytes with the wrong character encoding. The oldest member of this bug family: correct writer, correct reader, missing agreement.</dd>
+    <dt>OTel GenAI conventions</dt><dd>OpenTelemetry's standard <code>gen_ai.*</code> span and metric attributes for model calls, tool execution and agent runs. Where your contract triple belongs.</dd>
+  </dl>
+</section>
+
+<section class="part">
+  <div class="parthead"><div class="pnum">14</div><h2>Sources</h2></div>
+  <p class="lede">Everything specific above traces to one of these. Worth a skim before the round &#8212; the vLLM parser list in particular, because the length of that list is the argument.</p>
+  <ul class="srcs">
+    <li><a href="https://docs.vllm.ai/en/stable/features/tool_calling/">vLLM &#8212; Tool Calling</a>. The full <code>--tool-call-parser</code> list, <code>--enable-auto-tool-choice</code>, and the per-family caveats: Mistral's 9-digit IDs, Llama 3's lack of parallel calls, the pythonic parser's prose restriction.</li>
+    <li><a href="https://qwen.readthedocs.io/en/latest/framework/function_call.html">Qwen &#8212; Function Calling</a>. That function calling "is essentially implemented using prompt engineering", that Qwen's shipped template carries Hermes-style tool use, and the explicit warning that protocol compliance is not guaranteed in production.</li>
+    <li><a href="https://huggingface.co/docs/transformers/chat_templating">Hugging Face &#8212; Chat templates</a> and <a href="https://huggingface.co/docs/transformers/v4.49.0/chat_template_tools_and_documents">Expanding chat templates with tools and documents</a>. How <code>tools=</code> becomes JSON schema inside the template, and the <code>tool_use</code> template variant.</li>
+    <li><a href="https://huggingface.co/blog/dfurman/evaluations-with-chat-formats">Evaluations with chat formats</a>. The validity figures used in section 06: Llama-3.1 0.622&#8594;0.781, Llama-3.2 0.321&#8594;0.551, Gemma 0.287&#8594;0.576.</li>
+    <li><a href="https://sebastianraschka.com/faq/docs/why-prompt-templates-matter.html">Why prompt templates matter for LLMs</a>. The distribution-mismatch argument behind the template trap.</li>
+    <li><a href="https://github.com/vllm-project/vllm/issues/29192">vLLM issue #29192</a>. The real incident: parser initialises correctly, <code>tool_calls</code> comes back empty, the call sits in <code>content</code> as <code>&lt;tools&gt;</code> XML, workaround is a hand-rolled regex.</li>
+    <li><a href="https://github.com/vllm-project/vllm/issues/21544">vLLM issue #21544</a>. Streaming tool-call parsing failures &#8212; the evidence behind <a href="#f8">F8</a>.</li>
+    <li><a href="https://www.bentoml.com/blog/structured-decoding-in-vllm-a-gentle-introduction">Structured decoding in vLLM</a> and <a href="https://developers.redhat.com/articles/2025/06/03/structured-outputs-vllm-guiding-ai-responses">Structured outputs in vLLM</a>. The 90&#8211;94% &#8594; 96&#8211;98.2% compliance figures and how guided decoding backends are selected.</li>
+    <li><a href="https://gorilla.cs.berkeley.edu/leaderboard.html">Berkeley Function Calling Leaderboard v4</a> and <a href="https://proceedings.mlr.press/v267/patil25a.html">the BFCL paper (ICML 2025)</a>. The deterministic AST matcher, and the move from single-call accuracy to agentic evaluation.</li>
+    <li><a href="https://opentelemetry.io/blog/2026/genai-observability/">OpenTelemetry &#8212; GenAI observability</a>. The <code>gen_ai.*</code> attributes, including finish reason and tool-execution spans, where the contract triple belongs.</li>
+  </ul>
+</section>
+
+<footer>Interview prep &#183; Tool-call dialects, chat templates &amp; harness contracts</footer>
+
+
+<script>
+/* evidence.js, inlined - each guide is a standalone published page, so it
+   cannot rely on a sibling asset file. Markup contract: every input and
+   textarea carries data-field; anything with data-fill="<field>" is replaced
+   by that field's value as it is typed. Guarded throughout: a private window
+   or blocked storage returns nothing and the block still reads correctly. */
+(function(){
+  "use strict";
+  var KEY = "prep:v1:evidence";
+  function read(){ try { var r = localStorage.getItem(KEY); return r ? JSON.parse(r) : {}; } catch (e) { return {}; } }
+  function write(o){ try { localStorage.setItem(KEY, JSON.stringify(o)); return true; } catch (e) { return false; } }
+  /* An emptied field is a deletion, not an empty string: it has to read as
+     "not measured yet" in the earned answer, which refuses to render it. */
+  function save(id, field, val){
+    var all = read(), g = all[id] || {};
+    if (!val) { delete g[field]; } else { g[field] = val; }
+    if (!Object.keys(g).length) { delete all[id]; } else { all[id] = g; }
+    write(all);
+  }
+  function paintFill(block, field, val){
+    Array.prototype.slice.call(block.querySelectorAll('[data-fill="' + field + '"]')).forEach(function (t) {
+      if (t.dataset.prompt === undefined) { t.dataset.prompt = t.textContent; }
+      if (val) { t.textContent = val; t.classList.remove("placeholder"); }
+      else { t.textContent = t.dataset.prompt; t.classList.add("placeholder"); }
+    });
+  }
+  function wire(block){
+    var id = block.dataset.evidenceFor;
+    if (!id) return;
+    var saved = read()[id] || {};
+    Array.prototype.slice.call(block.querySelectorAll("input[data-field],textarea[data-field]")).forEach(function (el) {
+      var f = el.dataset.field;
+      if (saved[f] !== undefined && saved[f] !== null) { el.value = saved[f]; }
+      var v = el.value.trim();
+      if (v) { el.classList.add("filled"); }
+      paintFill(block, f, v);
+      /* input rather than change: typed numbers should survive closing the
+         tab mid-sentence, which is exactly when it happens. */
+      el.addEventListener("input", function () {
+        var cur = el.value.trim();
+        save(id, f, cur);
+        el.classList.toggle("filled", !!cur);
+        paintFill(block, f, cur);
+      });
+    });
+  }
+  function init(){
+    Array.prototype.slice.call(document.querySelectorAll(".evidence[data-evidence-for]")).forEach(wire);
+  }
+  if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", init); }
+  else { init(); }
+})();
+</script>
+
+</div>
+
+</body>
+</html>

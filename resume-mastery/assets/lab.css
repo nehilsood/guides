@@ -1,0 +1,317 @@
+/* ==========================================================================
+   lab.css — components for runnable labs.
+   Loaded after course.css by any lesson with hands-on steps.
+   The lesson pattern is always: run it, break it, observe, fix it, observe.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Lab container
+   -------------------------------------------------------------------------- */
+
+/* The lab sits on the structural rail with the figures, tables and headings,
+   not on a rail of its own. `78ch` resolved to 780px, which put a fourth
+   right edge on a page that should only ever show two. */
+.lab {
+  max-width: var(--content);
+  margin: 34px 0;
+  border: 1px solid var(--rule);
+  border-top: 2px solid var(--accent);
+  background: var(--surface);
+}
+
+.lab > header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 14px 20px 12px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.lab > header .kicker {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+
+.lab > header .est {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+}
+
+.lab > header h3 {
+  flex: 1 1 100%;
+  margin: 2px 0 0;
+  font-family: var(--sans);
+  font-size: 1.08rem;
+  font-weight: 650;
+}
+
+.lab .body { padding: 18px 20px 20px; }
+.lab .body > :last-child { margin-bottom: 0; }
+.lab p, .lab ul, .lab ol { max-width: none; }
+
+/* --------------------------------------------------------------------------
+   Numbered steps
+   -------------------------------------------------------------------------- */
+
+ol.steps { list-style: none; padding: 0; margin: 0; counter-reset: step; }
+
+ol.steps > li {
+  counter-increment: step;
+  display: grid;
+  /* `minmax(0, 1fr)`, not `1fr`. A bare `1fr` is `minmax(auto, 1fr)`, and the
+     auto floor is the track's min-content width — which a step full of
+     unwrappable command lines pushes to about 810px. Below an 820px window
+     the whole lab then refused to shrink and pushed the document sideways,
+     so every lesson scrolled horizontally on a laptop at half-screen width.
+     Zeroing the floor lets the track shrink and the <pre>s scroll on their
+     own, which is what their `overflow-x: auto` is for. */
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 4px 14px;
+  padding: 0 0 22px;
+  margin: 0;
+}
+
+ol.steps > li:last-child { padding-bottom: 0; }
+
+ol.steps > li::before {
+  content: counter(step);
+  /* Was `grid-row: 1 / span 99`, meaning to make the marker ignore layout.
+     The li is a grid with implicit rows, so spanning 99 rows CREATES 99 rows,
+     and the 4px row-gap then applies between every one of them: a five-child
+     step grew ~94 empty rows of gap, about 380px of dead space, in every lab
+     step of every lesson. The marker only ever needs row 1. */
+  grid-row: 1;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--paper);
+  background: var(--ink-3);
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-content: center;
+  border-radius: 50%;
+  margin-top: 2px;
+}
+
+ol.steps > li > * { grid-column: 2; }
+ol.steps .what { font-size: 1rem; margin: 0 0 10px; }
+
+/* --------------------------------------------------------------------------
+   Command blocks
+   -------------------------------------------------------------------------- */
+
+pre.cmd, pre.out, pre.code {
+  /* Inside a lab the step column already bounds these. Outside one — 0005
+     has a code block in the prose — they would otherwise stretch to the full
+     page and read as a fifth column width. */
+  max-width: var(--content);
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.62;
+  margin: 0 0 12px;
+  padding: 12px 15px;
+  overflow-x: auto;
+  border-radius: 3px;
+  tab-size: 2;
+  white-space: pre;
+}
+
+/* Something you type */
+pre.cmd {
+  background: var(--surface-2);
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent);
+  color: var(--ink);
+}
+
+pre.cmd .prompt { color: var(--ink-3); user-select: none; }
+pre.cmd .comment { color: var(--ink-3); font-style: italic; }
+
+/* Something the machine prints back */
+pre.out {
+  background: var(--paper);
+  border: 1px dashed var(--rule);
+  color: var(--ink-2);
+  font-size: 12px;
+}
+
+pre.out .hi   { color: var(--ink); font-weight: 700; background: var(--warn-bg); padding: 0 2px; }
+pre.out .fail { color: var(--bad); font-weight: 700; }
+pre.out .pass { color: var(--good); font-weight: 700; }
+
+/* Source you read or edit */
+pre.code {
+  background: var(--surface-2);
+  border: 1px solid var(--rule);
+  color: var(--ink);
+}
+
+pre.code .kw { color: var(--accent-ink); font-weight: 600; }
+pre.code .str { color: var(--good); }
+pre.code .comment { color: var(--ink-3); font-style: italic; }
+pre.code .del { color: var(--bad); }
+pre.code .add { color: var(--good); }
+
+.file-label {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+  background: var(--surface-2);
+  border: 1px solid var(--rule);
+  border-bottom: none;
+  padding: 3px 9px;
+  border-radius: 3px 3px 0 0;
+  margin-bottom: -1px;
+  position: relative;
+}
+
+.file-label + pre { border-top-left-radius: 0; }
+
+/* --------------------------------------------------------------------------
+   "You should see X" — the self-check that makes labs work unsupervised
+   -------------------------------------------------------------------------- */
+
+/* Indent-and-hang, NOT a grid. An .expect holds whatever the step needs to
+   prove itself: prose, but also a <pre> of real output or a <table> of
+   measured figures. Under `grid-template-columns: auto 1fr` every child the
+   rules below do not name is auto-placed into that `auto` first track, which
+   then sizes to the widest thing in it and crushes the prose in `1fr` down to
+   a one-word-per-line ribbon. It shipped that way in eight blocks across 0004
+   and 0006. Taking the tick out of flow entirely means any child — named or
+   not, added later or not — gets the full width. */
+.expect {
+  position: relative;
+  margin: 0 0 12px;
+  padding: 11px 15px 12px 38px;
+  background: var(--good-bg);
+  border-left: 3px solid var(--good);
+  font-size: 0.94rem;
+}
+
+.expect::before {
+  content: "\2713";
+  position: absolute;
+  left: 15px;
+  top: 11px;
+  font-family: var(--mono);
+  font-weight: 700;
+  color: var(--good);
+  line-height: 1.5;
+}
+
+.expect .label {
+  display: block;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--good);
+}
+
+.expect p { margin: 2px 0 0; color: var(--ink); }
+.expect code { background: rgba(0,0,0,0.06); }
+
+/* Nested output and figures: they are evidence inside the check, so they get
+   a little air but no second border competing with the one on the left. */
+.expect > pre,
+.expect > .table-wrap { margin: 9px 0 2px; max-width: none; }
+.expect > pre { background: var(--paper); }
+.expect > *:last-child { margin-bottom: 0; }
+
+/* The deliberate failure. Half of every lab is causing this on purpose. */
+.expect.broken { background: var(--bad-bg); border-left-color: var(--bad); }
+.expect.broken::before { content: "\2717"; color: var(--bad); }
+.expect.broken .label { color: var(--bad); }
+
+/* --------------------------------------------------------------------------
+   Before / after comparison — the payoff panel of a break-fix lab
+   -------------------------------------------------------------------------- */
+
+.ba {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 1px;
+  background: var(--rule);
+  border: 1px solid var(--rule);
+  margin: 0 0 14px;
+}
+
+.ba > div { background: var(--paper); padding: 14px 16px 16px; }
+
+.ba .label {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.ba .before .label { color: var(--bad); }
+.ba .after  .label { color: var(--good); }
+
+.ba .figure {
+  font-family: var(--mono);
+  font-size: 1.55rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.ba .before .figure { color: var(--bad); }
+.ba .after  .figure { color: var(--good); }
+
+.ba .unit { font-size: 0.85rem; font-weight: 400; color: var(--ink-3); margin-left: 3px; }
+.ba .gloss { margin: 8px 0 0; font-size: 0.88rem; color: var(--ink-2); }
+
+/* --------------------------------------------------------------------------
+   Prerequisites strip
+   -------------------------------------------------------------------------- */
+
+.prereq {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  align-items: center;
+  margin: 0 0 20px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--rule-soft);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+  color: var(--ink-3);
+}
+
+.prereq .chip {
+  border: 1px solid var(--rule);
+  background: var(--paper);
+  padding: 3px 9px;
+  border-radius: 2px;
+  color: var(--ink-2);
+}
+
+.prereq .chip.needs-docker { border-color: var(--warn); color: var(--warn); background: var(--warn-bg); }
+
+/* --------------------------------------------------------------------------
+   Print
+   -------------------------------------------------------------------------- */
+
+@media print {
+  .lab { break-inside: avoid; border-color: #999; }
+  pre.cmd, pre.out, pre.code { font-size: 8.5pt; white-space: pre-wrap; word-break: break-word; }
+  .expect { background: #f4f4f4 !important; border-left-color: #000 !important; }
+  .ba { break-inside: avoid; }
+}

@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>A Pretraining Data Pipeline at 150&#8239;GB</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0016">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">R&#233;sum&#233; Mastery</a>
+    <span class="sep">/</span>
+    <span>Batch C &#183; Samsung Research</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Chapter 0016</span>
+  </div>
+  <h1>A pretraining data pipeline at 150&#8239;GB</h1>
+  <p class="standfirst">Three cheap filters and one expensive join, and the order they run in is most of the design. The word that will be tested is &#8220;clean,&#8221; because the only proof that data is clean is a model trained on it.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Name the three stages, say why they run in that order, and explain why MinHash and union-find are <em>one</em> algorithm rather than two &#8212; then get ahead of the two questions that follow: <em>what came out the other end, and what removed the passwords?</em></p>
+</div>
+
+<div class="claim-line">
+  <span class="callout-label">The line being defended</span>
+  <blockquote>&#8220;Built a <strong>3-stage preprocessing pipeline</strong> &#8212; fineWeb/C4-style quality filters, MinHash deduplication, repetition removal &#8212; distilling <strong>150&#8239;GB</strong> of Confluence exports into clean LLM pretraining data.&#8221;</blockquote>
+  <span class="whose">Samsung Research &#183; bullet 4 of 5</span>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">For <em>&#8220;walk me through the data pipeline.&#8221;</em> Three stages is the easy part. The ordering argument and the union-find point are what make it sound built rather than read about.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">A company wiki export, about 150 gigabytes. Most of it is navigation, templates and the same release note copied across spaces.</p>
+      <p class="line">The job was to get out of it the text that is actually worth training on.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">Three passes. One judges each document on its own. One removes near-copies across documents. One removes documents that repeat themselves.</p>
+      <p class="line">The order is the design. <b>Cheap and destructive first</b>, so the expensive stage that compares everything to everything sees the smallest corpus.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">The part I would defend is the dedup. MinHash gives you pairs of near-copies, and <b>a pair is a fact, not a deletion decision</b>.</p>
+      <p class="line">So the pairs go through union-find and you keep one document per group. Without that, deleting everything with a duplicate removes all of them, and keeping the first one seen depends on file order.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">Two things I would rather say first. The filters came from web-crawl work, and some of them are wrong on a wiki. C4 drops pages with curly braces, which here means code blocks.</p>
+      <p class="line">And <b>nothing in these three stages removes a password</b>. A credential in a code block is unique, well-formed and not repetitive, so every filter keeps it.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;I built a three-stage pipeline with fineWeb-style filters and MinHash dedup to clean 150 gigabytes.&#8221;</span> That is the bullet read aloud, and it names two papers as though naming them were the work. The follow-up is &#8220;so what came out the other end,&#8221; and if you do not have the retention numbers the whole thing deflates. Lead with the ordering argument and the union-find point instead.</p>
+  <p>The other trap is the word distilling. Said out loud, on a r&#233;sum&#233; that also claims knowledge distillation, it sounds like a teacher-student setup. Say reduced, and if somebody asks, say you would change the wording.</p>
+</div>
+
+
+<div class="trace">
+  <span class="callout-label">Walk them through it &#183; one export, three passes</span>
+  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One wiki export, followed through three stages to the corpus that comes out. Then the two questions the bullet invites and does not answer.</p>
+  <p class="tr-case"><b>The picture.</b> Clearing an office before a move. First you bin the obvious rubbish fast, without reading it. Then you notice forty copies of one memo and keep a single copy. Then you go through what is left and pull the pages that say the same thing over and over. Three passes because each answers a different question.</p>
+  <p class="tr-case"><b>The case.</b> About 150 gigabytes of Confluence export. Inside it, a release note that has been copied into forty different spaces, each copy slightly edited. Follow the corpus, and follow that release note.</p>
+  <ol>
+    <li class="tr-step">
+      <span class="tr-k">What arrives</span>
+      <p><b>What happens.</b> Most of a wiki export is not text you want a model to learn from.</p>
+      <p><b>Concretely.</b> Navigation, headers, page templates, empty stubs, and the same announcement copied everywhere.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Stage one</span>
+      <p><b>What happens.</b> The first pass looks at each document on its own and asks whether it is any good.</p>
+      <p><b>Concretely.</b> Is it long enough, does it read like prose, does it look like a navigation page rather than content. Cheap tests, one document at a time.</p>
+      <p><b>If they ask why.</b> The order is the design. The cheap stage that discards the most goes first, so the expensive stage later sees the smallest possible corpus.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Shingles</span>
+      <p><b>What happens.</b> The second pass compares documents to each other, which needs them in a comparable form.</p>
+      <p><b>Concretely.</b> Each document becomes a set of short overlapping runs of words. Then two documents can be compared as sets rather than as text.</p>
+      <p><b>If they ask why.</b> Shared runs divided by total distinct runs gives a similarity between zero and one. Our forty release notes score very high against each other and near zero against anything else.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The trick</span>
+      <p><b>What happens.</b> Comparing every document with every other document is not affordable at this size.</p>
+      <p><b>Concretely.</b> MinHash reduces each document to a short signature. Two signatures agree at any position with a probability equal to the real similarity, which is the whole trick.</p>
+      <p><b>If they ask why.</b> Then you cut the signatures into bands and only compare documents that match on a whole band. That is how candidate pairs get found without the comparison exploding.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Pairs are not decisions</span>
+      <p><b>What happens.</b> What comes out is a pile of statements that two documents are near-copies. This is the part I would defend.</p>
+      <p><b>Concretely.</b> A pair is a fact. It is not an instruction to delete anything, and treating it as one goes wrong quietly.</p>
+      <p><b>If they ask why.</b> Take a chain. A resembles B and B resembles C. Delete everything appearing in a pair and all three vanish. Keep the first one seen and the survivor depends on what order the files were read in.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Groups</span>
+      <p><b>What happens.</b> So the pairs go through union-find, which turns a pile of same-as facts into groups.</p>
+      <p><b>Concretely.</b> Our forty release notes become one group, and one document survives it. The same input now produces the same corpus on every run.</p>
+      <p><b>If they ask why.</b> That reproducibility is what makes it possible to attribute a later model change to anything at all.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Chaining</span>
+      <p><b>What happens.</b> Grouping introduces its own error, and I would rather name it.</p>
+      <p><b>Concretely.</b> A long chain where each document resembles the next collapses to one, even when the two ends share nothing.</p>
+      <p><b>If they ask why.</b> I have no clean fix beyond tightening the threshold, which trades one error for the other. The real gap is that I never measured either rate against a labelled sample.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Stage three</span>
+      <p><b>What happens.</b> The last pass looks inside each surviving document for repetition.</p>
+      <p><b>Concretely.</b> Duplicate lines, one phrase dominating the page, the same paragraph three times over.</p>
+      <p><b>If they ask why.</b> That is a different question from the other two. Stage one judged a document alone, stage two judged it against others, and this one judges it against itself.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">What comes out</span>
+      <p><b>What happens.</b> The first question this bullet invites is what survived, and the bullet does not say.</p>
+      <p><b>Concretely.</b> Retention per stage is the single most informative number about a pipeline like this. Have it ready.</p>
+      <p><b>If they ask why.</b> At this size the corpus is meant for continuing to train an existing model on a domain. It is not a from-scratch pretraining set, and being clear about that is better than letting the word imply it.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">What it misses</span>
+      <p><b>What happens.</b> The second question is about secrets, and the answer is uncomfortable.</p>
+      <p><b>Concretely.</b> Nothing in these three stages removes a password. A credential in a code block is unique, well formed and not repetitive, so every filter keeps it.</p>
+      <p><b>If they ask why.</b> The filters also came from web-crawl work and some are wrong on a wiki. One C4 heuristic drops pages containing curly braces, which here means every code block. That is the content that made the corpus worth using.</p>
+    </li>
+  </ol>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 330" role="img" aria-labelledby="mech0016-t mech0016-d">
+    <defs>
+      <marker id="ar16" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+    </defs>
+    <title id="mech0016-t">Three passes, ordered cheapest first, and one gap nothing covers</title>
+    <desc id="mech0016-d">A 150 gigabyte wiki export enters three stages. Quality filtering is a per-document regex pass, costs almost nothing, and discards the most, so it runs first. Deduplication is the expensive stage because it compares documents against each other through shingling, MinHash signatures and banded candidate matching, so it runs on the smallest corpus possible. Its candidate pairs are then grouped by union-find, because a pair is a fact and not a deletion decision, and without grouping the output depends on file order. Repetition removal is per-document again and catches pages that are mostly their own navigation bar. Nothing in the three stages removes credentials or personal data, which is the gap the word clean hides.</desc>
+
+    <rect class="box" x="8" y="16" width="120" height="48" rx="3"/>
+    <text class="lbl strong" x="68" y="38" text-anchor="middle">Export</text>
+    <text class="num" x="68" y="55" text-anchor="middle">150&#8239;GB</text>
+
+    <path class="flow" marker-end="url(#ar16)" d="M 132 40 H 172"/>
+
+    <rect class="accent" x="176" y="16" width="200" height="48" rx="3"/>
+    <text class="lbl strong ink-accent" x="276" y="36" text-anchor="middle">1 &#183; Quality filters</text>
+    <text class="lbl-dim" x="276" y="53" text-anchor="middle">per document &#183; cheap &#183; cuts most</text>
+
+    <path class="flow" marker-end="url(#ar16)" d="M 380 40 H 420"/>
+
+    <rect class="warn" x="424" y="16" width="200" height="48" rx="3"/>
+    <text class="lbl strong ink-warn" x="524" y="36" text-anchor="middle">2 &#183; Deduplication</text>
+    <text class="lbl-dim" x="524" y="53" text-anchor="middle">across documents &#183; expensive</text>
+
+    <path class="flow" marker-end="url(#ar16)" d="M 628 40 H 668"/>
+
+    <rect class="box" x="672" y="16" width="160" height="48" rx="3"/>
+    <text class="lbl strong" x="752" y="36" text-anchor="middle">3 &#183; Repetition</text>
+    <text class="lbl-dim" x="752" y="53" text-anchor="middle">inside one document</text>
+
+    <rect class="box-2" x="8" y="80" width="824" height="34" rx="3"/>
+    <text class="lbl strong" x="24" y="102">Order is the design &#8212; the cheap pass that discards the most runs before the pass that compares everything to everything</text>
+
+    <rect class="box-2" x="424" y="128" width="408" height="118" rx="3"/>
+    <text class="lbl strong" x="440" y="150">Inside stage 2</text>
+    <text class="lbl-dim" x="440" y="170">shingle &#183; overlapping runs of words, so a document is a set</text>
+    <text class="lbl-dim" x="440" y="188">MinHash &#183; signatures that agree as often as the sets overlap</text>
+    <text class="lbl-dim" x="440" y="206">bands &#183; match whole bands to get candidate pairs cheaply</text>
+    <text class="num ink-accent" x="440" y="228">union-find &#183; pairs become groups, keep one per group</text>
+
+    <rect class="box" x="8" y="128" width="408" height="118" rx="3"/>
+    <text class="lbl strong" x="24" y="150">Why union-find is not optional</text>
+    <text class="lbl-dim" x="24" y="170">A matches B, B matches C</text>
+    <text class="lbl-dim" x="24" y="188">delete everything with a duplicate &#8594; all three go</text>
+    <text class="lbl-dim" x="24" y="206">keep the first one seen &#8594; answer depends on file order</text>
+    <text class="num ink-warn" x="24" y="228">group first &#8594; same output every run</text>
+
+    <rect class="bad" x="8" y="258" width="824" height="64" rx="3"/>
+    <text class="lbl strong ink-bad" x="24" y="280">What none of the three stages removes</text>
+    <text class="lbl-dim" x="24" y="300">credentials in code blocks &#183; customer names &#183; pages about individual people</text>
+    <text class="lbl-dim" x="24" y="318">a quality filter keeps all of it, because by every measure it has, it is high quality</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">What you say while drawing it</span>
+    <ol class="narrate">
+      <li>Three boxes across the top. Say the stage name and what it looks at.</li>
+      <li>Stage one looks at one document. Stage two looks across documents. Stage three looks inside one.</li>
+      <li>Then the order line, because that is the only real design decision on the top row.</li>
+      <li>Drop down into stage two. Shingle, signature, bands, and then the important one.</li>
+      <li>Union-find, and say why. Pairs are facts, deletions are decisions.</li>
+      <li>The left box is the argument. Three documents, two matches, and two wrong answers.</li>
+      <li>Then the red band, and volunteer it rather than waiting.</li>
+      <li>Nothing here removes a password. That is the gap in the word clean.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. Three boxes, one order rule, one algorithm, one gap.</p>
+  <ul>
+    <li><b>Cheap and destructive first.</b> The whole ordering argument.</li>
+    <li><b>Pairs are not deletions.</b> The union-find line.</li>
+    <li>The <b>A, B, C chain</b> and the two wrong answers it produces.</li>
+    <li>The <b>red band</b>, because volunteering it is worth more than answering it.</li>
+  </ul>
+  <span class="timer">Say &#8220;a pair is a fact, a deletion is a decision&#8221; as you draw the union-find line. It is the sentence people remember.</span>
+</div>
+
+<div class="star">
+  <span class="callout-label">Behavioural &#183; the story for this bullet</span>
+  <p class="frame">For <em>&#8220;tell me about a time you found a bug that nothing was failing on&#8221;</em> or <em>&#8220;a correctness problem you could easily have shipped.&#8221;</em></p>
+  <ol class="rungs">
+    <li class="rung"><span class="rung-k">Decision</span><p>Whether near-duplicate detection could stop at pairs, which is what the algorithm produces, or had to go on to groups before anything was deleted.</p></li>
+    <li class="rung"><span class="rung-k">Situation</span><p>The dedup stage produced candidate pairs and a deletion list. It ran, it finished, and the output looked reasonable. Nothing failed and no count was obviously wrong.</p></li>
+    <li class="rung"><span class="rung-k">Action</span><p>I checked what happened to a chain. A resembles B and B resembles C. Deleting every document that appears in a pair removes all three. Keeping the first one seen makes the survivor depend on the order files were read in.</p><p>So the pairs went into union-find. Group first, then keep one member per group under a stated rule rather than an arbitrary one.</p></li>
+    <li class="rung"><span class="rung-k">Result</span><p>The same input produced the same corpus on every run. That is what makes it possible to attribute a later model change to anything at all.</p></li>
+    <li class="rung"><span class="rung-k">What it cost</span><p>Grouping introduces chaining. A long chain of documents that each resemble the next collapses to one, even though the two ends share nothing. I have no clean fix for that beyond tightening the threshold, which trades one error for the other. The real gap is that I never measured either rate against a labelled sample.</p></li>
+  </ol>
+</div>
+
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>A company wiki gets exported. Most of it is not text you want a model to learn from. Navigation, headers, page templates, the same release note copied across forty spaces. The pipeline's job is to throw away the parts that are not worth learning and keep the parts that are.</p>
+  <p>It does that in three passes. One looks at each document and asks whether it is any good. One looks across documents and removes the near-copies. One looks inside a document and removes the parts that repeat. Each answers a different question, which is why they are three stages and not one.</p>
+  <dl>
+    <dt>Quality filter</dt>
+    <dd>A cheap per-document test. Is it long enough, does it read like prose, does it look like a navigation page rather than content.</dd>
+
+    <dt>Shingle</dt>
+    <dd>A short overlapping run of words from a document. Documents become sets of shingles so they can be compared as sets.</dd>
+
+    <dt>Jaccard similarity</dt>
+    <dd>Shared shingles divided by total distinct shingles. One means identical, zero means nothing in common.</dd>
+
+    <dt>MinHash</dt>
+    <dd>A short signature of a document. Two signatures agree at a position with probability equal to the Jaccard similarity, which is the whole trick.</dd>
+
+    <dt>Banding</dt>
+    <dd>Cutting signatures into bands and matching on whole bands. It is how you find candidate pairs without comparing every document to every other.</dd>
+
+    <dt>Union-find</dt>
+    <dd>A structure that turns a pile of &#8220;these two are the same&#8221; facts into groups. It is how pairs become clusters.</dd>
+
+    <dt>Repetition removal</dt>
+    <dd>Dropping documents that repeat themselves. Duplicate lines, one phrase dominating, the same paragraph three times.</dd>
+
+    <dt>Retention rate</dt>
+    <dd>How much survives each stage. The single most informative number about a pipeline, and the one the bullet does not give.</dd>
+
+    <dt>Domain-adaptive pretraining</dt>
+    <dd>Continuing to train an existing model on a specific corpus. What 150&#8239;GB is actually sized for, as against training from scratch.</dd>
+
+    <dt>Ablation</dt>
+    <dd>Building two versions of the corpus, training a small model on each, and measuring the difference. The only real test of a filter.</dd>
+  </dl>
+</div>
+
+<div class="primer stack">
+  <span class="callout-label">The technology &#8212; what each named thing is</span>
+  <p>The primer above defines the algorithms. This one names the datasets they were copied from and the machinery that runs them at 150&#8239;GB. A data pipeline is judged on throughput arithmetic, so the numbers are here too.</p>
+  <p>Every entry answers four things. What it actually is, in plain words. Where this pipeline uses it. What it buys, meaning what goes wrong without it. And the follow-up an interviewer asks once you have said the name.</p>
+  <dl>
+    <dt>C4</dt>
+    <dd><i>Colossal Clean Crawled Corpus</i>Google's cleaned web corpus, and more importantly the origin of the filter recipe almost everybody copies. The rules are deliberately simple and mechanical: keep only lines ending in real punctuation, drop documents below a length threshold, remove boilerplate such as &#8220;javascript is required&#8221;, and drop any document containing blocklisted words. <b>In the app.</b> &#8220;C4-style quality filters&#8221; means precisely this list. <b>What it buys.</b> A defensible starting point that costs nothing to implement and is known to work, instead of inventing quality heuristics from scratch and arguing about them. <b>The follow-up.</b> These rules were written for open web crawl, where the enemy is spam and navigation furniture. A Confluence export is not the open web. Filters tuned for one distribution discard good documents in another, and the punctuation rule alone will eat code blocks and tables.</dd>
+
+    <dt>FineWeb</dt>
+    <dd><i>the modern successor</i>Hugging Face's large filtered web dataset. What makes it worth naming is not the data but the method: for each candidate filter they trained small models with and without it and kept only the ones that measurably improved downstream results. The ablations were published. <b>In the app.</b> It is the other half of the phrase &#8220;fineWeb/C4-style&#8221;. <b>What it buys.</b> Evidence that a filter helps, rather than a plausible story that it should. Several widely copied heuristics turn out not to survive that test. <b>The follow-up.</b> The transferable lesson is the method, not the filter list. FineWeb's contribution was proving each rule earned its place, and that is the standard your own filters should be held to, which usually means nobody has measured them.</dd>
+
+    <dt>Shingles</dt>
+    <dd><i>the unit of comparison</i>Comparing documents as strings fails immediately, because moving one sentence makes two near-identical documents look unrelated. Shingling fixes that. You slide a window of n consecutive words along the text and collect every window as an element, so the document becomes a set of overlapping fragments. Two documents are then compared as sets, where order no longer matters. <b>In the app.</b> It is the representation the whole deduplication stage is built on. <b>What it buys.</b> Similarity that survives reordering, reformatting and insertion, which is what &#8220;near-duplicate&#8221; actually means in a wiki. <b>The follow-up.</b> Shingle size is a real tuning knob, not a default. Short shingles match too readily and flag unrelated documents. Long ones miss small edits, and Confluence pages are very largely small edits of each other.</dd>
+
+    <dt>MinHash and LSH</dt>
+    <dd><i>the trick that makes it possible</i>Two ideas stacked. MinHash replaces a document's huge shingle set with a short signature, built so that the chance of two signatures agreeing in any position equals the Jaccard similarity of the original sets. That turns set comparison into cheap integer comparison. Locality-sensitive hashing then avoids comparing every pair at all: signatures are cut into bands, each band is hashed, and only documents landing in the same bucket for some band are ever compared. <b>In the app.</b> It is the only way 150&#8239;GB is tractable. <b>What it buys.</b> A quadratic problem becomes roughly linear. Pairwise comparison of a corpus this size is not slow, it is impossible. <b>The follow-up.</b> Bands and rows set the threshold. Choosing them is choosing what similarity you are willing to call a duplicate, and it is a decision to justify rather than a default to accept.</dd>
+
+    <dt>Union-find</dt>
+    <dd><i>turning pairs into groups</i>A small data structure for merging sets fast. It answers two questions: which group is this in, and merge these two groups. Both cost almost constant time however many merges have happened. You feed it the duplicate pairs and it hands back clusters. <b>In the app.</b> LSH produces pairs, and what you actually need is one survivor per group of duplicates. <b>What it buys.</b> A chain of pairwise matches collapses into a single cluster in one pass, so you keep one copy rather than repeatedly removing pairs and losing track. <b>The follow-up.</b> Transitivity is a choice you are making, not a property you inherited. A being similar to B and B to C does not make A similar to C. Clustering pairs merges documents that were never directly compared, which is deliberate and worth being able to defend.</dd>
+
+    <dt>Exact and near duplication</dt>
+    <dd><i>two different jobs</i>Exact duplicates are found by hashing each document and grouping identical hashes. It is one pass, essentially free, and catches an enormous share of real duplication. Near duplicates need the entire MinHash and LSH machine and cost orders of magnitude more. <b>In the app.</b> A wiki export is full of both, since pages are copied wholesale and then edited slightly. <b>What it buys.</b> Running the cheap pass first removes the bulk, so the expensive pass operates on a much smaller corpus. <b>The follow-up.</b> Order matters, and so does vocabulary. Exact first, then near. And say which of the two a quoted retention number refers to, because the figures are very different and the word &#8220;deduplication&#8221; covers both.</dd>
+
+    <dt>Confluence export</dt>
+    <dd><i>the input</i>A dump of an internal wiki: pages as HTML or XML, plus attachments, macros, inline comments and the full version history of every page. It is structured, internal, permissioned and nothing at all like crawled web text. <b>In the app.</b> The 150&#8239;GB in the bullet is this. <b>What it buys.</b> Naming the source precisely is what makes the filter discussion concrete, because every decision follows from the corpus being a wiki rather than the web. <b>The follow-up.</b> What the number actually counts. Attachments and version history can easily dominate the byte total, so 150&#8239;GB of export may contain far less prose than it sounds. Saying which you mean is the difference between a headline and a measurement.</dd>
+
+    <dt>The compute layer</dt>
+    <dd><i>Spark, Ray, Dask, or a process pool</i>How a job this size actually runs. The corpus is split into shards, each shard is processed independently on its own core or machine, and the results are merged. Spark and Ray are full distributed frameworks with a scheduler and fault tolerance. Dask is lighter. A plain multiprocessing pool on one large machine is the fourth option and is often the right one. <b>In the app.</b> 150&#8239;GB is too big for one process and small enough that a cluster may be pure overhead. <b>What it buys.</b> Throughput proportional to cores, for the stages that allow it. <b>The follow-up.</b> Where it stops being embarrassingly parallel. Filtering is per document and splits trivially. Deduplication is inherently global, because a document's duplicate may be in any other shard, and the shuffle that requires is the part that decides the whole design.</dd>
+
+    <dt>Storage format</dt>
+    <dd><i>JSONL and Parquet</i>Two ways to write the intermediate results between passes. JSON Lines is one JSON record per line: trivially streamable, appendable, readable with any tool, and uncompressed unless you wrap it. Parquet stores by column rather than by row, compresses well, and lets a reader load one field across millions of records without touching the rest. <b>In the app.</b> Three passes means two intermediate datasets that have to live somewhere. <b>What it buys.</b> The right choice per stage cuts both disk and read time substantially at this size. <b>The follow-up.</b> Pick per stage rather than globally. JSONL while streaming whole documents through filters. Parquet when the next pass reads only the signature column across the entire corpus, where columnar storage is the difference between minutes and hours.</dd>
+
+    <dt>Retention rate</dt>
+    <dd><i>the headline number</i>The proportion of the input that survives the pipeline, measured either in bytes or in document count, and those two can differ a great deal. <b>In the app.</b> It is the one-line summary of what all three stages did. <b>What it buys.</b> A single number to compare pipeline versions against, and an immediate smell test. Ninety-five percent retention means the filters are barely doing anything, and twenty percent means something is probably too aggressive. <b>The follow-up.</b> Per stage, or it means nothing at all. Which pass dropped what, and whether anybody read a sample of what was dropped. A retention rate with no manual review behind it is an unexamined claim about quality dressed up as a measurement.</dd>
+  </dl>
+</div>
+
+
+
+
+<h2>Why the order is the design</h2>
+
+<p class="breath">Three stages, and they are not interchangeable. The cheap stage that discards the most goes first. The expensive stage that compares documents to each other goes last enough to see the smallest possible corpus.</p>
+
+<p>Quality filtering is a regex pass over one document at a time. It costs almost nothing per document and it removes more than anything else does. Everything downstream then runs over a much smaller corpus.</p>
+
+<p>Deduplication is the expensive one. It has to compare documents against each other, which means shingling, hashing, and a join over candidate pairs. Every document you removed earlier is a document it never has to look at.</p>
+
+<p>Repetition removal is per-document again, so it could run anywhere. Putting it after dedup just avoids spending it on documents that were about to be deleted anyway. That is the weakest of the three ordering arguments, and I would say so.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Throw out the obvious rubbish first, because the expensive step is the one that compares everything to everything.</p>
+
+<h2>MinHash and union-find are one algorithm</h2>
+
+<p class="breath">MinHash tells you that two documents are near-copies. That is a fact about a pair. What you actually need is a decision about which documents to delete, and a pair is not a decision.</p>
+
+<p>Say A and B are near-copies, and B and C are near-copies. Delete every document that has a duplicate and you delete all three. Keep the first one you see and the answer depends on the order the files arrived in.</p>
+
+<p>Union-find is what closes the gap. Feed it every candidate pair, get back groups, keep one member of each group. Now the result is the same regardless of file order, which is the property that makes the pipeline reproducible.</p>
+
+<p>The cost is chaining. A resembles B, B resembles C, and so on down a long line where the two ends share nothing. Connected components will collapse that whole chain to one document. It is a real failure and it is worth naming before someone else does.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Finding pairs is half the job. Deciding which one of a group to keep is the other half, and skipping it gives you a different answer every run.</p>
+
+<h2>Web filters on a company wiki</h2>
+
+<p class="breath">The C4 heuristics were designed for a web crawl. A corporate wiki is not a web crawl. Several of those filters remove exactly the content that made the corpus worth using in the first place.</p>
+
+<p>C4 drops any page containing a curly brace, because on the open web that means JavaScript. On an engineering wiki it means a code block, and code blocks are some of the most valuable text in there.</p>
+
+<p>The same applies to the rule about lines ending in terminal punctuation. That removes tables, API references and configuration samples. All of them are prose-poor and information-rich, which is not a combination web filters were built to respect.</p>
+
+<p>What fineWeb actually contributed was the method rather than the filters. Each filter was kept because an ablation showed it helped a downstream eval. Borrowing the filter list without borrowing the ablation is taking the answer and leaving the reasoning.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Filters built for the open internet assume the good stuff looks like articles. On a wiki, the good stuff is often a table or a code block.</p>
+
+<h2>The two questions the bullet invites</h2>
+
+<p class="breath">What came out of the other end, and what removed the secrets. Neither number is in the bullet, and both get asked. Having the first ready and volunteering the second is most of the difference.</p>
+
+<p>The retention rate is the informative number. A pipeline that keeps ninety per cent barely ran, and one that keeps two per cent probably threw away something it should not have. Per-stage counts are the first thing to show.</p>
+
+<p>The second question is worse, because none of the three stages addresses it. An internal wiki contains credentials in code blocks, customer names, and pages about individual people. A quality filter keeps those, because they are high quality by every measure it has.</p>
+
+<p>So the honest version of &#8220;clean&#8221; is narrow. It means deduplicated and reasonably well-formed. It does not mean safe to train on, and the gap between those two is a fourth stage that is not in the bullet.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Clean means tidy, not safe. Nothing here looks for passwords or people's names, and a wiki has both.</p>
+
+
+
+
+<section class="qset" id="toolbox">
+  <h2>Toolbox</h2>
+  <p class="qset-note">Every noun in the bullet, defined out loud, from the ground up. Data pipelines are tested on arithmetic and on knowing why an algorithm was chosen, so half of these are about the cost of the thing rather than the idea.</p>
+  <ul class="qa-index">
+    <li><a href="#c16-t1">What C4-style filters are</a></li>
+    <li><a href="#c16-t2">What FineWeb contributed</a></li>
+    <li><a href="#c16-t3">Why MinHash and not comparison</a></li>
+    <li><a href="#c16-t4">What bands and rows decide</a></li>
+    <li><a href="#c16-t5">Exact before near</a></li>
+    <li><a href="#c16-t6">What 150 GB counts</a></li>
+    <li><a href="#c16-t7">Where it stops parallelising</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c16-t1">
+      <p class="qa-q">What does &#8220;C4-style quality filters&#8221; actually mean?</p>
+      <p class="qa-a">A specific published list, deliberately simple and mechanical. Keep only lines that end in terminal punctuation. Drop documents under a length threshold. Drop boilerplate such as cookie and javascript notices. Drop any document containing blocklisted words. What that buys is a defensible starting point costing nothing to implement, instead of inventing quality heuristics and arguing about them. They were written for open web crawl, where the enemy is spam and navigation furniture. A Confluence export is not the open web. Filters tuned for one distribution discard good documents in another, and the punctuation rule alone will eat code blocks and tables.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying &#8220;standard quality filters&#8221; with no list. The rules are published and short, and knowing them is the difference between citing a paper and using one.</p>
+    </li>
+    <li class="qa-item" id="c16-t2">
+      <p class="qa-q">What did FineWeb actually contribute?</p>
+      <p class="qa-a">The method, more than the filters. For each candidate rule they trained small models with and without it, and kept only the ones that measurably improved downstream results. The ablations were published. What that buys is evidence a filter helps, rather than a plausible story that it should. Several widely copied heuristics do not survive that test. It is the standard the field moved to, and it is the standard your own filters should be held to. If a filter was never ablated, you know it removed data and you do not know what it bought.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating it as a bigger C4. The contribution was the evidence, and copying the filters without the method misses the point entirely.</p>
+    </li>
+    <li class="qa-item" id="c16-t3">
+      <p class="qa-q">Why MinHash rather than comparing documents?</p>
+      <p class="qa-a">Because pairwise comparison is quadratic and impossible at this size. First each document becomes a set of shingles, which are overlapping windows of consecutive words, so that reordering a sentence cannot hide a copy. MinHash then replaces that huge set with a short signature. It is built so the chance two signatures agree in any position equals the Jaccard similarity of the original sets. Banding hashes slices of those signatures, and only documents landing in the same bucket for some band are ever compared. What that buys is a quadratic problem becoming roughly linear. Comparing every pair here is not slow, it is impossible.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Naming MinHash without naming the reason. Somebody will ask what it is approximating, and the answer is Jaccard similarity.</p>
+    </li>
+    <li class="qa-item" id="c16-t4">
+      <p class="qa-q">What do the band and row counts decide?</p>
+      <p class="qa-a">The similarity threshold. More bands makes the filter more permissive and returns more candidates. Fewer makes it stricter and misses near matches. So choosing them is choosing what you are willing to call a duplicate. What that buys, done deliberately, is a threshold you can defend rather than one you inherited. It pairs with the shingle size, which is the other real knob. Short shingles match too readily and flag unrelated documents. Long ones miss small edits, and Confluence pages are very largely small edits of each other. Both are tuning decisions with a curve behind them, not defaults to take from an example.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Using the tutorial values and calling it tuned. The honest version names the threshold you were aiming at and admits how you picked it.</p>
+    </li>
+    <li class="qa-item" id="c16-t5">
+      <p class="qa-q">Why run exact deduplication before near deduplication?</p>
+      <p class="qa-a">Because exact is nearly free and near is expensive. Exact means hashing each document and grouping identical hashes. One pass, and it catches an enormous share of real duplication. A wiki export is full of those, since pages get copied wholesale and then edited. Near duplicates need the whole MinHash and locality-sensitive hashing machine, and cost orders of magnitude more. What running cheap first buys is the expensive pass operating on a much smaller corpus. It also changes the retention number, so say which pass a figure refers to. The word deduplication covers both, and the figures are very different.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Quoting one deduplication number. Two passes remove different things, and a combined figure hides which one did the work.</p>
+    </li>
+    <li class="qa-item" id="c16-t6">
+      <p class="qa-q">What does the 150 GB actually count?</p>
+      <p class="qa-a">Say whether it is the raw export or the extracted text. A Confluence export is a dump of an internal wiki. Pages as HTML or XML, plus attachments, macros, inline comments and the full version history of every page. Those can easily dominate the byte total. So 150 gigabytes of export may contain far less prose than it sounds. What naming the source precisely buys is that every filter decision follows from the corpus being a wiki rather than the web. The number that means something for pretraining is tokens, and that is a different measurement again.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Letting the byte count stand as the scale of the work. Tokens are the unit that matters, and converting is one more sentence.</p>
+    </li>
+    <li class="qa-item" id="c16-t7">
+      <p class="qa-q">Where does this pipeline stop being embarrassingly parallel?</p>
+      <p class="qa-a">At deduplication. The corpus is split into shards, each processed independently, and the results merged. Filtering is per document, so you shard and run everywhere, and throughput is proportional to cores. Deduplication is inherently global, because a document's duplicate may be in any other shard. That needs a shuffle. What the shuffle decides is the whole infrastructure question. It is why you reach for Spark or Ray rather than a process pool on one large machine. Repetition removal is per document again. So one of three stages sets the architecture, and it is not the one people plan for.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing the whole pipeline as parallel. One of the three stages is not, and it is the one that shapes the infrastructure.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="fundamentals">
+  <h2>Fundamentals</h2>
+  <p class="qset-note">Question three is the one with the algorithm in it. Everything before it is setup, so get there quickly.</p>
+  <ul class="qa-index">
+    <li><a href="#c16-f1">What it does</a></li>
+    <li><a href="#c16-f2">Why this order</a></li>
+    <li><a href="#c16-f3">Why not exact hashing</a></li>
+    <li><a href="#c16-f4">How MinHash works</a></li>
+    <li><a href="#c16-f5">Pairs to clusters</a></li>
+    <li><a href="#c16-f6">Repetition removal</a></li>
+    <li><a href="#c16-f7">Wiki is not the web</a></li>
+    <li><a href="#c16-f8">What came out</a></li>
+    <li><a href="#c16-f9">What clean means</a></li>
+    <li><a href="#c16-f10">The riskiest claim</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c16-f1">
+      <p class="qa-q">In two sentences, what does this pipeline do?</p>
+      <p class="qa-a">It turns a company wiki export into text worth training on. Three passes. One judges each document, one removes near-copies across documents, and one removes documents that repeat themselves.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it cleaning. That word is doing a lot of work here, and the next question is usually about what it does not clean.</p>
+    </li>
+    <li class="qa-item" id="c16-f2">
+      <p class="qa-q">Why do the stages run in that order?</p>
+      <p class="qa-a">Cheapest and most destructive first. Quality filtering is one regex pass per document and it removes more than anything else. Deduplication has to compare documents against each other, so it should see the smallest corpus possible. Every document filtered earlier is one it never has to look at.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying the order does not matter. It is the only design decision in the bullet that costs nothing to get right and a lot to get wrong.</p>
+    </li>
+    <li class="qa-item" id="c16-f3">
+      <p class="qa-q">Why MinHash rather than hashing each document and comparing?</p>
+      <p class="qa-a">Because an exact hash only finds exact copies. The problem on a wiki is near-copies. The same release note in four spaces, a page template filled in differently, a document with one paragraph added. Every one of those hashes differently and they are all the same text.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Answering on speed. Exact hashing is faster. It is also useless for this, which is a stronger reason.</p>
+    </li>
+    <li class="qa-item" id="c16-f4">
+      <p class="qa-q">How does MinHash actually work?</p>
+      <p class="qa-a">Cut each document into overlapping short runs of words. Hash that set many times and keep the minimum each time. Two signatures agree at a position with probability equal to the overlap between the two sets. So counting agreements estimates similarity without comparing the documents.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing it as a similarity hash and stopping. The property worth naming is that agreement probability equals set overlap, because that is why the estimate is unbiased.</p>
+    </li>
+    <li class="qa-item" id="c16-f5">
+      <p class="qa-q">You have a pile of near-duplicate pairs. What now?</p>
+      <p class="qa-a">Union-find, and this is the part people skip. A pair is a fact, not a decision. If A matches B and B matches C, deleting everything with a duplicate deletes all three. Keeping the first one seen makes the output depend on file order. Grouping first and keeping one per group fixes both.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating the pairs as the output. Order-dependence is the bug this causes, and it is invisible until someone reruns the pipeline.</p>
+    </li>
+    <li class="qa-item" id="c16-f6">
+      <p class="qa-q">What is repetition removal, and how is it different from dedup?</p>
+      <p class="qa-a">It looks inside one document rather than across documents. Duplicate lines, one phrase dominating the text, the same paragraph appearing three times. A page can be unique in the corpus and still be mostly its own navigation bar repeated.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Conflating the two. They catch different things, and saying which is which is the cheapest way to show you built it rather than read about it.</p>
+    </li>
+    <li class="qa-item" id="c16-f7">
+      <p class="qa-q">The filters came from web-crawl work. Does that transfer?</p>
+      <p class="qa-a">Only partly, and the mismatches matter. C4 drops any page with a curly brace because that means JavaScript on the web. On an engineering wiki it means a code block. The rule about lines ending in punctuation removes tables and API references. Those are the highest-value pages in the corpus.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Naming fineWeb and C4 as a credential. The interesting answer is which of their rules are wrong here and why.</p>
+    </li>
+    <li class="qa-item" id="c16-f8">
+      <p class="qa-q">150&#8239;GB went in. What came out?</p>
+      <p class="qa-a">That is the number I want ready, because it is the first thing anyone asks. Per-stage counts, not just a total. A pipeline keeping ninety per cent barely ran. One keeping two per cent probably deleted something it should not have. The shape of the drop is what tells you which stage is misconfigured.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Not knowing. It is the single most informative number about the whole pipeline and its absence reads as not having looked.</p>
+    </li>
+    <li class="qa-item" id="c16-f9">
+      <p class="qa-q">What does &#8220;clean&#8221; mean here, precisely?</p>
+      <p class="qa-a">Deduplicated and reasonably well-formed. That is all. It does not mean safe to train on. An internal wiki has credentials in code blocks and pages about individual people. A quality filter keeps both, because they score well on every measure it has.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Letting &#8220;clean&#8221; stand unqualified. Narrowing it yourself is much better than being narrowed by the follow-up.</p>
+    </li>
+    <li class="qa-item" id="c16-f10">
+      <p class="qa-q">What is the riskiest claim in this bullet?</p>
+      <p class="qa-a">&#8220;Distilling.&#8221; It collides with knowledge distillation, which is a completely different thing and appears on the same r&#233;sum&#233;. I would say reduced or filtered instead. The second risk is &#8220;pretraining data,&#8221; because 150&#8239;GB is sized for continued pretraining rather than training from scratch.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Defending &#8220;distilling&#8221; as a figure of speech. On a r&#233;sum&#233; that also lists model optimisation, it reads as the technique.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="deep-dive">
+  <h2>Deep dive</h2>
+  <p class="qset-note">The tuning knobs, the evaluation, and whether any of this needed a cluster. The last one is where seniority shows.</p>
+  <ul class="qa-index">
+    <li><a href="#c16-d1">Tuning the threshold</a></li>
+    <li><a href="#c16-d2">Shingle size</a></li>
+    <li><a href="#c16-d3">Which copy to keep</a></li>
+    <li><a href="#c16-d4">The chaining failure</a></li>
+    <li><a href="#c16-d5">Union-find at scale</a></li>
+    <li><a href="#c16-d6">Choosing the filters</a></li>
+    <li><a href="#c16-d7">Evaluating the corpus</a></li>
+    <li><a href="#c16-d8">Does it need a cluster</a></li>
+    <li><a href="#c16-d9">The parsing stage</a></li>
+    <li><a href="#c16-d10">Tokens, not gigabytes</a></li>
+    <li><a href="#c16-d11">Secrets and people</a></li>
+    <li><a href="#c16-d12">Rerunning it</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c16-d1">
+      <p class="qa-q">How do you set the near-duplicate threshold?</p>
+      <p class="qa-a">Through the band layout. Cut the signature into more bands and the threshold drops, because a match in any one band makes a pair a candidate. That gives an S-shaped curve rather than a hard cutoff. You are choosing where the curve is steep, which is really a choice about which mistake you prefer.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing it as a similarity number you set. The number is a consequence of the band layout, and knowing that is the difference between using it and understanding it.</p>
+    </li>
+    <li class="qa-item" id="c16-d2">
+      <p class="qa-q">Does shingle size matter?</p>
+      <p class="qa-a">A lot. Short shingles make unrelated documents look similar, because everyday phrases collide. Long shingles miss real near-duplicates that differ by a word inserted every sentence. Five words is the usual starting point and it is a starting point rather than an answer.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it an implementation detail. It is the parameter that decides what the word duplicate means in this pipeline.</p>
+    </li>
+    <li class="qa-item" id="c16-d3">
+      <p class="qa-q">Within a duplicate group, which document survives?</p>
+      <p class="qa-a">Whichever rule you can defend, as long as it is a rule. The longest, the most recently edited, or the one in the most canonical space. What you must not do is take an arbitrary member, because then two runs over the same input give two different corpora.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Not having a rule. The wiki has version history and space names, so a sensible rule is available and skipping it is a choice.</p>
+    </li>
+    <li class="qa-item" id="c16-d4">
+      <p class="qa-q">What goes wrong with connected components on a big corpus?</p>
+      <p class="qa-a">Chaining. A resembles B, B resembles C, on down a long line, and the two ends have nothing in common. Connected components collapses the whole chain into one group and keeps a single document. On a wiki full of page templates that chain can get long.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Not knowing this happens. It is the standard criticism of the technique and the interviewer probably knows it.</p>
+    </li>
+    <li class="qa-item" id="c16-d5">
+      <p class="qa-q">How would you run the grouping across several machines?</p>
+      <p class="qa-a">The candidate pairs are the awkward part, not the documents. Pairs come out of a distributed join, and grouping them is a global operation. At this size the pair list usually fits on one machine, so collecting it and running union-find locally is the honest answer. Iterative label propagation is the version that scales past that.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Reaching for a distributed graph framework first. Checking whether the pair list fits in memory is the cheaper question and usually ends the discussion.</p>
+    </li>
+    <li class="qa-item" id="c16-d6">
+      <p class="qa-q">How do you decide which quality filters to keep?</p>
+      <p class="qa-a">By ablation, which is what fineWeb actually contributed. Build the corpus twice, once with a filter and once without, train a small model on each, and compare on a downstream eval. Borrowing a filter list without the ablation takes the answer and leaves the reasoning behind.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Justifying filters by inspection. Reading a hundred documents tells you the filter fires, and it does not tell you whether the model got better.</p>
+    </li>
+    <li class="qa-item" id="c16-d7">
+      <p class="qa-q">How do you know the output corpus is good?</p>
+      <p class="qa-a">Three levels, and only the last is real. Per-stage counts tell you each stage did roughly what you expected. Reading a sample at each boundary catches the embarrassing mistakes. Training a small model on two variants is the only thing that answers the actual question, and it is the expensive one.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Stopping at counts. Counts prove the code ran, which is not the same claim as the data being better.</p>
+    </li>
+    <li class="qa-item" id="c16-d8">
+      <p class="qa-q">Did this need a cluster?</p>
+      <p class="qa-a">Probably not for stages one and three. Both are per-document passes, and the whole export streams through one machine in under an hour on a decent disk. Stage two has the genuine argument for distribution, because the candidate join is where the work is. Saying that is better than reaching for Spark by default.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating 150&#8239;GB as big data. It is one disk. Knowing when not to distribute reads better than knowing how.</p>
+    </li>
+    <li class="qa-item" id="c16-d9">
+      <p class="qa-q">The bullet says three stages. What is stage zero?</p>
+      <p class="qa-a">Parsing, and it is usually where most of the real work went. A Confluence export is structured markup with macros, attachments, comment threads and per-page metadata. Getting text out of that without losing code blocks or keeping navigation chrome is fiddly, and nothing downstream can fix a bad job of it.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Skipping it because it is not in the bullet. It is the stage that determines what the other three are even looking at.</p>
+    </li>
+    <li class="qa-item" id="c16-d10">
+      <p class="qa-q">Is 150&#8239;GB a lot of pretraining data?</p>
+      <p class="qa-a">No, and I would rather say so. Very roughly it is tens of billions of tokens before filtering and considerably fewer after. That is domain-adaptive pretraining, or continued pretraining on an existing model. Training from scratch wants two or three orders of magnitude more.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Letting gigabytes stand in for tokens. Tokens are the unit that matters, and converting in your head is expected.</p>
+    </li>
+    <li class="qa-item" id="c16-d11">
+      <p class="qa-q">What stops a database password ending up in the training data?</p>
+      <p class="qa-a">Nothing in these three stages, which is why I would volunteer it. A credential in a code block is well-formed, unique and not repetitive, so every filter keeps it. The same is true of pages about individual employees. A fourth stage with secret scanning and entity detection is what is missing.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Assuming quality filtering covers it. The filters measure form, and a secret has excellent form.</p>
+    </li>
+    <li class="qa-item" id="c16-d12">
+      <p class="qa-q">Someone asks you to rerun it next month. What has to be true?</p>
+      <p class="qa-a">Same input and same code gives the same output. That needs the union-find grouping, a deterministic survivor rule, and pinned hash seeds. Without those three, the corpus quietly differs between runs and you can no longer attribute a model change to anything.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Assuming determinism. Two of the three stages have order-dependent implementations that look correct.</p>
+    </li>
+  </ol>
+</section>
+
+<div class="quiz" data-quiz-id="0016-q1">
+  <p class="q">Why use MinHash rather than hashing each document and comparing hashes?</p>
+  <ol class="options">
+    <li data-correct="true">Near-duplicates survive an exact hash match every time</li>
+    <li>Exact hashing becomes impossibly slow at this scale</li>
+    <li>Hash collisions occur more often than people expect</li>
+    <li>Exact hashes cannot be computed across many machines</li>
+  </ol>
+  <div class="why">
+    <p>An exact hash finds exact copies. The problem on a wiki is the same release note in four spaces, a template filled in differently, a page with one paragraph added. All of those hash differently and all of them are the same text.</p>
+    <p>Exact hashing is also the faster option, which is why speed is the wrong reason to reject it. MinHash estimates set overlap instead of equality, and that is the property the problem needs.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0016-q2">
+  <p class="q">Which stage should run first, and for what reason?</p>
+  <ol class="options">
+    <li data-correct="true">Quality filtering, because it discards the most</li>
+    <li>Deduplication, because it runs over everything twice</li>
+    <li>Repetition removal, because it rewrites every document</li>
+    <li>Tokenisation, because it dominates the wall-clock time</li>
+  </ol>
+  <div class="why">
+    <p>Quality filtering is one regex pass per document. It costs almost nothing and it removes more than the other stages do, so everything downstream sees a much smaller corpus.</p>
+    <p>Deduplication is the stage that benefits most from that. It compares documents against each other, so every document filtered earlier is one it never has to shingle, sign or join.</p>
+  </div>
+</div>
+
+<section class="qset" id="edges">
+  <h2>Edges and exceptions</h2>
+  <p class="qset-note">Most of these are about the difference between a wiki and a web crawl. That difference is the chapter.</p>
+  <ul class="qa-index">
+    <li><a href="#c16-e1">Legitimate repetition</a></li>
+    <li><a href="#c16-e2">The template problem</a></li>
+    <li><a href="#c16-e3">Versioned pages</a></li>
+    <li><a href="#c16-e4">A very short good page</a></li>
+    <li><a href="#c16-e5">Non-English content</a></li>
+    <li><a href="#c16-e6">Wrong but confident pages</a></li>
+    <li><a href="#c16-e7">Defending &#8220;distilling&#8221;</a></li>
+    <li><a href="#c16-e8">What you would change</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c16-e1">
+      <p class="qa-q">An API reference page is almost entirely repeated structure. Should it go?</p>
+      <p class="qa-a">No, and this is where a web-tuned repetition filter is wrong. A parameter table repeats by design. It is also one of the more useful pages in the corpus. The fix is to measure repetition on prose and exclude structured blocks. Loosening the threshold until the filter stops firing is the lazy version.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Loosening the threshold. That trades a precise fix for a blunt one and lets the real repetition back in.</p>
+    </li>
+    <li class="qa-item" id="c16-e2">
+      <p class="qa-q">Four hundred pages share a template and differ in one field each.</p>
+      <p class="qa-a">Near-duplicate detection groups them and keeps one, which is mostly right. But the differing field may be the only thing of value, and keeping one copy throws away three hundred and ninety-nine facts. The better move is to detect the shared boilerplate and strip it, then judge what is left.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Accepting the group as a duplicate. The pages are duplicates by similarity and not by content, which is the case where the measure and the intent part ways.</p>
+    </li>
+    <li class="qa-item" id="c16-e3">
+      <p class="qa-q">A page exists in v1, v2 and v3, all near-identical.</p>
+      <p class="qa-a">Keep the newest and only the newest. This is the case where an arbitrary survivor is actively harmful, because two of the three are known to be out of date. The export carries modification dates, so the rule is available. Using it is the difference between deduplication and choosing correctly.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Keeping the longest. Longest is a reasonable default in general and it is the wrong one when older versions are superseded.</p>
+    </li>
+    <li class="qa-item" id="c16-e4">
+      <p class="qa-q">A forty-word page contains the one command everyone needs.</p>
+      <p class="qa-a">A length filter removes it, and that is a real loss rather than a rounding error. Any threshold has this cost. The way to find out is to read the discarded set rather than only the kept one. Sampling what you threw away is the cheapest check in the pipeline.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Only inspecting what survived. The discarded pile is where the expensive mistakes are.</p>
+    </li>
+    <li class="qa-item" id="c16-e5">
+      <p class="qa-q">Part of the wiki is not in English.</p>
+      <p class="qa-a">Then a language filter is a decision and not a cleanup step. Dropping it loses real content from teams who wrote in their own language. Keeping it changes what the model is being trained for. Either is defensible and it should be stated as a choice, since it is not a quality question at all.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Filing it under quality. It is a scope decision wearing a filter's clothes.</p>
+    </li>
+    <li class="qa-item" id="c16-e6">
+      <p class="qa-q">A page is well-written, unique, and factually wrong.</p>
+      <p class="qa-a">Every stage keeps it. Nothing in this pipeline measures truth, only form and novelty. That is a genuine limit and it is worth saying plainly, because a stale internal wiki is full of confident, well-formed, out-of-date instructions.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Suggesting a model could judge correctness. On an internal corpus there is no ground truth to judge it against.</p>
+    </li>
+    <li class="qa-item" id="c16-e7">
+      <p class="qa-q">Defend the word &#8220;distilling&#8221; in this bullet.</p>
+      <p class="qa-a">I would not. I would change it. On a r&#233;sum&#233; that also claims knowledge distillation, the word reads as the technique rather than as a figure of speech. Reduced or filtered says the same thing and costs nothing, and the interviewer's question then goes somewhere useful.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Defending it. This is the rare case where conceding the wording is strictly better than winning the point.</p>
+    </li>
+    <li class="qa-item" id="c16-e8">
+      <p class="qa-q">What would you change?</p>
+      <p class="qa-a">Add the fourth stage for secrets and personal data, because nothing here looks for either. Publish per-stage retention and a sample of what each stage discarded. And ablate at least the two filters I inherited from web-crawl work, since those are the ones most likely to be wrong on a wiki.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Proposing more filters. The gap is evidence and safety, not coverage.</p>
+    </li>
+  </ol>
+</section>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;Why MinHash and not a hash?&#8221;
+      <span class="tell">The opening question. An answer about speed gets it backwards, because exact hashing is faster.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Because an exact hash only finds exact copies, and the problem on a wiki is near-copies. The same release note in four spaces, a page template with one field filled in differently, a document with a paragraph added. Every one of those hashes differently and they are all the same text. MinHash estimates how much two documents overlap as sets rather than testing whether they are equal, which is the property the problem actually needs.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Walk me through the dedup stage.&#8221;
+      <span class="tell">Where the union-find point earns its keep. Most answers stop at candidate pairs.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Cut each document into overlapping runs of words so it becomes a set. Hash that set many times, keep the minimum each time, and you have a signature whose positions agree as often as the sets overlap. Cut the signatures into bands and match whole bands to get candidate pairs cheaply. Then the part people skip: those pairs go into union-find, because a pair is a fact and a deletion is a decision. Group first, keep one per group under a stated rule, and the output stops depending on file order.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;150 gigabytes went in. What came out?&#8221;
+      <span class="tell">Asked every time, and the absence of the number is what the interviewer notices.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Per stage rather than as a total, because the shape of the drop is what tells you anything. Quality filtering takes the largest bite, dedup takes the next, and repetition removal is usually small. If a pipeline keeps ninety per cent it barely ran, and if it keeps two per cent it probably deleted something it should not have. I would also show a sample of what each stage discarded, because reading the discarded pile is where the expensive mistakes turn up.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;How did you know the filters were the right ones?&#8221;
+      <span class="tell">The question that separates borrowing fineWeb from understanding it.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The only real test is an ablation. Build the corpus with and without a filter, train a small model on each, and compare on a downstream eval. That is what fineWeb actually contributed, and taking the filter list without the ablation is taking the answer and leaving the reasoning. It matters more here than on a web crawl, because several C4 rules are wrong on an engineering wiki. Dropping pages with curly braces removes code blocks, which are the best content in there.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;What stops a secret ending up in the training data?&#8221;
+      <span class="tell">Volunteer this one rather than waiting for it. It is the gap the word clean hides.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Nothing in these three stages, and I would raise it before being asked. A credential in a code block is unique, well-formed and not repetitive, so every filter I have keeps it. The same goes for pages about individual employees. Clean here means deduplicated and reasonably well-formed, and it does not mean safe to train on. Closing that gap needs a fourth stage doing secret scanning and entity detection, and it is the first thing I would add.</p>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="recall">
+  <details>
+    <summary>Chapter 0010 warned about one word on this r&#233;sum&#233; meaning two different things. Which word, and what is the cost here?</summary>
+    <p class="answer">Distillation. On the model optimisation line it means training a small student model to match a large teacher. On this line &#8220;distilling 150 GB&#8221; means filtering data down. The two appear on the same page, so an interviewer reasonably reads the second as the first and asks about teacher-student setups. The fix is one word: say reduced or filtered, and the question goes somewhere useful instead.</p>
+    <span class="from"><a href="0010-model-optimization.html">Chapter 0010 &#183; the distillation collision</a></span>
+  </details>
+  <details>
+    <summary>Chapter 0012 argued that an average score hides the cases worth reading. Apply that to a data pipeline.</summary>
+    <p class="answer">A retention percentage is an average over the corpus and it hides everything interesting. Per stage is better, and per stage with a sample of what was discarded is better still. The same argument applies inside a stage: the mean document length tells you nothing, because every decision here is about the tails. Very short pages that are one useful command, and very long pages that are mostly a repeated navigation bar.</p>
+    <span class="from"><a href="0012-rag-and-evaluation.html">Chapter 0012 &#183; averages hide the cases that matter</a></span>
+  </details>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">The lessons behind this chapter</span>
+  <p>System Design School teaches these mechanisms from first principles and breaks them in a lab. This chapter defends what you did with them. An interviewer moves between those two registers without warning.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0001-latency-budget-arithmetic.html">SDS 0001 &#183; Latency budget arithmetic</a>
+      <span class="bridge-why">One pass over 150&#8239;GB is arithmetic you can do in your head, and the pipeline makes several. Summing them before building is the same habit.</span>
+    </li>
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0002-p50-is-a-lie.html">SDS 0002 &#183; p50 is a lie</a>
+      <span class="bridge-why">The mean document decides nothing here. Every filter threshold is a statement about a tail, and a single retention percentage hides both of them.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0030 &#183; Partitioning: rings and shard keys &#8212; not yet built</span>
+      <span class="bridge-why">The candidate-pair join is the only stage with a real argument for distribution, and how you partition decides whether it works.</span>
+    </li>
+  </ol>
+</div>
+
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0015-memory-for-a-dementia-companion.html">&#8592; 0015 &#183; Memory for a dementia companion</a></span>
+  <span><span class="dir">Next</span><a href="0017-teaching-sessions.html">0017 &#183; Teaching it: pruning, KG-RAG, multimodal &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

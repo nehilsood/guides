@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>Voice-Only Commerce on ONDC</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0018">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">R&#233;sum&#233; Mastery</a>
+    <span class="sep">/</span>
+    <span>Batch D &#183; Data With D</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Chapter 0018</span>
+  </div>
+  <h1>Voice-only commerce on ONDC</h1>
+  <p class="standfirst">Two hard things at once. A network that answers asynchronously from many sellers, and a channel that can only say one thing at a time. The interesting question is when you stop waiting and start talking.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Say what ONDC is in one sentence, then the collision: <em>results arrive over time and speech is serial.</em> Then the two things nobody volunteers &#8212; how an address gets into an order without a screen, and what stops a retried confirm from ordering twice.</p>
+</div>
+
+<div class="claim-line">
+  <span class="callout-label">The line being defended</span>
+  <blockquote>&#8220;<strong>sayjini.com</strong> &#8212; Built a <strong>voice-only e-commerce experience on ONDC</strong> using LLMs, RAG, and function calling, enabling hands-free catalog search and checkout.&#8221;</blockquote>
+  <span class="whose">Data With D &#183; bullet 1 of 2</span>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">For <em>&#8220;tell me about the voice commerce work.&#8221;</em> The collision between an asynchronous network and a serial channel is the idea. Get there in the second sentence.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">Somebody speaks what they want and an order gets placed, with no screen anywhere in it.</p>
+      <p class="line">The catalogue is not one shop. It is ONDC, a public network, so one search goes to a gateway and many sellers answer separately.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">Which is the interesting part. <b>The answers trickle in over seconds and speech is serial</b>, so there is nothing to render into.</p>
+      <p class="line">A screen adds rows as they arrive. A voice has to pick a moment and commit to what the answer is.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">Acknowledge immediately, which buys two or three seconds of network time, then set a deadline and rank over whatever arrived.</p>
+      <p class="line">And design for three results, because <b>speech gives you about three in ten seconds</b>. One narrowing question is cheaper than four more results.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">Two things I would rather volunteer. <b>Nobody should dictate an address or a payment</b>. Those come from the profile and get read back.</p>
+      <p class="line">And confirm is the one irreversible step, so it needs a read-back, an explicit yes, and an idempotency key. A dropped connection on a mobile network otherwise orders twice.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;Voice-only e-commerce using LLMs, RAG and function calling.&#8221;</span> Three technologies and no problem. That description would fit a voice wrapper over any shop, and it throws away the only genuinely hard thing in the project. Say &#8220;the network answers asynchronously and speech is serial&#8221; and you are immediately somewhere nobody else has been.</p>
+  <p>The other trap is letting checkout pass unremarked. The first two follow-ups are always address and payment, and the best answers are that neither should be dictated. Volunteering that reads as having shipped it.</p>
+</div>
+
+
+
+<div class="trace">
+  <span class="callout-label">Walk them through it &#183; one spoken order, end to end</span>
+  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One sentence said out loud, followed to a placed order. No screen at any point, and that is the constraint every decision here comes from.</p>
+  <p class="tr-case"><b>The picture.</b> Ordering at a counter, against calling out across a crowded market. The market answers from several stalls over several seconds. On a screen that is fine, because rows appear as they arrive. In a conversation you have to choose a moment and say one sentence.</p>
+  <p class="tr-case"><b>The case.</b> Somebody says <em>&#8220;I need two kilos of atta.&#8221;</em> The catalogue is not one shop. It is ONDC, an open network, so the question goes to a gateway and many sellers answer separately.</p>
+  <ol>
+    <li class="tr-step">
+      <span class="tr-k">Say something</span>
+      <p><b>What happens.</b> The first thing the system does is acknowledge, before it knows anything.</p>
+      <p><b>Concretely.</b> That is natural in conversation and it buys two or three seconds of real network time.</p>
+      <p><b>If they ask why.</b> Time to first sound is the number a listener actually feels, the same way a reader feels first token. Silence is the failure, not slowness.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The parse</span>
+      <p><b>What happens.</b> The spoken sentence has to become a structured search the network will accept.</p>
+      <p><b>Concretely.</b> Atta is flour, two kilos is a quantity and a unit, and the sentence may switch languages halfway through.</p>
+      <p><b>If they ask why.</b> This is what RAG is doing here, and I would say so precisely. It is query understanding rather than answering from documents. Calling it RAG without that sentence invites a confused follow-up.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The broadcast</span>
+      <p><b>What happens.</b> One search goes to the gateway and the gateway broadcasts it to many seller platforms.</p>
+      <p><b>Concretely.</b> The protocol underneath has fixed stages. Search, select, init, confirm, then status and track.</p>
+      <p><b>If they ask why.</b> Everything before confirm is reversible. Confirm is not, and that single asymmetry is where the interesting design lives.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The trickle</span>
+      <p><b>What happens.</b> Answers come back separately over the next few seconds, each as its own callback.</p>
+      <p><b>Concretely.</b> There is no single response to wait for and no list of who was going to reply. So there is literally nothing to wait for.</p>
+      <p><b>If they ask why.</b> A visual storefront renders what it has and adds more. A voice channel gets one sentence and it has to be right.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The deadline</span>
+      <p><b>What happens.</b> So the deadline goes on the request rather than on any seller, and we rank over whatever arrived.</p>
+      <p><b>Concretely.</b> A slow seller platform can no longer hold up a whole turn.</p>
+      <p><b>If they ask why.</b> The honest gap is that sellers answering after the deadline are invisible, and I never measured how often the best result was one of them. Logging late callbacks and scoring them is what that would take.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Three results</span>
+      <p><b>What happens.</b> Now the ranked results are spoken, and the number is not a preference.</p>
+      <p><b>Concretely.</b> A screen shows twenty at a glance and a person scans them in two seconds. Speech delivers about three in ten seconds.</p>
+      <p><b>If they ask why.</b> That is the whole difference and everything else follows. Precision at three barely matters on a screen and it is the only thing that matters here.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Narrowing</span>
+      <p><b>What happens.</b> If the top three are not obviously right, ask rather than read out more.</p>
+      <p><b>Concretely.</b> One narrowing question is cheaper than four more results, in both seconds and patience.</p>
+      <p><b>If they ask why.</b> And they have to be able to interrupt while the system is speaking. Without that, a wrong first result costs the listener the entire sentence.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The address</span>
+      <p><b>What happens.</b> They pick one, and now the order needs things voice is bad at.</p>
+      <p><b>Concretely.</b> An address, a payment and a quantity. Two of those should never be dictated at all.</p>
+      <p><b>If they ask why.</b> The address and the payment come from the profile and get read back for confirmation. Saying they should not be spoken is a stronger answer than describing how you transcribed them.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The read-back</span>
+      <p><b>What happens.</b> Before confirm, the whole state is read back and an explicit yes is required.</p>
+      <p><b>Concretely.</b> The cart is invisible. Reading it back is the only way it becomes checkable.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Confirm once</span>
+      <p><b>What happens.</b> Confirm is the irreversible step, and the last detail is the one nobody volunteers.</p>
+      <p><b>Concretely.</b> It carries an idempotency key, so a repeated request has the same effect as one request.</p>
+      <p><b>If they ask why.</b> A dropped connection on a mobile network otherwise orders twice. The retry is the normal case here, not the exception.</p>
+    </li>
+  </ol>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 338" role="img" aria-labelledby="mech0018-t mech0018-d">
+    <defs>
+      <marker id="ar18" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+    </defs>
+    <title id="mech0018-t">A serial channel over an asynchronous network, and the deadline between them</title>
+    <desc id="mech0018-d">Speech arrives, a recogniser transcribes it, and retrieval over the catalogue turns a vague request into a structured search with a category, attributes and a price bound. That search goes to the ONDC gateway, which broadcasts to many seller platforms whose replies arrive separately over the next few seconds. Because speech is serial and cannot add rows the way a screen can, the system acknowledges immediately to buy network time, sets a deadline in the low seconds, and ranks over whatever arrived. Only three results can be spoken, so precision in the first three is the only ranking metric that matters. Everything up to confirm is reversible. Confirm is not, so it requires a read-back and an explicit spoken yes, and it carries an idempotency key so a retry over a flaky mobile network cannot place two orders.</desc>
+
+    <rect class="box" x="8" y="16" width="130" height="44" rx="3"/>
+    <text class="lbl strong" x="73" y="34" text-anchor="middle">Speech in</text>
+    <text class="lbl-dim" x="73" y="50" text-anchor="middle">code-mixed, vague</text>
+
+    <path class="flow" marker-end="url(#ar18)" d="M 142 38 H 172"/>
+
+    <rect class="accent" x="176" y="16" width="216" height="44" rx="3"/>
+    <text class="lbl strong ink-accent" x="284" y="34" text-anchor="middle">Retrieval over the catalogue</text>
+    <text class="lbl-dim" x="284" y="50" text-anchor="middle">a sentence becomes a structured search</text>
+
+    <path class="flow" marker-end="url(#ar18)" d="M 396 38 H 426"/>
+
+    <rect class="box" x="430" y="16" width="160" height="44" rx="3"/>
+    <text class="lbl strong" x="510" y="34" text-anchor="middle">ONDC gateway</text>
+    <text class="lbl-dim" x="510" y="50" text-anchor="middle">one search, many sellers</text>
+
+    <path class="flow" marker-end="url(#ar18)" d="M 594 28 H 632"/>
+    <path class="flow" marker-end="url(#ar18)" d="M 594 38 H 632"/>
+    <path class="flow" marker-end="url(#ar18)" d="M 594 48 H 632"/>
+
+    <rect class="warn" x="636" y="16" width="196" height="44" rx="3"/>
+    <text class="lbl strong ink-warn" x="734" y="34" text-anchor="middle">Callbacks, over seconds</text>
+    <text class="lbl-dim" x="734" y="50" text-anchor="middle">separately, in any order</text>
+
+    <rect class="bad" x="8" y="74" width="824" height="56" rx="3"/>
+    <text class="lbl strong ink-bad" x="24" y="96">A screen adds rows. Speech has to commit.</text>
+    <text class="lbl-dim" x="24" y="116">acknowledge at once to buy network time &#183; deadline in the low seconds &#183; rank over what arrived</text>
+
+    <rect class="box-2" x="8" y="142" width="408" height="94" rx="3"/>
+    <text class="lbl strong" x="24" y="164">Bandwidth is three</text>
+    <text class="lbl-dim" x="24" y="184">a screen shows twenty at a glance</text>
+    <text class="lbl-dim" x="24" y="202">speech gives three in ten seconds</text>
+    <text class="num ink-accent" x="24" y="220">so ask one narrowing question</text>
+
+    <rect class="box-2" x="424" y="142" width="408" height="94" rx="3"/>
+    <text class="lbl strong" x="440" y="164">The protocol is the function set</text>
+    <text class="lbl-dim" x="440" y="184">search &#8594; select &#8594; init &#8594; confirm</text>
+    <text class="lbl-dim" x="440" y="202">small, fixed, and typed by somebody else</text>
+
+    <rect class="bad" x="8" y="248" width="824" height="82" rx="3"/>
+    <text class="lbl strong ink-bad" x="24" y="270">Confirm is the only irreversible step</text>
+    <text class="lbl-dim" x="24" y="290">read back item, quantity, price, address &#183; wait for an explicit yes &#183; silence is not consent</text>
+    <text class="lbl-dim" x="24" y="310">carry an idempotency key, or a retry on a dropped connection places the order twice</text>
+    <text class="num ink-warn" x="24" y="326">the address and the payment never get dictated &#8212; they are read back from the profile</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">What you say while drawing it</span>
+    <ol class="narrate">
+      <li>Speech in, and say what makes it hard. Vague, and code-mixed.</li>
+      <li>Retrieval, and be precise. It turns the sentence into a search, it does not answer it.</li>
+      <li>The gateway. One search out, many sellers behind it.</li>
+      <li>Three arrows back, deliberately ragged. They arrive separately and in any order.</li>
+      <li>Then the red band, which is the whole chapter. A screen adds rows and a voice has to commit.</li>
+      <li>Bandwidth of three on the left. That is why one narrowing question beats four more results.</li>
+      <li>The protocol on the right. Four stages, and the model never invents a fifth.</li>
+      <li>The bottom band last. Confirm, read-back, idempotency key.</li>
+      <li>And the line people forget. Nobody dictates an address.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. One path across, one deadline, two constraints, one irreversible step.</p>
+  <ul>
+    <li>The <b>ragged callbacks</b>. Everything else follows from them.</li>
+    <li><b>A screen adds rows, a voice commits.</b> The one line to keep.</li>
+    <li><b>Bandwidth of three</b>, so ask one question instead.</li>
+    <li><b>Confirm, read-back, idempotency key</b>, in that order.</li>
+  </ul>
+  <span class="timer">Say &#8220;the answers trickle in and speech is serial&#8221; before you draw anything else. It frames every box after it.</span>
+</div>
+
+<div class="star">
+  <span class="callout-label">Behavioural &#183; the story for this bullet</span>
+  <p class="frame">For <em>&#8220;tell me about a constraint you could not engineer around&#8221;</em> or <em>&#8220;a product decision that had no technically correct answer.&#8221;</em></p>
+  <ol class="rungs">
+    <li class="rung"><span class="rung-k">Decision</span><p>How long to wait for seller responses before speaking. There is no list of who was going to reply, so there is nothing to wait for.</p></li>
+    <li class="rung"><span class="rung-k">Situation</span><p>ONDC broadcasts one search to many seller platforms and their answers arrive separately over the next few seconds. A visual storefront renders what it has and adds more. A voice channel has one sentence and it has to be right.</p></li>
+    <li class="rung"><span class="rung-k">Action</span><p>I made it two decisions instead of one. Acknowledge the request immediately, which is natural in conversation and buys real network time. Then a deadline on the request rather than on any seller, and rank over whatever had arrived.</p><p>And because the budget was now tight, I designed for three results rather than a list. One narrowing question when the candidate set was too wide.</p></li>
+    <li class="rung"><span class="rung-k">Result</span><p>The pause stopped being the thing people noticed, and a slow seller platform could no longer hold up a whole turn.</p></li>
+    <li class="rung"><span class="rung-k">What it cost</span><p>Sellers who answer after the deadline are invisible, and I have no measurement of how often the best result was one of them. That is a real gap. Measuring it would need the late callbacks logged and scored against what was actually said, which I did not build.</p></li>
+  </ol>
+</div>
+
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>Somebody speaks what they want and an order gets placed. No screen at any point. Behind that, the catalogue is not one shop's database. It is a public network where you ask a question and many sellers answer separately, in their own time.</p>
+  <p>So there are two problems stacked. One is understanding a vague spoken request well enough to search for it. The other is handling a stream of answers over a channel that holds one sentence at a time.</p>
+  <dl>
+    <dt>ONDC</dt>
+    <dd>An open network for commerce in India. A buyer application talks to a gateway, and the gateway broadcasts to many seller platforms.</dd>
+
+    <dt>Beckn</dt>
+    <dd>The protocol underneath it. A fixed set of stages, each one a message out and a callback back.</dd>
+
+    <dt>The stages</dt>
+    <dd>Search, select, init, confirm, then status and track. Everything before confirm is reversible and confirm is not.</dd>
+
+    <dt>Callback</dt>
+    <dd>A seller's answer, arriving later and separately. There is no single response to wait for, which is the whole design problem.</dd>
+
+    <dt>Precision at three</dt>
+    <dd>Whether the right answer is in the first three. On a screen it barely matters and in speech it is the only thing that matters.</dd>
+
+    <dt>Barge-in</dt>
+    <dd>Letting somebody interrupt while the system is speaking. Without it a wrong result costs the listener the whole sentence.</dd>
+
+    <dt>Code-mixing</dt>
+    <dd>Switching between languages inside one sentence. Normal in Indian speech and routine for quantities and numbers.</dd>
+
+    <dt>Confirmation</dt>
+    <dd>Reading state back and waiting for an explicit yes. The only way an invisible cart becomes checkable.</dd>
+
+    <dt>Idempotency</dt>
+    <dd>A repeated request having the same effect as one request. What stops a retried order from becoming two orders.</dd>
+
+    <dt>Time to first sound</dt>
+    <dd>How long before the system says anything. The number a listener actually feels, the same way a reader feels first token.</dd>
+  </dl>
+</div>
+
+<div class="primer stack">
+  <span class="callout-label">The technology &#8212; what each named thing is</span>
+  <p>The primer above defines the shape of the voice problem. This one names the network protocol and the speech stack, starting from the ground. ONDC is a specification with named verbs, and an interviewer who has heard of it will ask for them.</p>
+  <p>Every entry answers four things. What it actually is, in plain words. Where this system uses it. What it buys, meaning what goes wrong without it. And the follow-up an interviewer asks once you have said the name.</p>
+  <dl>
+    <dt>ASR</dt>
+    <dd><i>automatic speech recognition</i>Audio goes in, text comes out. Quality is measured by word error rate, which counts the insertions, deletions and substitutions needed to turn the transcript into what was actually said, divided by the number of words spoken. Twenty percent word error rate means one word in five is wrong. <b>In the app.</b> It is the first stage, and every later stage inherits its mistakes. <b>What it buys.</b> Everything downstream. The retrieval, the model and the protocol layer all operate on text, so this is the only bridge from a person speaking to a system that works. <b>The follow-up.</b> Word error rate is always measured on a dataset, and the dataset is the real claim. Indian English carrying product names and Hindi words mid-sentence is a completely different distribution from the benchmark any published figure was measured on.</dd>
+
+    <dt>Bhashini</dt>
+    <dd><i>India's language mission</i>A government programme that provides speech recognition, text-to-speech and translation models across Indian languages behind a shared API. It exists because the major commercial providers cover Indian languages thinly and unevenly, and because the data needed to fix that is a public-good problem. <b>In the app.</b> It is the realistic option for Indic speech at this scale. <b>What it buys.</b> Language coverage that would otherwise have to be built, including languages no commercial vendor has an incentive to serve. <b>The follow-up.</b> Coverage is uneven between languages, and markedly so. A system that works well in Hindi and poorly in Marathi is a product decision, not an accident, and you should be able to state which languages you actually shipped.</dd>
+
+    <dt>TTS</dt>
+    <dd><i>text to speech</i>The reverse of ASR. Text goes in and audio comes out. Modern systems are neural rather than concatenative, and critically they can stream, producing the first chunk of audio before the sentence has finished generating. <b>In the app.</b> Time to first sound is a number in the primer above, and most of it is spent here. <b>What it buys.</b> The reply becomes audible, which for a voice-only interface is the product. <b>The follow-up.</b> Streaming is the whole game. A model that waits for a complete sentence before producing any audio adds its full generation time directly to perceived latency, and no amount of tuning upstream will ever get that back.</dd>
+
+    <dt>VAD</dt>
+    <dd><i>voice activity detection</i>A very small and very cheap model whose only job is deciding, moment to moment, whether the audio contains speech. It runs continuously and costs almost nothing, which is what lets it sit in front of everything expensive. <b>In the app.</b> Barge-in is exactly this: detect that the user has started speaking and immediately stop the audio that is playing. <b>What it buys.</b> Two things. The ability to interrupt, which is what makes a voice assistant feel conversational rather than like a recording. And a gate that stops the expensive speech recognition running on silence. <b>The follow-up.</b> Two error types with opposite costs. Trigger too eagerly and a cough cuts the assistant off mid-sentence. Trigger too late and the user talks over a reply they had already decided to interrupt, which feels broken in a way users do not forgive.</dd>
+
+    <dt>Beckn</dt>
+    <dd><i>the protocol under ONDC</i>An open specification that lets independent buyer apps and seller platforms transact without either integrating with the other directly. The buyer side sends <code>search</code>, <code>select</code>, <code>init</code>, <code>confirm</code> and <code>status</code>. The seller side answers with <code>on_search</code>, <code>on_select</code>, <code>on_init</code> and <code>on_confirm</code>. <b>In the app.</b> Those verbs are the transaction, so knowing them is knowing the integration. <b>What it buys.</b> Reach without partnerships. One implementation of the protocol reaches every seller on the network, instead of a bilateral integration per merchant. <b>The follow-up.</b> Know the two roles by their names. The buyer app is the BAP, the seller platform is the BPP, and a gateway broadcasts a search when no specific seller has been addressed.</dd>
+
+    <dt>Asynchronous callbacks</dt>
+    <dd><i>the property that shapes everything</i>Nothing in this protocol returns its answer. You send <code>search</code> and the receiver immediately acknowledges that it got the message, nothing more. The actual results arrive some time later as a separate HTTP request made to an endpoint of yours. Every single verb works this way. <b>In the app.</b> It is why a voice turn cannot simply wait for a result and then speak it. <b>What it buys.</b> It is what makes an open network of many independent sellers possible at all, since no one participant can be made to answer fast. <b>The follow-up.</b> What it forces you to build. A publicly reachable callback endpoint, correlation of responses to requests by transaction id, a timeout policy for sellers who never reply, and something to say to a waiting user while nothing has come back.</dd>
+
+    <dt>Catalogue retrieval</dt>
+    <dd><i>the RAG part, honestly named</i>Taking what somebody said and finding the matching product listings, by embedding similarity, by keyword search, or by both combined. <b>In the app.</b> The bullet says RAG, and this is the thing that word refers to. <b>What it buys.</b> Spoken requests reach real products. Someone asking for &#8220;that yellow dal we get, the small packet&#8221; is not issuing a query any exact matcher handles. <b>The follow-up.</b> Retrieval over a live catalogue is not document retrieval, and the difference is the hard part. Prices and stock change continuously, so an index built last night will confidently offer something that is no longer available. Freshness is a design problem here rather than an implementation detail.</dd>
+
+    <dt>Idempotency key</dt>
+    <dd><i>the one that prevents double orders</i>A unique identifier the client generates and attaches to a request. If the same request arrives again carrying the same key, the server recognises it as a repeat and returns the original result instead of doing the work twice. <b>In the app.</b> Voice input, retries and asynchronous callbacks together are exactly the conditions in which an order gets placed twice. <b>What it buys.</b> Retries become safe. Without it, any timeout leaves you unable to tell a lost request from a slow one, and both plausible choices are wrong. <b>The follow-up.</b> Where the key has to be generated. Before the first attempt, and stored by the server. A key invented at retry time is a different key, which makes it a different request, which places a second order.</dd>
+
+    <dt>Code-mixing</dt>
+    <dd><i>the Indian-language reality</i>Two languages inside a single sentence, switching mid-phrase rather than between turns. An English product name inside a Hindi clause, with English numbers and a Hindi verb. It is not an edge case or a mistake, it is how people ordinarily speak. <b>In the app.</b> It is how anybody actually talks to a shopping assistant here. <b>What it buys.</b> Designing for it is what makes the product usable by its actual users rather than by an idealised monolingual one. <b>The follow-up.</b> It breaks the language-identification step, not merely the transcription. A pipeline that picks one language per utterance and then runs a matching model has already lost before the language model sees a single word.</dd>
+
+    <dt>Precision at three</dt>
+    <dd><i>the metric that fits voice</i>Of the top three results returned, how many are actually relevant. It is an ordinary retrieval metric with the cutoff chosen to match the interface rather than convention. <b>In the app.</b> A voice interface can read out three options and no more, because a spoken list is not skimmable. <b>What it buys.</b> A number that corresponds to what the user experiences. Improving it improves the product, which is not true of every metric you could compute. <b>The follow-up.</b> Why not recall at ten. Because nobody listens to ten items read aloud, so those seven results do not exist from the user's point of view. A metric measuring something the product cannot show is a metric you will happily optimise in the wrong direction.</dd>
+  </dl>
+</div>
+
+
+
+
+<h2>The collision that defines the product</h2>
+
+<p class="breath">ONDC answers asynchronously. You send one search and sellers reply separately over the next few seconds. A screen fills in as they arrive. Speech cannot. It has to pick a moment and commit.</p>
+
+<p>That is a decision nobody makes on a visual storefront, because there it is free. Render three results, render four more, the user scans. In voice, the first sentence you speak is a commitment about what the answer is.</p>
+
+<p>So there is a deadline, and it is a product decision rather than a timeout. Wait too long and the pause feels broken. Speak too early and you rank over a fraction of the sellers who were going to answer.</p>
+
+<p>What makes it workable is saying something while waiting. A short acknowledgement buys two or three seconds of network time and costs nothing. In voice that filler is part of the design, not politeness.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>The answers trickle in from different shops. A screen can keep adding rows. A voice has to decide when it knows enough to talk.</p>
+
+<h2>Speech has a bandwidth of about three</h2>
+
+<p class="breath">A screen shows twenty results at a glance and a person scans them in two seconds. Speech delivers about three in ten seconds. That is the whole difference, and everything else follows from it.</p>
+
+<p>Retrieval quality stops being a nice-to-have. On a screen a mediocre ranking is recoverable, because the eye fixes it. In voice, whatever is not in the first three effectively does not exist.</p>
+
+<p>It also changes what a result is. Reading out a product title, a seller and a price is already a long sentence. Three of those is thirty seconds, which is most of a listener's patience.</p>
+
+<p>Which is why the useful move is to narrow before listing. One clarifying question that halves the candidate set is cheaper in speech than three extra results, and it does not feel like an interrogation if you only ask one.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>You get to say three things. So either the ranking is very good, or you ask one question first to make it good.</p>
+
+<h2>What RAG is doing here, precisely</h2>
+
+<p class="breath">Not answering from documents. Turning a vague spoken sentence into a structured search the network will accept. That is query understanding, and calling it RAG without saying so invites a confused follow-up.</p>
+
+<p>Somebody says they want something for their mother's knee, not too expensive. There is no category in that, no attribute, and no price bound the protocol can use. Retrieval over the catalogue is what supplies those.</p>
+
+<p>So the retrieval corpus is a product catalogue rather than prose, and the output is a set of constraints rather than a passage. It is closer to the function-catalogue retrieval in chapter 0013 than to document retrieval.</p>
+
+<p>The second use is smaller and worth mentioning. Once results come back, deciding which three to say needs the spoken request compared against what arrived, and that comparison is a retrieval problem too.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>The search is not looking for an answer to read out. It is working out what to actually ask the network for.</p>
+
+<h2>Checkout is where the honest answers live</h2>
+
+<p class="breath">Three things an order needs that voice is bad at. An address, a payment, and a quantity. Two of them should never be dictated at all, and saying so is a stronger answer than describing how you handled it.</p>
+
+<p>An address spoken aloud and transcribed is a delivery failure waiting to happen. The workable design keeps addresses in the profile and reads one back for a yes. Choosing from three saved addresses is a voice problem. Dictating a new one is not.</p>
+
+<p>Payment has to leave the channel entirely. A voice assistant that captures payment details is the wrong shape. A link to a payment app, or a pre-authorised method confirmed by voice, is the one that survives review.</p>
+
+<p>Quantity is the one that stays. It is also where speech recognition fails most, because numbers get code-mixed and small numbers sound alike. Read the quantity back before confirm, every time, with no exceptions for short orders.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Do not let people speak an address or a card number. Keep those elsewhere and read them back. Do read back how many.</p>
+
+
+
+
+<section class="qset" id="toolbox">
+  <h2>Toolbox</h2>
+  <p class="qset-note">Every noun in the bullet, defined out loud, from the ground up. ONDC is a published specification, so this is one of the few chapters where an interviewer can check your vocabulary against a document.</p>
+  <ul class="qa-index">
+    <li><a href="#c18-t1">What ASR error rate means</a></li>
+    <li><a href="#c18-t2">What VAD does for barge-in</a></li>
+    <li><a href="#c18-t3">The Beckn verbs</a></li>
+    <li><a href="#c18-t4">What asynchronous forces</a></li>
+    <li><a href="#c18-t5">Where the idempotency key lives</a></li>
+    <li><a href="#c18-t6">Why code-mixing breaks things</a></li>
+    <li><a href="#c18-t7">Where time to first sound goes</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c18-t1">
+      <p class="qa-q">How is speech recognition measured, and what does a published number hide?</p>
+      <p class="qa-a">Word error rate. It counts the insertions, deletions and substitutions needed to turn the transcript into what was actually said, over the number of words spoken. Twenty percent means one word in five is wrong. What it buys is a single comparable number for the stage everything else inherits from. What a published figure hides is the dataset, and the dataset is the real claim. Indian English carrying product names and Hindi words mid-sentence is a completely different distribution from whatever benchmark produced the number. So quote your own measurement on your own audio, or quote nothing.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Citing a vendor's accuracy figure. It was measured on their data, and yours is the hardest case for this task.</p>
+    </li>
+    <li class="qa-item" id="c18-t2">
+      <p class="qa-q">What is voice activity detection, and what does it have to do with barge-in?</p>
+      <p class="qa-a">A very small and very cheap model whose only job is deciding, moment to moment, whether the audio contains speech. It runs continuously and costs almost nothing, which is what lets it sit in front of everything expensive. What it buys is two things. The ability to interrupt, which is what makes a voice assistant feel conversational rather than like a recording. And a gate that stops the costly recognition running on silence. Barge-in is built on it. Detect that the user has started talking, then stop the audio playing. The two failure modes pull opposite ways. Fire early and a cough cuts the assistant off. Fire late and the user talks over a sentence they already decided to interrupt.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating barge-in as a feature. It is a threshold with two costs, and saying which way you tuned it is the answer.</p>
+    </li>
+    <li class="qa-item" id="c18-t3">
+      <p class="qa-q">Name the Beckn stages.</p>
+      <p class="qa-a">Beckn is the open specification underneath ONDC. It lets independent buyer apps and seller platforms transact without integrating with each other directly. The buyer side sends search, select, init, confirm, then status. The seller side answers with on_search, on_select, on_init and on_confirm. The buyer app is called the BAP and the seller platform the BPP. A gateway broadcasts a search when the request names no specific seller. What the protocol buys is reach without partnerships. One implementation reaches every seller on the network, instead of a bilateral integration per merchant. Those verbs are the whole transaction, so knowing them is knowing the integration.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing ONDC as &#8220;India's open commerce network&#8221; and stopping. That is the press release. The verbs are the engineering.</p>
+    </li>
+    <li class="qa-item" id="c18-t4">
+      <p class="qa-q">Everything on this network is asynchronous. What does that force you to build?</p>
+      <p class="qa-a">No call returns its answer. You send search and the receiver immediately acknowledges that it got the message, nothing more. The real results arrive later as a separate HTTP request to an endpoint you host. Every verb works this way. What that buys the network is the ability to include many independent sellers, since no one participant can be made to answer fast. What it costs you is a publicly reachable callback endpoint, and correlation of responses to requests by transaction id. You also need a timeout policy for sellers who never reply. You also need something to say while nothing has come back. That last one is the voice-specific part.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing it as a slow API. It is not slow, it is inverted, and the difference changes the architecture rather than the timeout.</p>
+    </li>
+    <li class="qa-item" id="c18-t5">
+      <p class="qa-q">What is an idempotency key, and when is it generated?</p>
+      <p class="qa-a">A unique identifier the client generates and attaches to a request. If the same request arrives again carrying that key, the server recognises it as a repeat. It returns the original result rather than doing the work twice. What that buys is retries becoming safe. Without it, any timeout leaves you unable to tell a lost request from a slow one, and both plausible choices are wrong. It has to be generated before the first attempt and stored by the server. A key invented at retry time is a different key, which makes it a different request, which places a second order. Voice plus retries plus callbacks is exactly where that happens.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying &#8220;we handle retries&#8221; without naming the key. Retries are the cause. The key is the control.</p>
+    </li>
+    <li class="qa-item" id="c18-t6">
+      <p class="qa-q">What is code-mixing, and what does it break first?</p>
+      <p class="qa-a">Two languages inside a single sentence, switching mid-phrase rather than between turns. An English product name inside a Hindi clause, with English numbers and a Hindi verb. It is not an edge case or a mistake. It is how people ordinarily speak. What designing for it buys is a product usable by its actual users rather than an idealised monolingual one. It breaks language identification before it breaks transcription. A pipeline that picks one language per utterance and then runs a matching model has already failed at the first step. Handling it means a model trained on mixed speech, not a better single-language model.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating it as an accent problem. It is a language-identification problem, and that is a different stage with a different fix.</p>
+    </li>
+    <li class="qa-item" id="c18-t7">
+      <p class="qa-q">Time to first sound. Where does it actually go?</p>
+      <p class="qa-a">Endpointing, transcription, retrieval, model, then speech synthesis. Text to speech is the reverse of recognition, and modern systems are neural rather than concatenative. Critically, they can stream, producing the first chunk of audio before the sentence has finished generating. The largest avoidable chunk of the budget is usually here. What streaming buys is the reply becoming audible before it is finished, which for a voice-only interface is the product. A system that waits for a complete sentence adds its whole generation time to what the user feels. Nothing you tune upstream recovers that if the last stage buffers.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Optimising the language model first. It is rarely the biggest slice, and the stage after it is the one the user hears.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="fundamentals">
+  <h2>Fundamentals</h2>
+  <p class="qset-note">Question two is the one that makes this specific rather than a generic voice-assistant answer. Get to it early.</p>
+  <ul class="qa-index">
+    <li><a href="#c18-f1">What it does</a></li>
+    <li><a href="#c18-f2">What ONDC changes</a></li>
+    <li><a href="#c18-f3">When to speak</a></li>
+    <li><a href="#c18-f4">Three results</a></li>
+    <li><a href="#c18-f5">What RAG means here</a></li>
+    <li><a href="#c18-f6">Which functions</a></li>
+    <li><a href="#c18-f7">Confirmation</a></li>
+    <li><a href="#c18-f8">The address problem</a></li>
+    <li><a href="#c18-f9">Mishearing</a></li>
+    <li><a href="#c18-f10">The riskiest claim</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c18-f1">
+      <p class="qa-q">In two sentences, what does this do?</p>
+      <p class="qa-a">Somebody speaks what they want and an order gets placed, with no screen at any point. Behind it the catalogue is a public network rather than one shop. So the request has to be understood well enough to search. And the answers have to be delivered one sentence at a time.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing it as a voice assistant for shopping. That skips the network, and the network is what makes the problem interesting.</p>
+    </li>
+    <li class="qa-item" id="c18-f2">
+      <p class="qa-q">What does ONDC change about the engineering?</p>
+      <p class="qa-a">The catalogue is not yours and the answers are asynchronous. You send one search to a gateway, it broadcasts to many seller platforms, and their replies arrive separately over the next few seconds. There is no single response to wait for.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating it as an API you call. It is a protocol with callbacks, and the shape of those callbacks is the reason this is hard in voice.</p>
+    </li>
+    <li class="qa-item" id="c18-f3">
+      <p class="qa-q">Results are still arriving. When do you start speaking?</p>
+      <p class="qa-a">That is the central design decision and it has no technical answer. A screen never faces it, because it can add rows. Voice has to commit. What I would do is acknowledge immediately, which buys network time. Then a deadline in the low seconds, and rank over whatever has arrived.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it a timeout. A timeout is an error path. This is a normal-path decision about how much of the network you are willing to miss.</p>
+    </li>
+    <li class="qa-item" id="c18-f4">
+      <p class="qa-q">Why does voice make ranking so much more important?</p>
+      <p class="qa-a">Because you get three results. A screen shows twenty at a glance and a person scans them, so a mediocre ranking is recovered by the eye. In speech, anything outside the first three does not exist. Reading three product titles with sellers and prices is already thirty seconds.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Proposing to read more results. Ten spoken results is two minutes, and nobody is listening by the fourth.</p>
+    </li>
+    <li class="qa-item" id="c18-f5">
+      <p class="qa-q">What is RAG doing in this system?</p>
+      <p class="qa-a">Query understanding, not answer generation. Somebody says they want something for their mother's knee and not too expensive. There is no category, attribute or price bound in that sentence, and the protocol needs all three. Retrieval over the catalogue is what supplies them.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Letting RAG stand unexplained. The interviewer pictures document retrieval, and the actual job is turning speech into a structured search.</p>
+    </li>
+    <li class="qa-item" id="c18-f6">
+      <p class="qa-q">What are the functions the model can call?</p>
+      <p class="qa-a">The protocol stages. Search, select, init, confirm, then status and track. That is a good function set because it is small, fixed and already typed by somebody else. The important property is that everything before confirm is reversible and confirm is not.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Inventing a wider set. The protocol already defines the vocabulary, and matching it keeps the model inside a space that has code behind every value.</p>
+    </li>
+    <li class="qa-item" id="c18-f7">
+      <p class="qa-q">What has to be true before confirm is called?</p>
+      <p class="qa-a">An explicit spoken yes, after reading back the item, the quantity, the price and the address. Confirm is the one irreversible step, so it follows the rule from chapter 0013. Reversible actions can be taken and mentioned. Irreversible ones get asked about first.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating silence or a continuation as consent. In voice the user cannot see the cart, so nothing except a yes counts as having seen it.</p>
+    </li>
+    <li class="qa-item" id="c18-f8">
+      <p class="qa-q">How does a delivery address get into the order?</p>
+      <p class="qa-a">Not by being dictated. A spoken address transcribed by a recogniser is a delivery failure waiting to happen. The workable design keeps saved addresses in the profile and reads one back for a yes. Choosing between three saved addresses is a voice problem. Entering a new one is not.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing a dictation flow with spelling confirmation. It works in a demo and it is unusable for a real address in a real acoustic environment.</p>
+    </li>
+    <li class="qa-item" id="c18-f9">
+      <p class="qa-q">What actually goes wrong most often?</p>
+      <p class="qa-a">Speech recognition, not the model. Brand names, product names and numbers are where recognisers fail, and an order is made of exactly those. Quantities are the dangerous ones because small numbers sound alike and get code-mixed between languages.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Focusing on model hallucination. It happens, and it is not the thing that breaks orders. The transcript is.</p>
+    </li>
+    <li class="qa-item" id="c18-f10">
+      <p class="qa-q">What is the riskiest claim in this bullet?</p>
+      <p class="qa-a">The word checkout. Voice search is easy to believe. Voice checkout invites two immediate questions, about address and about payment. The second risk is voice-only, because if a screen ever appeared, that word is doing more work than it should.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Naming ONDC as the risk. It is the most credible part, since it is a public protocol somebody can check.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="deep-dive">
+  <h2>Deep dive</h2>
+  <p class="qset-note">The latency chain, the protocol's sharp edges, and the failure everybody has personally experienced with a voice assistant.</p>
+  <ul class="qa-index">
+    <li><a href="#c18-d1">The turn budget</a></li>
+    <li><a href="#c18-d2">Streaming twice</a></li>
+    <li><a href="#c18-d3">Barge-in</a></li>
+    <li><a href="#c18-d4">Idempotency</a></li>
+    <li><a href="#c18-d5">A seller that never replies</a></li>
+    <li><a href="#c18-d6">Ranking across sellers</a></li>
+    <li><a href="#c18-d7">Cached catalogue</a></li>
+    <li><a href="#c18-d8">Code-mixed numbers</a></li>
+    <li><a href="#c18-d9">Holding state</a></li>
+    <li><a href="#c18-d10">Evaluating it</a></li>
+    <li><a href="#c18-d11">Accessibility</a></li>
+    <li><a href="#c18-d12">Where it breaks</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c18-d1">
+      <p class="qa-q">What is the latency budget for one voice turn?</p>
+      <p class="qa-a">Under about two seconds before a person thinks something is wrong. Then sum the chain. Recognition, intent, retrieval, a network search across sellers, ranking, generation, then speech synthesis. The network search alone can eat the whole budget, which is why acknowledging early is structural rather than cosmetic.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Quoting a model latency. The model is one term in a chain of seven, and it is rarely the largest.</p>
+    </li>
+    <li class="qa-item" id="c18-d2">
+      <p class="qa-q">Where does streaming help?</p>
+      <p class="qa-a">Twice, at both ends. Partial transcripts let intent work start before the person finishes speaking. And synthesis should start on the first sentence rather than the whole reply. That is the same argument as chapter 0002. What a person feels is time to first output, not total time.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Only streaming the model. Generating fast and then synthesising the whole paragraph gives back everything you saved.</p>
+    </li>
+    <li class="qa-item" id="c18-d3">
+      <p class="qa-q">Why does barge-in matter more here than in a chat product?</p>
+      <p class="qa-a">Because a wrong turn costs the listener the entire sentence. On a screen you skip a bad answer in a glance. In speech you sit through it unless you can interrupt. Barge-in is what makes a thirty-second read-out of three results tolerable at all.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it a polish feature. Without it, the cost of a ranking mistake goes up by the length of the sentence.</p>
+    </li>
+    <li class="qa-item" id="c18-d4">
+      <p class="qa-q">The connection drops just after confirm. What happens?</p>
+      <p class="qa-a">Without an idempotency key, a retry places a second order. Nobody finds out until two parcels arrive. The client generates a key per order attempt and sends it with every retry. The network then recognises the repeat. This is a mobile product in India, where a dropped connection is the normal case.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Assuming a failed request means nothing happened. A timeout tells you nothing about whether the order was created.</p>
+    </li>
+    <li class="qa-item" id="c18-d5">
+      <p class="qa-q">One seller platform never answers the search.</p>
+      <p class="qa-a">Then it is simply absent from the results. There is no error to report, because nothing said it was going to answer. That is the normal case rather than a failure. And the deadline is per request rather than per seller, so one slow platform cannot hold the turn.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Waiting for all sellers. There is no list of who was going to answer, so there is nothing to wait for.</p>
+    </li>
+    <li class="qa-item" id="c18-d6">
+      <p class="qa-q">How do you rank results from different sellers?</p>
+      <p class="qa-a">Carefully, because the fields are not comparable. Different platforms describe the same product differently and price includes different things. Ranking on price alone rewards whoever excluded delivery. The workable version scores relevance to the spoken request first, then uses price as a tie-break within a band.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Sorting by price. It looks neutral and it systematically favours whichever seller reports the number most optimistically.</p>
+    </li>
+    <li class="qa-item" id="c18-d7">
+      <p class="qa-q">Why keep a local catalogue at all?</p>
+      <p class="qa-a">Because understanding the request and fulfilling it are different jobs. The local copy tells you what categories and attributes exist, so a vague sentence can become a valid search in milliseconds. The network is what actually returns buyable items with live prices. Using the cache for the second job is where staleness bites.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Serving results from the cache. A price or an availability read from a stale copy is a broken order rather than a slow one.</p>
+    </li>
+    <li class="qa-item" id="c18-d8">
+      <p class="qa-q">Quantities get spoken in mixed languages. What do you do?</p>
+      <p class="qa-a">Treat number extraction as its own step rather than trusting the transcript. A recogniser hearing two languages in one phrase will produce plausible text with the wrong number in it. Then read the quantity back before confirm, always, because this is the field where a mistake costs real money.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Handling it in the prompt. The error is upstream of the model, in the transcript the model is reading.</p>
+    </li>
+    <li class="qa-item" id="c18-d9">
+      <p class="qa-q">Where does the cart live during the conversation?</p>
+      <p class="qa-a">Server side, keyed to the session, never in the conversation. The transcript records what was said, not what is true. If the cart only exists in the dialogue, a summarisation or a dropped turn silently changes an order. That is the same argument as the schedule in chapter 0015.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Keeping state in the context window. It works until the conversation gets long, and then it fails quietly.</p>
+    </li>
+    <li class="qa-item" id="c18-d10">
+      <p class="qa-q">How would you evaluate this?</p>
+      <p class="qa-a">In three separate places, because one number hides everything. Recognition accuracy on product names and numbers specifically. Whether the right item was in the first three. And completion rate from first utterance to confirmed order. The middle one is the metric this product lives on.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>A single end-to-end success rate. It tells you something broke and never which of the three.</p>
+    </li>
+    <li class="qa-item" id="c18-d11">
+      <p class="qa-q">Is voice-only a constraint or a feature?</p>
+      <p class="qa-a">Both, and they point at different users. For somebody cooking it is convenience. For somebody who cannot read a screen it is access, and that is the stronger reason to build it. It also raises the bar, because a convenience feature can fail back to a screen and an access feature cannot.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Only arguing convenience. The accessibility case is both more compelling and more demanding, and naming it shows you know which product you built.</p>
+    </li>
+    <li class="qa-item" id="c18-d12">
+      <p class="qa-q">Where does this break first in the real world?</p>
+      <p class="qa-a">Noise and accent, long before anything architectural. A market, a kitchen, a bus. Recognition degrades and every stage downstream inherits it. The second place is patience. Every extra clarifying question is another turn, and people abandon a voice flow far faster than a form.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Answering on scale. There is no traffic problem here that a normal service does not have.</p>
+    </li>
+  </ol>
+</section>
+
+<div class="quiz" data-quiz-id="0018-q1">
+  <p class="q">What does delivering results by speech do to the retrieval requirement?</p>
+  <ol class="options">
+    <li data-correct="true">Only the first three results ever get heard</li>
+    <li>Results must be summarised before they are spoken</li>
+    <li>The catalogue needs an index rebuilt every hour</li>
+    <li>Spoken queries are longer than typed ones are</li>
+  </ol>
+  <div class="why">
+    <p>A screen shows twenty results at a glance and the eye repairs a mediocre ranking. Speech delivers about three in ten seconds, and anything outside those three effectively does not exist.</p>
+    <p>That is why one narrowing question is cheaper than four more results. It halves the candidate set at the cost of a single turn, and the ranking then only has to be right about a smaller set.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0018-q2">
+  <p class="q">ONDC sellers answer a search separately, over seconds. What must voice decide?</p>
+  <ol class="options">
+    <li data-correct="true">When to stop waiting and begin speaking</li>
+    <li>Which seller platform should be queried first</li>
+    <li>Whether the user prefers speech or text</li>
+    <li>How many callbacks the gateway will send</li>
+  </ol>
+  <div class="why">
+    <p>A screen never faces this, because it can render three results and add four more as they arrive. The first sentence spoken is a commitment about what the answer is, so the system has to pick a moment.</p>
+    <p>There is also no list of who was going to reply, so there is nothing to wait for and no count to expect. The deadline belongs to the request, not to any seller.</p>
+  </div>
+</div>
+
+<section class="qset" id="edges">
+  <h2>Edges and exceptions</h2>
+  <p class="qset-note">Most of these are about a user who cannot see what the system thinks. That is the constraint that makes voice different.</p>
+  <ul class="qa-index">
+    <li><a href="#c18-e1">Nothing came back</a></li>
+    <li><a href="#c18-e2">Changing their mind</a></li>
+    <li><a href="#c18-e3">A wrong read-back</a></li>
+    <li><a href="#c18-e4">Someone else speaks</a></li>
+    <li><a href="#c18-e5">Out of stock at confirm</a></li>
+    <li><a href="#c18-e6">Cancelling</a></li>
+    <li><a href="#c18-e7">Defending voice-only</a></li>
+    <li><a href="#c18-e8">What you would change</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c18-e1">
+      <p class="qa-q">The deadline passes and nothing has arrived.</p>
+      <p class="qa-a">Say so plainly and offer to widen the search. The failure mode to avoid is filling the silence with something adjacent, because a listener cannot see that it is a substitute. On a screen a loose match is obviously a loose match. Spoken, it sounds like the answer.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Reading out the nearest thing. Voice removes the user's ability to notice that the result is not what they asked for.</p>
+    </li>
+    <li class="qa-item" id="c18-e2">
+      <p class="qa-q">Mid-flow they change what they want.</p>
+      <p class="qa-a">The state has to be discardable at any turn, which is easier said than built. A half-built order is server state, and a new intent has to invalidate it rather than merge with it. Merging is how somebody ends up with the old quantity attached to the new item.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Carrying fields forward helpfully. It is invisible to the user, so the mistake only surfaces at read-back or after delivery.</p>
+    </li>
+    <li class="qa-item" id="c18-e3">
+      <p class="qa-q">The read-back is wrong and they say no.</p>
+      <p class="qa-a">Then the useful design asks which part, rather than restarting. Restarting punishes the user for the system's mistake and it is the most common reason people abandon a voice flow. Item, quantity and address are three separate slots, so a correction should land on one of them.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Starting over. Two more minutes of speaking to fix one wrong word is how a product loses somebody permanently.</p>
+    </li>
+    <li class="qa-item" id="c18-e4">
+      <p class="qa-q">Somebody else in the room says something.</p>
+      <p class="qa-a">The system has no way to know, which is worth admitting. Speaker identification helps a little and is not reliable in a noisy room. The mitigation is the same read-back before confirm, because it catches a wrong slot regardless of who caused it.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Claiming voice biometrics solve it. They are unreliable in exactly the conditions where this happens.</p>
+    </li>
+    <li class="qa-item" id="c18-e5">
+      <p class="qa-q">Between select and confirm, the item goes out of stock.</p>
+      <p class="qa-a">The protocol will tell you at init or confirm, and the answer is to say it and offer the next candidate. What you must not do is quietly substitute. The user has no screen showing what is in the order, so a silent substitution is discovered at the door.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Auto-substituting a similar item. Reasonable on a screen where it is visible, and not defensible when nothing is visible.</p>
+    </li>
+    <li class="qa-item" id="c18-e6">
+      <p class="qa-q">They want to cancel after confirm.</p>
+      <p class="qa-a">That is a protocol stage rather than a product feature, and the network decides what is still cancellable. The honest voice design says what the system actually knows. Asking the seller to cancel is not the same as having cancelled. Only one of those is true at that moment.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Confirming a cancellation you have only requested. In voice there is no status screen to correct it later.</p>
+    </li>
+    <li class="qa-item" id="c18-e7">
+      <p class="qa-q">Defend &#8220;voice-only&#8221; in this bullet.</p>
+      <p class="qa-a">Only if it was. If a screen was available for payment or for a new address, then it was voice-first and I would say that instead. The distinction matters because voice-only is a much harder claim, and it is the one an interviewer will probe on exactly those two flows.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Defending it loosely. Payment and address are where a screen usually reappears, and those are the first two things anyone asks about.</p>
+    </li>
+    <li class="qa-item" id="c18-e8">
+      <p class="qa-q">What would you change?</p>
+      <p class="qa-a">Measure whether the right item was in the first three. That is the number this product lives on, and everything else is downstream of it. Put an idempotency key on confirm if there is not one. And stop treating clarifying questions as a failure, because one good question beats four spoken results.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Proposing a better model. The binding constraints here are the transcript, the ranking and the network deadline.</p>
+    </li>
+  </ol>
+</section>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;What is ONDC, and why does it matter here?&#8221;
+      <span class="tell">Many interviewers outside India will not know it. A clear one-sentence answer buys a lot of credit.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>An open network for commerce in India. Instead of integrating with one marketplace, a buyer application sends a search to a gateway and the gateway broadcasts it to many seller platforms. Their answers come back separately as callbacks over the next few seconds. That matters here because there is no single response to wait for, and a voice channel can only say one thing at a time, so the system has to decide when it knows enough to speak.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;How is this different from a voice wrapper over a normal shop?&#8221;
+      <span class="tell">The question that separates the real project from the generic description of it.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>A normal shop gives you one response with a list in it. Here the results arrive over seconds from platforms that never told you they were going to reply. On a screen that is invisible, because you render three rows and add four more. In voice the first sentence is a commitment. So the design is to acknowledge immediately, which buys network time, then set a deadline on the request rather than on any seller, and rank over whatever arrived.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;How does somebody give you a delivery address?&#8221;
+      <span class="tell">Asked almost immediately after checkout is mentioned. The strong answer refuses the premise.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>They do not dictate one. A spoken address through a recogniser, in a kitchen or on a street, is a delivery failure waiting to happen. Saved addresses live in the profile and the system reads one back for a yes. Choosing between three saved addresses is a good voice interaction. Entering a new one is not, and that is a case where the right answer is that this flow does not belong in voice at all.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;What stops a dropped connection from ordering twice?&#8221;
+      <span class="tell">A systems question. Very few candidates reach for idempotency unprompted.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>An idempotency key generated per order attempt and sent with every retry, so the network can recognise a repeat rather than create a second order. It matters more here than in most products because this is a mobile flow in India, so a dropped connection is the normal case and not an edge case. A timeout tells you nothing about whether the order was created, which is exactly why the client cannot decide on its own to try again.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;What breaks first in the real world?&#8221;
+      <span class="tell">Looking for whether you have seen this in use rather than in a demo.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Speech recognition, and long before anything architectural. Brand names, product names and numbers are exactly where recognisers fail, and an order is made of those three things. Quantities are the worst, because small numbers sound alike and get code-mixed between languages. That is why the quantity is read back before confirm every single time, and why I would treat number extraction as its own step rather than trusting the transcript.</p>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="recall">
+  <details>
+    <summary>Chapter 0013 gave a rule for when an agent may act and when it must ask. Apply it to the protocol stages here.</summary>
+    <p class="answer">Reversibility decides. Search, select and init can all be taken and mentioned afterwards, because undoing any of them costs nothing. Confirm is irreversible, so it gets asked about first. In voice the rule binds harder than on a screen, because the user cannot see the cart. Silence is not consent when there is nothing to have looked at, so confirm needs a read-back of item, quantity, price and address, and an explicit yes.</p>
+    <span class="from"><a href="0013-on-device-rag.html">Chapter 0013 &#183; reversibility decides act-or-ask</a></span>
+  </details>
+  <details>
+    <summary>Chapter 0002 moved a gateway to streaming. What is the same argument in a voice product, and where does it get applied twice?</summary>
+    <p class="answer">What a person feels is time to first output rather than total time. Here it applies at both ends of the chain. Partial transcripts let intent work start before the person has finished speaking, and speech synthesis should start on the first sentence instead of waiting for the whole reply. Streaming the model alone gives the saving straight back, because the listener hears nothing until synthesis finishes.</p>
+    <span class="from"><a href="0002-llm-gateway-and-streaming.html">Chapter 0002 &#183; time to first token</a></span>
+  </details>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">The lessons behind this chapter</span>
+  <p>System Design School teaches these mechanisms from first principles and breaks them in a lab. This chapter defends what you did with them. An interviewer moves between those two registers without warning.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0001-latency-budget-arithmetic.html">SDS 0001 &#183; Latency budget arithmetic</a>
+      <span class="bridge-why">Seven stages between speech in and sound out, against a budget of about two seconds. The network search alone can eat all of it.</span>
+    </li>
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0007-sse-vs-websocket-for-tokens.html">SDS 0007 &#183; SSE vs WebSocket for tokens</a>
+      <span class="bridge-why">Speech is the strictest streaming case there is, because synthesis has to start on the first sentence rather than the whole reply.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0014 &#183; Idempotency keys &#8212; not yet built</span>
+      <span class="bridge-why">Confirm is the irreversible stage, and a retry over a dropped mobile connection places a second order without one.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0021 &#183; Delivery semantics &#8212; not yet built</span>
+      <span class="bridge-why">Callbacks that may arrive once, twice or never are where at-least-once stops being a slide and starts being an order.</span>
+    </li>
+  </ol>
+</div>
+
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0017-teaching-sessions.html">&#8592; 0017 &#183; Teaching it: pruning, KG-RAG, multimodal</a></span>
+  <span><span class="dir">Next</span><a href="0019-2d-to-3d-reconstruction.html">0019 &#183; 2D to 3D: NeRF, Instant-NGP, splatting &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

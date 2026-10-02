@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>Idempotency Is a Key and a Clock</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0014">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">System Design School</a>
+    <span class="sep">/</span>
+    <span>Tier 1 &#183; Resilience</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Lesson 0014</span>
+    <span class="sep">/</span>
+    <span>Needs Postgres</span>
+  </div>
+  <h1>Idempotency Is a Key and a Clock</h1>
+  <p class="standfirst">Everybody knows the answer is an idempotency key. Almost nobody can say what happens when two copies of the same request arrive in the same millisecond &#8212; and the obvious implementation applies <strong>all sixteen</strong> of them. The fix is one line of schema, and the failure it cannot catch is a number you have to choose.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Fire sixteen concurrent duplicates of one request and watch the textbook implementation apply the side effect <strong>sixteen times out of sixteen</strong>. Add a unique index and it applies once &#8212; while failing <strong>fifteen legal retries with a 500</strong>. Then invert the write order and get <strong>one apply, zero errors</strong>. Finally break it a way no index can catch, with a clock.</p>
+</div>
+
+<div class="anchor-box">
+  <span class="callout-label">Why you, specifically</span>
+  <blockquote>&#8220;Architected a 5-stage <strong>multi-agent schematization pipeline</strong> (Gemini, Google ADK) with deterministic validation and LLM-feedback retry loops &#8212; delivering each PV map pre-built with the data insights behind it, so engineers refine rather than author, cutting a dataset from <strong>~3 hours</strong> of hand-mapping to a <strong>~30-minute</strong> review pass.&#8221;</blockquote>
+  <p>&#8220;LLM-feedback retry loops&#8221; is the phrase an interviewer will stop on. A retry loop over a five-stage pipeline means stages get re-driven after a partial failure, and lesson 0012 guaranteed those partial failures exist &#8212; a propagated deadline expires mid-turn by design. So the pipeline re-runs stages that already succeeded, and <code>app/pipeline/base.py</code> has said so in a docstring since the first commit: <em>&#8220;must be safe to call twice with the same payload &#8212; it is not yet.&#8221;</em></p>
+  <p>The second place this bites is sharper, because it involves money. A voice checkout has one irreversible step, and a retry over a dropped connection places a second order without anybody doing anything wrong.</p>
+  <p>Both bullets are defended in full in <a href="../../resume-mastery/lessons/0003-multi-agent-schematization.html">chapter 0003</a> and <a href="../../resume-mastery/lessons/0018-voice-commerce-ondc.html">chapter 0018 of R&#233;sum&#233; Mastery</a> &#8212; this lesson is where the mechanism underneath them gets built and broken.</p>
+</div>
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>Exactly-once delivery does not exist, and the reason is short. A sender that gets no reply cannot tell whether the request was lost or the response was, so it has to retry. Therefore the receiver has to be able to recognise a repeat. There is no protocol that removes this, only a place to put the recognising.</p>
+  <p>What you can have is <b>effectively-once</b>: deduplicate on the way in, and make the apply safe to repeat. The dedupe is four decisions &#8212; what the key is, what it is scoped to, how you confirm it is the same request, and how long you remember it &#8212; plus one mechanism that is not a decision at all, because only the database can settle a tie.</p>
+  <dl>
+    <dt>Idempotent</dt>
+    <dd>&#8220;An operation where a request can be retransmitted or retried with no additional side effects.&#8221; A property of the operation, not of the network.</dd>
+
+    <dt>Effectively-once</dt>
+    <dd>Dedupe plus an idempotent apply. Describes what an observer sees, never what the wire delivers.</dd>
+
+    <dt>Idempotency key</dt>
+    <dd>A token the <em>client</em> mints before its first attempt, identifying an intent. Not a hash of the payload, because two identical payments are two payments.</dd>
+
+    <dt>Key scope</dt>
+    <dd>The namespace the key is unique within: one tenant, one operation. Global scope lets a key minted for <code>cancel</code> satisfy a <code>confirm</code>.</dd>
+
+    <dt>Request fingerprint</dt>
+    <dd>A hash of the request stored beside the key, so the same key with a different body can be rejected instead of silently replayed.</dd>
+
+    <dt>Key lifetime</dt>
+    <dd>How long the record is kept. A correctness parameter: it must outlive the longest retry window any client can produce.</dd>
+
+    <dt>Check-then-act</dt>
+    <dd>Read whether the key exists, then write it. Everything between those two statements is a window two callers fit through.</dd>
+
+    <dt>Insert-first</dt>
+    <dd>Write the key, and handle the collision. No window, because the check and the write are one statement.</dd>
+
+    <dt>Unique constraint</dt>
+    <dd>The database's promise that two rows cannot share a value. The only component in this lesson that can decide a tie.</dd>
+
+    <dt>In-progress</dt>
+    <dd>A third record state, between absent and done. Without it a second caller cannot tell &#8220;already finished&#8221; from &#8220;happening right now&#8221;.</dd>
+  </dl>
+</div>
+
+<h2>The window between the read and the write</h2>
+
+<p>The implementation everyone writes first is three lines and it reads correctly: look the key up; if you have seen it, return the stored answer; otherwise record it and do the work. It is correct for one caller at a time, which is the condition it is never tested under.</p>
+
+<p>Two callers arriving together both execute the lookup before either executes the write. Both find nothing. Both record the key. Both do the work. Nothing failed, no exception was raised, no log line is out of the ordinary, and the side effect happened twice. Under sixteen callers it happens sixteen times, which is measured below and is not an approximation.</p>
+
+<div class="note">
+  <span class="callout-label">Why this is a database question and not an application one</span>
+  <p>Any fix in application code is another check-then-act with a smaller window: a lock you take is a read followed by a write, a cache you consult is a read followed by a write. Shrinking the window changes the odds and not the outcome, and an intermittent double-charge is worse than a reliable one because it will be closed as unreproducible.</p>
+  <p>The tie has to be broken by something that can decide it atomically. That is the unique index &#8212; not because indexes are magic, but because <strong>the conflict is settled by the same write that stores the row</strong>, so there is nothing in between for a second caller to fit through.</p>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 306" role="img" aria-labelledby="mech0014-t mech0014-d">
+    <title id="mech0014-t">Two concurrent callers under check-then-act and under insert-first</title>
+    <desc id="mech0014-d">Two panels side by side, each showing two callers acting on one key over time. On the left, check-then-act: caller A and caller B both read the key and both find nothing, because their reads happen before either write; both then insert and both apply the side effect, so the work runs twice. On the right, insert-first: both callers insert immediately, the unique index accepts one and rejects the other, so exactly one applies and the loser is told to wait or is given the stored answer. The measured counts underneath read sixteen of sixteen applied on the left and one of sixteen on the right.</desc>
+
+    <text x="20" y="22" class="strong">The read and the write are two statements. That gap is the entire bug.</text>
+
+    <!-- MARK 1 &#183; left panel: read, decide, write. Two callers, one key. -->
+    <text x="20" y="58" class="lbl-dim">check-then-act</text>
+    <rect x="40" y="76" width="70" height="28" class="box"/>
+    <text x="52" y="95" class="lbl">A reads</text>
+    <rect x="40" y="120" width="70" height="28" class="box"/>
+    <text x="52" y="139" class="lbl">B reads</text>
+
+    <!-- MARK 2 &#183; both reads land before either write, so both see nothing. -->
+    <path d="M110,90 L250,90" class="flow-bad"/>
+    <path d="M110,134 L250,134" class="flow-bad"/>
+    <text x="126" y="84" class="lbl ink-bad">no row</text>
+    <text x="126" y="128" class="lbl ink-bad">no row</text>
+
+    <!-- MARK 3 &#183; so both write, and both go on to do the work. -->
+    <rect x="250" y="76" width="140" height="28" class="warn"/>
+    <text x="262" y="95" class="lbl ink-warn">A writes &#183; applies</text>
+    <rect x="250" y="120" width="140" height="28" class="warn"/>
+    <text x="262" y="139" class="lbl ink-warn">B writes &#183; applies</text>
+    <text x="40" y="180" class="strong ink-bad">applied 16 of 16 &#8212; no error anywhere</text>
+
+    <!-- MARK 4 &#183; right panel: one statement, and the index settles it. -->
+    <text x="440" y="58" class="lbl-dim">insert-first</text>
+    <rect x="460" y="76" width="110" height="28" class="box"/>
+    <text x="472" y="95" class="lbl">A inserts</text>
+    <rect x="460" y="120" width="110" height="28" class="box"/>
+    <text x="472" y="139" class="lbl">B inserts</text>
+
+    <!-- MARK 5 &#183; the unique index accepts one and refuses the other. -->
+    <path d="M570,90 L660,90" class="flow-good"/>
+    <path d="M570,134 L660,134" class="flow-bad"/>
+    <rect x="660" y="76" width="130" height="28" class="good"/>
+    <text x="672" y="95" class="lbl ink-good">wins &#183; applies</text>
+    <rect x="660" y="120" width="130" height="28" class="plain"/>
+    <text x="672" y="139" class="lbl-dim">told: in progress</text>
+    <text x="460" y="180" class="strong ink-good">applied 1 of 16 &#8212; 15 collisions caught</text>
+
+    <!-- MARK 6 &#183; the fingerprint, which is a different question entirely. -->
+    <rect x="40" y="206" width="350" height="34" class="box-2"/>
+    <text x="52" y="228" class="lbl">same key, <tspan class="strong">different body</tspan> &#8594; reject, never replay</text>
+
+    <!-- MARK 7 &#183; and the clock, which no index can help with. -->
+    <rect x="460" y="206" width="330" height="34" class="box-2"/>
+    <text x="472" y="228" class="lbl">key pruned inside the retry window &#8594; <tspan class="strong ink-bad">applies twice</tspan></text>
+
+    <!-- MARK 8 &#183; what each of the four decisions actually protects. -->
+    <text x="40" y="266" class="lbl">key + scope: <tspan class="strong">which requests are the same</tspan> &#183; fingerprint: <tspan class="strong">and really are</tspan></text>
+    <text x="40" y="286" class="lbl">index: <tspan class="strong">who wins a tie</tspan> &#183; lifetime: <tspan class="strong">how long any of it is true</tspan></text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">Say this while you draw it</span>
+    <ol class="narrate">
+      <li>Two panels, two callers each, one key. Left is <b>check-then-act</b>, the version everybody writes first.</li>
+      <li>Both callers <b>read before either writes</b>, so both see no row. That is the whole bug and it is two arrows.</li>
+      <li>Both then write and both apply. Measured: <b>16 of 16</b>, with no error raised anywhere in the system.</li>
+      <li>Right is <b>insert-first</b>. Same two callers, but the write is the first thing they do, so the <b>unique index decides</b>.</li>
+      <li>One wins and applies; the other is told <b>in progress</b>. <b>1 of 16</b>, and the fifteen collisions never reach a user.</li>
+      <li>Then the two boxes underneath, which the index does <em>not</em> solve: <b>same key with a different body</b> must be rejected, and <b>a key pruned inside the retry window applies twice</b>.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. <b>This diagram is drawn to eight marks, where lesson 0013's is drawn to twelve</b> &#8212; deliberately, so that redrawing both says something about how much a diagram can carry. Do 0013 as well and tell me which came back cleaner.</p>
+  <ul>
+    <li>Two panels. Left: <b>two reads that both see nothing</b>, then two writes.</li>
+    <li>Right: <b>two writes straight away</b>, with the index accepting one.</li>
+    <li>The two counts: <b>16 of 16</b> against <b>1 of 16</b>.</li>
+    <li>The two boxes underneath: <b>different body</b>, and <b>pruned too early</b>.</li>
+  </ul>
+  <span class="timer">Draw the two reads first. If you start with the writes you will draw them staggered, and the entire point is that they are not.</span>
+</div>
+
+<h2>Lab &#8212; apply it sixteen times, then once</h2>
+
+<div class="lab">
+  <header>
+    <span class="kicker">Lab 0014</span>
+    <span class="est">~25 minutes</span>
+    <h3>16 of 16, then 1 of 16 with fifteen 500s, then 1 of 16 with none</h3>
+  </header>
+  <div class="body">
+    <div class="prereq">
+      <span>Needs:</span>
+      <span class="chip">anchor/vendor-eval-gateway</span>
+      <span class="chip">Docker &#183; Postgres</span>
+      <span class="chip">~25 min</span>
+    </div>
+
+    <div class="caution">
+      <span class="callout-label">Start the database, then check it actually published a port</span>
+      <p>Port 5432 is the single most likely port on a developer machine to already be taken, usually by another project's Postgres. When it is, <code>docker compose up</code> still reports success and the container still runs &#8212; it simply never gets a host binding, and every connection goes to whatever else is listening. The symptom is a password failure for a password that is definitely correct.</p>
+      <p>This happened on the machine these figures were produced on. The compose file takes <code>SDS_POSTGRES_PORT</code>, and <code>.env.example</code> has the two lines to change. Check with <code>docker compose ps postgres</code> and look for <code>0.0.0.0:5432-&gt;5432</code> rather than a bare <code>5432/tcp</code>.</p>
+    </div>
+
+    <ol class="steps">
+      <li>
+        <p class="what">Bring up Postgres and confirm the binding before anything else, so a later failure is a real finding rather than a port collision.</p>
+        <pre class="cmd"><span class="prompt">$ </span>cd anchor/vendor-eval-gateway
+<span class="prompt">$ </span>docker compose up -d postgres
+<span class="prompt">$ </span>docker compose ps postgres --format '{{.Name}}  {{.Status}}  {{.Ports}}'</pre>
+        <pre class="out">sds-postgres  Up 57 minutes (healthy)  0.0.0.0:55432-&gt;5432/tcp, [::]:55432-&gt;5432/tcp</pre>
+        <div class="expect">
+          <span class="label">A host binding, and a healthcheck that passed</span>
+          <p>The thing to check is the arrow. <code>0.0.0.0:&#8230;-&gt;5432/tcp</code> means the container is reachable; a bare <code>5432/tcp</code> with no arrow means it is not, however healthy it claims to be. <strong>This output says 55432 rather than 5432</strong> because 5432 was already taken on the machine these figures came from &#8212; that is the collision described above, shown rather than tidied away.</p>
+          <p>This is the first lesson in the course that needs a real server, and it needs one for a specific reason: a dictionary cannot lose the race. Python's event loop makes a check and a write atomic by accident, so an in-memory store would report this lesson's bug as absent.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Fire sixteen concurrent duplicates of one request &#8212; one key, one body, as a client's retry storm would &#8212; through three implementations of the same idea.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.idempotency --experiment race</pre>
+        <pre class="out">16 callers, one key, one body. Applied should be 1 and everything else should be a replay or a wait.
+
+strategy                     callers  applied  replayed  in progress   500s  caught
+read-then-write, no index         16       16         0            0      0       0
+read-then-write + index           16        1         0            0     15       0
+insert-first + index              16        1         0           15      0      15
+
+'500s' reached the caller; 'caught' were absorbed and turned into a wait.
+Both columns count the same collision.</pre>
+        <div class="expect broken">
+          <span class="label">Sixteen of sixteen, and not one error to investigate</span>
+          <p>The first row is the implementation in most codebases. Every caller read an empty table, every caller inserted, every caller applied. <strong>The side effect ran sixteen times</strong> and the system reported complete success, because from each caller's point of view nothing went wrong.</p>
+          <p>The second row adds the unique index and nothing else. It is now correct &#8212; one apply &#8212; and it produced <strong>fifteen integrity errors that reached the caller</strong>. Those are 500s returned to a client doing something entirely legal. Correct and unusable.</p>
+          <p>The third row swaps the order of two statements. <strong>One apply, zero errors</strong>, and the same fifteen collisions absorbed and turned into &#8220;in progress&#8221;. Nothing about the index changed; what changed is who catches the violation.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Find the concurrency at which the naive version starts to break, because &#8220;only under heavy load&#8221; is the excuse that keeps it in production.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.idempotency --experiment sweep | head -10</pre>
+        <pre class="out">The smallest number of simultaneous duplicates that breaks each strategy.
+
+strategy                     callers  applied  replayed  in progress   500s  caught
+read-then-write, no index          2        2         0            0      0       0
+                                   4        4         0            0      0       0
+                                   8        8         0            0      0       0
+                                  16       15         0            1      0       0
+                                  32       32         0            0      0       0
+
+read-then-write + index            2        1         0            0      1       0</pre>
+        <div class="ba">
+          <span class="label">Before / after &#183; the answer is two</span>
+          <p>Not &#8220;at high concurrency&#8221;. <strong>Two simultaneous duplicates apply twice</strong>, and the applies track the caller count all the way up. There is no threshold to stay under and no load level at which this is safe.</p>
+          <p>Over five runs the 2-, 4- and 32-caller rows were identical every time; 8 and 16 occasionally lose one or two to a straggler that arrives late enough to see the row (8 gave 8,7,8,8,7 and 16 gave 14,16,15,14,16). <strong>The wobble is not the finding and it does not soften it</strong> &#8212; the smallest number ever observed at sixteen callers was fourteen applies of one request.</p>
+          <p>That matters for how you argue about it. &#8220;We have never seen a double-apply&#8221; is not evidence the window is small &#8212; it is evidence that duplicates have not yet arrived close enough together, which a single client-side retry storm from lesson 0010 arranges in one outage.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Now the second decision, which has nothing to do with concurrency: what counts as &#8220;the same request&#8221;.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.idempotency --experiment mismatch</pre>
+        <pre class="out">first request  {'vendor': 'acme', 'amount': 100}  -&gt;  apply
+honest retry   {'vendor': 'acme', 'amount': 100}  -&gt;  replay, response 'charged 100'
+different body {'vendor': 'acme', 'amount': 900}  -&gt;  Conflict: key 'mismatch-1' was first used for a different request
+same body, keys reordered  -&gt;  replay (fingerprint sorts keys)</pre>
+        <div class="expect">
+          <span class="label">Reject the third line rather than replaying it</span>
+          <p>A caller who reuses a key with a different body has a bug, and the tempting behaviour &#8212; return the stored response, since that is what the key says happened &#8212; would tell them their new request had been carried out. The Builders' Library is unambiguous: <em>&#8220;we find that it is safest to assume that the customer intended a different outcome&#8230; we return a validation error indicating a parameter mismatch.&#8221;</em></p>
+          <p>The fourth line is the detail that makes it usable. The fingerprint sorts keys before hashing, so a client whose JSON library does not preserve field order still gets a replay rather than a conflict. Get that wrong and you reject honest retries from your most careful callers.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">The last decision, and the one the index cannot help with. Make the key's lifetime shorter than the client's retry window.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.idempotency --experiment ttl</pre>
+        <pre class="out">A client whose retry window is longer than the key's lifetime.
+No unique index can catch this: by the time the retry lands, there is
+nothing left to collide with.
+
+ttl  60.00s  (lifetime longer than the window )  applied 1  replayed 1
+ttl   0.05s  (lifetime shorter than the window)  applied 2  replayed 0</pre>
+        <div class="expect broken">
+          <span class="label">Applied twice, with the index present and working perfectly</span>
+          <p>Nothing here raced. One caller, two attempts, 300&#8239;ms apart. The key was pruned in between, so the second attempt found an empty table and was, as far as the database is concerned, a brand new request. Stripe documents exactly this behaviour rather than hiding it: <em>&#8220;we generate a new request if a key is reused after the original is pruned.&#8221;</em></p>
+          <p><strong>So the lifetime is a correctness parameter, not a cleanup policy</strong>, and the number it has to beat is one lesson 0010 already measured. Full jitter over six attempts produced a median <em>retry window</em> of 2 507&#8239;ms and no jitter produced 5 000&#8239;ms &#8212; but that is one client's window, and the number you need is the longest any client can produce, including the one retrying by hand tomorrow morning.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Finally, run the tests both ways, because this lesson introduced the first database dependency in the repo and the promise that <code>pytest</code> needs no services is worth keeping.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run pytest -q 2&gt;&amp;1 | tail -1
+<span class="prompt">$ </span>DATABASE_URL=&quot;postgresql+asyncpg://vendoreval:vendoreval@localhost:59999/vendoreval&quot; uv run pytest -q 2&gt;&amp;1 | tail -1</pre>
+        <pre class="out">73 passed, 2 warnings in 9.63s
+69 passed, 4 skipped, 2 warnings in 9.22s</pre>
+        <div class="expect">
+          <span class="label">Skipped, not failed &#8212; and that is a trade worth naming</span>
+          <p><code>tests/conftest.py</code> probes the database once and skips the four tests that need it. A bare <code>uv run pytest</code> stays green with Docker stopped, which is what every earlier lesson relies on.</p>
+          <p>The cost is that a green run no longer proves those four passed. That is why the skip count is printed rather than suppressed, and why this step runs it both ways instead of trusting one.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+</div>
+
+<div class="evidence" data-evidence-for="0014">
+  <header>
+    <span class="callout-label">Your numbers, not mine</span>
+    <span class="hint">saved in this browser as you type</span>
+  </header>
+  <div class="body">
+    <p>Every count in this lesson is exact and was identical across three runs &#8212; there is no timing in any of it, only ordering. The last row is about your system.</p>
+
+    <div class="rows">
+      <div class="row">
+        <span class="ran">Step 2, <strong>the naive version</strong>: how many of sixteen duplicates applied, and how many errors that produced</span>
+        <span class="field"><label for="e14-naive">applied</label><input type="text" id="e14-naive" data-field="naive_applied" placeholder="e.g. 16 of 16"></span>
+        <span class="field"><label for="e14-err">errors</label><input type="text" id="e14-err" data-field="naive_errors" placeholder="e.g. 0"></span>
+        <span class="why-row"><label for="e14-window">Name the window in one sentence, precisely enough that someone could find it in code</label><textarea id="e14-window" data-field="window" placeholder="Everything between the SELECT that looks the key up and the INSERT that records it. Both callers execute the SELECT before either executes the INSERT, so both see no row and both proceed."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 2, <strong>index versus order</strong>: what adding the unique index alone did, and what inverting the two statements did</span>
+        <span class="field"><label for="e14-idx">index only</label><input type="text" id="e14-idx" data-field="index_only" placeholder="e.g. 1 applied, 15 x 500"></span>
+        <span class="field"><label for="e14-first">insert-first</label><input type="text" id="e14-first" data-field="insert_first" placeholder="e.g. 1 applied, 0 errors"></span>
+        <span class="why-row"><label for="e14-same">Both rows had the same index and the same fifteen collisions. Say what actually differs</label><textarea id="e14-same" data-field="same" placeholder="Who catches the violation. Check-then-act hits it as an unexpected error on a path that believed the key was free, so it surfaces as a 500; insert-first expects it, catches it, reads the existing row and turns it into a replay or a wait."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 3, <strong>the sweep</strong>: the smallest number of simultaneous duplicates that double-applies</span>
+        <span class="field"><label for="e14-break">breaks at</label><input type="text" id="e14-break" data-field="breaks" placeholder="e.g. 2 callers"></span>
+        <span class="field"><label for="e14-track">at 32 callers</label><input type="text" id="e14-track" data-field="track" placeholder="e.g. 32 of 32 applied"></span>
+        <span class="why-row"><label for="e14-never">&#8220;We have never seen a double-apply in production.&#8221; Say why that is not evidence of safety</label><textarea id="e14-never" data-field="never" placeholder="It only means duplicates have not yet arrived close enough together. The window is not small, it is unguarded, and one client-side retry storm during an outage arranges simultaneous duplicates by construction."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 5, <strong>the clock</strong>: applies with a lifetime longer than the retry window, and with one shorter</span>
+        <span class="field"><label for="e14-ttl">long / short</label><input type="text" id="e14-ttl" data-field="ttl" placeholder="e.g. 1 applied / 2 applied"></span>
+        <span class="field"><label for="e14-win">your window</label><input type="text" id="e14-win" data-field="retry_window" placeholder="e.g. 5000 ms from 0010"></span>
+        <span class="why-row"><label for="e14-life">Choose a key lifetime for your system and defend the number. What is the longest retry any client of yours can produce?</label><textarea id="e14-life" data-field="life" placeholder="24 hours, because the automated clients retry for at most six attempts over about five seconds, and the real bound is a human re-triggering a failed dataset the next morning. The number is set by the slowest retrier, not the busiest."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">The decision: <strong>which stage of your real pipeline is not safe to run twice, and what is its key scoped to today?</strong></span>
+        <span class="field"><label for="e14-stage">unsafe stage</label><input type="text" id="e14-stage" data-field="stage" placeholder="e.g. the emit stage, writes the PV map"></span>
+        <span class="field"><label for="e14-scope">key scope</label><input type="text" id="e14-scope" data-field="scope" placeholder="e.g. no key at all today"></span>
+        <span class="why-row"><label for="e14-plan">What is the smallest change that would make it safe, and what would you have to decide before writing it?</label><textarea id="e14-plan" data-field="plan" placeholder="A key minted by the driver per dataset-run, scoped to tenant plus stage, inserted first against a unique index before the stage does anything. The decisions to make first are the scope and the lifetime; the code is the easy half."></textarea></span>
+      </div>
+    </div>
+
+    <div class="earned">
+      <span class="callout-label">The bullet this lesson earns</span>
+      <p>&#8220;Showed the pipeline's retry loop could apply a stage twice &#8212; <span data-fill="naive_applied" class="placeholder">[run step 2]</span> concurrent duplicates all applied, with <span data-fill="naive_errors" class="placeholder">[run step 2]</span> errors raised &#8212; and that it breaks from <span data-fill="breaks" class="placeholder">[run step 3]</span> upward rather than only under load; fixed it with an insert-first idempotency key against a unique constraint (<span data-fill="insert_first" class="placeholder">[run step 2]</span>), and set the key lifetime from the measured retry window rather than from a cleanup schedule.&#8221;</p>
+      <p class="caveat">The last clause is what separates this from having read the Stripe docs. Anybody can say &#8220;we use idempotency keys&#8221;; saying that the lifetime is a correctness parameter, and naming the window you sized it against, is the sentence that shows you found the failure the index cannot catch.</p>
+    </div>
+  </div>
+</div>
+
+<h2 id="underneath-0014">Underneath</h2>
+
+<div class="underneath">
+  <span class="callout-label">One layer down &#183; why the database has to settle it</span>
+
+  <p>Four things. The first is why the problem cannot be removed, the second and third are the two decisions people skip, and the fourth is the mechanism &#8212; which is the only part that is not a judgement call.</p>
+
+  <h3>Exactly-once does not exist, and the proof is one sentence</h3>
+
+  <p>A sender that receives no reply cannot distinguish a lost request from a lost response. Those two states are identical from where it is standing, and in one of them the work has not been done. So it must retry, and therefore the receiver must be able to recognise a repeat. No protocol removes this &#8212; acknowledgements only move the ambiguity to the acknowledgement.</p>
+
+  <p>What is achievable is that an observer cannot tell the difference, which is why the right phrase is <b>effectively-once</b>. Malcolm Featonby's definition is the one to hold: <em>&#8220;an idempotent operation is one where a request can be retransmitted or retried with no additional side effects, a property that is very beneficial in distributed systems.&#8221;</em> Notice it is a property of the <em>operation</em>. Nothing about the network changed.</p>
+
+  <div class="derive">
+    <p>Where the ambiguity can live, and what each choice costs:</p>
+    <span class="eq">put it in          who pays                         what it costs
+the network        nobody, it cannot be done       n/a
+the sender         retries until it hears back     duplicate requests
+the receiver       dedupe on a key                 one row and one write
+nowhere            the user                        a second charge</span>
+    <p>Only two of those rows are real choices, and the fourth is what you have by default. Moving the ambiguity to the receiver is the only option that ends with a correct outcome, which is why every payments API converges on the same design.</p>
+  </div>
+
+  <h3>The key identifies an intent, and the scope is half of it</h3>
+
+  <p>The key is minted by the client before its first attempt &#8212; Featonby again: <em>&#8220;a unique caller-provided client request identifier for idempotent operations meets this need&#8221;</em>, with the side benefit that the identifier shows up in audit logs. It is deliberately not a hash of the payload, because two identical payments a minute apart are two payments, and a payload hash would silently merge them.</p>
+
+  <p>The scope is the half that gets skipped. A key is unique within a namespace, and if that namespace is global then one tenant's UUID can collide with another's, and a key minted for <code>cancel</code> can satisfy a <code>confirm</code>. The constraint in <code>app/db/models.py</code> is therefore on <code>(scope, key)</code> and never on <code>key</code> alone, where scope is tenant plus operation.</p>
+
+  <p>The fingerprint closes the remaining gap. Storing a hash of the request beside the key lets you tell a genuine retry from a client bug, and Stripe describes the behaviour plainly: <em>&#8220;the idempotency layer compares incoming parameters to those of the original request and errors if they're not the same to prevent accidental misuse.&#8221;</em> The implementation detail that matters is sorting the keys before hashing, so that field ordering is not mistaken for a different request.</p>
+
+  <h3>The lifetime is a correctness parameter, and the index cannot save you</h3>
+
+  <p>This is the failure worth carrying out of the lesson, because it looks like housekeeping. Stripe prunes keys at 24 hours and states the consequence rather than burying it: <em>&#8220;we generate a new request if a key is reused after the original is pruned.&#8221;</em> If any client's retry window can outlast your retention, that client's duplicate arrives to an empty table and applies a second time, with the unique index present and behaving perfectly.</p>
+
+  <p>Featonby gives the shape of the answer without giving you a number, which is correct: <em>&#8220;requirements for retention vary across services and service resources. We have found that, for EC2 instances, it works to limit the time period to the lifetime of the resource, plus an interval after which it is reasonable to assume that any late arriving requests would either have arrived or would no longer be valid.&#8221;</em></p>
+
+  <div class="derive">
+    <p>The window to size against, from lesson 0010's measurements:</p>
+    <span class="eq">client                         retry window     safe lifetime
+6 attempts, no jitter              5 000 ms      trivially covered
+6 attempts, full jitter            2 507 ms      trivially covered
+a human re-running it tomorrow          ~24 h    the binding constraint
+a queue redelivering a backlog     minutes to hours    check the broker</span>
+    <p>The automated clients are not the problem &#8212; their windows are seconds. <b>The lifetime is set by your slowest retrier</b>, which is usually a person or a message broker, and neither appears in the retry code you would think to read.</p>
+  </div>
+
+  <h3>Insert first, because the only atomic check is the write itself</h3>
+
+  <p>Every application-level fix is another check-then-act with a smaller window. Take a lock: that is a read then a write. Consult a cache: read then write. You are shrinking the odds, and an intermittent double-apply is worse than a reliable one because it gets closed as unreproducible.</p>
+
+  <p>Inserting first has no window because the check and the write are the same statement; the database decides, and the loser is told. What step 2 measured is that this is not the index's doing &#8212; both of the last two rows had the same index and the same fifteen collisions. The difference is entirely <em>who was expecting them</em>. Check-then-act meets the violation on a path that had already concluded the key was free, so it propagates as a 500; insert-first meets it on a path written to expect it, reads the existing row, and answers.</p>
+
+  <div class="derive">
+    <p>The same fifteen collisions, three ways:</p>
+    <span class="eq">                          applied   user-visible errors   what the loser is told
+read-then-write, no index      16                     0   nothing; it also applied
+read-then-write + index         1                    15   500, on a legal retry
+insert-first + index            1                     0   in progress, or the answer</span>
+    <p>The middle row is the one to recognise in a codebase, because it is correct and it looks like an incident. Somebody adds the constraint after a double-charge, the double-charging stops, and the 500 rate goes up &#8212; and the two facts are usually reported by different teams.</p>
+  </div>
+
+  <p>The third record state is what makes the last column possible. Absent, <code>in_progress</code> and <code>succeeded</code> are three different answers: without the middle one the loser cannot distinguish &#8220;already done, here is the result&#8221; from &#8220;being done right now, ask again shortly&#8221;, and would have to either block or guess. Stripe draws the same line from the other side, declining to store a result at all when &#8220;the request conflicts with another request that's executing concurrently&#8221;.</p>
+
+  <p class="lands">Which lands on the sentence worth keeping: <b>the key is the easy decision.</b> The scope says which requests are the same, the fingerprint says they really are, the index says who wins a tie, and the lifetime says how long any of that stays true &#8212; and only the third of those is something you can delegate to a library.</p>
+</div>
+
+<h2>Check yourself</h2>
+
+<div class="quiz" data-quiz-id="0014-q1">
+  <p class="q">With no unique constraint, sixteen concurrent duplicates of one key ran through a read-then-write idempotency check. How many applied the side effect?</p>
+  <ol class="options">
+    <li data-correct="true">All sixteen, because every caller read an empty table</li>
+    <li>Just one, since the first insert always wins here</li>
+    <li>About half, as the callers paired up by chance</li>
+    <li>None of them, because the state column blocked it</li>
+  </ol>
+  <div class="why">
+    <p>All sixteen, and the sweep shows the count tracking the caller count exactly from <strong>two</strong> upward. Every caller executed its SELECT before any caller executed its INSERT, so all sixteen saw no row, all sixteen recorded the key, and all sixteen did the work. No exception was raised and nothing in the logs was unusual.</p>
+    <p>Worth knowing that the first version of this measurement reported <strong>1 applied</strong>, and was wrong. The connection pool was cold, so establishing connections serialised the callers and they never actually overlapped. The instrument failed in the reassuring direction, which is the direction to distrust.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0014-q2">
+  <p class="q">A key is pruned after 24 hours. A client retries the same request 36 hours later. What does the unique constraint do about the duplicate?</p>
+  <ol class="options">
+    <li data-correct="true">Nothing; there is no row left to collide with</li>
+    <li>Rejects it outright, because the key is still reserved</li>
+    <li>Replays the response that was stored under that key</li>
+    <li>Raises a conflict, since the body no longer matches</li>
+  </ol>
+  <div class="why">
+    <p>Nothing at all. The row is gone, so the retry arrives at an empty table and is, correctly as far as the database is concerned, a brand new request. It applies a second time with the index present and working perfectly &#8212; measured in step 5, one caller, two attempts, no concurrency involved.</p>
+    <p><strong>That is why the lifetime is a correctness parameter rather than a cleanup policy.</strong> It has to outlive the longest retry window any client can produce, and the binding constraint is almost never the automated retrier &#8212; lesson 0010 measured those at two to five seconds. It is the person re-running a failed job the next morning, or a broker redelivering a backlog.</p>
+  </div>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">A spoken answer to <em>&#8220;your pipeline has retry loops &#8212; what stops a stage running twice?&#8221;</em> Read it aloud, then say it again with the page covered.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">Our pipeline re-drives stages after a partial failure, and the deadline work guarantees partial failures exist. So stages that already succeeded get run again.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">Exactly-once delivery is not a thing. A sender cannot tell a lost request from a lost response, so it retries, so the receiver has to deduplicate.</p>
+      <p class="line">The usual code reads the key, then writes it. Everything between those two statements is a window that two callers fit through.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">I fired sixteen concurrent duplicates at it. All <b>sixteen of sixteen</b> applied, with no error raised anywhere. It breaks from <b>two callers</b> upward, not under heavy load.</p>
+      <p class="line">Adding a unique index made it correct and returned <b>fifteen 500s</b> to clients doing something legal. Inverting the two statements gave <b>one apply and zero errors</b>.</p>
+      <p class="line">Same index, same fifteen collisions. What changed is who was expecting them.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">A write before every write, and a row to keep and sweep. The key is scoped to tenant plus operation, never global.</p>
+      <p class="line">And the lifetime is a correctness parameter. Prune inside a client's retry window and the duplicate applies twice, with the index working perfectly. No index catches that one.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;We use idempotency keys, so retries are safe.&#8221;</span> Complete as a headline and empty underneath, and the follow-up is always the same: <em>&#8220;what happens if two copies arrive at once?&#8221;</em> If the answer is a lookup followed by a write, you have just described the bug. The version that holds names the order: <span class="quoted">&#8220;the key is inserted first against a unique constraint on tenant, operation and key, and we catch the violation and replay &#8212; so the database decides the tie rather than the application.&#8221;</span></p>
+  <p>The second trap is the one almost nobody survives, because it sounds like operations rather than correctness. Asked how long you keep the keys, &#8220;we expire them after a day to keep the table small&#8221; invites <em>&#8220;and what is your clients' longest retry window?&#8221;</em> If the retention is shorter, the duplicate applies again and no index can see it. Say the lifetime and what you sized it against, in the same breath.</p>
+</div>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;Your pipeline has retry loops. What stops a stage running twice?&#8221;
+      <span class="tell">The question behind the r&#233;sum&#233; bullet. Answering &#8220;idempotency keys&#8221; is the start of the answer, not the answer &#8212; the interviewer is waiting to hear whether you know what happens under concurrency.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Right now, nothing &#8212; the stage interface has said so in a docstring since the first commit. So I measured what that costs: sixteen concurrent duplicates of one request applied the side effect <strong>sixteen times</strong>, with no error raised anywhere, because every caller read the key table before any caller wrote to it.</p>
+        <p>The fix is an idempotency key inserted <em>before</em> the work, against a unique constraint on tenant, operation and key, catching the violation rather than checking first. That gives one apply and zero user-visible errors. The version that only adds the constraint is also correct and returns fifteen 500s to clients doing something entirely legal, which is worth knowing because it is what you get if you add the index after an incident and stop there.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What does the loser see?&#8221; &#8212; in-progress or the stored response, which is why there are three record states.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;How likely is that race really? Surely it needs heavy load.&#8221;
+      <span class="tell">The push-back that keeps this bug in production. The number makes it unarguable, and it is a small number.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Two callers. I swept it &#8212; 2, 4, 8, 16, 32 simultaneous duplicates &#8212; and the applies track the caller count throughout; the worst case I ever measured at sixteen callers was fourteen applies of one request. There is no concurrency below which it is safe, and no threshold to stay under.</p>
+        <p>&#8220;We have never seen it&#8221; means duplicates have not yet arrived close enough together, which is a statement about traffic rather than about the code. A client-side retry storm arranges exactly that: an outage ends, every client that was retrying wakes at the same moment, and without jitter they arrive together by construction. That is the lesson before this one, and it is the thing that turns this from theoretical into an incident.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Would a lock fix it?&#8221; &#8212; a lock is a read then a write, so it shrinks the window rather than closing it.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;What is the key, and what is it scoped to?&#8221;
+      <span class="tell">Checks whether you have designed one or used one. The scope answer is short and the reason for it is the memorable part.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The client mints it before its first attempt &#8212; a v4 UUID &#8212; and it identifies an <em>intent</em>, not a payload. It is deliberately not a hash of the body, because two identical charges a minute apart are two charges and a payload hash would merge them silently.</p>
+        <p>Scope is tenant plus operation, so the constraint is on the triple rather than on the key alone. A global key space lets one customer's UUID collide with another's, and worse, lets a key minted for <code>cancel</code> satisfy a <code>confirm</code>. Alongside it I store a fingerprint of the request, so the same key with a different body is rejected rather than replayed &#8212; and the fingerprint sorts the JSON keys first, or a client whose map ordering varies gets a conflict on an honest retry.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Why reject rather than replay?&#8221; &#8212; replaying tells them their new request was carried out, which is worse than an error.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;How long do you keep the keys?&#8221;
+      <span class="tell">Sounds like an operations question and is the one that separates having implemented this from having read about it. If your answer is about table size, the follow-up will end badly.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Long enough to outlive the longest retry window any client of ours can produce, which makes it a correctness parameter rather than a cleanup schedule. I measured the failure: with the lifetime shorter than the window, the same request applied <strong>twice</strong> &#8212; one caller, two attempts, no concurrency &#8212; with the unique index present and working perfectly. There is nothing left to collide with.</p>
+        <p>Our automated retriers are the easy case; they run six attempts over two to five seconds. The binding constraint is a human re-running a failed dataset the next morning, so 24 hours is the floor and the number came from the slowest retrier rather than the busiest. Stripe prunes at 24 hours and documents the consequence directly &#8212; a key reused after pruning starts a new request &#8212; which is the right way round: state it rather than let people assume it is safe.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What if a broker redelivers a week later?&#8221; &#8212; then a day is not enough, and the broker's retention sets yours.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Could you do this without the database &#8212; in Redis, or in memory?&#8221;
+      <span class="tell">A good-faith question with a precise answer. What you need is not a database, it is one atomic conditional write, and being able to say that shows you understand the mechanism rather than the recipe.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>In memory, no &#8212; and the reason is instructive. A single-threaded event loop makes the check and the write atomic by accident, so an in-memory store reports this bug as absent. It has no window to lose, which makes it useless as a stand-in for the thing that does.</p>
+        <p>Redis, yes, because <code>SET key value NX</code> is exactly the primitive required: one atomic conditional write where the loser is told. What the database gives you on top is durability and the ability to store the response transactionally with the work, which matters when the apply and the record must land together. So the requirement is not &#8220;a database&#8221;, it is <strong>one atomic compare-and-set on the key</strong>, plus somewhere durable to keep the answer for as long as the lifetime demands.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What if the process dies between the insert and the apply?&#8221; &#8212; the row is stuck in-progress, which is why that state needs a timeout of its own.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="primary-source">
+  <span class="callout-label">Read this next &#8212; one source, not ten</span>
+  <span class="title"><a href="https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/" target="_blank" rel="noopener">Malcolm Featonby &#8212; Making retries safe with idempotent APIs</a></span>
+  <p>The Builders' Library article on the design decisions rather than the code. It is the source for the definition, for the client-minted token, for rejecting a mismatched body rather than replaying it, and for the retention rule that refuses to give you a number: <em>&#8220;the lifetime of the resource, plus an interval after which it is reasonable to assume that any late arriving requests would either have arrived or would no longer be valid.&#8221;</em></p>
+  <p class="cite">Unlike the other Builders' Library articles used in this tier, this one has <strong>no stable PDF</strong> &#8212; that path returns 403 &#8212; so the link above is the live page, which was readable when these notes were written. For the operational half, <a href="https://docs.stripe.com/api/idempotent_requests" target="_blank" rel="noopener">Stripe's idempotent requests documentation</a> is short and every sentence in it is load-bearing: the 24-hour prune and what it means, the parameter comparison, and the refusal to store a result for a request that conflicts with one executing concurrently. Neither source covers the concurrent-insert race directly &#8212; that part of this lesson is measured here rather than cited.</p>
+</div>
+
+<h2>Recall &#8212; from lessons 0011&#8211;0013</h2>
+
+<div class="recall">
+  <details>
+    <summary>0011 built a breaker whose half-open state admits exactly one probe. What does that have in common with the <code>in_progress</code> record state here?</summary>
+    <p class="answer">Both are a way of saying &#8220;someone is already finding out&#8221; so that everybody else can wait rather than duplicate the work. The half-open probe exists because if every caller tested recovery at once you would re-create the outage you were recovering from; <code>in_progress</code> exists because if every duplicate proceeded on finding no completed record you would apply the side effect once per caller. In both cases the state is what turns a race into a queue, and in both cases the interesting bug is what happens if the holder dies: a half-open probe that never returns leaves the breaker stuck, and an <code>in_progress</code> row whose process crashed leaves the key claimed and the work undone. Both therefore need a timeout on the intermediate state, which is the detail people leave out of both.</p>
+    <span class="from">lesson 0011 &#183; exactly one half-open probe</span>
+  </details>
+  <details>
+    <summary>0012's deadline capped the worst turn at 8 001&#8239;ms by converting 26 late answers into failures. Why does that make this lesson necessary rather than optional?</summary>
+    <p class="answer">Because it manufactures partial failures on purpose. Before propagation, a turn that ran long finished late; after it, the turn is cut off mid-pipeline, which means some stages have completed and written their output and the rest have not. Anything that re-drives that turn &#8212; a retry loop, an operator, a queue redelivery &#8212; re-runs the stages that already succeeded. So the deadline fix in 0012 does not create the duplicate-apply problem, but it guarantees the conditions for it at a known rate: twenty-six turns in two hundred, every run. A resilience mechanism that converts slowness into partial completion has to be paired with one that makes partial completion safe to repeat, or you have traded a latency bug for a correctness bug.</p>
+    <span class="from">lesson 0012 &#183; 26 turns of 200, cut off mid-turn</span>
+  </details>
+  <details>
+    <summary>0013 found a check that never fired &#8212; &#8220;has the deadline passed?&#8221; discarded zero of 576. Is there an equivalent trap in this lesson, and did it fire?</summary>
+    <p class="answer">Yes, and it is the instrument rather than the mechanism. The first run of the race benchmark reported <em>one</em> apply for the strategy that should have applied sixteen, which would have made the whole lesson wrong in the reassuring direction. The cause was a cold connection pool: establishing sixteen connections is slow enough to serialise the callers, so they never actually overlapped and the window was never opened. Warming the pool before measuring changed 1 to 16. It is the same discipline as 0013's zero, arriving from the other side &#8212; there, a clean result meant the check was useless; here, a clean result meant the test was. Both were found by disbelieving a number that made the story tidier, which is the only reliable filter for this class of mistake.</p>
+    <span class="from">lesson 0013 &#183; a check that discarded nothing</span>
+  </details>
+</div>
+
+<div class="ask">
+  <p><strong>This is the last lesson of the batch, and the redraw test is now set up as an experiment rather than a request.</strong> Lesson 0013's diagram was drawn to the current 12-mark ceiling; this one was drawn to eight. Cover the screen and redraw both, give one of the 75-second scripts out loud, then take three probes cold. <strong>Tell me which diagram came back and which one fell apart</strong> &#8212; that answers the ceiling question with evidence, and it is the only part of this workspace I genuinely cannot do for you.</p>
+  <p>One honest note on the eight-mark constraint: it fitted, but only because this diagram had a naturally symmetric shape &#8212; two panels, two callers, two outcomes. It did cost the state machine. There is no room here to draw <code>absent</code>, <code>in_progress</code> and <code>succeeded</code> as states, so they live in the prose and in one label. If your redraw comes back without them, that is the ceiling biting rather than you forgetting, and it is exactly the sort of thing the experiment is meant to surface.</p>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">Where this lands on the r&#233;sum&#233;</span>
+  <p>This lesson teaches the mechanism from first principles and breaks it in a lab. The chapters opposite defend what you actually did with it, including the numbers on the r&#233;sum&#233;. An interviewer crosses between those two registers without warning.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../resume-mastery/lessons/0003-multi-agent-schematization.html">RM 0003 &#183; The multi-agent schematization pipeline</a>
+      <span class="bridge-why">&#8220;LLM-feedback retry loops&#8221; means five-stage runs get re-driven after a partial failure, so every stage has to be safely repeatable &#8212; and today none of them is.</span>
+    </li>
+    <li class="bridge-row">
+      <a href="../../resume-mastery/lessons/0018-voice-commerce-ondc.html">RM 0018 &#183; Voice commerce on ONDC</a>
+      <span class="bridge-why">Confirm is the irreversible step, and a retry over a dropped connection places a second order without anyone doing anything wrong.</span>
+    </li>
+  </ol>
+</div>
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0013-admit-queue-or-shed.html">&#8592; 0013 &#183; Admit, queue, or shed</a></span>
+  <span><span class="dir">Index</span><a href="index.html">All lessons &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

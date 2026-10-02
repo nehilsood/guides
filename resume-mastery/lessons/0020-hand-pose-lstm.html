@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>Time-Distributed LSTM over Hand Pose</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0020">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">R&#233;sum&#233; Mastery</a>
+    <span class="sep">/</span>
+    <span>Batch D &#183; Publications</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Chapter 0020</span>
+  </div>
+  <h1>Time-distributed LSTM over hand pose</h1>
+  <p class="standfirst">The design decision is one sentence long. Do not feed the video to the model, feed the hand positions. Everything good and everything limiting about this paper follows from that single choice.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Say why keypoints instead of pixels, and then say the thing that choice makes impossible &#8212; <em>facial expression carries grammar in sign languages and a hand pipeline cannot see it.</em> Volunteering that is what turns a paper summary into a conversation.</p>
+</div>
+
+<div class="claim-line">
+  <span class="callout-label">The line being defended</span>
+  <blockquote>&#8220;<strong>Dynamic Gesture Recognition Using Hand Pose-Based Neural Networks for Sign Language Interpretation</strong> &#8212; Time-distributed LSTM over 3D hand-pose keypoints for two-hand Indian Sign Language recognition, sized for low-end mobile devices rather than GPU inference.&#8221;</blockquote>
+  <span class="whose">Springer 2024 &#183; Universal Access in the Information Society &#183; second of six authors</span>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">For <em>&#8220;tell me about the sign language paper.&#8221;</em> One design decision, then its cost. Get the face limitation in yourself.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">Somebody signs in front of a camera and the system names the sign. Isolated signs, one per clip, on a low-end phone.</p>
+      <p class="line">The target device is the constraint that shaped everything, so it is worth saying before the architecture.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">The decision is one sentence. <b>Do not show the model the video, show it where the fingers are.</b></p>
+      <p class="line">A pose estimator gives twenty-one joints per hand. That is a hundred and twenty-six numbers per frame instead of a hundred and fifty thousand.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">Then the same small encoder runs on every frame, and a recurrent layer reads the sequence in order.</p>
+      <p class="line">Recurrence because the target streams. <b>Fixed-size state, one frame at a time</b>, so memory does not grow with the length of the clip.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">The thing I would say before being asked. <b>Everything that is not a hand is gone, and the face carries grammar in sign languages.</b></p>
+      <p class="line">A raised brow makes a statement a question. So the honest scope is recognising signs from hand motion, not interpreting sign language.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;We built a sign language interpretation system using an LSTM over hand pose.&#8221;</span> The word interpretation is doing work the method cannot support. It recognises isolated signs from hand motion, and continuous signing with grammar is a different system. If a deaf interviewer or anyone who has worked in accessibility hears that sentence, the correction comes immediately and it is expensive.</p>
+  <p>The other trap is &#8220;sized for low-end mobile&#8221; without a number. It is a measurable claim, so it gets measured. A parameter count and a per-frame latency on a named device turns it from a boast into a fact.</p>
+</div>
+
+
+<div class="trace">
+  <span class="callout-label">Walk them through it &#183; one clip, end to end</span>
+  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One signed clip, followed from the camera to a label. The architecture is one decision, and the interesting part is what that decision throws away.</p>
+  <p class="tr-case"><b>The picture.</b> Describing a dance by tracking where the dancer's hands are, rather than by filming them. You lose the costume, the lighting and the room, which is mostly a gain. You also lose their face, which is not.</p>
+  <p class="tr-case"><b>The case.</b> Somebody signs one word in front of a phone camera. A low-end phone, not a machine with a graphics card. That target device is the constraint that shaped everything.</p>
+  <ol>
+    <li class="tr-step">
+      <span class="tr-k">The frame</span>
+      <p><b>What happens.</b> The obvious approach is to show the video to a model. This does not do that.</p>
+      <p><b>Concretely.</b> A frame at modest resolution is over a hundred thousand numbers. On the target device a video model was never going to run.</p>
+      <p><b>If they ask why.</b> A tool that does not run is not a tool. The device came first and the architecture followed from it.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The keypoints</span>
+      <p><b>What happens.</b> A separate pose estimator finds the hands in each frame and reports where the joints are.</p>
+      <p><b>Concretely.</b> Twenty-one joints per hand, three coordinates each, two hands. A hundred and twenty-six numbers per frame instead of a hundred thousand.</p>
+      <p><b>If they ask why.</b> That estimator was already optimised for phones by somebody else. Three orders of magnitude are saved before our model runs at all.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Normalising</span>
+      <p><b>What happens.</b> Those coordinates get normalised before anything learns from them.</p>
+      <p><b>Concretely.</b> Where the signer stands and how large they appear in frame both have to go.</p>
+      <p><b>If they ask why.</b> Without it the model learns the camera setup. It will do very well on your recordings and nothing else.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Per frame</span>
+      <p><b>What happens.</b> The same small encoder runs on every frame's keypoints, independently.</p>
+      <p><b>Concretely.</b> One feature vector per frame comes out. The network is shared across time rather than being learned separately per position.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Across frames</span>
+      <p><b>What happens.</b> Then a recurrent layer reads that sequence in order and produces the label.</p>
+      <p><b>Concretely.</b> It carries a fixed-size hidden state forward one step at a time.</p>
+      <p><b>If they ask why.</b> Recurrence because the target streams. The memory cost does not grow with how long the clip is, which matters on a phone more than accuracy arguments do.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">What is gone</span>
+      <p><b>What happens.</b> Now the thing I would say before being asked, because it is the real limitation.</p>
+      <p><b>Concretely.</b> Everything that is not a hand has been discarded. In sign languages that is not a rounding error.</p>
+      <p><b>If they ask why.</b> Eyebrows, head tilt and mouth shape carry grammar. A raised brow turns a statement into a question, and this pipeline cannot represent it.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The scope</span>
+      <p><b>What happens.</b> So the honest claim is narrower than the title.</p>
+      <p><b>Concretely.</b> Recognising signs from hand motion, rather than interpreting sign language.</p>
+      <p><b>If they ask why.</b> Face landmarks are keypoints too. Adding a small subset of them is the change I would make, and it does not break the design.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The split</span>
+      <p><b>What happens.</b> The first of two questions a reviewer should have asked.</p>
+      <p><b>Concretely.</b> Each person's clips have to be entirely in train or entirely in test.</p>
+      <p><b>If they ask why.</b> Split at random and the same signer appears on both sides. Then you are measuring person recognition and reporting it as sign recognition.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The claim</span>
+      <p><b>What happens.</b> The second one is about the phrase sized for mobile.</p>
+      <p><b>Concretely.</b> That needs a device, a latency and a memory figure behind it, or it is an intention rather than a result.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The ceiling</span>
+      <p><b>What happens.</b> And one limit that no amount of training fixes.</p>
+      <p><b>Concretely.</b> The pose estimator is a ceiling on everything downstream. Two-handed signing means the hands constantly cover each other.</p>
+      <p><b>If they ask why.</b> Occlusion is the dominant cause of keypoint failure here. When the joints come back wrong, the model never sees the sign at all.</p>
+    </li>
+  </ol>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 320" role="img" aria-labelledby="mech0020-t mech0020-d">
+    <defs>
+      <marker id="ar20" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+    </defs>
+    <title id="mech0020-t">A three-orders-of-magnitude collapse, and what falls out of the frame with it</title>
+    <desc id="mech0020-d">Video frames go to a pose estimator rather than to the recognition model. The estimator reports twenty-one joint positions per hand with three coordinates each, so a frame of over a hundred thousand numbers becomes about a hundred and twenty-six. Those coordinates are normalised to a body-relative origin and scale, or the model learns where the signer stood. The same small encoder then runs on every frame independently, which is what time-distributed means, and a recurrent layer reads the resulting sequence with a fixed-size state so memory does not grow with clip length. What the collapse discards is everything that is not a hand, including eyebrows, head tilt and mouth shape, which carry grammar in sign languages. The pose estimator is also a hard ceiling, and two-handed signing means the hands are constantly covering each other.</desc>
+
+    <rect class="box" x="8" y="16" width="118" height="44" rx="3"/>
+    <text class="lbl strong" x="67" y="34" text-anchor="middle">Video frames</text>
+    <text class="num" x="67" y="50" text-anchor="middle">~150,000 numbers</text>
+
+    <path class="flow" marker-end="url(#ar20)" d="M 130 38 H 168"/>
+
+    <rect class="bad" x="172" y="16" width="196" height="44" rx="3"/>
+    <text class="lbl strong ink-bad" x="270" y="34" text-anchor="middle">Pose estimator</text>
+    <text class="lbl-dim" x="270" y="50" text-anchor="middle">21 joints per hand, 3 coordinates</text>
+
+    <path class="flow" marker-end="url(#ar20)" d="M 372 38 H 410"/>
+
+    <rect class="accent" x="414" y="16" width="196" height="44" rx="3"/>
+    <text class="lbl strong ink-accent" x="512" y="34" text-anchor="middle">Normalise</text>
+    <text class="lbl-dim" x="512" y="50" text-anchor="middle">body-relative origin and scale</text>
+
+    <path class="flow" marker-end="url(#ar20)" d="M 614 38 H 652"/>
+
+    <rect class="box" x="656" y="16" width="176" height="44" rx="3"/>
+    <text class="lbl strong" x="744" y="34" text-anchor="middle">126 numbers</text>
+    <text class="lbl-dim" x="744" y="50" text-anchor="middle">per frame</text>
+
+    <rect class="box-2" x="8" y="72" width="824" height="34" rx="3"/>
+    <text class="lbl strong" x="24" y="94">Three orders of magnitude, before any recognition model runs &#8212; which is the entire reason it fits on a cheap phone</text>
+
+    <rect class="accent" x="8" y="118" width="408" height="80" rx="3"/>
+    <text class="lbl strong ink-accent" x="24" y="140">Time-distributed encoder</text>
+    <text class="lbl-dim" x="24" y="160">the same small network on every frame</text>
+    <text class="lbl-dim" x="24" y="178">independently &#183; weights shared across time</text>
+    <text class="num" x="24" y="194">learned once, not per position</text>
+
+    <rect class="accent" x="424" y="118" width="408" height="80" rx="3"/>
+    <text class="lbl strong ink-accent" x="440" y="140">Recurrent layer</text>
+    <text class="lbl-dim" x="440" y="160">fixed-size state, one frame at a time</text>
+    <text class="lbl-dim" x="440" y="178">memory does not grow with clip length</text>
+    <text class="num" x="440" y="194">streams &#8212; attention would not</text>
+
+    <rect class="bad" x="8" y="210" width="824" height="58" rx="3"/>
+    <text class="lbl strong ink-bad" x="24" y="232">What the collapse discards</text>
+    <text class="lbl-dim" x="24" y="252">eyebrows &#183; head tilt &#183; mouth shape &#8212; grammar in sign languages, not expression</text>
+    <text class="num ink-warn" x="24" y="266">a raised brow makes a statement a question, and nothing here can see it</text>
+
+    <rect class="warn" x="8" y="276" width="824" height="42" rx="3"/>
+    <text class="lbl strong ink-warn" x="24" y="296">The estimator is a ceiling</text>
+    <text class="lbl-dim" x="24" y="314">two-handed signing means constant occlusion, and nothing downstream recovers a missing hand</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">What you say while drawing it</span>
+    <ol class="narrate">
+      <li>Frames on the left, and say the number. A hundred and fifty thousand.</li>
+      <li>The pose estimator, drawn red on purpose. It is a dependency, not a layer.</li>
+      <li>Normalise, and say why. Otherwise the model learns where the person stood.</li>
+      <li>A hundred and twenty-six numbers. That is the whole architecture in one number.</li>
+      <li>The bar across the middle. Three orders of magnitude, and that is why it fits.</li>
+      <li>Then the two halves. Same encoder every frame, then a recurrent layer reading them in order.</li>
+      <li>Say why recurrence. Fixed state, streams, memory does not grow.</li>
+      <li>Then the red band, and volunteer it. The face carries grammar and this cannot see it.</li>
+      <li>And the last strip. Two hands means they cover each other, constantly.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. One collapse, two halves, two limits.</p>
+  <ul>
+    <li><b>150,000 to 126.</b> The one number to keep.</li>
+    <li><b>Normalise</b>, or the model learns the camera.</li>
+    <li><b>Shared encoder, then recurrence</b>, and why recurrence.</li>
+    <li>The <b>face band</b>, because it is the answer that shows you understand the domain.</li>
+  </ul>
+  <span class="timer">Say &#8220;the face carries grammar&#8221; while you draw the red band. Four words, and it is the sentence a reviewer remembers.</span>
+</div>
+
+<div class="star">
+  <span class="callout-label">Behavioural &#183; the story for this bullet</span>
+  <p class="frame">For <em>&#8220;tell me about a design constraint that shaped everything else&#8221;</em> or <em>&#8220;a limitation you chose to accept.&#8221;</em></p>
+  <ol class="rungs">
+    <li class="rung"><span class="rung-k">Decision</span><p>Whether to feed video to the recognition model, which is the accurate option. Or hand keypoints, which is the option that runs on the device users actually have.</p></li>
+    <li class="rung"><span class="rung-k">Situation</span><p>An accessibility tool for Indian Sign Language, targeted at low-end phones rather than machines with graphics cards. A video model was not going to run there. A tool that does not run is not a tool.</p></li>
+    <li class="rung"><span class="rung-k">Action</span><p>I took the keypoint route. A pose estimator reports joint positions per frame, so a frame becomes about a hundred numbers rather than a hundred thousand. The same small encoder runs on each frame and a recurrent layer reads the sequence, with a fixed-size state so it streams.</p><p>Normalising to a body-relative origin and scale mattered more than any model choice, because raw coordinates encode where the person stood.</p></li>
+    <li class="rung"><span class="rung-k">Result</span><p>A model small enough for the target device. It also cannot learn background, clothing or skin tone, because none of those survive into the keypoints.</p></li>
+    <li class="rung"><span class="rung-k">What it cost</span><p>The face. Eyebrows, head tilt and mouth shape carry grammar in sign languages. This pipeline cannot represent any of it. So the honest scope is signs from hand motion rather than interpretation. The pose estimator is also a ceiling, and two-handed signing means the hands constantly cover each other. Face landmarks are keypoints too, and adding a small subset of them is the change I would make.</p></li>
+  </ol>
+</div>
+
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>Somebody signs in front of a camera and the system names the sign. The obvious approach is to show the video to a model. This paper does not do that. A separate step finds the hands first and reports where the joints are, and only those numbers go to the model.</p>
+  <p>That is the entire architectural idea. A frame becomes about a hundred numbers instead of a hundred thousand, which is why it runs on a cheap phone. It also throws away everything that is not a hand.</p>
+  <dl>
+    <dt>Keypoints</dt>
+    <dd>The positions of hand joints, typically twenty-one per hand, each with three coordinates. The output of a pose estimator.</dd>
+
+    <dt>Pose estimator</dt>
+    <dd>A separate model that finds hands in a frame and reports joint positions. Already optimised for phones by somebody else.</dd>
+
+    <dt>Time-distributed</dt>
+    <dd>Applying the same small network to every frame independently, before anything looks across frames. One encoder, shared over time.</dd>
+
+    <dt>LSTM</dt>
+    <dd>A recurrent model that carries a fixed-size hidden state forward one step at a time. Its memory cost does not grow with sequence length.</dd>
+
+    <dt>Isolated recognition</dt>
+    <dd>One sign per clip, with the boundaries given. Much easier than continuous signing, and a different problem.</dd>
+
+    <dt>Continuous recognition</dt>
+    <dd>A stream of signing with no boundary markers. Needs segmentation or an alignment-free loss, and it is not what this is.</dd>
+
+    <dt>Normalisation</dt>
+    <dd>Removing where the signer stands and how large they appear. Without it the model learns the camera setup.</dd>
+
+    <dt>Non-manual markers</dt>
+    <dd>Eyebrows, head tilt, mouth shape. Grammar in sign languages, and invisible to a hand-only pipeline.</dd>
+
+    <dt>Signer-wise split</dt>
+    <dd>Putting each person's clips entirely in train or entirely in test. The only split that measures sign recognition rather than person recognition.</dd>
+
+    <dt>Occlusion</dt>
+    <dd>One hand covering the other. Constant in two-handed signing and the dominant cause of keypoint failure.</dd>
+  </dl>
+</div>
+
+<div class="primer stack">
+  <span class="callout-label">The technology &#8212; what each named thing is</span>
+  <p>The primer above defines the recognition problem. This one defines the network and the pipeline in front of it, starting from the ground. A paper claim gets examined the way a reviewer would, so these definitions run down to the mechanism.</p>
+  <p>Every entry answers four things. What it actually is, in plain words. Where this system uses it. What it buys, meaning what goes wrong without it. And the follow-up an interviewer asks once you have said the name.</p>
+  <dl>
+    <dt>MediaPipe Hands</dt>
+    <dd><i>the pose estimator</i>Google's hand tracking library. Given a video frame it returns 21 named landmarks per hand &#8212; fingertips, knuckles, wrist &#8212; each with an x, a y and a relative depth. It runs at video rate on an ordinary phone, because it was built for exactly that. <b>In the app.</b> It is what converts video into the 3D keypoints the bullet names. <b>What it buys.</b> The hardest part of the problem, solved and free. Hand pose estimation from raw pixels is its own research field, and using a solved component is what lets the actual model be small enough to ship. <b>The follow-up.</b> It is two models, a palm detector followed by a landmark model, and it has known weaknesses on fast motion and heavy occlusion. Every one of those errors is inherited silently by everything downstream, because the classifier never sees the pixels to know better.</dd>
+
+    <dt>Keypoints as features</dt>
+    <dd><i>the design decision</i>Feeding the model 21 coordinates per hand rather than the image itself. That is around 126 numbers per frame for two hands, against tens of thousands of pixels. The representation has already thrown away lighting, skin tone, clothing and background before the classifier sees anything. <b>In the app.</b> It is the single reason a model this small runs on a low-end phone. <b>What it buys.</b> Three things at once. A tiny model, invariance to appearance that would otherwise need enormous amounts of data to learn, and privacy, since keypoints are not a picture of anybody. <b>The follow-up.</b> What is discarded along with the pixels. Hand shape survives. Facial expression and body posture do not, and in sign language those carry grammar rather than decoration. That is the non-manual markers entry in the primer above.</dd>
+
+    <dt>LSTM</dt>
+    <dd><i>long short-term memory</i>A recurrent network processes a sequence one step at a time, carrying a state forward. Plain recurrent networks fail at this because the gradient shrinks with every step back, so they cannot learn long dependencies. An LSTM adds a separate cell state and three gates that decide what to forget, what to write and what to read out, which lets information travel many steps without decaying. <b>In the app.</b> A sign is a trajectory through time, not a single picture. <b>What it buys.</b> The ability to learn that a gesture's meaning lies in the whole movement, so two signs with identical hand shapes and different motion are distinguishable. <b>The follow-up.</b> The order of magnitude. Plain recurrent networks lose the thread past roughly ten steps. LSTMs handle hundreds. A signed gesture is tens of frames, comfortably inside the range.</dd>
+
+    <dt>GRU</dt>
+    <dd><i>the cheaper cousin</i>A simplified recurrent cell. Two gates instead of three, and no separate cell state, so roughly a quarter fewer parameters for usually comparable accuracy. On most sequence tasks the published difference between the two is small and dataset-dependent. <b>In the app.</b> It is the obvious question the moment you say LSTM and mobile in the same sentence. <b>What it buys.</b> A smaller and faster model at the same accuracy, when it works, which on a phone is exactly the trade you are looking for. <b>The follow-up.</b> Whether you tried it. &#8220;We did not compare&#8221; is a perfectly fine answer that costs you nothing. Claiming LSTM was chosen over GRU when no measurement was made is the answer that unravels.</dd>
+
+    <dt>Time-distributed</dt>
+    <dd><i>the wrapper</i>A way of applying the same layer independently to every time step of a sequence, with one shared set of weights, before the recurrent layer sees it. Thirty frames go in, the same transformation runs thirty times, thirty feature vectors come out in order. <b>In the app.</b> It is the word in the bullet, and it is what turns a per-frame feature extractor into part of a sequence model. <b>What it buys.</b> Parameter efficiency and the right inductive bias. The model learns what a single frame means once, rather than learning it separately for each position in the sequence. <b>The follow-up.</b> Shared weights are the entire point. Without sharing, frame seventeen would need its own parameters, and the model would need vastly more data and would not generalise to a sign performed slightly faster.</dd>
+
+    <dt>CTC</dt>
+    <dd><i>connectionist temporal classification</i>A loss function for the case where you know the sequence of labels but not where each one starts and ends. It works by considering every possible alignment between the frames and the labels, and summing their probabilities, so the model learns alignment as a side effect rather than being told it. <b>In the app.</b> It is the standard answer for continuous signing, where nobody has labelled the boundary between one sign and the next. <b>What it buys.</b> Training on data that is merely transcribed, rather than data annotated frame by frame, which is a difference of orders of magnitude in labelling cost. <b>The follow-up.</b> Whether this system actually needed it. Isolated recognition, one clip producing one label, does not, and saying so cleanly is the honest boundary of the claim.</dd>
+
+    <dt>Signer-independent split</dt>
+    <dd><i>the evaluation rule</i>Dividing the data so that no person appears in both the training set and the test set. It sounds like a detail and it is the whole result. <b>In the app.</b> It is the difference between a system that recognises signs and one that recognises the four people who recorded the dataset. <b>What it buys.</b> A number that predicts performance on a new user, which is the only number anybody cares about. <b>The follow-up.</b> It is the single most common flaw in this literature. Split randomly by clip and the model learns individual people's hands, and accuracy comes out ten or twenty points higher than it deserves. If the split was random, the headline number means very much less.</dd>
+
+    <dt>Dataset size</dt>
+    <dd><i>the quiet constraint</i>Indian Sign Language datasets are small by the standards of machine learning: often a few thousand clips across a few dozen signers, against the millions of examples image models are trained on. There is no large public corpus to fall back on. <b>In the app.</b> Model size was chosen to fit the data at least as much as to fit the phone. <b>What it buys.</b> Naming it explains the architecture. A small model on a small dataset is the correct choice, not a compromise, and framing it that way is stronger than apologising for it. <b>The follow-up.</b> Overfitting is the default outcome here, so what did you do about it. Augmentation on keypoints means rotation, scaling and jitter of coordinates rather than image transforms, it is nearly free, and naming it shows you saw the problem.</dd>
+
+    <dt>TFLite</dt>
+    <dd><i>how it reaches the phone</i>TensorFlow Lite, the mobile runtime. The trained graph is converted into its format, optionally with integer quantization applied on the way, producing a single file that a phone app loads with no TensorFlow installation and no Python. <b>In the app.</b> &#8220;Sized for low-end mobile&#8221; is a claim about what comes out of this conversion step. <b>What it buys.</b> A model that ships inside an app rather than sitting behind an API, so the system works offline and costs nothing per use. <b>The follow-up.</b> Say the numbers. Model size in megabytes, inference latency per frame, and the specific device it was measured on. Without all three, &#8220;sized for low-end mobile&#8221; is an intention rather than a result.</dd>
+  </dl>
+</div>
+
+
+
+<h2>Keypoints instead of pixels</h2>
+
+<p class="breath">A frame at modest resolution is over a hundred thousand numbers. Twenty-one joints on each of two hands, with three coordinates each, is a hundred and twenty-six. Three orders of magnitude, before any model runs.</p>
+
+<p>That collapse is the reason this fits on a low-end phone. A model over a hundred numbers per frame can be small enough to be uninteresting, which is exactly what you want when the device is the constraint.</p>
+
+<p>You also inherit somebody else's optimisation. Hand pose estimators are already shipped and tuned for phones, so the expensive perception work is done by a component that was going to exist anyway.</p>
+
+<p>And there is a fairness argument worth making. Background, clothing, lighting and skin tone do not survive into the keypoints. A pixel model can learn any of those. This one structurally cannot.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Do not show the model a picture. Show it where the fingers are. That is a hundred numbers instead of a hundred thousand.</p>
+
+<h2>What that choice makes impossible</h2>
+
+<p class="breath">Everything that is not a hand is gone. In sign languages that is not a rounding error. Eyebrows, head tilt and mouth shape carry grammar, and this pipeline cannot represent any of them.</p>
+
+<p>A raised brow can turn a statement into a question. A head shake can negate a whole clause. Those are not tone or emphasis, they are grammatical marking, and they live above the shoulders.</p>
+
+<p>So the honest scope is recognising signs from hand motion, not interpreting sign language. Volunteering that distinction is the single strongest move available, because the paper's title reaches further than its method does.</p>
+
+<p>The second loss is the pose estimator becoming a ceiling. If it cannot find the hands, nothing downstream recovers, and two-handed signing means the hands are constantly covering each other.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>The face is part of the grammar and this system never sees it. Say that before somebody who signs asks you about it.</p>
+
+<h2>Why an LSTM, and why time-distributed</h2>
+
+<p class="breath">The same small network runs on each frame's keypoints, producing one feature vector per frame. Then the recurrent layer reads that sequence. Shared across time, so the per-frame part is learned once rather than per position.</p>
+
+<p>The recurrent choice is defensible on the target rather than on fashion. A recurrent model carries a fixed-size state and consumes one frame at a time, so memory does not grow with clip length and it streams naturally.</p>
+
+<p>Attention would need the window held and its cost grows with the square of the length. On a low-end phone, processing frames as they arrive with a constant-size state is the shape that fits.</p>
+
+<p>Say it that way round. Not that a transformer was unavailable, but that recurrence matches a streaming, memory-bounded target. That is an engineering answer rather than a chronological one.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>One small network looks at each frame the same way. Then a second part reads them in order, keeping a fixed amount of memory no matter how long the clip is.</p>
+
+<h2>The two things a reviewer should have asked</h2>
+
+<p class="breath">How the data was split, and what &#8220;sized for mobile&#8221; was measured as. Both are easy to answer well and both are quietly fatal if answered badly.</p>
+
+<p>Sign datasets are small and often recorded by a handful of people. Split the clips at random and the same signers appear in training and testing, so the model can score well by recognising people rather than signs.</p>
+
+<p>The right split puts each person entirely on one side. Accuracy drops, sometimes a lot, and the number that survives is the one that means anything about a new user.</p>
+
+<p>The sizing claim needs a number too. Parameter count, and latency per frame on a named device. Without those it is an architectural argument rather than a measurement, and it should be said as one.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>If the same people are in the training and the test set, you measured face recognition. And &#8220;fits on a phone&#8221; needs a phone and a millisecond count.</p>
+
+
+
+<section class="qset" id="toolbox">
+  <h2>Toolbox</h2>
+  <p class="qset-note">Every noun in the title, defined out loud, from the ground up. This is a published paper, so the questions are the ones a reviewer asks: what is the mechanism, how was it split, and what are the numbers.</p>
+  <ul class="qa-index">
+    <li><a href="#c20-t1">What the pose estimator gives you</a></li>
+    <li><a href="#c20-t2">What an LSTM actually does</a></li>
+    <li><a href="#c20-t3">What time-distributed means</a></li>
+    <li><a href="#c20-t4">Why not a GRU or a transformer</a></li>
+    <li><a href="#c20-t5">Whether you needed CTC</a></li>
+    <li><a href="#c20-t6">Why the split matters most</a></li>
+    <li><a href="#c20-t7">What low-end mobile means</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c20-t1">
+      <p class="qa-q">Where do the 3D hand-pose keypoints come from?</p>
+      <p class="qa-a">A pose estimator, in practice MediaPipe Hands. Given a frame it returns 21 named landmarks per hand, meaning fingertips, knuckles and wrist, each with an x, a y and a relative depth. It runs at video rate on an ordinary phone. What it buys is the hardest part of the problem, solved and free. Hand pose estimation from raw pixels is its own research field. That is about 126 numbers a frame for two hands, against tens of thousands of pixels. Feeding coordinates rather than images buys a tiny model, invariance to lighting and skin tone, and privacy, since keypoints are not a picture of anybody.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Skipping the estimator. It is a model too, its errors propagate, and on fast motion it is the weakest link in the chain.</p>
+    </li>
+    <li class="qa-item" id="c20-t2">
+      <p class="qa-q">What does an LSTM actually do?</p>
+      <p class="qa-a">A recurrent network processes a sequence one step at a time, carrying a state forward. Plain ones fail at this, because the gradient shrinks with every step back, so they cannot learn long dependencies. An LSTM adds a separate cell state and three gates. One decides what to forget, one what to write, one what to read out. Those gates let information travel many steps without decaying. What that buys is learning that a gesture's meaning is in the whole movement. Two signs with identical hand shapes and different motion become distinguishable. A plain recurrent network loses the thread after about ten steps. An LSTM handles hundreds, and a signed gesture is tens of frames.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;It remembers previous frames.&#8221; So does any recurrent network, badly. The gates are the answer and they are three sentences.</p>
+    </li>
+    <li class="qa-item" id="c20-t3">
+      <p class="qa-q">What does &#8220;time-distributed&#8221; mean here?</p>
+      <p class="qa-a">The same layer is applied independently to every frame, with one shared set of weights, before the recurrent layer sees the sequence. Thirty frames go in, the same transformation runs thirty times, thirty feature vectors come out in order. Sharing the weights is the whole point. What it buys is parameter efficiency and the right inductive bias. The model learns what a single frame means once, rather than learning it separately for each position. Without sharing, frame seventeen would need its own parameters. It would need vastly more data and would not generalise to a sign performed slightly faster.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Reading it as &#8220;processes frames in order.&#8221; The recurrent layer does that. This wrapper is about weight sharing.</p>
+    </li>
+    <li class="qa-item" id="c20-t4">
+      <p class="qa-q">Why an LSTM and not a GRU or a small transformer?</p>
+      <p class="qa-a">A GRU is a simplified recurrent cell. Two gates instead of three, no separate cell state, roughly a quarter fewer parameters, usually for comparable accuracy. What that would buy on a phone is a smaller and faster model at the same quality, which is exactly the trade you want. So it is the obvious alternative. A transformer needs more data than sign-language datasets have. If the comparison was not run, say that. Claiming a choice you did not measure is worse than admitting the default was reasonable.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Inventing a justification. &#8220;It was the standard choice for sequence work at the time&#8221; is true, honest, and perfectly acceptable.</p>
+    </li>
+    <li class="qa-item" id="c20-t5">
+      <p class="qa-q">Did you need CTC?</p>
+      <p class="qa-a">Not for isolated recognition. CTC is a loss function for the case where you know the sequence of labels but not where each starts and ends. It considers every possible alignment between frames and labels and sums their probabilities, so the model learns alignment as a side effect. What it buys is training on data that is merely transcribed rather than annotated frame by frame. That is orders of magnitude cheaper to label. You need it when signs run together and nobody has marked the boundaries. One clip with one label does not. Saying that is the honest edge of the claim.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Naming CTC because it sounds advanced. If the task was isolated, it was not needed, and claiming it invites a question about your alignment labels.</p>
+    </li>
+    <li class="qa-item" id="c20-t6">
+      <p class="qa-q">What is the first thing a reviewer checks in a paper like this?</p>
+      <p class="qa-a">The split. No person may appear in both the training set and the test set. It sounds like a detail and it is the whole result. What a signer-independent split buys is a number that predicts performance on a new user, which is the only number anybody cares about. Split randomly by clip instead and the model learns individual people's hands rather than signs. Accuracy comes out ten or twenty points higher than it deserves. It is the single most common flaw in this literature. If the split was signer-independent, lead with it, because it is the strongest thing you can say.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Quoting accuracy before the split. The number means nothing until the protocol is stated, and a good reviewer reorders the conversation to get there.</p>
+    </li>
+    <li class="qa-item" id="c20-t7">
+      <p class="qa-q">What does &#8220;sized for low-end mobile&#8221; mean in numbers?</p>
+      <p class="qa-a">Three of them. Model size in megabytes after conversion, inference latency per frame, and the specific device it was measured on. The conversion step is TFLite, the mobile runtime, usually with integer quantization applied on the way. It produces one file a phone app loads with no TensorFlow installation and no Python. What that buys is a model shipping inside the app rather than sitting behind an API, so it works offline and costs nothing per use. Without those three numbers the phrase is an intention rather than a result, and it is the easiest claim in the bullet to check.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing the architecture as small. Small is relative. Megabytes and milliseconds are not.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="fundamentals">
+  <h2>Fundamentals</h2>
+  <p class="qset-note">A published paper is checkable, which changes the register. Everything here should match what the paper actually claims.</p>
+  <ul class="qa-index">
+    <li><a href="#c20-f1">What the paper does</a></li>
+    <li><a href="#c20-f2">Why keypoints</a></li>
+    <li><a href="#c20-f3">What it costs</a></li>
+    <li><a href="#c20-f4">Time-distributed</a></li>
+    <li><a href="#c20-f5">Why recurrence</a></li>
+    <li><a href="#c20-f6">Isolated or continuous</a></li>
+    <li><a href="#c20-f7">Normalisation</a></li>
+    <li><a href="#c20-f8">The split</a></li>
+    <li><a href="#c20-f9">Sized for mobile</a></li>
+    <li><a href="#c20-f10">Your contribution</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c20-f1">
+      <p class="qa-q">In two sentences, what does this paper do?</p>
+      <p class="qa-a">Somebody signs in front of a camera and the system names the sign. A pose estimator finds the hands first and reports joint positions, and only those numbers go to the recognition model.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing it as video classification. The video never reaches the model, and that is the design.</p>
+    </li>
+    <li class="qa-item" id="c20-f2">
+      <p class="qa-q">Why keypoints rather than the frames?</p>
+      <p class="qa-a">Size, mostly. A frame at modest resolution is over a hundred thousand numbers, and two hands of twenty-one joints with three coordinates is a hundred and twenty-six. Three orders of magnitude, before any model runs. You also inherit a pose estimator that is already tuned for phones.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Answering on accuracy. A pixel model can beat this given enough data. The argument is that the device could not run one.</p>
+    </li>
+    <li class="qa-item" id="c20-f3">
+      <p class="qa-q">What does that choice throw away?</p>
+      <p class="qa-a">Everything that is not a hand. In sign languages that matters, because eyebrows, head tilt and mouth shape carry grammar. A raised brow can make a statement a question. This pipeline cannot represent any of it, so the honest scope is recognising signs from hand motion.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating the face as expression or tone. It is grammatical marking, and somebody who signs will know that immediately.</p>
+    </li>
+    <li class="qa-item" id="c20-f4">
+      <p class="qa-q">What does time-distributed mean here?</p>
+      <p class="qa-a">The same small network runs on each frame's keypoints, independently, producing one feature vector per frame. Then the recurrent layer reads that sequence. One encoder shared across time, so the per-frame part is learned once rather than separately at each position.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating it as a framework detail. It is weight sharing across time, and that is why the model stays small.</p>
+    </li>
+    <li class="qa-item" id="c20-f5">
+      <p class="qa-q">Why a recurrent model rather than attention?</p>
+      <p class="qa-a">Because the target is a weak phone processing frames as they arrive. A recurrent model carries a fixed-size state and takes one frame at a time, so memory does not grow with clip length. Attention needs the window held and its cost grows with the square of the length.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Answering that it was what people used then. The streaming and memory argument is true and much stronger.</p>
+    </li>
+    <li class="qa-item" id="c20-f6">
+      <p class="qa-q">Isolated signs or continuous signing?</p>
+      <p class="qa-a">Isolated, and I would say so immediately. One sign per clip, with the boundaries given. Continuous signing has no boundary markers, so it needs segmentation or an alignment-free loss, and it is a substantially harder problem. The word interpretation in the title reaches further than the method does.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Letting the title stand. If an interviewer hears translation and the method is isolated recognition, the correction lands badly.</p>
+    </li>
+    <li class="qa-item" id="c20-f7">
+      <p class="qa-q">Keypoints come in image coordinates. Is that a problem?</p>
+      <p class="qa-a">Yes, and it is the preprocessing step that decides everything. Raw coordinates encode where the signer stood and how large they appeared. Without normalising to a body-relative origin and scale, the model learns the camera setup and fails on anyone standing somewhere else.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Skipping it. It is the same shape as the pose stage in chapter 0019. Unglamorous, upstream, and decisive.</p>
+    </li>
+    <li class="qa-item" id="c20-f8">
+      <p class="qa-q">How should the dataset have been split?</p>
+      <p class="qa-a">By signer, so each person's clips are entirely in training or entirely in test. Sign datasets are small and recorded by few people, so a random split puts the same signers on both sides. The model can then score well by recognising people. Accuracy drops under the right split, and that number is the real one.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Quoting an accuracy without saying the split. It is the first thing a careful reviewer asks and the easiest thing to get wrong.</p>
+    </li>
+    <li class="qa-item" id="c20-f9">
+      <p class="qa-q">&#8220;Sized for low-end mobile.&#8221; Sized how?</p>
+      <p class="qa-a">That needs a parameter count and a latency per frame on a named device. Without both it is an architectural argument rather than a measurement, and I would present it as one. The architectural argument is real, since a hundred numbers per frame bounds the model from the input side.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Asserting it runs on a phone. That is a measurable claim and measurable claims get measured in interviews.</p>
+    </li>
+    <li class="qa-item" id="c20-f10">
+      <p class="qa-q">Six authors. What was yours?</p>
+      <p class="qa-a">Answer it plainly and specifically, whatever the answer is. Second author on a six-author paper is a real contribution and vague answers here read worse than modest ones. Name the parts you built and the parts you did not.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Implying you led it. The author list is published, and so is the order.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="deep-dive">
+  <h2>Deep dive</h2>
+  <p class="qset-note">The dataset questions are the sharp ones. A published accuracy is only as good as the split behind it.</p>
+  <ul class="qa-index">
+    <li><a href="#c20-d1">Occlusion</a></li>
+    <li><a href="#c20-d2">Which hand is which</a></li>
+    <li><a href="#c20-d3">Variable length</a></li>
+    <li><a href="#c20-d4">The frame budget</a></li>
+    <li><a href="#c20-d5">Depth from a camera</a></li>
+    <li><a href="#c20-d6">Dataset size</a></li>
+    <li><a href="#c20-d7">Augmentation</a></li>
+    <li><a href="#c20-d8">Confusable signs</a></li>
+    <li><a href="#c20-d9">Reporting accuracy</a></li>
+    <li><a href="#c20-d10">Adding the face</a></li>
+    <li><a href="#c20-d11">Going continuous</a></li>
+    <li><a href="#c20-d12">What is stale now</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c20-d1">
+      <p class="qa-q">The hands cross. What happens?</p>
+      <p class="qa-a">The estimator loses joints or invents them. The recognition model never learns that anything went wrong. Indian Sign Language uses two hands heavily, so this is the common case rather than an edge. The mitigation is a confidence value per keypoint, carried forward as an input rather than dropped.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating missing keypoints as zeros. A zero is a position, and the model will learn it as one.</p>
+    </li>
+    <li class="qa-item" id="c20-d2">
+      <p class="qa-q">Which set of keypoints is the left hand?</p>
+      <p class="qa-a">Whatever the estimator says, and it can swap between frames. That produces a discontinuity the recurrent layer reads as motion that never happened. Assigning hands by tracking across frames rather than per frame is the fix. It is the kind of detail that separates a working pipeline from a notebook.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Assuming the labels are stable. Per-frame assignment is exactly where two-handed signing breaks it.</p>
+    </li>
+    <li class="qa-item" id="c20-d3">
+      <p class="qa-q">Signs take different amounts of time. How do you handle that?</p>
+      <p class="qa-a">Recurrence handles variable length natively, which is another argument for it. In practice clips get padded to a common length for batching, with masking so the padding does not contribute. Getting the mask wrong is a classic silent bug, because the model still trains and scores slightly worse.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Resampling every clip to a fixed number of frames. That destroys speed information, and speed distinguishes some signs.</p>
+    </li>
+    <li class="qa-item" id="c20-d4">
+      <p class="qa-q">What is the real-time budget on a low-end phone?</p>
+      <p class="qa-a">At thirty frames per second you have about thirty-three milliseconds per frame, and the pose estimator takes most of it. The recognition model has to fit in what is left. That is the sum worth doing out loud, because it shows the constraint is the estimator rather than the classifier.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Budgeting only your own model. It is the smaller half of a two-stage pipeline you do not control.</p>
+    </li>
+    <li class="qa-item" id="c20-d5">
+      <p class="qa-q">The keypoints are three-dimensional from a single camera. How?</p>
+      <p class="qa-a">Estimated rather than measured. The pose model predicts a depth per joint from appearance and learned priors, so it is a plausible reconstruction and not a measurement. It is useful for relative hand orientation and it should not be treated as metric depth.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it 3D without qualification. A single camera has no depth, and the third coordinate is inferred.</p>
+    </li>
+    <li class="qa-item" id="c20-d6">
+      <p class="qa-q">How big are these datasets, really?</p>
+      <p class="qa-a">Small. Indian Sign Language sets are typically a few thousand clips across a few dozen signers, often recorded in one place. That size is why the split matters so much and why a strong result can be a data artefact rather than a finding.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Comparing the accuracy to image-classification numbers. Those come from millions of examples, and the comparison flatters this by a lot.</p>
+    </li>
+    <li class="qa-item" id="c20-d7">
+      <p class="qa-q">What augmentation makes sense on keypoints?</p>
+      <p class="qa-a">Small rotations, scalings and translations, plus slight time warping to vary speed. Mirroring is tempting and wrong, because handedness is meaningful and mirroring a sign can produce a different one. Augmenting coordinates is also much cheaper than augmenting frames, which is a quiet benefit of the representation.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Mirroring for free data. It changes which hand is dominant, and in some signs that changes the meaning.</p>
+    </li>
+    <li class="qa-item" id="c20-d8">
+      <p class="qa-q">Two signs look almost the same. What do you show?</p>
+      <p class="qa-a">The confusion matrix, not the accuracy. Signs differing only in handshape or in a small movement are the interesting failures, and an average over all classes hides them completely. The pairs that confuse are also what tells you whether the keypoints have enough resolution.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Reporting a single accuracy. It is the same argument as chapter 0012. The average hides the cases worth reading.</p>
+    </li>
+    <li class="qa-item" id="c20-d9">
+      <p class="qa-q">What should a results table say that many do not?</p>
+      <p class="qa-a">The number of classes, the number of signers, and how the split was made. Accuracy over ten classes and accuracy over two hundred are different claims wearing the same number. And a signer-wise split should be stated even when it makes the result look worse.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Quoting the headline figure alone. Every one of those three details changes what it means.</p>
+    </li>
+    <li class="qa-item" id="c20-d10">
+      <p class="qa-q">How would you add the face without losing the size advantage?</p>
+      <p class="qa-a">The same way the hands are handled. Face landmarks are keypoints too, and a small subset around the brows and mouth is a few dozen more numbers rather than a picture. The cost is another estimator in the per-frame budget, which is the part that is already tight.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Proposing to add the video back. That gives up the one property that made this deployable.</p>
+    </li>
+    <li class="qa-item" id="c20-d11">
+      <p class="qa-q">What would continuous recognition need?</p>
+      <p class="qa-a">Either a segmentation step that finds sign boundaries, or a loss that aligns a sequence of outputs to a sequence of labels without boundaries. The second is how speech recognition handles the same problem. Both are a substantially different system, which is why the scope is worth stating up front.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Suggesting a sliding window over the isolated model. Sign boundaries are not detectable by the model that assumes they were given.</p>
+    </li>
+    <li class="qa-item" id="c20-d12">
+      <p class="qa-q">This was 2024. What has moved?</p>
+      <p class="qa-a">Sequence models on keypoints would now more often use attention over a short window, and pose estimators have got better and cheaper. The keypoint idea has not moved at all, and it is still the right call for a weak device. Saying which half aged is better than defending both.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Defending the LSTM as current best practice. The architecture aged and the input representation did not.</p>
+    </li>
+  </ol>
+</section>
+
+<div class="quiz" data-quiz-id="0020-q1">
+  <p class="q">Why feed hand keypoints to the model rather than the video frames?</p>
+  <ol class="options">
+    <li data-correct="true">It collapses each frame from thousands to dozens</li>
+    <li>Keypoints are much easier for people to label</li>
+    <li>Recurrent models cannot accept an image input directly</li>
+    <li>It removes the need for any normalisation step</li>
+  </ol>
+  <div class="why">
+    <p>A frame at modest resolution is over a hundred thousand numbers. Twenty-one joints on each of two hands, with three coordinates each, is a hundred and twenty-six. That collapse is what lets the model be small enough for a cheap phone.</p>
+    <p>Normalisation becomes more important rather than less, because raw keypoints are in image coordinates and encode where the signer stood. Nobody labels keypoints here either, since a pose estimator produces them.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0020-q2">
+  <p class="q">What can a hand-keypoint pipeline structurally never represent?</p>
+  <ol class="options">
+    <li data-correct="true">Facial expression, which carries grammar in signing</li>
+    <li>Hand shape, whenever the fingers are curled</li>
+    <li>Movement speed, which the frame rate fixes</li>
+    <li>Two hands, whenever they overlap each other</li>
+  </ol>
+  <div class="why">
+    <p>Eyebrows, head tilt and mouth shape are grammatical marking in sign languages, not tone. A raised brow can turn a statement into a question, and nothing above the wrists reaches this model at all.</p>
+    <p>Handshape and speed are both represented, through joint positions and through the sequence. Overlapping hands are a failure of the estimator rather than something the representation cannot express.</p>
+  </div>
+</div>
+
+<section class="qset" id="edges">
+  <h2>Edges and exceptions</h2>
+  <p class="qset-note">Half of these are about the domain rather than the model, which is where a hearing engineer building for signers is most likely to be wrong.</p>
+  <ul class="qa-index">
+    <li><a href="#c20-e1">Regional variation</a></li>
+    <li><a href="#c20-e2">Left-handed signers</a></li>
+    <li><a href="#c20-e3">Hands off camera</a></li>
+    <li><a href="#c20-e4">Who validated it</a></li>
+    <li><a href="#c20-e5">A confident wrong answer</a></li>
+    <li><a href="#c20-e6">Public funding</a></li>
+    <li><a href="#c20-e7">Defending interpretation</a></li>
+    <li><a href="#c20-e8">What you would change</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c20-e1">
+      <p class="qa-q">Signs vary by region.</p>
+      <p class="qa-a">They do, and a dataset recorded in one place encodes one variant. The model will then be wrong for signers elsewhere in a way that looks like poor accuracy rather than like a coverage gap. Naming the region the data came from is the minimum, and it is often missing.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating a sign language as uniform. It has dialects the way spoken languages do, and a single-site dataset captures one.</p>
+    </li>
+    <li class="qa-item" id="c20-e2">
+      <p class="qa-q">The signer is left-handed.</p>
+      <p class="qa-a">Then dominance is reversed and the keypoints look like a mirrored version of the training data. That is exactly why mirroring is a bad augmentation and a good adaptation. Handling it properly means representing dominant and non-dominant hand rather than left and right.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Assuming right-handed signing. It is a sizeable minority of users and the failure is total rather than gradual.</p>
+    </li>
+    <li class="qa-item" id="c20-e3">
+      <p class="qa-q">A hand leaves the frame mid-sign.</p>
+      <p class="qa-a">The estimator returns nothing for it and the pipeline has to represent absent rather than at the origin. Absence is information, because some signs are one-handed. Encoding it as a zero position teaches the model that the hand moved somewhere specific.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Filling gaps by interpolation without a flag. It produces smooth, plausible, invented motion.</p>
+    </li>
+    <li class="qa-item" id="c20-e4">
+      <p class="qa-q">Who checked that the system is actually useful?</p>
+      <p class="qa-a">That is the question to have an answer for, and the honest one may be that the evaluation was a dataset rather than users. An accessibility tool evaluated only on held-out clips has not been evaluated by the people it is for. Saying so is better than implying otherwise.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Equating accuracy with usefulness. For assistive technology those are very different claims.</p>
+    </li>
+    <li class="qa-item" id="c20-e5">
+      <p class="qa-q">The system outputs the wrong sign confidently.</p>
+      <p class="qa-a">In a translation setting that is worse than outputting nothing. The reader has no way to check it. A threshold with an explicit unsure state is the right shape. Where the cost is asymmetric, the threshold should be too. That is the same rule as the reminders in chapter 0015.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Always emitting the top class. It is standard in a benchmark and wrong in a product where somebody acts on the output.</p>
+    </li>
+    <li class="qa-item" id="c20-e6">
+      <p class="qa-q">It was publicly funded. Does that change anything?</p>
+      <p class="qa-a">It raises the bar on releasing what can be released, and it is fair to be asked about. Whether the dataset and code are available is a reasonable question for publicly funded accessibility work. Having a straight answer is better than being surprised by it.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating funding as a credential only. It comes with expectations, and an interviewer may know them better than you do.</p>
+    </li>
+    <li class="qa-item" id="c20-e7">
+      <p class="qa-q">Defend the word interpretation in the title.</p>
+      <p class="qa-a">I would narrow it rather than defend it. The method recognises isolated signs from hand motion. Interpretation implies continuous signing with grammar, and the grammar lives partly in the face, which this cannot see. Saying that first makes everything else in the paper more credible.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Standing behind the title. Titles overreach routinely, and conceding it costs nothing while gaining a lot.</p>
+    </li>
+    <li class="qa-item" id="c20-e8">
+      <p class="qa-q">What would you change?</p>
+      <p class="qa-a">Report the signer-wise split explicitly, and the confusion pairs rather than one accuracy. Put a parameter count and an on-device latency behind the mobile claim. And add face landmarks, because they are keypoints too and the grammar is up there.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Proposing a bigger model. Every real weakness here is in the data, the reporting, or what the input representation excludes.</p>
+    </li>
+  </ol>
+</section>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;Why not just use the video?&#8221;
+      <span class="tell">The opening question. The size argument is immediate and it lands.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Because the target was a low-end phone. A frame at modest resolution is over a hundred thousand numbers, and twenty-one joints on each of two hands with three coordinates each is a hundred and twenty-six. That collapse is what lets the recognition model be small. You also inherit a pose estimator that is already tuned for phones, so the expensive perception work is done by a component that was going to exist anyway. And nothing about background, clothing or skin tone survives into the keypoints, which is a property worth having.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;What does that approach lose?&#8221;
+      <span class="tell">Volunteer this before it is asked. It is the answer that shows domain understanding rather than model understanding.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Everything that is not a hand, and in sign languages that is not a detail. Eyebrows, head tilt and mouth shape carry grammar. A raised brow can turn a statement into a question and a head shake can negate a clause. Those are grammatical markers rather than tone, and a hand-keypoint pipeline cannot represent them. So the honest scope is recognising signs from hand motion rather than interpreting sign language, and I would say that before the title does it for me.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Why an LSTM and not a transformer?&#8221;
+      <span class="tell">Often asked to see whether you defend the choice or apologise for it.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Because the target processes frames as they arrive on a weak device. A recurrent model carries a fixed-size state and takes one frame at a time, so memory does not grow with clip length and it streams naturally. Attention needs the window held and its cost grows with the square of the sequence. That is an engineering fit rather than a date. If I were doing it now I would probably use attention over a short window, but the input representation is the part I would keep.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;What accuracy, and how did you split the data?&#8221;
+      <span class="tell">The second half of that question is the real one, and many candidates have not thought about it.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The split matters more than the number. Sign datasets are small and recorded by a handful of people, so a random split puts the same signers in training and test, and the model can score well by recognising people rather than signs. The right split puts each person entirely on one side. Accuracy drops under it, sometimes a lot, and that is the number that means anything about a new user. I would also show the confusion pairs, because signs differing by a small handshape are the interesting failures and an average hides them.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;How do you know it works on a phone?&#8221;
+      <span class="tell">A measurable claim. Have the number or say you have the argument rather than the number.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The right answer is a parameter count and a per-frame latency on a named device, and if I do not have those I would present it as an architectural argument instead. The argument is real. At thirty frames per second you have about thirty-three milliseconds per frame, the pose estimator takes most of it, and a model over a hundred numbers per frame fits in what is left. The binding constraint is the estimator rather than the classifier, which is worth saying because it points at the right place to optimise.</p>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="recall">
+  <details>
+    <summary>Chapter 0019 found the failures were two stages upstream of where everyone looked. What is the identical structure here?</summary>
+    <p class="answer">The pose estimator and the normalisation, both of which run before the recognition model and both of which report success regardless. There the camera poses came out wrong and the reconstruction looked soft two stages later. Here the estimator loses a hand under occlusion, or the coordinates are never normalised, and the symptom is a model that will not generalise. In both cases the interesting machinery is downstream of the thing that actually decides the outcome.</p>
+    <span class="from"><a href="0019-2d-to-3d-reconstruction.html">Chapter 0019 &#183; the stage that fails quietly</a></span>
+  </details>
+  <details>
+    <summary>Chapter 0012 argued a number is not a claim until it says what it is over. Apply that to a reported accuracy here.</summary>
+    <p class="answer">An accuracy needs the number of classes, the number of signers, and the split. Ten classes and two hundred classes are different claims wearing the same figure, and a random split over a small dataset measures signer recognition rather than sign recognition. The parallel to that chapter is exact: there it was a denominator and a judge, here it is a class count and a split. In both cases the fix is to state what the number is over, even when that makes it look smaller.</p>
+    <span class="from"><a href="0012-rag-and-evaluation.html">Chapter 0012 &#183; a number needs its denominator</a></span>
+  </details>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">The lessons behind this chapter</span>
+  <p>System Design School teaches these mechanisms from first principles and breaks them in a lab. This chapter defends what you did with them. An interviewer moves between those two registers without warning.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0001-latency-budget-arithmetic.html">SDS 0001 &#183; Latency budget arithmetic</a>
+      <span class="bridge-why">Thirty-three milliseconds per frame, most of it spent in a pose estimator you do not control, and the classifier lives in what is left.</span>
+    </li>
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0002-p50-is-a-lie.html">SDS 0002 &#183; p50 is a lie</a>
+      <span class="bridge-why">An accuracy averaged over classes hides the confusable pairs, which are the only failures that say anything about the representation.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0039 &#183; The eval harness as a regression gate &#8212; not yet built</span>
+      <span class="bridge-why">A split that leaks signers between train and test is a harness that measures the wrong thing and never says so.</span>
+    </li>
+  </ol>
+</div>
+
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0019-2d-to-3d-reconstruction.html">&#8592; 0019 &#183; 2D to 3D: NeRF, Instant-NGP, splatting</a></span>
+  <span><span class="dir">Next</span><a href="0021-fmri-adhd-prediction.html">0021 &#183; 3D-RNN over resting-state fMRI &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>Caching Decision Tree</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <script src="../assets/theme.js"></script>
+</head>
+<body>
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="../lessons/index.html">System Design School</a>
+    <span class="sep">/</span>
+    <span>Reference</span>
+    <span class="sep">/</span>
+    <span>from lessons 0003–0006</span>
+  </div>
+  <h1>Caching Decision Tree</h1>
+  <p class="standfirst">Every caching decision in Tier 1, compressed to the questions worth asking and the answers that follow from them.</p>
+</header>
+
+<h2>Should this be cached at all?</h2>
+
+<ol>
+  <li><strong>Is it expensive to produce?</strong> If it costs 2 ms, stop. You will spend more on the round trip than you save.</li>
+  <li><strong>Does the same input recur?</strong> Measure the repeat rate before assuming. A cache on a workload with no repetition is pure overhead — that is lesson 0005's penetration lab.</li>
+  <li><strong>Is it a pure function of things you can put in the key?</strong> If yes, cache it aggressively and stop worrying — there is no invalidation story to get wrong.</li>
+  <li><strong>If not pure, what staleness is acceptable?</strong> You must be able to answer in a unit of time. “Fresh-ish” is not an answer, it is a future incident.</li>
+  <li><strong>Is it the output of record?</strong> Then no. Cache expensive inputs; persist audited outputs in a database.</li>
+</ol>
+
+<h2>Which strategy?</h2>
+
+<div class="table-wrap">
+<table class="verdict">
+  <thead><tr><th>If…</th><th>Use</th><th>Because</th></tr></thead>
+  <tbody>
+    <tr><td>The value is derived and on a latency budget</td><td><strong>Cache-aside</strong></td><td>A dead cache degrades you to slow rather than to down.</td></tr>
+    <tr><td>You want one code path and can accept a hard dependency</td><td><strong>Read-through</strong></td><td>Less application logic, one fewer failure mode to test — but the cache is now load-bearing.</td></tr>
+    <tr><td>Writes must be immediately visible and consistent</td><td><strong>Write-through</strong></td><td>Consistency at the cost of every write paying both latencies.</td></tr>
+    <tr><td>Write throughput dominates and some loss is tolerable</td><td><strong>Write-behind</strong></td><td>Fastest writes. The cache dying takes unflushed data with it.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Key design</h2>
+
+<pre class="code" style="max-width:66ch;font-family:var(--mono);font-size:12.5px;padding:12px 15px;border:1px solid var(--rule);background:var(--surface-2);overflow-x:auto">emb:{model_version}:{sha256(normalise(text))}
+    ^^^^^^^^^^^^^^^   ^^^^^^^^^^^^^^^^^^^^^^^
+    |                 normalise = strip + lowercase, so
+    |                 semantically identical inputs collide
+    |
+    everything the value depends on. Omit this and changing
+    models leaves every cached value silently wrong, with no
+    error anywhere.</pre>
+
+<ul>
+  <li><strong>Version anything that changes the value.</strong> Model, prompt template, tokeniser, schema.</li>
+  <li><strong>Normalise the input</strong> so trivially different inputs hit the same entry.</li>
+  <li><strong>Hash long keys</strong>, but keep the prefix human-readable so <code>--scan --pattern</code> stays useful.</li>
+  <li><strong>Never key on a mutable object's identity</strong> — only on its content.</li>
+</ul>
+
+<h2>The three failure modes</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Name</th><th>In store?</th><th>Trigger</th><th>Fix</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Stampede</strong><br><span class="cite">thundering herd, dog-pile</span></td><td>Yes</td><td>One hot key expires under concurrency; 1 miss → N upstream calls</td><td>Single-flight (double-check inside the lock!); better, serve-stale-while-revalidate</td></tr>
+    <tr><td><strong>Penetration</strong></td><td>No</td><td>Requests for identifiers that do not exist; hit rate ~0</td><td>Cache the negative with a short TTL; Bloom filter for large keyspaces</td></tr>
+    <tr><td><strong>Avalanche</strong></td><td>Yes, many</td><td>Uniform TTLs expiring in the same second, on a period</td><td>TTL jitter (±10%); staggered warming</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="caution">
+  <span class="callout-label">The single-flight bug</span>
+  <p>A per-key lock without a <strong>re-check inside the lock</strong> does not fix a stampede — it serialises it. 200 parallel 600 ms calls become 200 <em>sequential</em> ones, and the last caller waits two minutes. Always re-read the cache after acquiring.</p>
+</div>
+
+<h2>Eviction</h2>
+
+<div class="table-wrap">
+<table>
+  <caption>Redis <code>maxmemory-policy</code>. The default is <code>noeviction</code> — writes fail, reads keep working, dashboards stay green.</caption>
+  <thead><tr><th>Policy</th><th>Choose when</th></tr></thead>
+  <tbody>
+    <tr><td><code>allkeys-lru</code></td><td>A subset of keys is far hotter than the rest, and access patterns churn. Redis's own suggested default.</td></tr>
+    <tr><td><code>allkeys-lfu</code></td><td>Skew is stable <em>and</em> periodic scans (batch jobs) would otherwise flush your hot set. Tune with <code>lfu-log-factor</code>, <code>lfu-decay-time</code>.</td></tr>
+    <tr><td><code>allkeys-lrm</code></td><td>Redis 8.6+. Read-heavy, and you want to shed data nobody has <em>updated</em>, regardless of read frequency.</td></tr>
+    <tr><td><code>allkeys-random</code></td><td>All keys equally likely — a repeating full cycle over the keyspace.</td></tr>
+    <tr><td><code>volatile-ttl</code></td><td>Your code can mark disposable entries with short TTLs. More explicit than LFU, costs memory per expiry.</td></tr>
+    <tr><td><code>noeviction</code></td><td>Only when Redis is a store of record, not a cache — and then you need alerting on <code>used_memory</code>.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>Counters to alert on:</strong> <code>evicted_keys</code>, <code>keyspace_hits</code> / <code>keyspace_misses</code> (hit rate), <code>used_memory</code> vs <code>maxmemory</code>, <code>current_eviction_exceeded_time</code>. Both LRU and LFU are <em>sampled approximations</em> — <code>maxmemory-samples</code> defaults to 5; raise to 10 for closer-to-true LRU at some CPU cost.</p>
+
+<h2>Persistence</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Setting</th><th>Worst-case loss</th><th>Cost</th></tr></thead>
+  <tbody>
+    <tr><td>No persistence (<code>--save "" --appendonly no</code>)</td><td>Everything since process start</td><td>None. <strong>Correct for a pure derived-value cache.</strong></td></tr>
+    <tr><td>RDB snapshots</td><td>Everything since the last snapshot (minutes)</td><td><code>fork()</code> stalls: ms to ~1 s on large datasets. A p99 event.</td></tr>
+    <tr><td><code>appendfsync no</code></td><td>~30 s (kernel's discretion)</td><td>Fastest AOF.</td></tr>
+    <tr><td><code>appendfsync everysec</code></td><td>~1 s</td><td>Near-free. The default, and usually right.</td></tr>
+    <tr><td><code>appendfsync always</code></td><td>Effectively nothing</td><td>“Very very slow, very safe.” Measure it on your disk before promising it.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<ul>
+  <li><strong>Redis is single-threaded:</strong> one slow command blocks every client. Ban <code>KEYS</code>, watch <code>slowlog</code>, keep values small.</li>
+  <li><strong>Enable AOF with <code>CONFIG SET</code> on the live server first</strong> — editing the config and restarting can lose data.</li>
+  <li><strong>Test the ungraceful restart.</strong> <code>kill -9</code>, not <code>stop</code>. A clean shutdown may save even when periodic saving is off, which will fool you.</li>
+  <li><strong>Durability and eviction are orthogonal.</strong> A full cache with perfect durability durably remembers a stale working set.</li>
+</ul>
+
+<div class="ask">
+  <p>Companion sheet: <a href="latency-numbers.html">Latency Reference Card</a>. Lessons: <a href="../lessons/0003-cache-aside-and-friends.html">0003</a>, <a href="../lessons/0004-eviction-and-why-lru-is-wrong.html">0004</a>, <a href="../lessons/0005-stampede-penetration-avalanche.html">0005</a>, <a href="../lessons/0006-redis-is-not-magic.html">0006</a>.</p>
+</div>
+
+</div>
+</body>
+</html>

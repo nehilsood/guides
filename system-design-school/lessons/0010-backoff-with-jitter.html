@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>Backoff with Jitter</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0010">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">System Design School</a>
+    <span class="sep">/</span>
+    <span>Tier 1 &#183; Resilience</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Lesson 0010</span>
+    <span class="sep">/</span>
+    <span>No Docker</span>
+  </div>
+  <h1>Backoff with Jitter</h1>
+  <p class="standfirst">Everyone quotes the same number for retry amplification, and it belongs to a shape most pipelines are not. Measure your own shape first &#8212; then find out that the jitter strategy which halves peak load also drops your completion rate from 100&#8239;% to 6&#8239;%.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Reproduce the famous <strong>243&#215;</strong> exactly, establish that your five-stage pipeline produces <strong>3&#215;</strong> instead, and then measure the trade nobody mentions: full jitter cut peak retry load from <strong>490/s to 320/s</strong> and cut completed runs from <strong>49 of 49 to 3 of 49</strong>.</p>
+</div>
+
+<div class="anchor-box">
+  <span class="callout-label">Why you, specifically</span>
+  <blockquote>&#8220;Architected a 5-stage multi-agent schematization pipeline (Gemini, Google ADK) with deterministic validation and <strong>LLM-feedback retry loops</strong>&#8230;&#8221;</blockquote>
+  <p>Forty-nine datasets, five stages each, retry loops between them, all pointed at one provider. That is a retry storm with the fuse already fitted, and the only reason you have not seen it fire is that the provider has not had a bad ten minutes while a batch was running.</p>
+  <p>The sentence you will be asked to defend is <em>&#8220;retry loops&#8221;</em>. The follow-up is always some version of <em>&#8220;what happens when the thing you are retrying is down?&#8221;</em>, and the answer has a number in it that you can compute in advance.</p>
+  <p>That bullet is defended in full in <a href="../../resume-mastery/lessons/0003-multi-agent-schematization.html">chapter 0003 of R&#233;sum&#233; Mastery</a> &#8212; this lesson is where the mechanism underneath it gets built and broken.</p>
+</div>
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>A retry is <b>selfish</b>. That is the word the Amazon Builders' Library uses, and it is the right one: a client that retries is spending more of the server's time to raise its own chance of success. When failures are rare that trade is obviously worth it. When failures are caused by the server being overloaded, every retry is load added to a system that is failing <em>because of load</em>.</p>
+  <p>So the whole subject is about bounding that. There are three separate levers and they do different jobs: <b>backoff</b> decides how long to wait, <b>jitter</b> decides whether everyone waits the same amount, and a <b>budget</b> decides how many retries are allowed to exist at all. Only the third one bounds the total.</p>
+  <dl>
+    <dt>Retry amplification</dt>
+    <dd>How much extra load retries put on the thing at the bottom, as a multiple of normal. The number depends entirely on the <b>shape</b> of your call graph, which is the first thing to establish.</dd>
+
+    <dt>Capped exponential backoff</dt>
+    <dd>Wait <code>base &#215; 2&#8319;</code> before attempt <em>n</em>, up to a ceiling. The cap exists because exponentials get silly fast; it also means every client ends up retrying at the same fixed rate once they hit it.</dd>
+
+    <dt>Jitter</dt>
+    <dd>Randomising the wait so clients that failed together do not wake together. It changes <em>when</em> the retries arrive and never <em>how many</em>.</dd>
+
+    <dt>Full jitter</dt>
+    <dd><code>uniform(0, backoff)</code>. Spreads each client across its whole window. The published default, and the one that does least total work.</dd>
+
+    <dt>Equal jitter</dt>
+    <dd><code>backoff/2 + uniform(0, backoff/2)</code>. Keeps half the wait fixed so sleeps are never very short &#8212; which also means every client is confined to the same half-window.</dd>
+
+    <dt>Decorrelated jitter</dt>
+    <dd><code>min(cap, uniform(base, previous &#215; 3))</code>. The only one with memory: the window grows from the last sleep rather than from the attempt number.</dd>
+
+    <dt>Retry budget</dt>
+    <dd>A token bucket, usually sized at about <b>10&#8239;%</b> of real request rate, shared across everything calling one dependency. Retries spend tokens; when the bucket is empty they are refused rather than delayed.</dd>
+
+    <dt>Retry window</dt>
+    <dd>The total wall-clock time your attempts span, end to end. Not a standard term, and the quantity that actually decides whether you survive an outage &#8212; jitter shortens it.</dd>
+
+    <dt>Hedge</dt>
+    <dd>Sending a second request <em>before</em> the first has failed, when it is late. What you use where a retry does not fit in the budget, and the reason 0012 exists.</dd>
+  </dl>
+</div>
+
+<h2>The 243&#215; is real, and it is probably not your pipeline</h2>
+
+<p>The Amazon Builders' Library gives the canonical warning, and it is worth quoting exactly, because the exactness is the point: <em>&#8220;Consider a system where the customer's call causes a five-deep stack of service calls. It ends with a query to a database, and three retries at each layer&#8230; the load on the database will increase 243x&#8230; This is because the retries at each layer multiply.&#8221;</em></p>
+
+<p>Two hundred and forty-three is 3<sup>5</sup>. The exponent is <strong>the depth of the nesting</strong>, and the nesting is what makes the multiplication happen: layer 1 retries layer 2, and each of those attempts is a fresh layer-2 call that itself retries three times. Five stages <em>in a row</em>, each retrying three times, is not that shape. It is 3 + 3 + 3 + 3 + 3.</p>
+
+<div class="note">
+  <span class="callout-label">Why this distinction is worth a whole section</span>
+  <p>Because getting it backwards is expensive in both directions. Read your five-stage pipeline as the 243&#215; case and you will panic about an amplifier that is not there, and probably remove retries that were earning their keep. Miss a genuine three-deep nest &#8212; an SDK that retries, inside a client wrapper that retries, inside your own loop &#8212; and you have a 27&#215; amplifier that nobody wrote down, because each of the three layers looks reasonable on its own.</p>
+  <p>The Builders' Library's own recommendation follows from this: <strong>&#8220;retry at a single point in the stack.&#8221;</strong> Not because retrying is bad, but because the exponent is the number of places you do it.</p>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 372" role="img" aria-labelledby="mech0010-t mech0010-d">
+    <title id="mech0010-t">Serial stages add their retries; nested layers multiply them</title>
+    <desc id="mech0010-d">Two call-graph shapes drawn side by side above the same provider. On the left, five pipeline stages in a row, each retrying three times, sending fifteen calls to the provider in total: three plus three plus three plus three plus three. On the right, a five-deep nested stack where each layer retries the layer below it three times, sending two hundred and forty-three calls: three to the fifth power. Below both, a time axis showing the total retry window of each jitter strategy against a four-second outage. No jitter spans five thousand milliseconds and completes forty-nine runs of forty-nine. Full jitter spans two thousand five hundred milliseconds, falls short of the outage, and completes three of forty-nine.</desc>
+    <defs>
+      <marker id="a10" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+    </defs>
+
+    <text x="20" y="20" class="strong">The exponent is how many places you retry, not how many stages you have.</text>
+
+    <!-- MARK 1 &#183; five stages in a row: the retries add up, they do not compound. -->
+    <text x="20" y="46" class="lbl-dim">in a row &#183; your pipeline</text>
+    <rect x="20" y="56" width="58" height="26" class="box"/>
+    <rect x="86" y="56" width="58" height="26" class="box"/>
+    <rect x="152" y="56" width="58" height="26" class="box"/>
+    <rect x="218" y="56" width="58" height="26" class="box"/>
+    <rect x="284" y="56" width="58" height="26" class="box"/>
+    <text x="30" y="74" class="lbl">stage 1</text>
+    <text x="96" y="74" class="lbl">stage 2</text>
+    <text x="162" y="74" class="lbl">stage 3</text>
+    <text x="228" y="74" class="lbl">stage 4</text>
+    <text x="294" y="74" class="lbl">stage 5</text>
+    <text x="20" y="99" class="num ink-good">&#215;3</text>
+    <text x="86" y="99" class="num ink-good">&#215;3</text>
+    <text x="152" y="99" class="num ink-good">&#215;3</text>
+    <text x="218" y="99" class="num ink-good">&#215;3</text>
+    <text x="284" y="99" class="num ink-good">&#215;3</text>
+
+    <!-- MARK 2 &#183; which adds to 15, or 3 per turn, because the pipeline halts. -->
+    <path d="M181,106 L181,178" class="flow-good" marker-end="url(#a10)"/>
+    <text x="196" y="126" class="strong ink-good">3+3+3+3+3 = 15 calls</text>
+    <text x="196" y="142" class="lbl-dim">measured 3 per turn, because it halts</text>
+
+    <!-- MARK 3 &#183; five layers nested: each attempt is a whole subtree. -->
+    <text x="450" y="46" class="lbl-dim">nested &#183; the Builders' Library case</text>
+    <rect x="450" y="52" width="290" height="94" class="bad"/>
+    <rect x="466" y="66" width="258" height="72" class="bad"/>
+    <rect x="482" y="80" width="226" height="50" class="bad"/>
+    <rect x="498" y="94" width="194" height="28" class="bad"/>
+    <text x="748" y="66" class="num ink-bad">&#215;3</text>
+    <text x="748" y="84" class="num ink-bad">&#215;3</text>
+    <text x="748" y="102" class="num ink-bad">&#215;3</text>
+    <text x="748" y="120" class="num ink-bad">&#215;3</text>
+    <text x="510" y="112" class="lbl ink-bad">layer 5 &#215;3</text>
+
+    <!-- MARK 4 &#183; so the same three attempts become 243 at the bottom. -->
+    <path d="M595,152 L595,178" class="flow-bad" marker-end="url(#a10)"/>
+    <text x="450" y="170" class="strong ink-bad">3&#8309; = 243 calls</text>
+
+    <rect x="20" y="180" width="800" height="26" class="plain"/>
+    <text x="34" y="198" class="strong">one provider &#183; the thing at the bottom that was already struggling</text>
+
+    <!-- MARK 5 &#183; the retry window: how long your attempts actually span. -->
+    <text x="20" y="236" class="strong">Jitter changes when the retries land. It also shortens how long you keep trying.</text>
+    <path d="M20,252 L700,252" class="rule"/>
+    <rect x="20" y="258" width="544" height="20" class="warn"/>
+    <text x="30" y="273" class="lbl ink-warn">the outage &#183; 4000&#8239;ms</text>
+
+    <rect x="20" y="288" width="680" height="18" class="good"/>
+    <text x="30" y="302" class="lbl ink-good">no jitter &#183; window 5000&#8239;ms</text>
+    <text x="712" y="302" class="num ink-good">49/49 done</text>
+
+    <!-- MARK 6 &#183; and a window shorter than the outage gives up before it ends. -->
+    <rect x="20" y="314" width="341" height="18" class="bad"/>
+    <text x="30" y="328" class="lbl ink-bad">full jitter &#183; window 2507&#8239;ms</text>
+    <text x="712" y="328" class="num ink-bad">3/49 done</text>
+    <path d="M361,314 L361,344" class="flow-dim"/>
+    <text x="374" y="348" class="lbl-dim">gives up here &#183; 1.5&#8239;s before the provider recovers</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">Say this while you draw it</span>
+    <ol class="narrate">
+      <li>Two shapes above one provider. <b>Left, five stages in a row. Right, five layers nested inside each other.</b> Same five, same three attempts, and that is the only thing they have in common.</li>
+      <li>Down the left: the attempts <b>add</b>. Three per stage, five stages, fifteen &#8212; and in practice three, because a pipeline that halts on failure never reaches stage two.</li>
+      <li>Down the right: each attempt is a whole subtree, so they <b>multiply</b>. Three, nine, twenty-seven, eighty-one, <b>243</b>. The exponent is the nesting depth.</li>
+      <li>So the first question is never &#8220;how many retries&#8221;. It is <b>how many places retry</b>, counting the SDK and the client wrapper you did not write.</li>
+      <li>Now the bottom strip, which is the part nobody draws: a bar per strategy showing <b>how long your attempts span in total</b>, against the length of the outage.</li>
+      <li>No jitter spans <b>5000&#8239;ms</b> and outlasts a 4-second outage. Full jitter halves the average wait, so it spans <b>2507&#8239;ms</b> and gives up first. <b>49 of 49 against 3 of 49.</b></li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. Two shapes over one bar, then two bars against a band. If you can draw this you can answer the retry question without remembering a single formula.</p>
+  <ul>
+    <li><b>Two call shapes side by side</b>, five boxes in a row against five boxes nested, both pointing at one provider.</li>
+    <li>The two totals: <b>15</b> and <b>243</b>, with the reason beside each &#8212; adds, multiplies.</li>
+    <li>The bottom strip: an <b>outage band</b> and two <b>retry windows</b>, one longer than it and one shorter.</li>
+    <li><b>49 of 49 against 3 of 49</b>, which is the trade the formula does not mention.</li>
+  </ul>
+  <span class="timer">Draw the two shapes before you write any number. The numbers follow from the shapes, and reciting 243 without the shape is how you apply it to the wrong pipeline.</span>
+</div>
+
+<h2>Lab &#8212; build the storm, then bound it</h2>
+
+<div class="lab">
+  <header>
+    <span class="kicker">Lab 0010</span>
+    <span class="est">~25 minutes</span>
+    <h3>243&#215; exactly, 3&#215; in your own shape, and the trade jitter hides</h3>
+  </header>
+  <div class="body">
+    <div class="prereq">
+      <span>Needs:</span>
+      <span class="chip">anchor/vendor-eval-gateway</span>
+      <span class="chip">no Docker, no server</span>
+      <span class="chip">~25 min</span>
+    </div>
+
+    <div class="caution">
+      <span class="callout-label">What is real here, and what is not</span>
+      <p>The call <em>counts</em> are exact &#8212; they are counted at the bottom of a real call graph, and they match the arithmetic to the unit. The <em>milliseconds</em> come from real <code>asyncio.sleep</code> against a fake provider, so the shapes and the ratios are real and the absolute latency of a model call is not. Quote the counts, the peaks and the completion rates; do not quote these as measurements of Gemini.</p>
+      <p>Know which lines hold still. Anything that is <strong>counted</strong> &#8212; calls, retries, peak per bucket, completions, the histogram &#8212; is seeded and reproduces to the unit; if one of those differs on your machine, something has genuinely changed. Anything that is <strong>timed</strong> moves by a few milliseconds a run, because it is real elapsed time: the <code>wall clock</code> line here, and the percentiles in step 7. Treat a one-millisecond difference there as the instrument, not a finding.</p>
+    </div>
+
+    <ol class="steps">
+      <li>
+        <p class="what">Count the calls that reach the bottom, for both shapes, with no waiting at all. Amplification is a count, so the backoff is set to zero and this returns instantly.</p>
+        <pre class="cmd"><span class="prompt">$ </span>cd anchor/vendor-eval-gateway
+<span class="prompt">$ </span>uv run python -m bench.retry --experiment amplify</pre>
+        <pre class="out">stages / stack depth = 5, attempts per layer = 3
+
+shape                         predicted  measured  per turn    load
+serial, halts on failure              3         3         5    0.6x
+serial, every stage flaky            15        15         5    3.0x
+nested, retry at each layer         243       243         1    243x</pre>
+        <div class="expect">
+          <span class="label">All three predictions land on the measurement exactly</span>
+          <p>The third row is the quoted one and it reproduces to the unit: <strong>243</strong>. The first two are your pipeline. A five-stage run that halts at the failing stage makes <strong>three</strong> calls, which is <em>less</em> than the five a healthy turn makes &#8212; a failing pipeline is cheaper than a working one. Even with every stage flaky but recovering, it is <strong>15</strong>, or 3&#215; normal.</p>
+          <p>So the honest sentence about your own system is &#8220;3&#215;, because the stages are serial&#8221;, not &#8220;243&#215;&#8221;. Keep the 243 for the shape it belongs to &#8212; and go and count how many layers of your real stack retry, including the SDK.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Now make it a storm. Forty-nine clients start together, the provider is down for four seconds, and nobody jitters. Watch the retries arrive in a column.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.retry --experiment spike --jitter none --attempts 6 --outage-ms 4000</pre>
+        <pre class="out">jitter=none          budget=0%  clients=49 outage=4000ms
+  calls to the bottom : 490 (245 of them retries)
+  peak retry load     : 49 per 100ms  (490/s)
+  wall clock          : 5007 ms
+  turns completed     : 49 of 49 (100%)
+  t+  200ms   49  ########################################
+  t+  600ms   49  ########################################
+  t+ 1400ms   49  ########################################
+  t+ 3000ms   49  ########################################
+  t+ 5000ms   49  ########################################</pre>
+        <div class="expect broken">
+          <span class="label">Five perfect columns of 49, which is the thing to avoid</span>
+          <p>Every client failed at the same instant, so every client waits the same 200&#8239;ms, then the same 400, then 800, 1600, 2000. They arrive as <strong>five spikes of 49</strong> with total silence between them. The provider gets no gentle ramp to recover into; it gets nothing, then everything, five times.</p>
+          <p>Note the shape of the gaps as well as the spikes. Between t+1400 and t+3000 the provider receives <em>zero</em> retry traffic. Backoff did not reduce contention there; it relocated it.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Add full jitter and nothing else. Same clients, same outage, same attempt count.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.retry --experiment spike --jitter full --attempts 6 --outage-ms 4000</pre>
+        <pre class="out">jitter=full          budget=0%  clients=49 outage=4000ms
+  calls to the bottom : 306 (245 of them retries)
+  peak retry load     : 32 per 100ms  (320/s)
+  wall clock          : 4279 ms
+  turns completed     : 3 of 49 (6%)</pre>
+        <div class="ba">
+          <span class="label">Before / after &#183; one line of <code>random.uniform</code></span>
+          <p><strong>Peak retry load 490/s &#8594; 320/s</strong>, and the columns become a decaying stream instead of five walls. That is the win the literature promises and it is real.</p>
+          <p><strong>Turns completed 49 of 49 &#8594; 3 of 49.</strong> That is not in the literature, and it is the same change.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Find out why, because a 94-point drop in completion is either a bug in the bench or the most useful thing in this lesson. Sum the backoff sequence each strategy produces.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -c "
+import random, statistics
+from app.retry import schedule
+for s in ['none','full','equal','decorrelated']:
+    t=[sum(schedule(s,5,base_ms=200,cap_ms=2000,rng=random.Random(i))) for i in range(4000)]
+    print(f'{s:&lt;14}{statistics.median(t):&gt;8.0f} ms total retry window')"</pre>
+        <pre class="out">none              5000 ms total retry window
+full              2507 ms total retry window
+equal             3754 ms total retry window
+decorrelated      4706 ms total retry window</pre>
+        <div class="expect">
+          <span class="label">Not a bug. Full jitter's expected wait is half of the un-jittered one</span>
+          <p><code>uniform(0, backoff)</code> averages <code>backoff/2</code>, so with a fixed attempt count full jitter spans <strong>half the wall clock</strong>. Against a 4000&#8239;ms outage, a 2507&#8239;ms window runs out <strong>1.5 seconds before the provider comes back</strong> and every client gives up. The un-jittered window is 5000&#8239;ms and outlasts it, which is the only reason it completed everything.</p>
+          <p>Check the ordering against the completion rates from the previous steps: <code>none</code> 5000&#8239;ms &#8594; 100&#8239;%, <code>decorrelated</code> 4706 &#8594; 61&#8239;%, <code>equal</code> 3754 &#8594; 18&#8239;%, <code>full</code> 2507 &#8594; 6&#8239;%. <strong>The arithmetic predicts the measurement in the right order.</strong> Your attempt count and your cap have to be chosen against the outage you expect to survive, and the jitter strategy changes what they mean.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Confirm the other two strategies, and look at what equal jitter does to the peak &#8212; the thing it was chosen to fix.</p>
+        <pre class="cmd"><span class="prompt">$ </span>for j in equal decorrelated; do uv run python -m bench.retry --experiment spike --jitter $j --attempts 6 --outage-ms 4000 | sed -n '1,5p'; done</pre>
+        <pre class="out">jitter=equal         budget=0%  clients=49 outage=4000ms
+  peak retry load     : 49 per 100ms  (490/s)
+  turns completed     : 9 of 49 (18%)
+jitter=decorrelated  budget=0%  clients=49 outage=4000ms
+  peak retry load     : 16 per 100ms  (160/s)
+  turns completed     : 30 of 49 (61%)</pre>
+        <div class="expect broken">
+          <span class="label">Equal jitter did not reduce the peak at all</span>
+          <p><strong>49 per 100&#8239;ms, identical to no jitter.</strong> Equal jitter confines every client to the <em>top half</em> of its window &#8212; <code>backoff/2 + uniform(0, backoff/2)</code> &#8212; so on the first retry all 49 clients wake somewhere in a 100&#8239;ms band, and a 100&#8239;ms band is one bucket. It halved the spread and therefore doubled the density.</p>
+          <p>Decorrelated does best on the peak, at <strong>160/s</strong>, and keeps 61&#8239;% completion because its window is nearly as long as the un-jittered one. On this workload it wins both columns, which is not what the published simulation found &#8212; that one measured contention between clients competing for a row, where giving up early is fine because someone else succeeds. Against a fixed-duration outage, giving up early is just failing. <strong>Same formulas, different objective, different answer.</strong></p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Now bound the total rather than the shape. Add a retry budget at 10&#8239;% of request rate, shared across all 49 clients.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.retry --experiment spike --jitter full --attempts 6 --outage-ms 4000 --budget 0.10</pre>
+        <pre class="out">jitter=full          budget=10%  clients=49 outage=4000ms
+  calls to the bottom : 57 (8 of them retries)
+  peak retry load     : 2 per 100ms  (20/s)
+  wall clock          : 2383 ms
+  turns completed     : 0 of 49 (0%)
+  retries denied      : 48 of 56 asked</pre>
+        <div class="expect">
+          <span class="label">Retries collapse from 245 to 8, and so does the pretence</span>
+          <p>Peak retry load falls from 320/s to <strong>20/s</strong> and <strong>48 of 56 retry requests are refused</strong>. The budget is doing exactly what it exists to do: when everything is failing, the failures are not transient, and retrying is not going to help.</p>
+          <p>Completion goes to <strong>zero</strong>, and that is the honest reading rather than a flaw. Nothing was going to complete during a four-second total outage except by waiting it out, and &#8220;wait it out&#8221; is what a long retry window does. A budget is a statement that you would rather fail 49 runs than add 245 calls to a provider that is already down. <strong>It bounds the amplifier; it does not rescue the request.</strong></p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Last, the arithmetic that decides whether you get to retry at all. Your turn budget is 8&#8239;s over five stages, so each stage owns 1600&#8239;ms. Measure what one stage call actually costs and see how many attempts fit.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -c "
+import asyncio, logging, structlog, time
+structlog.configure(wrapper_class=structlog.make_filtering_bound_logger(logging.WARNING))
+from app.config import Settings; from app.upstream import FakeUpstream, UpstreamProfile
+s=Settings(_env_file=None)
+async def m():
+    up=FakeUpstream(UpstreamProfile(ttfw_ms=s.upstream_ttfw_ms,ttfw_sigma=s.upstream_ttfw_sigma,
+        token_ms=0.0,tokens=1,fail_rate=0.0,slow_rate=0.0,slow_multiplier=12.0,max_concurrency=2000),seed=1337)
+    async def one():
+        t=time.monotonic(); await up.complete('x'); return (time.monotonic()-t)*1000
+    v=sorted(await asyncio.gather(*(one() for _ in range(2000))))
+    p=lambda q: v[min(len(v)-1,int(round(q*len(v)+0.5))-1)]
+    print(f'stage call  p50 {p(.5):.0f}  p90 {p(.9):.0f}  p99 {p(.99):.0f} ms')
+asyncio.run(m())"</pre>
+        <pre class="out">stage call  p50 387  p90 670  p99 1042 ms</pre>
+        <div class="expect">
+          <span class="label">Three attempts fit at the median and nowhere else</span>
+          <p>Three attempts need <code>3T</code> plus two backoff gaps. At 200&#8239;ms base full jitter those gaps average 100 and 200, so the condition is <code>3T + 300 &#8804; 1600</code>, which gives <strong>T &#8804; 433&#8239;ms</strong>. Two attempts need <code>2T + 100 &#8804; 1600</code>, so <strong>T &#8804; 750&#8239;ms</strong>.</p>
+          <p>Line those up against the measurement. <strong>p50 is 387&#8239;ms, so three attempts fit. p90 is 670&#8239;ms, so only two fit. p99 is 1042&#8239;ms, so only one fits &#8212; which means no retry at all.</strong></p>
+          <p>Sit with that, because it is the conclusion of the lesson: the requests fast enough to afford three attempts are the ones that did not need them, and the slow requests you actually want to retry are exactly the ones with no room. A retry policy written against the median is a policy that evaporates in the tail. What the tail gets instead is a hedge or a fallback, and that is <a href="0012-timeout-budgets-and-deadline-propagation.html">lesson 0012</a>.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+</div>
+
+<div class="evidence" data-evidence-for="0010">
+  <header>
+    <span class="callout-label">Your numbers, not mine</span>
+    <span class="hint">saved in this browser as you type</span>
+  </header>
+  <div class="body">
+    <p>The call counts and the amplification factors are exact and transferable. The milliseconds are a model. The last row is the only one about your real system, and it is worth more than the rest together.</p>
+
+    <div class="rows">
+      <div class="row">
+        <span class="ran">Step 1, <strong>the two shapes</strong>: calls reaching the provider for a serial pipeline and for a five-deep nest</span>
+        <span class="field"><label for="e10-ser">serial</label><input type="text" id="e10-ser" data-field="serial" placeholder="e.g. 15, or 3.0&#215;"></span>
+        <span class="field"><label for="e10-nest">nested</label><input type="text" id="e10-nest" data-field="nested" placeholder="e.g. 243, or 243&#215;"></span>
+        <span class="why-row"><label for="e10-shape">Write the rule in one sentence, in a form that survives being applied to a stack you have not seen yet</label><textarea id="e10-shape" data-field="shape" placeholder="Serial stages add their attempts; nested layers multiply them, so the amplification exponent is the number of layers that retry, not the number of stages."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Steps 2&#8211;3, <strong>what jitter fixed</strong>: peak retry load with no jitter and with full jitter</span>
+        <span class="field"><label for="e10-pn">no jitter</label><input type="text" id="e10-pn" data-field="peak_none" placeholder="e.g. 490/s, five walls"></span>
+        <span class="field"><label for="e10-pf">full jitter</label><input type="text" id="e10-pf" data-field="peak_full" placeholder="e.g. 320/s, a stream"></span>
+        <span class="why-row"><label for="e10-why">Say what jitter changed and what it provably did not change, because the second half is what stops you over-claiming</label><textarea id="e10-why" data-field="why_jitter" placeholder="It changed when the retries arrived, spreading five walls of 49 into a decaying stream. It did not change how many there were &#8212; 245 retries either way &#8212; so it smooths the shape and never bounds the total."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Steps 3&#8211;4, <strong>the trade nobody mentions</strong>: completion rate under each strategy, and the retry window that explains it</span>
+        <span class="field"><label for="e10-cn">none / full done</label><input type="text" id="e10-cn" data-field="done" placeholder="e.g. 49/49 vs 3/49"></span>
+        <span class="field"><label for="e10-win">windows</label><input type="text" id="e10-win" data-field="window" placeholder="e.g. 5000 vs 2507 ms"></span>
+        <span class="why-row"><label for="e10-outage">Given an outage length you actually want to survive, what do you change &#8212; and why is the answer not &#8220;stop using jitter&#8221;?</label><textarea id="e10-outage" data-field="outage" placeholder="Raise the attempt count or the cap until the median window exceeds the outage I care about. Not dropping jitter, because the un-jittered window only covered it by arriving as five synchronised walls, which is what knocks the provider over in the first place."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 7, <strong>the fit</strong>: measured stage latency at p50, p90 and p99 against the 433&#8239;ms three-attempt ceiling</span>
+        <span class="field"><label for="e10-p50">p50 / p90 / p99</label><input type="text" id="e10-p50" data-field="stage" placeholder="e.g. 387 / 670 / 1042 ms"></span>
+        <span class="field"><label for="e10-fit">attempts that fit</label><input type="text" id="e10-fit" data-field="fit" placeholder="e.g. 3 / 2 / 1"></span>
+        <span class="why-row"><label for="e10-tail">State the uncomfortable half of this out loud: which requests can afford retries, and which ones needed them</label><textarea id="e10-tail" data-field="tail" placeholder="Only requests faster than 433 ms can afford three attempts, and those are the ones that succeeded. At p99 there is room for one attempt, so the slow requests I most want to retry have no budget for it and need a hedge or a fallback instead."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">The decision: <strong>count the layers of your real stack that retry</strong>, including the provider SDK, any client wrapper, and your own loop</span>
+        <span class="field"><label for="e10-layers">layers retrying</label><input type="text" id="e10-layers" data-field="layers" placeholder="e.g. 3 &#8212; SDK, wrapper, loop"></span>
+        <span class="field"><label for="e10-amp">so amplification</label><input type="text" id="e10-amp" data-field="amp" placeholder="e.g. 3&#179; = 27&#215; worst case"></span>
+        <span class="why-row"><label for="e10-single">Which single layer would you keep, and what do you lose by removing the others? A defensible &#8220;keep the outermost and accept the wasted work&#8221; is a real answer</label><textarea id="e10-single" data-field="single" placeholder="Keep it at the stage boundary, because that is where a failure is classified and where the deadline is known. Turn off the SDK's own retries with max_attempts=0. The cost is that a retry re-runs the whole stage rather than just the failed call."></textarea></span>
+      </div>
+    </div>
+
+    <div class="earned">
+      <span class="callout-label">The bullet this lesson earns</span>
+      <p>&#8220;Quantified retry amplification for the schematization pipeline rather than quoting the standard figure: the serial five-stage shape multiplies provider load by <span data-fill="serial" class="placeholder">[run step 1]</span>, not the <span data-fill="nested" class="placeholder">[run step 1]</span> that a nested stack of the same depth produces &#8212; and sized attempts from measured stage latency, where only <span data-fill="fit" class="placeholder">[run step 7]</span> attempts fit the per-stage budget at p50, p90 and p99.&#8221;</p>
+      <p class="caveat">The second clause is the one that reads as engineering. Anybody can say &#8220;we use exponential backoff with jitter&#8221;; almost nobody can say which percentile their attempt count was sized against, or admit that it reaches one at the tail.</p>
+    </div>
+  </div>
+</div>
+
+<h2 id="underneath-0010">Underneath</h2>
+
+<div class="underneath">
+  <span class="callout-label">One layer down &#183; three levers that are always confused for each other</span>
+
+  <p>Four things. The first two say what backoff and jitter actually do, the third is the only one that bounds anything, and the fourth is where the primary source disagrees with the next lesson.</p>
+
+  <h3>Jitter is a scheduling change, not a load control</h3>
+
+  <p>Every run above sent <b>245 retries</b> regardless of strategy. That number is set by the client count and the attempt count and nothing else. What changed was the arrival distribution: five walls of 49 became a decaying stream with a peak of 32. This is worth being precise about because it is the most common over-claim on the topic &#8212; jitter is reached for as though it reduced load, and it does not reduce load at all. It reduces <em>instantaneous</em> load, which matters because queues and connection pools are sized against the peak rather than the mean.</p>
+
+  <div class="derive">
+    <p>Peak and total, measured across the four strategies on the same workload:</p>
+    <span class="eq">strategy        peak      retries   completed
+none           490/s        245       49/49
+full           320/s        245        3/49
+equal          490/s        245        9/49
+decorrelated   160/s        225       30/49</span>
+    <p>One column is flat and the other two move together. If a change is supposed to reduce load and the retry count does not move, it has not reduced load &#8212; it has moved it.</p>
+  </div>
+
+  <h3>The retry window is the quantity that survives an outage</h3>
+
+  <p>Nobody writes this one down, which is why the completion collapse looks like a bug the first time you see it. The useful quantity is not the backoff formula but the <b>total wall clock your attempts span</b>, because an outage ends at a wall-clock time and you either are still trying when it does or you are not.</p>
+
+  <div class="derive">
+    <p>Expected window, for <em>k</em> attempts at base <em>b</em> under cap <em>c</em>:</p>
+    <span class="eq">no jitter     &#931; min(c, b&#183;2&#8319;)           full window
+full jitter   &#931; min(c, b&#183;2&#8319;)/2         half of it
+equal jitter  &#931; min(c, b&#183;2&#8319;)&#183;3/4       three quarters
+
+measured, b=200 c=2000 k=5:   5000 / 2507 / 3754 ms
+outage survived (4000 ms):    yes  /  no   /  no</span>
+    <p>So jitter has a cost denominated in coverage, and you pay for it by raising the attempt count or the cap until the window is long enough again. Choosing those two numbers against an outage length is a design decision; inheriting them from a snippet is not.</p>
+  </div>
+
+  <h3>Only a budget bounds the total, and the source prefers it to a breaker</h3>
+
+  <p>Backoff moves retries in time. Jitter spreads them. Neither reduces the count, so neither bounds the amplifier. A <b>token bucket</b> does: retries spend tokens, the bucket refills at a fixed fraction of real traffic, and when it is empty retries are refused rather than delayed. Sized at 10&#8239;% of request rate it is a statement that a healthy system's transient failure rate is well under a tenth, and past that the failures are not transient.</p>
+
+  <p>It is worth knowing that this is the Builders' Library's <em>preferred</em> answer, and that it makes the recommendation as an explicit alternative to the component the next lesson is about: <em>&#8220;Circuit breakers&#8230; introduce modal behavior into systems that can be difficult to test, and can introduce significant addition time to recovery. We have found that we can mitigate this risk by limiting retries locally using a token bucket.&#8221;</em> Carry that quote into <a href="0011-the-breaker-you-have-to-defend.html">lesson 0011</a> rather than discovering it afterwards.</p>
+
+  <h3>Retry at one layer, and be able to say which</h3>
+
+  <p>The 243&#215; follows from retrying at five nested layers, so the fix is structural rather than numeric: retry in one place. The Builders' Library says so directly &#8212; <em>&#8220;our best practice is to retry at a single point in the stack&#8221;</em> &#8212; and the interesting part is choosing which point, because the choice has a real cost either way.</p>
+
+  <div class="derive">
+    <p>Amplification by the number of retrying layers, at three attempts each:</p>
+    <span class="eq">layers that retry     1     2     3     4     5
+load multiplier       3     9    27    81   243</span>
+    <p>Retry low and you repeat only the failed call, but the layer that failed usually cannot tell a retryable failure from a permanent one. Retry high and you have the classification and the deadline, and you throw away the work the earlier stages already did. What you cannot do is both, which is the actual content of &#8220;retry at a single point&#8221;.</p>
+  </div>
+
+  <p class="lands">Which lands here: jitter is a shape control, a budget is a volume control, and the attempt count is a coverage decision you make against an outage length. Three separate knobs that are routinely described as one, and the only one of them that would have saved the provider in step 2 is the one with a bucket in it.</p>
+</div>
+
+<h2>Check yourself</h2>
+
+<div class="quiz" data-quiz-id="0010-q1">
+  <p class="q">Your five-stage pipeline retries three times per stage. A caller upstream of the whole pipeline retries the entire run twice. What amplification does the provider see?</p>
+  <ol class="options">
+    <li data-correct="true">Six times, because the two retrying layers multiply</li>
+    <li>Two hundred forty-three, the standard retry storm figure</li>
+    <li>Fifteen times, since each stage retries three times</li>
+    <li>Thirty times, adding the stage and caller retries</li>
+  </ol>
+  <div class="why">
+    <p>Six. There are exactly <strong>two</strong> nested retrying layers here &#8212; the caller and the stage &#8212; so the multiplier is 2 &#215; 3. The five stages are in a row, and serial stages add rather than compound; the run halts at the failing stage anyway, which step 1 measured as <strong>3</strong> calls rather than 15.</p>
+    <p>The exponent is always the <em>nesting depth of retry logic</em>, never the stage count. That is why the first thing to do with a real stack is count the layers that retry, including the provider SDK, which retries by default and is the layer people forget they have.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0010-q2">
+  <p class="q">Adding full jitter halved peak retry load and dropped completed runs from 49 of 49 to 3 of 49, with the retry count unchanged. What explains the completion collapse?</p>
+  <ol class="options">
+    <li data-correct="true">Its average wait halves, so the window shortens</li>
+    <li>It adds randomness, which loses some retry attempts</li>
+    <li>The budget refused most retries during the outage</li>
+    <li>Peak reduction always trades against total client work</li>
+  </ol>
+  <div class="why">
+    <p><code>uniform(0, backoff)</code> averages half the backoff, so a fixed number of attempts spans <strong>half the wall clock</strong>: 5000&#8239;ms became <strong>2507&#8239;ms</strong>, against a 4000&#8239;ms outage. The clients gave up a second and a half before the provider recovered. No attempt was lost and no budget was involved &#8212; all 245 retries were made, just sooner.</p>
+    <p>The ordering across all four strategies confirms it: windows of 5000, 4706, 3754 and 2507&#8239;ms produced completion rates of 100, 61, 18 and 6&#8239;%. The fix is to raise the attempt count or the cap, not to drop jitter.</p>
+  </div>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">A spoken answer to <em>&#8220;you have retry loops in a five-stage pipeline &#8212; what happens when the provider has a bad ten minutes?&#8221;</em> Read it aloud, then say it again with the page covered.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">We run forty-nine datasets through a five-stage pipeline, with retry loops between the stages. They all point at one provider, and they all start together.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">The figure everyone quotes is 243 times. That is three attempts at each of five <b>nested</b> layers, and nesting is what makes attempts multiply. Stages in a row add instead.</p>
+      <p class="line">So I measured our own shape rather than quoting theirs. A serial five-stage run makes three calls when it fails, and fifteen if every stage is flaky. That is <b>3 times</b>, not 243.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">I started forty-nine clients together against a four-second outage. With no jitter the retries arrived as five walls of forty-nine, peaking at <b>490 a second</b>.</p>
+      <p class="line">Full jitter cut the peak to <b>320</b> a second. It also cut completed runs from 49 of 49 down to just <b>three</b>. Jitter halves the average wait, so the same attempts span half the time and give up before the outage ends.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">Jitter never reduces the retry count. All four strategies sent the same 245 retries. Only a token-bucket budget bounds the total, and at ten percent it refused 48 of 56 retries and completed nothing.</p>
+      <p class="line">And the attempt count is set by the tail, not the median. Our stage costs 387 milliseconds at p50 and 1042 at p99, so three attempts fit the budget at the median and exactly one fits at p99.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;We use exponential backoff with jitter.&#8221;</span> True of almost every codebase, and it answers nothing, because it describes the one lever that does not bound anything. The interviewer's follow-up is either <em>&#8220;how many attempts, and against what outage length?&#8221;</em> or <em>&#8220;what stops the total?&#8221;</em>, and both have a number. The version that holds names all three knobs and what each does: <span class="quoted">&#8220;jitter for the arrival shape, attempt count and cap sized so the window outlasts the outages we actually see, and a shared token bucket at ten percent so the total is bounded when neither of those helps.&#8221;</span></p>
+  <p>The second trap is quoting 243&#215; about a pipeline that is not nested. It is a real number from a good source and it is about a five-deep stack; saying it about five stages in a row invites <em>&#8220;walk me through where the multiplication happens&#8221;</em>, and there is nowhere to point. Quote your own shape and keep the 243 for the case that produces it.</p>
+</div>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;You have retries between five pipeline stages. What happens when the provider starts failing?&#8221;
+      <span class="tell">The trap is answering with the textbook number. Establish the shape first, then give your own figure. Volunteering that the famous number does not apply to you is the whole signal here.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Less than people expect, because the stages are serial. The number usually quoted is 243&#215;, and that is 3<sup>5</sup> for a five-deep <em>nested</em> stack where each layer retries the layer below &#8212; attempts multiply because each one is a whole subtree. Ours are in a row, so they add: I measured <strong>15 calls</strong> if every stage is flaky, and <strong>3</strong> in practice because the run halts at the stage that failed. That is 3&#215; normal load, not 243&#215;.</p>
+        <p>The amplifier I would actually go looking for is nesting I did not write &#8212; the provider SDK retries by default, and if that sits inside a client wrapper that also retries, inside my loop, that is three layers and 27&#215;.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So what does bound it?&#8221; &#8212; a shared token bucket, because neither backoff nor jitter changes the count.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Why jitter? Isn't exponential backoff already spreading the load out?&#8221;
+      <span class="tell">Easy to answer correctly and shallowly. The strong version says what backoff does to the gaps as well as the spikes, and then volunteers the cost, which almost nobody knows.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Backoff spreads retries <em>over time</em> but not <em>across clients</em>. If everyone failed at the same instant they all wait the same 200&#8239;ms, so they arrive together. I measured that as five walls of 49 with silence between them &#8212; backoff relocated the contention rather than reducing it. Full jitter turned that into a decaying stream and took the peak from <strong>490/s to 320/s</strong>.</p>
+        <p>The cost surprised me. Full jitter averages half the backoff, so the same attempt count spans half the wall clock: my retry window went from <strong>5000&#8239;ms to 2507&#8239;ms</strong> and, against a four-second outage, completions fell from <strong>49 of 49 to 3</strong>. Jitter is the right default and it means raising the attempt count or the cap to keep the same coverage.</p>
+        <span class="invites">Invites &#183; <b>&#8220;How did you pick the attempt count?&#8221; &#8212; from the outage length I want to survive, and then checked it fits the per-stage budget.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;How many retries should a stage get, and how did you choose?&#8221;
+      <span class="tell">A number with no derivation behind it is the failure mode. Derive it from the budget out loud, then give the percentile it breaks at, because that is the part that sounds like someone who measured.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It falls out of the budget. The turn budget is 8&#8239;s over five stages, so a stage owns <strong>1600&#8239;ms</strong>. Three attempts cost <code>3T</code> plus two backoff gaps averaging 100 and 200&#8239;ms, so <code>3T + 300 &#8804; 1600</code> gives <strong>T &#8804; 433&#8239;ms</strong>. Two attempts allow <strong>T &#8804; 750&#8239;ms</strong>.</p>
+        <p>Then the measurement: our stage is <strong>387&#8239;ms at p50, 670 at p90, 1042 at p99</strong>. So three attempts fit at the median, two at p90, and one at p99. The uncomfortable part is that the requests fast enough for three attempts are the ones that succeeded, and the slow ones I want to retry have no room. For those the answer is a hedge or a fallback rather than a retry.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What is a hedge?&#8221; &#8212; a second request sent before the first has failed, which costs capacity rather than time.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;What stops retries taking the provider down when it is already struggling?&#8221;
+      <span class="tell">The expected answer is a circuit breaker. Knowing that the best primary source on this explicitly prefers a token bucket, and being able to say why, is the thing that separates a read topic from a studied one.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>A retry budget: a token bucket per dependency, shared by everything that calls it, refilling at about <strong>10&#8239;%</strong> of real request rate. Retries spend tokens and are refused when it is empty. I measured it cutting retries from 245 to 8 and peak load from 320/s to 20/s, with <strong>48 of 56 retry requests denied</strong>.</p>
+        <p>I would say what it does not do, too: completion went to zero. It bounds the amplifier, it does not rescue the request. The Amazon Builders' Library recommends this <em>instead of</em> a circuit breaker &#8212; their argument is that breakers add modal behaviour that is hard to test and can lengthen recovery &#8212; so if I did add a breaker I would want to say what it buys over the bucket.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So would you use a breaker at all?&#8221; &#8212; which is the whole of the next conversation, and worth having an answer to.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Your batch of 49 datasets all start at once. Is that a problem in itself?&#8221;
+      <span class="tell">Tests whether you have generalised jitter past retries. The Builders' Library's wider point is that periodic and scheduled work should be jittered too, and it has a nice operational detail attached.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Yes, and it is the same problem one layer out. Forty-nine simultaneous starts is a synchronised arrival spike before any failure happens; the retry storm just makes it visible. The fix is to jitter the launches, not only the retries &#8212; the same source recommends adding jitter to all timers, periodic jobs and delayed work, because clients that run &#8220;once a minute&#8221; line up on the first second of the minute.</p>
+        <p>One detail worth keeping: for scheduled work they pick the jitter <em>deterministically per host</em> rather than randomly, so that if something does overload, it overloads the same way each time and is therefore debuggable. Random jitter makes an overload happen at random, which is much harder to chase.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What would you jitter first?&#8221; &#8212; the batch launch, because it is one line and it removes the spike that starts everything.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="primary-source">
+  <span class="callout-label">Read this next &#8212; one source, not ten</span>
+  <span class="title"><a href="https://d1.awsstatic.com/builderslibrary/pdfs/timeouts-retries-and-backoff-with-jitter.pdf" target="_blank" rel="noopener">Marc Brooker &#8212; Timeouts, retries, and backoff with jitter (Amazon Builders' Library)</a></span>
+  <p>The best free writing on this topic, and short. Read the &#8220;Retries and backoff&#8221; section twice: the 243&#215; example, the single-point-of-retry recommendation, and the token bucket are all in four paragraphs there. Note that the web version now redirects to a JavaScript-rendered page, which is why this links the stable PDF.</p>
+  <p class="cite">For the formulas themselves, the article that this one defers to is <a href="https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/" target="_blank" rel="noopener">Exponential Backoff and Jitter</a> &#8212; but its pseudocode is published as images, so the authoritative text is the simulator it was generated from: <a href="https://github.com/awslabs/aws-arch-backoff-simulator/blob/master/src/backoff_simulator.py" target="_blank" rel="noopener">awslabs/aws-arch-backoff-simulator</a>. Four small classes, and <code>app/retry.py</code> is transcribed from them. Worth knowing that its simulation measures contention between clients competing for one row, which is why its conclusions about decorrelated jitter differ from what a fixed-duration outage produces.</p>
+</div>
+
+<h2>Recall &#8212; from lessons 0007&#8211;0009</h2>
+
+<div class="recall">
+  <details>
+    <summary>A retry re-sends a request whose first response was already streaming to the client. What does lesson 0007's wire format let you do about it, and what does it not?</summary>
+    <p class="answer">Almost nothing, which is the point. Server-sent events give you no client-to-server channel mid-stream, so a gateway that decides to retry cannot tell the already-open stream to stop &#8212; it has to close the connection and let the client reconnect, and the client has no way to say &#8220;I already have the first forty tokens.&#8221; The protocol does have <code>Last-Event-ID</code> for resumption, but resuming a half-generated completion is not a thing a model API offers. So a retry at the streaming layer means the user sees the answer restart. That is why retries belong at a stage boundary before the first token is emitted, not around the streaming call.</p>
+    <span class="from">lesson 0007 &#183; SSE has no upstream channel</span>
+  </details>
+  <details>
+    <summary>Your retry re-sends an identical prompt to the same replica seconds later. What does lesson 0008 say that costs, and why does it make retries cheaper than they look?</summary>
+    <p class="answer">Much less than the first attempt, because the prompt is a byte-identical prefix and the replica still holds its blocks. The chained block hash matches from the start, so prefill is largely skipped and the retry pays close to the cached floor rather than full prompt cost. This cuts both ways: it means a retry is cheap in <em>compute</em>, which is an argument for allowing one; and it means the retry does not exercise the slow path that failed, so a success on retry is weaker evidence that the problem is gone than it appears. It also only holds if the retry lands on the same replica, which is lesson 0009's problem.</p>
+    <span class="from">lesson 0008 &#183; prefix reuse on identical prompts</span>
+  </details>
+  <details>
+    <summary>A retry is routed by the same balancer as the original request. Under each of 0009's routers, where does the second attempt land, and which one makes retries worse?</summary>
+    <p class="answer">Under round-robin it lands on the next replica in rotation, so the retry pays full prefill and is strictly more expensive than the first attempt. Under prefix hashing it lands on the <em>same</em> replica, which is cheap &#8212; and is exactly the replica that just failed or was overloaded, so affinity concentrates retries onto the struggling machine. That is the interaction worth naming: cache-aware routing makes retries cheap and points them at the hot node, so a retry budget and a per-replica load ceiling are more necessary with affinity than without it, not less.</p>
+    <span class="from">lesson 0009 &#183; affinity concentrates retries</span>
+  </details>
+</div>
+
+<div class="ask">
+  <p>Two things I would like your reaction to. First, this lesson contradicts the number you have probably heard most often about retries, and it does it using the source that number comes from &#8212; <strong>tell me whether that landed as clarifying or as pedantic</strong>, because I can make the distinction earlier and shorter if it is the latter. Second, the completion collapse under full jitter is the result I did not expect and had to go and derive before I believed it. If you only remember one thing from this lesson in a month, I would want it to be <em>the retry window</em> rather than the formulas. Tell me whether the drawing makes that the memorable part or whether the two call-graph shapes crowd it out.</p>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">Where this lands on the r&#233;sum&#233;</span>
+  <p>This lesson teaches the mechanism from first principles and breaks it in a lab. The chapter opposite defends what you actually did with it, including the number on the r&#233;sum&#233;. An interviewer crosses between those two registers without warning.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../resume-mastery/lessons/0003-multi-agent-schematization.html">RM 0003 &#183; The five-stage schematization pipeline</a>
+      <span class="bridge-why">The bullet says &#8220;LLM-feedback retry loops&#8221;. This is where that phrase acquires an amplification factor, an attempt count and a budget.</span>
+    </li>
+  </ol>
+</div>
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0009-cache-aware-routing.html">&#8592; 0009 &#183; Cache-aware routing</a></span>
+  <span><span class="dir">Next</span><a href="0011-the-breaker-you-have-to-defend.html">0011 &#183; The breaker you have to defend &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

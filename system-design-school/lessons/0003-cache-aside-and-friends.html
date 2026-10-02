@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>Cache-Aside and Friends</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0003">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">System Design School</a>
+    <span class="sep">/</span>
+    <span>Tier 1 · Caching &amp; latency</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Lesson 0003</span>
+    <span class="sep">/</span>
+    <span>Docker required</span>
+  </div>
+  <h1>Cache-Aside and Friends</h1>
+  <p class="standfirst">There is no cache layer anywhere on your résumé. You run a latency-budgeted RAG service that embeds the same queries repeatedly, so that absence is conspicuous. Four strategies exist, they fail in different ways, and picking between them is a two-question decision once you know what the questions are.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>You will put a cache-aside layer in front of the retrieval hop, watch the 165 ms disappear on the second identical query, and be able to say out loud why write-through would have been the wrong choice here.</p>
+</div>
+
+<div class="anchor-box">
+  <span class="callout-label">Why you, specifically</span>
+  <blockquote>“<strong>RAG &amp; Evaluation:</strong> embeddings, hybrid search, re-ranking, on-device RAG…”<br>“<strong>Infrastructure:</strong> GCP (Vertex AI, BigQuery, GKE), Kubernetes, Docker, FastAPI, PostgreSQL, async SQLAlchemy, CI/CD”</blockquote>
+  <p>Two skill lines, and between them no cache of any kind. An interviewer reading “embeddings” and “hard 8 s budget” in the same document will assume you cache embeddings, then ask which strategy — and the answer “we used Redis” is not an answer to that question.</p>
+</div>
+
+<div class="primer">
+  <span class="callout-label">Start here — the plain version</span>
+  <p>A <b>cache</b> is a small, fast store that keeps copies of answers you already worked out, so
+  that the second time someone asks the same question you can hand back the saved answer instead of
+  doing the work again. That is all it is. Redis is one; a dictionary in memory is one.</p>
+  <p>The four “strategies” this lesson names sound like four technologies. They are not. They are
+  the four answers to two questions: <b>who talks to the database — your code, or the cache?</b>
+  and <b>when does a write reach the database — now, or later?</b> Pick an answer to each and you
+  have picked a strategy. The reason it matters is that they fail in different ways, and the one
+  everybody defaults to is the one that keeps working when the cache dies.</p>
+  <dl>
+    <dt>Hit / miss</dt>
+    <dd>The answer was already in the cache / it was not, so you had to do the real work.</dd>
+
+    <dt>Hit rate</dt>
+    <dd>The share of requests that were hits. The single number that says whether a cache is
+    earning its place.</dd>
+
+    <dt>Cache-aside</dt>
+    <dd>Your code checks the cache first; on a miss it fetches from the source and puts the result
+    in. The cache is optional, so if it dies you get <b>slow</b>, not <b>down</b>.</dd>
+
+    <dt>Read-through</dt>
+    <dd>Your code only ever asks the cache, and the cache fetches on a miss. Less code, but the
+    cache is now a hard dependency.</dd>
+
+    <dt>Write-through</dt>
+    <dd>A write goes to the cache and the database together, before you tell the caller it
+    succeeded. Consistent, and every write pays both costs.</dd>
+
+    <dt>Write-behind</dt>
+    <dd>A write goes to the cache immediately and to the database a moment later. Fastest, and if
+    the cache dies holding writes that never landed, they are gone.</dd>
+
+    <dt>TTL</dt>
+    <dd>Time to live — how long an entry may be used before it is thrown away. Your promise about
+    how stale an answer is allowed to get.</dd>
+
+    <dt>Key</dt>
+    <dd>The string you look an entry up by. Getting it wrong is the main way caches serve wrong
+    answers: leave out something the value depends on, and you hand back a stale answer with no
+    error anywhere.</dd>
+
+    <dt>Modal behaviour</dt>
+    <dd>Having more than one speed of normal — fast when cached, slow when not. Two modes means
+    two things to test, and the slow one usually gets tested in production.</dd>
+  </dl>
+</div>
+<h2>The four strategies</h2>
+
+<p>Every caching design answers two questions: <em>who talks to the database</em>, and <em>when does the write land</em>. That is all. The four named patterns are just the four combinations worth using.</p>
+
+<div class="table-wrap">
+<table>
+  <caption>The distinctions that actually matter in a review. “Modal behaviour” is the number of distinct code paths a request can take — and therefore the number you have to test.</caption>
+  <thead>
+    <tr><th>Strategy</th><th>Reads</th><th>Writes</th><th>Fails badly when</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Cache-aside</strong><br><span class="cite">a.k.a. side cache, lazy loading</span></td>
+      <td>App checks cache; on a miss the app fetches and populates it.</td>
+      <td>App writes the store and invalidates the key.</td>
+      <td>Many clients miss at once — the stampede in <a href="0005-stampede-penetration-avalanche.html">lesson 0005</a>. Also: only cached data is fast, so you have two performance modes.</td>
+    </tr>
+    <tr>
+      <td><strong>Read-through</strong><br><span class="cite">inline cache</span></td>
+      <td>App asks the cache; the cache fetches on a miss.</td>
+      <td>Unchanged — writes bypass.</td>
+      <td>The cache becomes a hard dependency. If it is down, you are down, whereas a side cache degrades to slow.</td>
+    </tr>
+    <tr>
+      <td><strong>Write-through</strong></td>
+      <td>From cache.</td>
+      <td>Synchronously to cache <em>and</em> store, before acknowledging.</td>
+      <td>Every write pays both latencies. Excellent consistency, worse write budget.</td>
+    </tr>
+    <tr>
+      <td><strong>Write-behind</strong><br><span class="cite">write-back</span></td>
+      <td>From cache.</td>
+      <td>To cache immediately; the store is updated asynchronously.</td>
+      <td>The cache dies holding unflushed writes and they are gone. Fastest writes, real durability risk.</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h3>What is actually cacheable in your pipeline</h3>
+
+<p>This is the part most caching advice skips, and it is where the engineering is:</p>
+
+<ul>
+  <li><strong>Embeddings — yes, aggressively.</strong> An embedding is a pure function of the input text and the model version. Identical text gives an identical vector, forever. There is no staleness argument to make, which is what makes it the ideal first cache.</li>
+  <li><strong>Retrieval results — yes, with a TTL.</strong> These depend on the corpus, and your corpus changes. Cacheable, but now you owe an answer about how stale is acceptable.</li>
+  <li><strong>Completions — carefully.</strong> Only at temperature 0, only keyed on the full prompt <em>including the system prompt and model version</em>, and only where returning a byte-identical answer twice is acceptable. For a vendor-evaluation rubric that is often fine. For anything conversational it is a bug.</li>
+  <li><strong>Rubric scores — no.</strong> They are the output of record. Cache the expensive inputs, not the audited result.</li>
+</ul>
+
+<div class="note">
+  <span class="callout-label">The key is the contract</span>
+  <p>A cache key must include everything the value depends on. An embedding cached under <code>sha256(text)</code> alone is a landmine: the day you change embedding models, every stale vector is silently wrong and your retrieval quality degrades with no error anywhere. Key it as <code>emb:{model_version}:{sha256(normalised_text)}</code>. Version in the key, always.</p>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 336" role="img" aria-labelledby="mech0003-t mech0003-d">
+    <title id="mech0003-t">The cache-aside read path and the three latencies it produces</title>
+    <desc id="mech0003-d">The gateway asks Redis for the embedding. A hit returns in 47 milliseconds; a miss computes the embedding, writes it back with a jittered TTL and returns in 175; an unreachable Redis logs a warning, computes anyway and returns in about 172. The application owns all three paths, which is what makes it cache-aside.</desc>
+    <defs>
+      <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+    </defs>
+
+    <text x="20" y="22" class="strong">Cache-aside: the application owns the miss path &#8212; which is why it owns three latencies</text>
+
+    <!-- MARK 1-2 · the lookup -->
+    <rect x="20" y="112" width="110" height="52" class="plain"/>
+    <text x="34" y="134" class="strong">gateway</text>
+    <text x="34" y="151" class="mono">retrieve()</text>
+
+    <path d="M134,138 L174,138" class="flow" marker-end="url(#a3)"/>
+
+    <rect x="178" y="112" width="196" height="52" class="accent"/>
+    <text x="190" y="134" class="strong ink-accent">GET emb:v1:&lt;sha&gt;</text>
+    <text x="190" y="151" class="mono">one round trip, ~1 ms</text>
+
+    <!-- MARK 3-5 · the three outcomes, each one a mode you must capacity-plan -->
+    <path d="M378,128 C408,128 408,72 436,72" class="flow-good" marker-end="url(#a3)"/>
+    <rect x="440" y="46" width="212" height="52" class="good"/>
+    <text x="452" y="68" class="strong ink-good">hit</text>
+    <text x="452" y="85" class="lbl">return the vector, nothing else</text>
+    <text x="668" y="78" class="num ink-good" style="font-size:19px">47 ms</text>
+
+    <path d="M378,138 L436,138" class="flow" marker-end="url(#a3)"/>
+    <rect x="440" y="112" width="212" height="52" class="warn"/>
+    <text x="452" y="134" class="strong ink-warn">miss</text>
+    <text x="452" y="151" class="lbl">embed 120 ms, then SET with a TTL</text>
+    <text x="668" y="144" class="num ink-warn" style="font-size:19px">175 ms</text>
+
+    <path d="M378,148 C408,148 408,204 436,204" class="flow-bad" marker-end="url(#a3)"/>
+    <rect x="440" y="178" width="212" height="52" class="bad"/>
+    <text x="452" y="200" class="strong ink-bad">unreachable</text>
+    <text x="452" y="217" class="lbl">log a warning, compute anyway</text>
+    <text x="668" y="210" class="num ink-bad" style="font-size:19px">172 ms</text>
+
+    <!-- MARK 6 · the key is the contract -->
+    <rect x="20" y="258" width="632" height="62" class="box-2"/>
+    <text x="34" y="280" class="mono strong">emb : {model_version} : sha256( strip( lower( text ) ) )</text>
+    <text x="34" y="302" class="lbl">Drop the model version: every cached vector stays valid-looking and semantically wrong, with no signal at all.</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">Say this while you draw it</span>
+    <ol class="narrate">
+      <li>Two boxes and one arrow: <b>gateway asks Redis</b>. That is the whole of cache-aside — the cache is a thing you consult, not a thing you go through.</li>
+      <li>Now fan out <b>three</b> arrows, not two. Everyone draws hit and miss; the third one is the interview answer.</li>
+      <li><b>Hit: 47 ms.</b> Say the number, because it is the only evidence the cache is doing anything.</li>
+      <li><b>Miss: 175 ms</b> — the lookup, then the 120 ms embed, then the write-back. Note it is <em>slower</em> than not having a cache at all, by the cost of the round trip.</li>
+      <li><b>Unreachable: 172 ms.</b> Redis is down and the service still answers, because the miss path is application code and it can simply skip the cache. Cache-aside gets this for free; read-through does not.</li>
+      <li>Last, the <b>key</b>. Say the model version out loud — it is the one field whose absence produces silently wrong answers rather than slow ones.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. The test is whether you draw the third arrow without being prompted.</p>
+  <ul>
+    <li><b>Three</b> outcome arrows, and a number on each. Two arrows means you have described a cache, not owned one.</li>
+    <li>The miss path <b>writes back</b>. If your arrow does not return to the cache, nothing is ever cached.</li>
+    <li>That a miss is <b>slower than no cache</b>, by one round trip. This is the honest cost.</li>
+    <li>The <b>model version in the key</b>, and one sentence on what breaks without it.</li>
+  </ul>
+  <span class="timer">These three numbers are also three capacity-planning modes. Nobody load-tests the third.</span>
+</div>
+
+<h2>Lab — cache the retrieval hop</h2>
+
+<div class="lab">
+  <header>
+    <span class="kicker">Lab 0003</span>
+    <span class="est">~15 minutes</span>
+    <h3>Add cache-aside to <code>embed</code></h3>
+  </header>
+  <div class="body">
+    <div class="prereq">
+      <span>Needs:</span>
+      <span class="chip needs-docker">Docker Desktop running</span>
+      <span class="chip">uv</span>
+      <span class="chip">lessons 0001–0002</span>
+    </div>
+
+    <ol class="steps">
+      <li>
+        <p class="what">Start Redis. This is the first lesson that needs a service, so this is also the step where you start Docker Desktop if it is not already running.</p>
+        <pre class="cmd"><span class="prompt">$ </span>cd anchor/vendor-eval-gateway
+<span class="prompt">$ </span>docker compose up -d redis
+<span class="prompt">$ </span>docker compose exec redis redis-cli ping</pre>
+        <div class="expect">
+          <span class="label">You should see</span>
+          <p><code>PONG</code>. Note the shape of that command — there is no <code>redis-cli</code> on your host, so every lesson reaches it through <code>docker compose exec</code>.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Measure the uncached hop twice with the same query, so you have a baseline that is not a guess.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run uvicorn app.main:app <span class="comment"># terminal 1</span>
+
+<span class="comment"># terminal 2 — same query, twice</span>
+<span class="prompt">$ </span>curl -sX POST <span class="str">'localhost:8000/v1/retrieve?q=sub-second+inference'</span> | jq '{ms, embed_calls}'
+<span class="prompt">$ </span>curl -sX POST <span class="str">'localhost:8000/v1/retrieve?q=sub-second+inference'</span> | jq '{ms, embed_calls}'</pre>
+        <pre class="out">{ "ms": 166.3, "embed_calls": 1 }
+{ "ms": 165.8, "embed_calls": <span class="fail">2</span> }</pre>
+        <div class="expect broken">
+          <span class="label">The problem, stated in numbers</span>
+          <p><code>embed_calls</code> went to 2 and the second call cost the same 165 ms. You just paid full price to compute a vector you already had. In a live interview, candidates repeat phrasings constantly.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Write the cache. Create <code>app/cache.py</code> — this is the one file in Tier 1 you author yourself, and it is deliberately short.</p>
+        <span class="file-label">app/cache.py</span>
+        <pre class="code"><span class="kw">from</span> __future__ <span class="kw">import</span> annotations
+
+<span class="kw">import</span> hashlib
+<span class="kw">import</span> json
+<span class="kw">from</span> collections.abc <span class="kw">import</span> Awaitable, Callable
+
+<span class="kw">import</span> redis.asyncio <span class="kw">as</span> redis
+<span class="kw">import</span> structlog
+
+log = structlog.get_logger(__name__)
+
+EMBED_MODEL_VERSION = <span class="str">"fake-embed-v1"</span>
+
+
+<span class="kw">class</span> EmbeddingCache:
+    <span class="str">"""Cache-aside in front of a pure function.
+
+    The value is a deterministic function of (model version, normalised text),
+    so there is no invalidation story to get wrong — which is exactly why this
+    is the right first cache to add.
+    """</span>
+
+    <span class="kw">def</span> __init__(self, url: str, ttl_seconds: int = 3600) -> <span class="kw">None</span>:
+        self._redis = redis.from_url(url, decode_responses=<span class="kw">True</span>)
+        self._ttl = ttl_seconds
+        self.hits = 0
+        self.misses = 0
+
+    <span class="kw">def</span> key(self, text: str) -> str:
+        <span class="comment"># Model version in the key. Without it, changing embedding models</span>
+        <span class="comment"># leaves every stale vector silently wrong and nothing errors.</span>
+        digest = hashlib.sha256(text.strip().lower().encode()).hexdigest()[:32]
+        <span class="kw">return</span> f<span class="str">"emb:{EMBED_MODEL_VERSION}:{digest}"</span>
+
+    <span class="kw">async def</span> get_or_compute(
+        self, text: str, compute: Callable[[], Awaitable[tuple[float, ...]]]
+    ) -> tuple[float, ...]:
+        k = self.key(text)
+
+        <span class="comment"># A cache that can take down the service it accelerates is not a</span>
+        <span class="comment"># cache, it is a dependency. Every Redis call here is best-effort.</span>
+        <span class="kw">try</span>:
+            cached = <span class="kw">await</span> self._redis.get(k)
+        <span class="kw">except</span> Exception <span class="kw">as</span> exc:
+            log.warning(<span class="str">"cache.get_failed"</span>, error=str(exc))
+            cached = <span class="kw">None</span>
+
+        <span class="kw">if</span> cached <span class="kw">is not</span> <span class="kw">None</span>:
+            self.hits += 1
+            <span class="kw">return</span> tuple(json.loads(cached))
+
+        self.misses += 1
+        value = <span class="kw">await</span> compute()
+
+        <span class="kw">try</span>:
+            <span class="kw">await</span> self._redis.set(k, json.dumps(value), ex=self._ttl)
+        <span class="kw">except</span> Exception <span class="kw">as</span> exc:
+            log.warning(<span class="str">"cache.set_failed"</span>, error=str(exc))
+
+        <span class="kw">return</span> value
+
+    @property
+    <span class="kw">def</span> hit_rate(self) -> float:
+        total = self.hits + self.misses
+        <span class="kw">return</span> self.hits / total <span class="kw">if</span> total <span class="kw">else</span> 0.0</pre>
+      </li>
+
+      <li>
+        <p class="what">Wire it into the retrieval hop. In <code>app/retrieval.py</code>, give <code>Retriever</code> an optional cache and route <code>embed</code> through it.</p>
+        <span class="file-label">app/retrieval.py — changes only</span>
+        <pre class="code"><span class="kw">def</span> __init__(
+    self,
+    embed_ms: float = 120.0,
+    search_ms: float = 45.0,
+    cache: <span class="str">"EmbeddingCache | None"</span> = <span class="kw">None</span>,   <span class="add"># new</span>
+) -> <span class="kw">None</span>:
+    ...
+    self._cache = cache
+
+<span class="kw">async def</span> embed(self, text: str) -> tuple[float, ...]:
+    <span class="kw">if</span> self._cache <span class="kw">is</span> <span class="kw">None</span>:
+        <span class="kw">return await</span> self._embed_uncached(text)
+    <span class="comment"># Cache-aside: the *application* owns the miss path.</span>
+    <span class="kw">return await</span> self._cache.get_or_compute(
+        text, <span class="kw">lambda</span>: self._embed_uncached(text)
+    )</pre>
+        <p>Rename the existing body to <code>_embed_uncached</code>. Then in <code>app/state.py</code>, build the cache from <code>settings.redis_url</code> and pass it to the <code>Retriever</code>.</p>
+      </li>
+
+      <li>
+        <p class="what">Measure again. Same two calls as step 2.</p>
+        <pre class="out">{ "ms": 166.1, "embed_calls": 1 }
+{ "ms": <span class="pass">46.2</span>, "embed_calls": <span class="pass">1</span> }</pre>
+        <div class="ba">
+          <div class="before">
+            <span class="label">before — second identical query</span>
+            <p class="figure">166<span class="unit">ms</span></p>
+            <p class="gloss">Full embed plus search, every time.</p>
+          </div>
+          <div class="after">
+            <span class="label">after — second identical query</span>
+            <p class="figure">46<span class="unit">ms</span></p>
+            <p class="gloss">Search only. The 120 ms embed is gone, and <code>embed_calls</code> stayed at 1.</p>
+          </div>
+        </div>
+        <div class="expect">
+          <span class="label">You should see</span>
+          <p><code>embed_calls</code> stuck at <code>1</code> across both requests, and the second call costing roughly the <code>search_ms</code> figure alone. If <code>embed_calls</code> increments, your key is not stable — print it and compare.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Now prove the degradation story, which is the half of caching that gets skipped. Kill Redis with the server still running.</p>
+        <pre class="cmd"><span class="prompt">$ </span>docker compose stop redis
+<span class="prompt">$ </span>curl -sX POST <span class="str">'localhost:8000/v1/retrieve?q=sub-second+inference'</span> | jq '{ms}'</pre>
+        <div class="expect">
+          <span class="label">You should see</span>
+          <p>A <code>cache.get_failed</code> warning in the server log and a response that still succeeds at about 166 ms. That is the entire argument for cache-aside over read-through: <strong>you degraded to slow rather than to down.</strong> Restart with <code>docker compose start redis</code>.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+</div>
+
+<div class="caution">
+  <span class="callout-label">Two performance modes now exist</span>
+  <p>Before this lab your retrieval hop always cost 165 ms. Now it costs 46 ms or 166 ms depending on state you cannot see from outside. The Amazon Builders' Library calls this <em>modal behaviour</em>, and it is the hidden cost of every cache: your service has two personalities, and load tests usually only exercise the warm one. Whenever you add a cache, ask what happens on the cold path at full production traffic — that question is <a href="0005-stampede-penetration-avalanche.html">lesson 0005</a>.</p>
+</div>
+
+<div class="evidence" data-evidence-for="0003">
+  <header>
+    <span class="callout-label">Your numbers, not mine</span>
+    <span class="hint">saved in this browser as you type</span>
+  </header>
+  <div class="body">
+    <p>Three latency modes, not two. Write all three down — the third is the one you will be asked about and the only one nobody load-tests.</p>
+
+    <div class="rows">
+      <div class="row">
+        <span class="ran">Step 2, <strong>before the cache</strong>: same query twice, and watch <code>embed_calls</code> climb</span>
+        <span class="field"><label for="e3-b1">First call</label><input type="text" id="e3-b1" data-field="pre1" placeholder="e.g. 167.3 ms / 1"></span>
+        <span class="field"><label for="e3-b2">Second call</label><input type="text" id="e3-b2" data-field="pre2" placeholder="e.g. 167.2 ms / 2"></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 5, <strong>after the cache</strong>: the miss and then the hit</span>
+        <span class="field"><label for="e3-miss">Miss</label><input type="text" id="e3-miss" data-field="miss" placeholder="e.g. 174.9 ms"></span>
+        <span class="field"><label for="e3-hit">Hit</label><input type="text" id="e3-hit" data-field="hit" placeholder="e.g. 47.0 ms"></span>
+        <span class="why-row"><label for="e3-slower">Is your miss <em>slower</em> than your step-2 baseline? It should be, by roughly one Redis round trip &#8212; say the number, because &#8220;the cache made the uncached path slower&#8221; is the honest framing and it is small</label><textarea id="e3-slower" data-field="miss_delta" placeholder="e.g. 174.9 vs 167.3 — about 7.6 ms of added round trip on every miss, to save 120 ms on every hit."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 6, <strong>Redis stopped</strong>: what the endpoint returned, and what the log said</span>
+        <span class="field"><label for="e3-down">Latency</label><input type="text" id="e3-down" data-field="down" placeholder="ms"></span>
+        <span class="field"><label for="e3-logline">Log event</label><input type="text" id="e3-logline" data-field="down_log" placeholder="cache.unavailable"></span>
+        <span class="why-row"><label for="e3-downwhy">It recovered without a restart. Why? &#8212; and this is the property you are actually claiming when you say &#8220;cache-aside&#8221;</label><textarea id="e3-downwhy" data-field="down_why" placeholder="Because the miss path is application code, 'cache is down' and 'cache is empty' are the same branch — and the empty branch already worked."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">The <strong>timeout</strong> you will set on the Redis client, now that you know the default is 5 s and your budget is 8 s</span>
+        <span class="field"><label for="e3-to">Connect timeout</label><input type="text" id="e3-to" data-field="timeout" placeholder="e.g. 50 ms"></span>
+        <span class="field"><label for="e3-sto">Socket timeout</label><input type="text" id="e3-sto" data-field="sock_timeout" placeholder="e.g. 100 ms"></span>
+        <span class="why-row"><label for="e3-towhy">Why that and not 10&#215; it &#8212; the ceiling is &#8220;less than the work this cache is avoiding&#8221;, and the floor is &#8220;more than p99 of a healthy round trip&#8221;. Give both numbers.</label><textarea id="e3-towhy" data-field="timeout_why" placeholder="A healthy GET measured ~1 ms, and the work being avoided is a 120 ms embed. So anything above ~120 ms is strictly worse than not having a cache, and anything below a few ms will time out on a slow GC pause."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">The cache key you would actually ship, written out in full</span>
+        <span class="field"><label for="e3-key">Key format</label><input type="text" id="e3-key" data-field="key" placeholder="emb:{model}:{sha256}"></span>
+        <span class="field"><label for="e3-ttl">TTL</label><input type="text" id="e3-ttl" data-field="ttl" placeholder="e.g. 3600 s"></span>
+        <span class="why-row"><label for="e3-keywhy">What determines this value that is <em>not</em> in the key? If the answer is &#8220;nothing&#8221;, you have no invalidation problem &#8212; and that is the sentence to say out loud</label><textarea id="e3-keywhy" data-field="key_why" placeholder="Model version and normalised text fully determine the vector, and both are in the key. Normalisation itself is the subtle one: change strip/lower and you change the key space silently."></textarea></span>
+      </div>
+    </div>
+
+    <div class="earned">
+      <span class="callout-label">The bullet this lesson earns</span>
+      <p>&#8220;Added a cache-aside embedding cache to the retrieval hop, cutting the hop from <span data-fill="pre1" class="placeholder">[run step 2]</span> to <span data-fill="hit" class="placeholder">[run step 5]</span> on a hit, and kept the service serving through a full cache outage by owning the miss path &#8212; verified by stopping Redis under load.&#8221;</p>
+      <p class="caveat">The second clause is the one that separates this from every r&#233;sum&#233; that says &#8220;used Redis for caching&#8221;. It is also the one you have to have actually done, because the follow-up is &#8220;how do you know?&#8221;</p>
+    </div>
+  </div>
+</div>
+
+<h2 id="underneath-0003">Underneath</h2>
+
+<div class="underneath">
+  <span class="callout-label">One layer down &#183; why this strategy, and the two things it does not protect you from</span>
+
+  <p>Choosing cache-aside from a table of four options is a reasonable start and not yet an argument. There is a specific reason it is right <em>here</em>, a specific race it leaves open that happens not to bite this workload, and one default in the code above that will quietly eat most of your latency budget.</p>
+
+  <h3>Why cache-aside rather than read-through</h3>
+
+  <p>Read-through reads <em>through</em> the cache: the caller asks the cache, and the cache is responsible for fetching on a miss. That is genuinely less code, and it makes the cache a <strong>dependency on the critical path</strong> — if it is down, the fetch has nowhere to happen. Cache-aside keeps the miss path in your own function, so &#8220;the cache is unavailable&#8221; and &#8220;the cache is empty&#8221; become the same branch, and the second one already works.</p>
+
+  <p>That is the whole justification for the third arrow in the diagram, and it is measurable: stop Redis with the gateway running and the service keeps answering at the uncached cost, logging <code>cache.unavailable</code>, then recovers by itself on the next call with no restart. You do not get that property because you were careful. You get it because the miss path is code you own.</p>
+
+  <h3>The race cache-aside leaves open &#8212; and why it cannot fire here</h3>
+
+  <div class="derive">
+    <p>The classic cache-aside hazard is a stale write that outlives the truth:</p>
+    <span class="eq">reader   GET k        &#8594; miss
+writer   UPDATE k     &#8594; v2 in the database
+writer   DEL k        &#8594; cache invalidated
+reader   SET k, <b>v1</b>   &#8594; the cache now serves v1 until its TTL expires</span>
+    <p>Nothing is out of order and nothing errored. The reader simply computed before the write and wrote after the invalidation, so a strictly stale value is installed <em>by</em> the invalidation protocol. This is the real reason people reach for write-through, and the reason cache-aside needs an argument rather than a preference.</p>
+  </div>
+
+  <p>Here it cannot happen, and the reason is worth saying precisely, because it is the property that made this the right <em>first</em> cache in the course: the value is a <strong>pure function of the key</strong>. The vector is determined entirely by the model version and the normalised text, both of which are in the key. There is no <code>v2</code> for this key &#8212; if the function changes, the model version changes, so the key changes and the old entry is simply unreferenced. <em>A cache whose keys already contain everything that determines their values has no invalidation problem to get wrong.</em></p>
+
+  <p>Which is also why <code>search</code> is not cached and <code>embed</code> is. Both are cacheable in the mechanical sense. Only one of them is cacheable without a staleness argument, because search depends on a corpus that changes underneath the key.</p>
+
+  <h3>The default that will cost you five seconds</h3>
+
+  <p>The degraded mode in the lab is the <em>friendly</em> failure. <code>docker compose stop redis</code> closes the port, so the kernel replies with a RST and the client fails instantly. A Redis that is <strong>unreachable rather than closed</strong> &#8212; a partition, a hung node, a security-group change, a full conntrack table &#8212; sends nothing at all, and then you wait for a timeout.</p>
+
+  <div class="derive">
+    <p>Measured on redis-py 8.1.0, one <code>GET</code> against three states of the same client:</p>
+    <span class="eq">reachable                  &#8594;    15.4 ms
+port closed (RST)          &#8594;     0.8 ms
+black-holed (no reply)     &#8594;  <b>5001.6 ms</b></span>
+    <p>Five seconds, because <code>socket_connect_timeout</code> and <code>socket_timeout</code> both default to <code>5</code>. Against an <strong>8-second per-turn budget</strong> that is most of the turn spent waiting for a cache that was supposed to make things faster &#8212; and a miss does two calls, a <code>GET</code> and a <code>SET</code>, so the worst case is ten seconds and a breached budget caused entirely by the optimisation.</p>
+  </div>
+
+  <p>So the cache code above is incomplete as written, and knowingly so: it needs an explicit timeout, sized against the budget rather than against the library's idea of patience. A cache lookup that is allowed to take longer than the work it is avoiding has stopped being a cache. That sizing argument is lesson 0012, and this is the number that motivates it.</p>
+
+  <p class="lands"><b>Cache-aside is the right choice because the miss path is yours</b> &#8212; that is what buys the degradation mode. <b>It is safe here because the key contains everything that determines the value</b>, so the invalidation race has no way to fire. And <b>it is not yet safe against a slow Redis</b>, because nobody has set a timeout.</p>
+</div>
+
+<h2>Check yourself</h2>
+
+<div class="quiz" data-quiz-id="0003-q1">
+  <p class="q">Your Redis instance dies at peak load. With cache-aside on the retrieval hop, what happens?</p>
+  <ol class="options">
+    <li data-correct="true">Requests get slower, because the app fetches it directly</li>
+    <li>Requests fail, since the cache is now a dependency</li>
+    <li>Requests succeed and stay fast, using a local fallback</li>
+    <li>Requests block until the cache finishes coming back up</li>
+  </ol>
+  <div class="why">
+    <p>Cache-aside keeps the application in charge of the miss path, so an unreachable cache is just a permanent miss — provided every Redis call is wrapped, as in the lab. You degrade to slow. With <strong>read-through</strong> the cache sits inline and owns the fetch, so losing it means losing the read path entirely: you degrade to down.</p>
+    <p>That single difference is usually the whole reason to choose cache-aside for something on a latency budget, and it is worth being able to state in one sentence.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0003-q2">
+  <p class="q">Why is an embedding a better first cache target than a retrieval result?</p>
+  <ol class="options">
+    <li data-correct="true">It is pure, so no staleness argument is needed</li>
+    <li>It is small, so many more of them fit</li>
+    <li>It is slow, so each hit saves much more</li>
+    <li>It is rare, so the hit rate goes higher</li>
+  </ol>
+  <div class="why">
+    <p>Purity is the reason. An embedding depends only on the input text and the model version, both of which you can put in the key, so it can never go stale — there is simply no invalidation logic to get wrong. A retrieval result depends on the corpus, so caching it means committing to a staleness budget and defending it.</p>
+    <p>“It is slower” is nearly right and still the wrong reason: embed at 120 ms is indeed the bigger half of the hop, but you would cache a pure 5 ms function ahead of an impure 500 ms one, because correctness risk beats latency saving. Cache the things that cannot be wrong first.</p>
+  </div>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">A spoken answer to <em>&#8220;you mentioned a cache &#8212; what did you cache and why?&#8221;</em> Read it aloud, then say it again with the page covered. The three numbers are the whole thing; if you lose everything else, keep those.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">The retrieval hop was 165 milliseconds of an 8-second turn, and about 120 of that was embedding the query. Same questions kept coming back, and we were paying to embed them every time.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">Embedding is a pure function &#8212; the same text and the same model always give the same vector. So the model version and a hash of the normalised text go in the key, and then there is nothing that determines the value which is not already in the key.</p>
+      <p class="line">That is why it is the right thing to cache first: it has <b>no invalidation story to get wrong</b>. If the function changes, the key changes.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">Cache-aside, so the miss path stays in my code rather than inside the cache. Three latencies came out of it: <b>47 milliseconds on a hit, 175 on a miss, and 172 with Redis stopped entirely</b>.</p>
+      <p class="line">That third number is the one I care about. I killed Redis with the service running and it kept answering &#8212; degraded to the uncached path, logged a warning, and recovered on its own when Redis came back. No restart.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">A miss is now <em>slower</em> than having no cache, by one round trip &#8212; about eight milliseconds. Cheap, but it is real and I would rather say it than be told it.</p>
+      <p class="line">The version I first wrote had a bug I only found by measuring. The client&#8217;s default timeout is five seconds. A Redis that hangs rather than refusing would burn five of my eight seconds waiting for the thing meant to make it faster. So it needs a timeout smaller than the work it avoids.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;We use Redis for caching.&#8221;</span> It answers nothing and invites all three of the real questions at once: what is in the key, what happens on a miss, and what happens when Redis is gone. Naming the strategy is the cheapest possible upgrade &#8212; <em>cache-aside</em> tells a listener you know there are four of them and that you picked one.</p>
+  <p>The second trap is claiming graceful degradation without having caused it. <span class="quoted">&#8220;If Redis is down we just fall through to the database&#8221;</span> is true of cache-aside <em>by construction</em> and false of read-through, and the person asking usually knows which one you built. Say that you stopped it on purpose and what the latency was.</p>
+</div>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      “You cache embeddings. What is in the cache key?”
+      <span class="tell">If the model version is not in your answer, they have found a real bug. Say the key structure out loud: <code>emb:{model_version}:{sha256(normalised_text)}</code>.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Two things: the <strong>model version</strong> and a SHA-256 of the normalised query text &#8212; stripped and lowercased. So <code>emb:fake-embed-v1:&lt;hash&gt;</code>.</p>
+        <p>The model version is the field that matters. Without it, changing embedding models leaves every previously cached vector valid-looking and semantically wrong &#8212; retrieval quality degrades and nothing errors, which is a failure mode with no signal at all. With it in the key, a model change is a cache miss rather than a bug.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What determines the value that is not in the key?&#8221; &#8212; the answer here is nothing, which is exactly why this cache has no invalidation problem. Normalisation is the sneaky one: change strip/lower and you silently change the key space.</b></span>
+      </details>
+    </li>
+    <li>
+      “What happens to your 8 s budget when the cache is cold — say, right after a deploy?”
+      <span class="tell">Modal behaviour. Every request takes the slow path simultaneously, which is worse than the pre-cache baseline because you also sized capacity around the warm path.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Every request pays the full uncached hop, so 165 milliseconds instead of 47 &#8212; which against an 8-second budget is survivable on its own. The problem is not the cost per request, it is that <em>all</em> of them pay it at once, and for a popular key they pay it concurrently.</p>
+        <p>I measured that: 200 concurrent requests for one cold key produced 200 identical embedding calls. So the real answer to &#8220;what happens after a deploy&#8221; is a thundering herd, and the fix is single-flight plus jittered TTLs rather than a bigger cache.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So how do you warm it?&#8221; &#8212; and the honest answer is that warming and single-flight solve different halves: warming reduces how often you are cold, single-flight bounds what being cold costs.</b></span>
+      </details>
+    </li>
+    <li>
+      “Would you cache the LLM completions too?”
+      <span class="tell">The senior answer is conditional: at temperature 0, keyed on the full prompt plus system prompt plus model version, for the rubric path only. Never for anything conversational.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Only where the prompt is genuinely deterministic, which for us is a small slice. A completion is a function of the prompt <em>and</em> the sampling parameters and the model version, so all three have to be in the key or the cache is lying &#8212; and at temperature above zero it is lying by design, because the whole point is that the same prompt gives different output.</p>
+        <p>The place it does pay is not a response cache at all, it is the <strong>prefix cache</strong>: the shared system prompt is identical on every request, and caching its KV state cuts time-to-first-word without pretending two completions are the same.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What is your prefix-cache hit rate?&#8221; &#8212; which is lesson 0008, and it is a question about the GPU bill rather than about latency.</b></span>
+      </details>
+    </li>
+    <li>
+      “Why not write-through?”
+      <span class="tell">Because nothing is being written. Embeddings are derived, not authored — write-through answers a question this workload does not ask.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Because there is no write. Nothing in the system <em>updates</em> an embedding &#8212; they are computed on demand from text, so there is no write path for a write-through cache to sit in front of. Write-through answers &#8220;how do I keep the cache consistent with writes&#8221;, and I do not have that question.</p>
+        <p>What I do have is the read-side race cache-aside is famous for: a reader that misses, then a writer that updates and invalidates, then the reader installing its stale value. That cannot fire here because the key contains everything that determines the value &#8212; there is no second version of the same key.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Where in your system <em>would</em> you use write-through?&#8221; &#8212; somewhere with real mutation and a read-your-writes requirement, like rubric scores, and there the answer is that they should not be in a cache at all.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="primary-source">
+  <span class="callout-label">Read this next — one source, not ten</span>
+  <span class="title"><a href="https://aws.amazon.com/builders-library/caching-challenges-and-strategies/" target="_blank" rel="noopener">Caching challenges and strategies — Amazon Builders' Library</a></span>
+  <p>Matt Brinkley and Jas Chhabra. The best free writing on the parts of caching that hurt: modal behaviour, thundering herds, request coalescing, and what a cache does to your failure modes rather than to your latency. Note that it uses <em>inline</em> and <em>side</em> cache where this lesson says read-through and cache-aside — same distinction, older vocabulary. It also does not mention TTL jitter, which lesson 0005 adds.</p>
+  <p class="cite">The canonical deep read, for later: <a href="https://www.usenix.org/system/files/conference/nsdi13/nsdi13-final170_update.pdf" target="_blank" rel="noopener">Scaling Memcache at Facebook</a> (Nishtala et al., NSDI 2013). Section 3.2 on leases is the origin of the fix you will implement in lesson 0005.</p>
+</div>
+
+<h2>Recall — from lessons 0001–0002</h2>
+
+<div class="recall">
+  <details>
+    <summary>Retrieval was 165 ms of a 2102 ms turn. Before this lab, was optimising it a good use of a day?</summary>
+    <p class="answer">No — it is about 8% of the turn, against the LLM hop's 42%. Caching it was worth doing because it is nearly free and perfectly safe, not because it was the biggest win. Keep those two justifications separate; conflating “cheap” with “important” is how a week goes missing.</p>
+    <span class="from">lesson 0001 · budget table</span>
+  </details>
+  <details>
+    <summary>Why will a closed-loop load test make your new cache look better than it is?</summary>
+    <p class="answer">Because it will warm the cache and then measure only the warm path, at a rate throttled by its own workers. Cold-start behaviour — every worker missing at once — is precisely the window a closed loop under-samples. Measure a cache with an open-loop generator against a flushed Redis, or you are measuring your best case and calling it your p99.</p>
+    <span class="from">lesson 0002 · coordinated omission</span>
+  </details>
+  <details>
+    <summary>A cached hop drops from 166 ms to 46 ms at p50. What does that tell you about p99?</summary>
+    <p class="answer">Almost nothing. p99 is now dominated by the miss path and by Redis's own tail, and you have added a network hop that can itself go slow. A cache improves the median far more than the tail, which is why “we added a cache and p50 halved” is a weaker claim than it sounds.</p>
+    <span class="from">lesson 0002 · percentiles</span>
+  </details>
+</div>
+
+<div class="ask">
+  <p><strong>This is the first lesson where you write code rather than read it.</strong> If your <code>app/cache.py</code> works but looks different from mine, bring it — divergence here is usually interesting rather than wrong. If <code>embed_calls</code> keeps incrementing, paste the key you are generating and we will find it in a minute.</p>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">Where this lands on the r&#233;sum&#233;</span>
+  <p>This lesson teaches the mechanism from first principles and breaks it in a lab. The chapter opposite defends what you actually did with it, including the number on the r&#233;sum&#233;. An interviewer crosses between those two registers without warning.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <span class="bridge-soon">RM 0011 &#183; Infrastructure &#8212; not yet built</span>
+      <span class="bridge-why">The Infrastructure line on the r&#233;sum&#233; names no cache at all. That chapter is where the omission gets answered rather than hidden.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">RM 0012 &#183; RAG &amp; Evaluation &#8212; not yet built</span>
+      <span class="bridge-why">Embeddings and retrieval results are the two genuinely cacheable things on that line, and they have different write policies.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">RM 0010 &#183; Model Optimization &#8212; not yet built</span>
+      <span class="bridge-why">Caching is the cheapest lever on the serving line, and the only one that needs no new hardware.</span>
+    </li>
+  </ol>
+</div>
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0002-p50-is-a-lie.html">← 0002 · p50 is a lie</a></span>
+  <span><span class="dir">Next</span><a href="0004-eviction-and-why-lru-is-wrong.html">0004 · Eviction, and why LRU is wrong →</a></span>
+</div>
+
+</div>
+</body>
+</html>

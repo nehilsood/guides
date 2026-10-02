@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>Redis Is Not Magic</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0006">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">System Design School</a>
+    <span class="sep">/</span>
+    <span>Tier 1 · Caching &amp; latency</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Lesson 0006</span>
+    <span class="sep">/</span>
+    <span>Docker required</span>
+  </div>
+  <h1>Redis Is Not Magic</h1>
+  <p class="standfirst">You have spent four lessons treating Redis as a fast box that remembers things. It is a single-threaded event loop with two different durability mechanisms and a fork-based snapshot that can stall your p99. This lesson makes you lose data on purpose, then configure it not to.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>You will kill Redis mid-write and lose data, measure exactly how much each durability setting costs you, and understand why “Redis is fast” and “Redis occasionally pauses for a second” are both true statements about the same process.</p>
+</div>
+
+<div class="anchor-box">
+  <span class="callout-label">Why you, specifically</span>
+  <blockquote>“Owned an AI vendor-evaluation platform <strong>end-to-end</strong> (Python/FastAPI, async SQLAlchemy, PostgreSQL, GKE)…”</blockquote>
+  <p>“End-to-end” is the claim being tested here. Adding a cache in lesson 0003 made Redis part of your platform, and owning a datastore means being able to answer what happens when it restarts, how much it can lose, and what it does to your tail latency while it saves. If Redis were on your résumé today, this is the question you would get.</p>
+  <p>That sentence is defended in full in <a href="../../resume-mastery/lessons/0001-vendor-evaluation-platform.html">chapter 0001 of R&#233;sum&#233; Mastery</a> &#8212; this lesson is where the mechanism underneath it gets built and broken.</p>
+</div>
+
+<div class="primer">
+  <span class="callout-label">Start here — the plain version</span>
+  <p>Redis keeps everything in memory, which is why it is fast, and memory disappears when a process
+  dies. So the question this lesson answers is the one you have to be able to answer about any store
+  you own: <b>if this restarts right now, what have I lost?</b></p>
+  <p>Redis offers two ways to put data on disk so the answer is not “everything”. One takes a
+  periodic photograph of the whole dataset (<b>RDB</b>). The other appends every write to a log and
+  replays it on startup (<b>AOF</b>). Each has a cost, and both costs land on your latency rather
+  than on a bill — which is why “how durable is it” and “how fast is it” are the same question here.
+  The other thing worth knowing up front: Redis handles one command at a time, so a single slow
+  command makes every other client wait.</p>
+  <dl>
+    <dt>In-memory</dt>
+    <dd>Data lives in RAM. Fast to read, and gone on restart unless something wrote it to disk.</dd>
+
+    <dt>Single-threaded</dt>
+    <dd>One command runs at a time. This is mostly why Redis is quick — no locking — and it means
+    one expensive command blocks everyone, so your cache's worst latency is whatever the worst
+    command anybody runs is.</dd>
+
+    <dt>Durability</dt>
+    <dd>How much you are willing to lose if the process dies this second. Answered in units of time,
+    not in adjectives.</dd>
+
+    <dt>RDB</dt>
+    <dd>A snapshot: the whole dataset written to one compact file every so often. Cheap to load,
+    and you lose everything written since the last one.</dd>
+
+    <dt>AOF</dt>
+    <dd>Append-only file: a log of every write command, replayed on startup to rebuild the data.
+    Loses much less, and the log has to be written as you go.</dd>
+
+    <dt><code>fsync</code></dt>
+    <dd>Telling the operating system to actually put bytes on the physical disk now, rather than
+    when it feels like it. The expensive part of durability is this, not the writing.</dd>
+
+    <dt><code>appendfsync</code></dt>
+    <dd>How often to do that: <code>always</code> (before replying — safest, slowest),
+    <code>everysec</code> (once a second — the default, risks about a second), <code>no</code>
+    (whenever the OS decides — fastest, risks tens of seconds).</dd>
+
+    <dt><code>fork</code> and copy-on-write</dt>
+    <dd>How a snapshot avoids blocking: Redis clones itself, and the clone writes the file while the
+    original keeps serving. The cloning itself is not free, and on a large dataset it can pause
+    everything briefly — a self-inflicted spike in your slowest requests.</dd>
+  </dl>
+</div>
+<h2>Single-threaded, and that is the point</h2>
+
+<p>Redis executes commands on one thread, one at a time. This sounds like a limitation and is mostly the reason it is fast:</p>
+
+<ul>
+  <li><strong>No lock contention, no context switching</strong> between commands. The cost of coordinating multiple threads over a shared hash table exceeds the benefit for operations that take microseconds.</li>
+  <li><strong>Every command is atomic for free.</strong> <code>INCR</code> cannot interleave with another <code>INCR</code>. This is why Redis is a plausible place to put a distributed lock — though <a href="0005-stampede-penetration-avalanche.html">lesson 0005</a>'s single-flight lock is only <em>plausible</em>, not safe, and lesson 0030 explains why.</li>
+  <li><strong>Everything is in memory,</strong> so the work per command is genuinely tiny.</li>
+</ul>
+
+<p>The corollary is the part that matters operationally: <strong>one slow command blocks everything.</strong> A <code>KEYS *</code> on a large keyspace, or a big set intersection, stalls every other client for its whole duration. Your cache's p99 becomes hostage to the worst command anyone runs against it.</p>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 360" role="img" aria-labelledby="mech0006-t mech0006-d">
+    <title id="mech0006-t">Where a write actually lives, and what each appendfsync policy costs</title>
+    <desc id="mech0006-d">A SET travels from the client into Redis's AOF buffer, then into the kernel page cache, then to disk. A Redis crash loses everything still in the process; a machine crash also loses the page cache. The appendfsync setting decides when the final hop happens, and the measured cost of forcing it on every write is 3.8 times the throughput.</desc>
+    <defs>
+      <marker id="a6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+    </defs>
+
+    <!-- MARKS 1-4 · the four places a write can be sitting -->
+    <rect x="20" y="40" width="120" height="46" class="plain"/>
+    <text x="34" y="60" class="strong">client</text>
+    <text x="34" y="76" class="mono">SET important</text>
+
+    <path d="M144,63 L184,63" class="flow" marker-end="url(#a6)"/>
+
+    <rect x="190" y="40" width="170" height="46" class="accent"/>
+    <text x="204" y="60" class="strong ink-accent">redis: AOF buffer</text>
+    <text x="204" y="76" class="mono">inside the process</text>
+
+    <path d="M364,63 L404,63" class="flow" marker-end="url(#a6)"/>
+
+    <rect x="410" y="40" width="170" height="46" class="warn"/>
+    <text x="424" y="60" class="strong ink-warn">kernel: page cache</text>
+    <text x="424" y="76" class="mono">write() has returned</text>
+
+    <path d="M584,63 L624,63" class="flow" marker-end="url(#a6)"/>
+    <text x="576" y="30" class="mono ink-good">fsync()</text>
+
+    <rect x="630" y="40" width="170" height="46" class="good"/>
+    <text x="644" y="60" class="strong ink-good">disk</text>
+    <text x="644" y="76" class="mono">durable</text>
+
+    <!-- MARKS 5-6 · the two boundaries that decide what a crash costs -->
+    <path d="M385,32 L385,112" class="flow-dim"/>
+    <text x="190" y="128" class="mono ink-bad">&#8592; kill -9 redis loses everything left of here</text>
+
+    <path d="M605,32 L605,134" class="flow-dim"/>
+    <text x="410" y="150" class="mono ink-warn">&#8592; losing the machine loses the page cache too</text>
+
+    <!-- MARK 7 · the policy table: when that last hop happens -->
+    <text x="20" y="188" class="strong">appendfsync decides when that last hop happens &#8212; and so what a crash costs</text>
+
+    <text x="20" y="212" class="lbl-dim">policy</text>
+    <text x="112" y="212" class="lbl-dim">when the fsync happens</text>
+    <text x="470" y="212" class="lbl-dim">what a crash costs you</text>
+    <text x="666" y="212" class="lbl-dim">measured here</text>
+    <path d="M20,220 L806,220" class="rule"/>
+
+    <text x="20" y="242" class="mono strong">no</text>
+    <text x="112" y="242" class="lbl">whenever the kernel decides &#8212; you are not told</text>
+    <text x="470" y="242" class="lbl ink-bad">seconds to a minute</text>
+    <text x="666" y="242" class="num">301 205 rps</text>
+    <path d="M20,252 L806,252" class="rule"/>
+
+    <text x="20" y="274" class="mono strong">everysec</text>
+    <text x="112" y="274" class="lbl">a background thread, once a second</text>
+    <text x="470" y="274" class="lbl ink-warn">up to 1 s of writes</text>
+    <text x="666" y="274" class="num">306 748 rps</text>
+    <path d="M20,284 L806,284" class="rule"/>
+
+    <text x="20" y="306" class="mono strong">always</text>
+    <text x="112" y="306" class="lbl">before the reply reaches the client</text>
+    <text x="470" y="306" class="lbl ink-good">nothing acknowledged is lost</text>
+    <text x="666" y="306" class="num ink-bad">80 128 rps</text>
+    <path d="M20,316 L806,316" class="rule"/>
+
+    <text x="20" y="344" class="lbl"><tspan class="strong">everysec is free</tspan> &#8212; indistinguishable from no fsync at all. <tspan class="strong ink-bad">always costs 3.8&#215; throughput</tspan> and takes p50 from 0.087 ms to 0.623 ms.</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">Say this while you draw it</span>
+    <ol class="narrate">
+      <li>Four boxes, left to right: <b>client, redis, kernel, disk</b>. That is the whole journey of one <code>SET</code>, and almost every durability argument is really an argument about which box the data is in.</li>
+      <li>Draw the first dashed line <b>between redis and the kernel</b>. That is the process boundary: <code>kill -9</code> loses everything left of it. This is the line the lab crosses in step 2.</li>
+      <li>Draw the second dashed line <b>between the kernel and the disk</b>. Losing the machine loses the page cache too — which is why <code>write()</code> returning means nothing about durability.</li>
+      <li>Label the last arrow <b><code>fsync()</code></b>. It is the only mark on the diagram that makes data survive, and every policy below is just a choice about when to draw it.</li>
+      <li>Three rows. <b><code>no</code></b>: the kernel decides. <b><code>everysec</code></b>: a background thread, once a second. <b><code>always</code></b>: before the client hears back.</li>
+      <li>Land it with the numbers: <b><code>everysec</code> is free</b> — it measured slightly faster than no fsync at all, inside noise. <b><code>always</code> costs 3.8&#215;.</b> So the real question is never “durable or not”, it is whether one second is acceptable.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. If you can draw this you can answer any durability question about any store, not just Redis — the boxes change names, the boundaries do not.</p>
+  <ul>
+    <li>Four boxes in order, and <b>which one the data is in</b> after <code>write()</code> returns. It is the third one, not the fourth.</li>
+    <li><b>Both dashed boundaries</b>, and what kind of crash crosses each.</li>
+    <li><b><code>fsync()</code> on the last arrow.</b> If it is not labelled, the diagram has no mechanism in it.</li>
+    <li>The three policies against <b>what a crash costs</b> — not against their names.</li>
+  </ul>
+  <span class="timer">Bonus, and worth saying out loud: none of this is guaranteed if the drive has its own volatile write cache.</span>
+</div>
+
+<h2>Two durability mechanisms, three fsync policies</h2>
+
+<h3>RDB — point-in-time snapshots</h3>
+
+<p>Redis <code>fork()</code>s, and the child writes the entire dataset to a compact binary file while the parent keeps serving. Copy-on-write means the parent does no disk I/O at all.</p>
+
+<p>The costs are specific. You lose everything written since the last snapshot — typically minutes. And <code>fork()</code> on a large dataset takes real time: the Redis documentation is blunt that it <em>“may result in Redis stopping serving clients for some milliseconds or even for one second if the dataset is very big and the CPU performance is not great.”</em> On a service with an 8-second turn budget and a cache in the hot path, a one-second stall is a p99 event caused entirely by your durability configuration.</p>
+
+<h3>AOF — append-only log</h3>
+
+<p>Every write command is appended to a log and replayed on restart. Since Redis 7.0 this is a multi-part affair: a base snapshot plus incremental files, tracked by a manifest. Durability is governed by <code>appendfsync</code>:</p>
+
+<div class="table-wrap">
+<table>
+  <caption>From the Redis persistence documentation. The default is <code>everysec</code>, and it is the right default.</caption>
+  <thead>
+    <tr><th><code>appendfsync</code></th><th>fsync happens</th><th>Worst-case loss</th><th>Cost</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>always</code></td><td>Before replying to the client</td><td>Effectively nothing</td><td>“Very very slow, very safe” — the docs' own words. Group commit helps under parallel load.</td></tr>
+    <tr><td><code>everysec</code></td><td>Once per second, on a background thread</td><td>One second of writes</td><td>Roughly snapshot-speed since 2.4. The default.</td></tr>
+    <tr><td><code>no</code></td><td>Whenever the kernel decides — around 30 s on Linux</td><td>Tens of seconds</td><td>Fastest. You have handed durability to the page cache.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note">
+  <span class="callout-label">What the docs actually recommend</span>
+  <p>Both, together. RDB alone if you can tolerate losing a few minutes in a disaster. AOF alone is <em>discouraged</em> — the docs want an RDB snapshot around anyway, for faster restarts and as insurance against bugs in the AOF engine. And note the compose file in this repo runs with <code>--save ""</code> and <code>--appendonly no</code>: <strong>no persistence at all</strong>, which is a defensible choice for a pure cache and a catastrophic one for anything else.</p>
+</div>
+
+<h2>Lab — lose data on purpose</h2>
+
+<div class="lab">
+  <header>
+    <span class="kicker">Lab 0006</span>
+    <span class="est">~15 minutes</span>
+    <h3>Kill Redis, then make it survive</h3>
+  </header>
+  <div class="body">
+    <div class="prereq">
+      <span>Needs:</span>
+      <span class="chip needs-docker">Docker Desktop running</span>
+      <span class="chip">lessons 0003–0005</span>
+    </div>
+
+    <ol class="steps">
+      <li>
+        <p class="what">Confirm you are running with no persistence, then write something you would mind losing.</p>
+        <pre class="cmd"><span class="prompt">$ </span>docker compose exec redis redis-cli config get save appendonly
+<span class="prompt">$ </span>docker compose exec redis redis-cli set important <span class="str">"rubric-score-for-vendor-42"</span>
+<span class="prompt">$ </span>docker compose exec redis redis-cli get important</pre>
+        <pre class="out">1) "save"
+2) ""
+3) "appendonly"
+4) "no"
+"rubric-score-for-vendor-42"</pre>
+      </li>
+
+      <li>
+        <p class="what">Kill it hard. <code>kill -9</code>, not a graceful stop — a graceful shutdown saves, which is exactly the difference this step is about.</p>
+        <pre class="cmd"><span class="prompt">$ </span>docker compose kill -s SIGKILL redis
+<span class="prompt">$ </span>docker compose up -d redis
+<span class="prompt">$ </span>docker compose exec redis redis-cli get important</pre>
+        <pre class="out"><span class="fail">(nil)</span></pre>
+        <div class="expect broken">
+          <span class="label">You should see</span>
+          <p><code>(nil)</code>. Everything is gone. Now do the same with <code>docker compose stop</code> instead and note that the result may differ — a clean shutdown can persist even when periodic saving is off. <strong>Never conclude “my data survives restarts” from a graceful restart.</strong> Test the ungraceful one, because that is the one production gives you.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Turn on AOF at runtime — and note that this is <strong>two</strong> commands, not one. Enable it on the live server with <code>CONFIG SET</code> first, because editing the config file and restarting means the restart happens before AOF exists. Then persist the change, or the next restart silently reverts it.</p>
+        <pre class="cmd"><span class="prompt">$ </span>docker compose exec redis redis-cli config set appendonly yes
+<span class="prompt">$ </span>docker compose exec redis redis-cli config rewrite
+<span class="prompt">$ </span>docker compose exec redis redis-cli config get appendfsync
+<span class="prompt">$ </span>docker compose exec redis redis-cli set important <span class="str">"rubric-score-for-vendor-42"</span>
+<span class="prompt">$ </span>docker compose exec redis redis-cli info persistence \
+    | grep -E <span class="str">'aof_enabled|aof_last_bgrewrite_status|aof_last_write_status'</span></pre>
+        <pre class="out">OK
+(error) <span class="fail">ERR Rewriting config file: Read-only file system</span>
+appendfsync
+everysec
+aof_enabled:<span class="pass">1</span>
+aof_last_bgrewrite_status:ok
+aof_last_write_status:ok</pre>
+        <div class="expect">
+          <span class="label">You should see</span>
+          <p><code>aof_enabled:1</code>, <code>appendfsync everysec</code>, and both status fields <code>ok</code>. Those four fields are what to check before you claim a Redis is durable — and right now they all say it is.</p>
+          <p>But <code>config rewrite</code> <strong>failed</strong>, and that failure is the entire lesson. <code>conf/redis.conf</code> is mounted read-only on purpose. So the running server is durable and its configuration is not, and nothing in <code>INFO</code> will ever tell you that.</p>
+        </div>
+        <div class="caution">
+          <span class="callout-label">Do not &#8220;fix&#8221; this by making the mount writable</span>
+          <p><a href="https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/" target="_blank" rel="noopener">The Redis docs</a> tell you to follow <code>CONFIG SET appendonly yes</code> with <code>CONFIG REWRITE</code> or a hand edit, and that advice is sound in general. It is a trap on <em>this image</em>. <code>CONFIG REWRITE</code> writes the currently-loaded modules back into the file as <code>loadmodule</code> lines, and since <code>redis:8-alpine</code> loads those modules itself, the next start tries to load them twice and the server aborts:</p>
+          <pre class="out"># Module /usr/local/lib/redis/modules//redisbloom.so initialization failed.
+  Module not loaded
+# <span class="fail">Can't load module ... server aborting</span></pre>
+          <p>Verified on <code>redis:8-alpine</code>, and the container will not start again until you hand-edit the file back. The read-only mount is there so you cannot do it by accident. Use <code>CONFIG SET</code> for the running incident and the <strong>file</strong> for the durable change &#8212; which is step 5, and is the twelve-factor answer anyway.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Kill it hard again.</p>
+        <pre class="cmd"><span class="prompt">$ </span>docker compose kill -s SIGKILL redis
+<span class="prompt">$ </span>docker compose up -d redis
+<span class="prompt">$ </span>docker compose exec redis redis-cli get important</pre>
+        <pre class="out">(empty)
+<span class="prompt">$ </span>... config get appendonly
+appendonly
+<span class="fail">no</span></pre>
+        <div class="expect broken">
+          <span class="label">You should see &#8212; and this is the point</span>
+          <p><strong>The value is still gone.</strong> And <code>appendonly</code> is back to <code>no</code>.</p>
+          <p>You enabled AOF, you watched <code>aof_enabled:1</code> with your own eyes, you wrote the key afterwards, and you still lost it. Sit with that for a second before reading on: every observable signal said durable.</p>
+          <p>The reason is step 3's failed <code>config rewrite</code>. The container starts from <code>conf/redis.conf</code>, that file still says <code>appendonly no</code>, and a restart reads the file &#8212; not the memory of what you typed. The AOF you created is sitting on disk, unread, because the server that came back was never told to look for it.</p>
+        </div>
+        <div class="ba">
+          <div class="before">
+            <span class="label">the wrong fix &#8212; CONFIG SET only</span>
+            <p class="figure">(empty)</p>
+            <p class="gloss">Durable until the next restart, which is not durable.</p>
+          </div>
+          <div class="after">
+            <span class="label">the real fix &#8212; the config file</span>
+            <p class="figure">step 5</p>
+            <p class="gloss">The only state that survives is declared state.</p>
+          </div>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Now do it properly. Change the <strong>file</strong>, not the server, and recreate the container so it reads it.</p>
+        <pre class="cmd"><span class="comment"># in anchor/vendor-eval-gateway/conf/redis.conf, change one line:</span>
+<span class="comment">#   appendonly no   -&gt;   appendonly yes</span>
+<span class="prompt">$ </span>docker compose up -d --force-recreate redis
+<span class="prompt">$ </span>docker compose exec redis redis-cli config get appendonly
+<span class="prompt">$ </span>docker compose exec redis redis-cli set important <span class="str">"rubric-score-for-vendor-42"</span>
+<span class="prompt">$ </span>sleep 2
+<span class="prompt">$ </span>docker compose kill -s SIGKILL redis &amp;&amp; docker compose up -d redis
+<span class="prompt">$ </span>docker compose exec redis redis-cli get important</pre>
+        <pre class="out">appendonly
+<span class="pass">yes</span>
+"<span class="pass">rubric-score-for-vendor-42</span>"</pre>
+        <div class="expect">
+          <span class="label">You should see</span>
+          <p>The value back, after a <code>SIGKILL</code>. You have moved from &#8220;lose everything&#8221; to &#8220;lose at most one second&#8221;, and the cost was one line in a file that is checked into git.</p>
+          <p>Confirm where it went. Since Redis 7.0 the AOF is <strong>multi-part</strong> — there is no single <code>appendonly.aof</code> any more:</p>
+          <pre class="cmd"><span class="prompt">$ </span>docker compose exec redis ls /data/appendonlydir</pre>
+          <pre class="out">appendonly.aof.1.base.rdb
+appendonly.aof.1.incr.aof
+appendonly.aof.manifest</pre>
+          <p>Now sit with the remaining exposure: <strong>one second of writes is still a real quantity.</strong> Whether that matters depends entirely on what is in there — for cached embeddings it is irrelevant, for a rubric score it is a bug.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Measure what durability costs. Compare write throughput across all three fsync policies using the benchmark tool that ships with Redis.</p>
+        <pre class="cmd"><span class="prompt">$ </span><span class="kw">for</span> policy <span class="kw">in</span> no everysec always; <span class="kw">do</span>
+    docker compose exec -T redis redis-cli config set appendfsync $policy > /dev/null
+    <span class="kw">echo</span> <span class="str">"--- appendfsync=$policy"</span>
+    docker compose exec -T redis redis-benchmark -t set -n 20000 -q
+  <span class="kw">done</span></pre>
+        <div class="expect">
+          <span class="label">You should see</span>
+          <p>Run the loop three times. On Redis 8.10.1 in a Docker Desktop VM, with <code>-n 50000</code>:</p>
+          <div class="table-wrap">
+          <table>
+            <thead><tr><th><code>appendfsync</code></th><th>requests/sec, 3 runs</th><th>p50</th></tr></thead>
+            <tbody>
+              <tr><td><code>no</code></td><td>292 398 &#8211; 301 205</td><td>0.087 &#8211; 0.095 ms</td></tr>
+              <tr><td><code>everysec</code></td><td>297 619 &#8211; 306 748</td><td>0.087 ms</td></tr>
+              <tr><td><code>always</code></td><td><strong>77 640 &#8211; 80 128</strong></td><td><strong>0.607 &#8211; 0.623 ms</strong></td></tr>
+            </tbody>
+          </table>
+          </div>
+          <p>Three runs, not one, because the interesting result only shows up as a range: <strong><code>no</code> and <code>everysec</code> are indistinguishable</strong> — <code>no</code> measured <em>lower</em> than <code>everysec</code> in two runs of three. So the tradeoff is not &#8220;durability costs throughput&#8221;. It is: <strong><code>everysec</code> is free, and <code>always</code> costs 3.8&#215; throughput and 7&#215; p50</strong> to close a one-second window.</p>
+          <p>If you report a single number from a single run here, you will eventually report that <code>everysec</code> is slower than <code>no</code>, and be asked to explain a mechanism that does not exist.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Measure the fork cost. Load a real dataset first — note the <code>-r</code>, which is load-bearing: without it <code>redis-benchmark</code> writes the same key 600 000 times and your dataset never grows.</p>
+        <pre class="cmd"><span class="prompt">$ </span>docker compose exec redis redis-cli config set maxmemory 1gb
+<span class="prompt">$ </span>docker compose exec redis redis-benchmark -t set -n 600000 -d 512 <span class="hi">-r 600000</span> -q
+<span class="prompt">$ </span>docker compose exec redis redis-cli info memory | grep used_memory_human
+<span class="prompt">$ </span>docker compose exec redis redis-cli bgsave
+<span class="prompt">$ </span>docker compose exec redis redis-cli info stats | grep -E <span class="str">'latest_fork_usec|total_forks'</span></pre>
+        <pre class="out">used_memory_human:253.19M
+Background saving started
+latest_fork_usec:<span class="hi">2078</span>
+total_forks:2</pre>
+        <div class="expect">
+          <span class="label">You should see</span>
+          <p><code>latest_fork_usec</code> in the hundreds to low thousands. Redis reports the fork duration itself, which is the only honest instrument here — and knowing that is most of the value of this step.</p>
+          <p>Now show it scales with memory rather than with anything else. Flush, reload at three sizes, and read the counter each time:</p>
+          <div class="table-wrap">
+          <table>
+            <thead><tr><th><code>used_memory</code></th><th><code>latest_fork_usec</code></th></tr></thead>
+            <tbody>
+              <tr><td>43.46 MB</td><td>549</td></tr>
+              <tr><td>169.04 MB</td><td>674</td></tr>
+              <tr><td>385.12 MB</td><td>1168</td></tr>
+            </tbody>
+          </table>
+          </div>
+          <p>Sub-millisecond, and growing with the size of the page tables the kernel has to copy — not with the size of the RDB it is about to write. Extrapolate that to a 30 GB instance and it stops being sub-millisecond.</p>
+        </div>
+        <div class="caution">
+          <span class="callout-label">Do not try to see this with <code>redis-cli --latency</code></span>
+          <p>The obvious move is to watch <code>--latency</code> across the <code>bgsave</code>, and it does not work. That tool samples with <code>PING</code> about fourteen times a second, so a one-millisecond stall almost certainly lands between two samples. Measured here on a 253 MB dataset: <strong>max latency 0.655 ms before the save and 0.513 ms during it</strong> — the &#8220;during&#8221; number came out <em>lower</em>, which is sampling noise and nothing else.</p>
+          <p>This is a small lesson in instrument choice that generalises well past Redis: an absent spike in a sampled tool is not evidence of an absent spike. If you had reported &#8220;I looked and there was no stall&#8221;, you would have been confidently wrong, using a real tool, on a real system.</p>
+        </div>
+        <div class="expect broken">
+          <span class="label">Then see the version that really does hurt</span>
+          <p><code>BGSAVE</code> forks and the fork is cheap. <code>SAVE</code> does not fork — it snapshots on the one thread you have. Time it from outside:</p>
+          <pre class="cmd"><span class="prompt">$ </span>time docker compose exec redis redis-cli save</pre>
+          <p>On 385 MB this <strong>blocked the server for 748 ms</strong>. Not a spike — three quarters of a second in which Redis answered nothing at all, which is 9&#8239;% of your entire per-turn budget spent on a command somebody typed by hand. That is why <code>SAVE</code> exists only for the case where blocking is what you wanted.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+</div>
+
+<div class="evidence" data-evidence-for="0006">
+  <header>
+    <span class="callout-label">Your numbers, not mine</span>
+    <span class="hint">saved in this browser as you type</span>
+  </header>
+  <div class="body">
+    <p>The fsync figures here are from a Docker Desktop VM on an Apple laptop, which is close to the worst realistic disk you will ever measure on. Yours should be better, and the ratio matters more than the absolute number.</p>
+
+    <div class="rows">
+      <div class="row">
+        <span class="ran">Step 4, the <strong>wrong fix</strong>: after <code>CONFIG SET appendonly yes</code> alone, what did <code>get important</code> return once the container came back?</span>
+        <span class="field"><label for="e6-lost">The value</label><input type="text" id="e6-lost" data-field="wrong_fix" placeholder="empty / survived"></span>
+        <span class="field"><label for="e6-ao">appendonly now</label><input type="text" id="e6-ao" data-field="wrong_fix_ao" placeholder="yes / no"></span>
+        <span class="why-row"><label for="e6-lostwhy">And in your real deployment, where does that durability setting live &#8212; the running server, a manifest, or a Terraform variable? Whichever it is, that is the only one that survives a restart.</label><textarea id="e6-lostwhy" data-field="wrong_fix_why" placeholder="If the answer is 'someone ran CONFIG SET during an incident', the cluster has been non-durable since its last restart and nothing said so."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 6, <strong><code>appendfsync</code> throughput</strong>. Run it three times and take the range, not one figure &#8212; the first run is always the odd one</span>
+        <span class="field"><label for="e6-nosync">No</label><input type="text" id="e6-nosync" data-field="rps_no" placeholder="e.g. 292k&#8211;301k"></span>
+        <span class="field"><label for="e6-every">everysec</label><input type="text" id="e6-every" data-field="rps_everysec" placeholder="e.g. 298k&#8211;307k"></span>
+        <span class="why-row"><label for="e6-always">And <code>always</code>, with its p50 &#8212; the p50 is the interesting half, because it is one device round trip per write and you can quote it</label><textarea id="e6-always" data-field="rps_always" placeholder="e.g. 78k&#8211;80k rps, p50 0.62 ms &#8212; so 0.54 ms of pure fsync on every write, and 3.8x the throughput."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Did <code>no</code> actually beat <code>everysec</code> on your machine? Note it honestly if the two are indistinguishable</span>
+        <span class="field"><label for="e6-order">Which won</label><input type="text" id="e6-order" data-field="order" placeholder="e.g. everysec, twice of three"></span>
+        <span class="field"><label for="e6-verdict">so everysec is</label><input type="text" id="e6-verdict" data-field="verdict" placeholder="free / measurably costly"></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 7, the <strong>fork cost</strong>: <code>latest_fork_usec</code> at your largest dataset, and how long a blocking <code>SAVE</code> held the server</span>
+        <span class="field"><label for="e6-bgsave">latest_fork_usec</label><input type="text" id="e6-bgsave" data-field="bgsave" placeholder="e.g. 1168 &#181;s @ 385 MB"></span>
+        <span class="field"><label for="e6-save">Blocking SAVE</label><input type="text" id="e6-save" data-field="save" placeholder="e.g. 748 ms"></span>
+        <span class="why-row"><label for="e6-forkwhy">How much of your 8-second per-turn budget would that spike eat if it landed mid-request, and is the cache on the critical path when it does?</label><textarea id="e6-forkwhy" data-field="fork_why" placeholder="A fork stall is a latency feature of your read path, caused entirely by a persistence setting you may not need at all."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">The decision: <strong>should the embedding cache from 0003 be durable at all?</strong> One sentence, and it has to survive a follow-up</span>
+        <span class="field"><label for="e6-decide">Your answer</label><input type="text" id="e6-decide" data-field="decision" placeholder="no persistence"></span>
+        <span class="field"><label for="e6-cost">Cold-start cost</label><input type="text" id="e6-cost" data-field="cold_cost" placeholder="e.g. 167 ms per key"></span>
+        <span class="why-row"><label for="e6-decidewhy">Why &#8212; and name the thing in your system for which the opposite answer is correct, because being able to draw that line is the actual skill</label><textarea id="e6-decidewhy" data-field="decision_why" placeholder="Embeddings are derived and recomputable, so a restart is a latency blip. A rubric score is not derived from anything, so losing one second of them is a correctness bug, and it does not belong in Redis at all."></textarea></span>
+      </div>
+    </div>
+
+    <div class="earned">
+      <span class="callout-label">The bullet this lesson earns</span>
+      <p>&#8220;Chose the persistence configuration per data class rather than per habit: measured <code>appendfsync always</code> at <span data-fill="rps_always" class="placeholder">[run step 6]</span> against <span data-fill="rps_everysec" class="placeholder">[run step 6]</span> for <code>everysec</code>, and ran the derived embedding cache with <span data-fill="decision" class="placeholder">[decide]</span> because its contents are recomputable in <span data-fill="cold_cost" class="placeholder">[measure]</span>.&#8221;</p>
+      <p class="caveat">The strong half of that bullet is the last clause. Anyone can turn AOF on; the senior signal is having decided <em>not</em> to, on purpose, with the recompute cost in hand.</p>
+    </div>
+  </div>
+</div>
+
+<div class="caution">
+  <span class="callout-label">The decision this leaves you with</span>
+  <p>For the embedding cache you built in lesson 0003, the correct configuration is the one in the compose file: <strong>no persistence at all</strong>. The values are derived, recomputable in 120 ms, and a cold start after a Redis restart is a brief latency blip rather than data loss. Turning on AOF would buy you nothing and cost you fsync overhead plus fork stalls in your hot path.</p>
+  <p>That is the actual skill here — not “configure AOF”, but knowing that this particular cache should <em>not</em> be durable, and being able to say why in one sentence.</p>
+</div>
+
+<h2 id="underneath-0006">Underneath</h2>
+
+<div class="underneath">
+  <span class="callout-label">One layer down &#183; what fsync actually promises, and what forks cost</span>
+
+  <p>Above, durability is a setting. One layer down it is a syscall with a specific and surprisingly narrow contract, and a background save is a <code>fork()</code> whose cost is proportional to something other than the thing you would guess.</p>
+
+  <h3><code>write()</code> is not durability, and <code>fsync()</code> is not certainty</h3>
+
+  <p>When Redis appends to the AOF, the <code>write()</code> returns as soon as the bytes are in the <strong>kernel page cache</strong>. At that moment the data has already survived one class of failure completely: <code>kill -9</code> the Redis process, or let it segfault, and the bytes are still there, because they are no longer the process's problem. What it has <em>not</em> survived is losing the machine.</p>
+
+  <p><code>fsync()</code> is the request to push those pages to the device. That is the whole of the guarantee — and it stops at the device. If the drive has a volatile write cache and does not honour a flush, <code>fsync()</code> can return before anything is on stable media, and neither Redis nor the kernel can tell. You are running these labs inside a Docker Desktop VM, which adds a virtualised block layer on top of that. So the honest statement is not &#8220;<code>always</code> means no data loss&#8221; but <strong>&#8220;<code>always</code> means Redis has done everything it can ask for.&#8221;</strong></p>
+
+  <h3><code>everysec</code> is a window, not a delay</h3>
+
+  <p>The name reads like a one-second lag. It is not: a background thread issues an fsync roughly once a second, so at any given instant the amount of un-fsynced data is somewhere <strong>between zero and one second's worth</strong>, depending where in the cycle you are.</p>
+
+  <div class="derive">
+    <p>Which is why this is one of the few things in this course you cannot reliably demonstrate. Writing a key and immediately <code>kill -9</code>-ing the container, with no sleep at all, the value <em>survived</em> — the fsync thread happened to have run inside the tens of milliseconds Docker took to deliver the signal.</p>
+    <span class="eq">write &#8594; kill immediately   &#8594;  key survived   (this run)
+write &#8594; sleep 1.2 s &#8594; kill  &#8594;  key survived   (always)</span>
+    <p>A single trial proves nothing about a probabilistic window, and reporting &#8220;I killed it and lost data&#8221; from one run would be exactly the kind of claim that falls apart when someone repeats it. Reason about the window; do not try to photograph it.</p>
+  </div>
+
+  <h3>Where the 3.8&#215; goes</h3>
+
+  <div class="derive">
+    <p>The throughput numbers are almost uninteresting on their own. The latency is where the mechanism shows:</p>
+    <span class="eq">everysec  p50 = 0.087 ms   306 748 rps
+always    p50 = 0.623 ms    80 128 rps
+
+per-write fsync cost = 0.623 &#8722; 0.087 = <b>0.536 ms</b>
+throughput ratio     = 306 748 / 80 128 = <b>3.83&#215;</b></span>
+    <p>That 0.536 ms is one device round trip, paid on the critical path of every single write, and it is why <code>always</code> is a decision about your workload's write rate rather than a general recommendation. At 80 000 writes a second it is still an enormous amount of Redis &#8212; the question is whether you need the last second.</p>
+  </div>
+
+  <h3>Why a &#8220;background&#8221; save shows up in your latency</h3>
+
+  <p><code>BGSAVE</code> forks. The child inherits the parent's address space <strong>copy-on-write</strong>, so at the instant of the fork nothing is copied and the snapshot looks free. Then every page the <em>parent</em> writes to has to be duplicated before the write can proceed, so the extra memory a background save consumes is proportional to <strong>how much you write while it runs</strong> — not to the size of the dataset. On a write-heavy instance that can approach a second full copy of the keyspace, which is the real reason a Redis box needs headroom well beyond <code>maxmemory</code>.</p>
+
+  <p>And <code>fork()</code> itself is not free: the kernel has to copy the parent's page tables, so the stall scales with how much memory the process maps. On a large instance that is a measurable pause in a single-threaded server, which means <em>your persistence configuration is a latency feature of your read path</em>. It is the same trade as <code>always</code>, moved from throughput to tail latency.</p>
+
+  <p>One artefact worth knowing because it changes what you look for on disk: since Redis 7.0 the AOF is <strong>multi-part</strong>. There is no single <code>appendonly.aof</code> any more &#8212; the lab leaves behind an <code>appendonlydir/</code> holding <code>appendonly.aof.1.base.rdb</code>, <code>appendonly.aof.1.incr.aof</code> and a <code>manifest</code>. A rewrite writes a new base and starts a fresh increment rather than rewriting one file in place.</p>
+
+  <p class="lands"><b>Durability is a question about which of four boxes the data is in, and every knob here buys a boundary crossing at a stated price.</b> <code>everysec</code> costs nothing measurable and leaves a window; <code>always</code> costs 0.54 ms per write and closes it; RDB costs a fork stall and copies pages in proportion to your write rate. None of them make the disk honest.</p>
+</div>
+
+<h2>Check yourself</h2>
+
+<div class="quiz" data-quiz-id="0006-q1">
+  <p class="q">AOF is enabled with default settings and the machine loses power. How much do you lose?</p>
+  <ol class="options">
+    <li data-correct="true">Roughly one second of writes, given the default fsync policy</li>
+    <li>Nothing at all, because Redis fsyncs on every single write</li>
+    <li>Everything since the last RDB snapshot was written to disk</li>
+    <li>Only the writes which had not yet reached any replica</li>
+  </ol>
+  <div class="why">
+    <p>The default <code>appendfsync</code> is <code>everysec</code>, which flushes once per second on a background thread. A power loss can therefore cost up to about a second of writes. That is the documented, intended tradeoff — the docs describe it as “both fast and relatively safe”.</p>
+    <p>“Nothing at all” describes <code>appendfsync always</code>, which the docs call “very very slow, very safe”. If you need it you can have it, but you will pay for it, and step 5 of the lab told you roughly how much on your own disk.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0006-q2">
+  <p class="q">Why can an RDB snapshot hurt your p99 even though the parent process does no disk I/O?</p>
+  <ol class="options">
+    <li data-correct="true">Because the fork can pause the main thread noticeably</li>
+    <li>Because snapshots are written by the main thread itself</li>
+    <li>Because the RDB file gets rewritten entirely from scratch</li>
+    <li>Because every client connection is dropped during the save</li>
+  </ol>
+  <div class="why">
+    <p><code>fork()</code> is not free. On a large dataset the kernel has page tables to copy, and the docs warn this can stall Redis for milliseconds or, on a big dataset with weak CPU, up to a second. Since Redis is single-threaded, a stalled process is a stalled cache for every client at once.</p>
+    <p>“Written from scratch” is true and is not the reason — the <em>child</em> does that work, and copy-on-write is precisely the mechanism that keeps it off the parent. The cost is the fork itself, which is why this surprises people who have read that snapshots are asynchronous.</p>
+  </div>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">A spoken answer to <em>&#8220;what happens to your data if Redis dies?&#8221;</em> — which is really a question about whether you have ever thought about it. Read it aloud, then say it again with the page covered.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">We put an embedding cache in front of the retrieval hop. It took a real Redis restart before anyone asked what was in there, and whether we minded losing it.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">A write lives in one of four places: the client, the Redis process, the kernel's page cache, or the disk. <code>write()</code> returning only gets you to the page cache — so a <code>kill -9</code> is survivable, and losing the machine is not.</p>
+      <p class="line"><code>fsync</code> is the only thing that crosses the last boundary. <code>appendfsync</code> is just a choice about when to call it: whenever the kernel feels like it, once a second, or before the client hears back.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">I killed it with <code>SIGKILL</code> and lost the data, on purpose, to see it. Then I benchmarked all three policies. <code>everysec</code> came out <b>indistinguishable from no fsync at all</b> — about 300 000 writes a second either way. <code>always</code> came out at 80 000, with p50 going from 0.09 to 0.62 milliseconds.</p>
+      <p class="line">So durability is nearly free and <em>full</em> durability is not: that half a millisecond is one device round trip on every write.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">And then I chose not to turn it on. The embeddings are derived: a cold cache is a 167-millisecond latency blip, not lost data. So AOF would buy nothing, and cost fsync on the hot path plus fork stalls from snapshots.</p>
+      <p class="line">The rubric scores are the opposite: nothing recomputes them, so one second of loss is a correctness bug. Those live in Postgres. The decision is per data class, not per cluster.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;We turned on AOF, so it's durable.&#8221;</span> Two different things can be wrong with that at once. If it was turned on with <code>CONFIG SET</code> during an incident and never written to the config file, it reverted at the next restart and <code>INFO</code> agreed with you right up until you looked. And even with it on, <code>everysec</code> leaves a window &#8212; a window, not a delay, so at any instant you have between zero and one second of writes unflushed.</p>
+  <p>The version that holds: <span class="quoted">&#8220;AOF is on in the config file, not just on the running server, at <code>everysec</code> &#8212; so we can lose up to a second, and that is a decision we made about this data rather than a default we inherited.&#8221;</span></p>
+</div>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      “Your Redis restarts. What breaks?”
+      <span class="tell">For your embedding cache: nothing breaks, latency rises to the uncached baseline until it warms. Being able to say “nothing, and here is why that is by design” is a much stronger answer than describing a durability setup you did not need.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Nothing breaks &#8212; and that is a deliberate property, not luck. Everything in there is a derived embedding, recomputable in about 167&#8239;ms, so a restart is a cold cache and a latency blip on the first request per key. The gateway degrades to the uncached path and keeps serving, which I proved by stopping Redis with the service running.</p>
+        <p>If the answer were &#8220;we lose rubric scores&#8221;, the fix would not be AOF. It would be that the rubric scores never belonged in a cache.</p>
+        <span class="invites">Invites &#183; <b>&#8220;How long is that blip, and how many keys deep?&#8221; &#8212; which is a question about your cold-start thundering herd, so it walks straight into lesson 0005.</b></span>
+      </details>
+    </li>
+    <li>
+      “Would you put the rubric scores in Redis?”
+      <span class="tell">No. They are the output of record and belong in Postgres, where you have transactions and a durability story you can audit. Cache the expensive inputs, persist the audited outputs.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>No. They are not derived from anything &#8212; if we lose one we cannot recompute it, we have to re-run an evaluation &#8212; so the acceptable loss window is zero, and Redis's best offer at a price I would pay is one second.</p>
+        <p>I could take <code>appendfsync always</code> and close it, and it measured 80 000 writes a second, which is plenty. But then I would be paying 0.54&#8239;ms of fsync per write to make a cache behave like a database that is already sitting next to it and does this properly, with transactions I also want.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What would make you change your mind?&#8221; &#8212; write volume Postgres could not take, and a loss window someone had actually agreed to in writing.</b></span>
+      </details>
+    </li>
+    <li>
+      “Redis is single-threaded. Is that a problem at your scale?”
+      <span class="tell">Not for throughput at cache-sized workloads — but one slow command blocks all clients, so the real answer is about banning <code>KEYS</code>, watching <code>slowlog</code>, and keeping values small.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Not at our scale, and single-threaded is mostly why it is fast &#8212; no locks, no context switching, and every command is atomic for free, which is what makes a Lua script a usable unit of work.</p>
+        <p>What it does mean is that one slow operation stalls <em>everything</em>. A <code>KEYS *</code> on a large keyspace is an outage, not a slow query. And it makes persistence a latency concern: a <code>fork()</code> for a snapshot pauses the one thread for as long as it takes the kernel to copy the page tables.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So what is your slowest command?&#8221; &#8212; the honest answer is that I should have <code>SLOWLOG</code> on a dashboard and do not yet.</b></span>
+      </details>
+    </li>
+    <li>
+      “How would you scale this cache past one node?”
+      <span class="tell">Replication for read scale and failover; Redis Cluster for sharded keyspace. The routing question underneath it is consistent hashing, which is lesson 0026 — say that you know the mechanism has a name and you will get there.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The first move is not a second node, it is checking whether I need one, because a single Redis is doing 300 000 writes a second on a laptop. If the constraint is memory rather than throughput &#8212; which for an embedding cache it will be &#8212; then it is Redis Cluster and the keyspace gets hashed across shards.</p>
+        <p>What that costs is multi-key atomicity: my keys are independent single-key <code>GET</code>/<code>SET</code>s, so I get away with it, but the moment anything wants two keys in one transaction they have to share a hash slot.</p>
+        <span class="invites">Invites &#183; <b>&#8220;How do keys map to shards, and what happens when you add one?&#8221; &#8212; consistent hashing, and that is lesson 0026, where I implement the ring and measure how many keys move.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="primary-source">
+  <span class="callout-label">Read this next — one source, not ten</span>
+  <span class="title"><a href="https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/" target="_blank" rel="noopener">Redis — Persistence</a></span>
+  <p>The definitive page. Read the RDB and AOF advantages/disadvantages lists, then the “How durable is the append only file?” section for the three fsync policies, then “Ok, so what should I use?” for the official recommendation. The migration procedure in “How can I switch to AOF” is worth reading even if you never do it — the warning that changing the config and restarting can lose data is the kind of operational detail that only appears in primary sources.</p>
+  <p class="cite">Also newer than most tutorials: Redis 8.10 added a <code>BACKUP</code> command family (<code>BACKUP START</code> / <code>SEAL</code> / <code>LIST</code> / <code>CLEANUP</code>) that produces a restorable backup without stopping writes or hand-managing AOF rewrites. Worth knowing exists.</p>
+</div>
+
+<h2>Recall — from lessons 0002–0005</h2>
+
+<div class="recall">
+  <details>
+    <summary>You are about to recommend <code>appendfsync always</code>. What must you measure first, and how?</summary>
+    <p class="answer">Write latency percentiles under realistic concurrency, with an <strong>open-loop</strong> generator. A closed-loop test will throttle itself around the fsync stalls and report a flattering p99 — the exact failure from lesson 0002. Also measure the cold path, since <code>always</code> makes every write slower, not just the tail.</p>
+    <span class="from">lesson 0002 · coordinated omission</span>
+  </details>
+  <details>
+    <summary>A one-second fork stall hits a cache serving a hot key that has just expired. What do you get?</summary>
+    <p class="answer">A stampede. The stall widens the miss window enormously, so far more concurrent requests pile into the miss path — and if your single-flight lock lives in Redis, the lock acquisition is stalled too, so coalescing fails at the exact moment you need it. This is why the in-process <code>asyncio.Lock</code> layer from lesson 0005 is worth having underneath the Redis one.</p>
+    <span class="from">lesson 0005 · stampede</span>
+  </details>
+  <details>
+    <summary>Your Redis has <code>maxmemory-policy noeviction</code> and AOF enabled, and memory fills. What is the failure?</summary>
+    <p class="answer">Writes start returning <code>OOM command not allowed</code> while reads keep succeeding — the quiet failure from lesson 0004. AOF changes nothing about it: durability and eviction are orthogonal. A full cache with perfect durability is a cache that durably remembers a stale working set.</p>
+    <span class="from">lesson 0004 · noeviction</span>
+  </details>
+  <details>
+    <summary>Which of the four things you cached in lesson 0003 would justify turning persistence on?</summary>
+    <p class="answer">None of them. Embeddings are pure and recomputable, retrieval results are derived and TTL'd, completions are regenerable, and rubric scores should never have been in Redis to begin with. The whole cache is disposable by construction — which is the correct outcome, and knowing it is why you can leave persistence off with confidence rather than by accident.</p>
+    <span class="from">lesson 0003 · what is cacheable</span>
+  </details>
+</div>
+
+<div class="ask">
+  <p><strong>This is the last lesson in the batch — and the calibration point.</strong> Tell me honestly: was Tier 1 pitched too low, about right, or too high? Which lesson taught you the most, and which felt like reading something you already knew? Lessons 0007 onward get built against your answer, and the spacing dashboard on the <a href="index.html">index</a> will start telling you what to revisit.</p>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">Where this lands on the r&#233;sum&#233;</span>
+  <p>This lesson teaches the mechanism from first principles and breaks it in a lab. The chapter opposite defends what you actually did with it, including the number on the r&#233;sum&#233;. An interviewer crosses between those two registers without warning.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../resume-mastery/lessons/0001-vendor-evaluation-platform.html">RM 0001 &#183; Owning a vendor-evaluation platform</a>
+      <span class="bridge-why">Postgres holds the rubric versions and the scorecards, and any cache you add sits beside it. The chapter names the invariants that must not move.</span>
+    </li>
+  </ol>
+</div>
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0005-stampede-penetration-avalanche.html">← 0005 · Stampede, penetration, avalanche</a></span>
+  <span><span class="dir">Next</span><a href="0007-sse-vs-websocket-for-tokens.html">0007 · SSE vs WebSocket for tokens →</a></span>
+</div>
+
+</div>
+</body>
+</html>

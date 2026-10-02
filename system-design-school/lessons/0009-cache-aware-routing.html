@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>Cache-Aware Routing</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0009">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">System Design School</a>
+    <span class="sep">/</span>
+    <span>Tier 1 &#183; Streaming &amp; LLM serving</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Lesson 0009</span>
+    <span class="sep">/</span>
+    <span>No Docker</span>
+  </div>
+  <h1>Cache-Aware Routing</h1>
+  <p class="standfirst">Lesson 0008's win lives in one replica's memory. Add a second replica behind a round-robin balancer and you throw most of it away &#8212; and the two obvious fixes fail in opposite directions, which is what makes this a design decision rather than a setting.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Take prefix-cache hit rate from <strong>47&#8239;% to 78&#8239;%</strong> and p99 first-word from <strong>396&#8239;ms to 172</strong> across four replicas, by changing which part of the prompt you hash &#8212; then find the version that puts every request on one server.</p>
+</div>
+
+<div class="anchor-box">
+  <span class="callout-label">Why you, specifically</span>
+  <blockquote>&#8220;Scale it to a million concurrent avatar interviews&#8230; <strong>what is the load balancer doing about sticky sessions when the session is stateful?</strong>&#8221;</blockquote>
+  <p>That is your own prep note, and it is the question this lesson answers. Every interview turn carries the whole conversation so far, so the cacheable part of a prompt grows with the conversation &#8212; and it exists on exactly one machine. A balancer that does not know which one is discarding the largest latency lever you have.</p>
+  <p>It is also the first lesson here where the naive answer and the clever answer are <em>both wrong</em>, in opposite ways, and the measured middle is the whole content.</p>
+  <p>That sentence is defended in full in <a href="../../resume-mastery/lessons/0002-llm-gateway-and-streaming.html">chapter 0002 of R&#233;sum&#233; Mastery</a> &#8212; this lesson is where the mechanism underneath it gets built and broken.</p>
+</div>
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>A load balancer's job used to be simple, because servers were interchangeable: any request could go anywhere, so you spread them evenly and were done. <b>A model server holding a prefix cache is not interchangeable.</b> It has something the others do not &#8212; the key-value blocks for conversations it has already seen &#8212; and sending the next turn somewhere else means paying full prefill again.</p>
+  <p>So the balancer has to optimise a different quantity: not &#8220;did every server get the same number of requests?&#8221; but &#8220;did each request land where its prefix already lives?&#8221; Those two goals genuinely conflict, and this lesson is about where the balance sits.</p>
+  <dl>
+    <dt>Replica</dt>
+    <dd>One model server. Several serve the same model behind a balancer, and each holds its <b>own</b> prefix cache &#8212; nothing is shared between them.</dd>
+
+    <dt>Round-robin</dt>
+    <dd>Send request 1 to replica 1, request 2 to replica 2, and so on. Perfectly even, and completely blind to what each replica holds. The default nearly everywhere.</dd>
+
+    <dt>Least-outstanding-requests</dt>
+    <dd>Send to whichever replica has the fewest requests in flight. Genuinely better than round-robin under uneven work, and still cache-blind.</dd>
+
+    <dt>Affinity (or stickiness)</dt>
+    <dd>Deliberately sending related requests to the <b>same</b> replica. Here the relation is &#8220;same conversation&#8221;, because that is what shares a prefix.</dd>
+
+    <dt>Consistent hashing</dt>
+    <dd>Choosing a replica by hashing a key, so the same key always lands on the same replica &#8212; without a lookup table, and with only a small share of keys moving when a replica is added.</dd>
+
+    <dt>Hash window</dt>
+    <dd>Which <em>part</em> of the prompt you feed the hash. Not a standard term, and the single most important decision in this lesson: too short and every request hashes the same, too long and every request hashes differently.</dd>
+
+    <dt>Longest-prefix match</dt>
+    <dd>Routing by asking which replica already holds the most leading blocks of this prompt. What real cache-aware balancers do, and it needs a load limit bolted on or it collapses.</dd>
+
+    <dt>Load imbalance</dt>
+    <dd>The spread between the busiest and idlest replica. Affinity always costs you some, and the interesting question is how much you will accept.</dd>
+
+    <dt>Cache cliff</dt>
+    <dd>What a replica's death does under affinity: its share of conversations lose their prefixes at once and every one of them pays full prefill on its next turn.</dd>
+  </dl>
+</div>
+
+<h2>Round-robin optimises the wrong number</h2>
+
+<p>Round-robin makes request counts equal. That was the right goal when replicas were interchangeable, and it stopped being the right goal the moment a replica started holding state that made it better at some requests than others. Nothing warns you, because the balancer's own metrics look perfect: an even split is exactly what it was asked for.</p>
+
+<p>The cost is not subtle. Across four replicas, with a conversation history that grows every turn, hit rate measured <strong>47&#8239;%</strong> under round-robin and <strong>78&#8239;%</strong> with the same requests routed by conversation &#8212; and p99 first-word went from 396&#8239;ms to 172. Same hardware, same prompts, same total work; the only difference was which machine each request was handed to.</p>
+
+<div class="note">
+  <span class="callout-label">Why round-robin still gets 47&#8239;% and not zero</span>
+  <p>Because part of the prompt is shared by <em>everybody</em>. The rubric preamble is identical across all conversations, so after one request each replica has it cached and every replica hits on that span regardless of routing. Round-robin only loses the <b>conversation-specific</b> part &#8212; which in a long interview is most of the prompt, and in a single-turn API call is none of it.</p>
+  <p>That is the first thing to establish before touching a balancer: <strong>how much of your cacheable prefix is per-conversation rather than global?</strong> If the answer is &#8220;almost none&#8221;, round-robin is fine and this lesson is a distraction.</p>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 330" role="img" aria-labelledby="mech0009-t mech0009-d">
+    <title id="mech0009-t">A prompt in three spans, and the three places you could end the hash window</title>
+    <desc id="mech0009-d">A prompt drawn as three spans: a shared preamble identical for every conversation, the conversation history which is identical only within one conversation, and this turn which is unique to every request. Ending the hash window inside the first span makes the hash a constant, so every request goes to one replica. Ending it inside the second span makes the hash constant per conversation, which is affinity and measured a 78 percent hit rate with a 172 millisecond p99. Ending it in the third span makes the hash change every request, which is round-robin with extra steps, measured at 47 percent and 396 milliseconds.</desc>
+    <defs>
+      <marker id="a9" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+    </defs>
+
+    <text x="20" y="22" class="strong">The decision is not whether to hash. It is where the hash window ends.</text>
+
+    <!-- MARK 1 · the prompt, in the only three spans that matter: what is
+         shared by all, by one conversation, and by nobody. -->
+    <rect x="20" y="44" width="86" height="34" class="good"/>
+    <rect x="106" y="44" width="440" height="34" class="accent"/>
+    <rect x="546" y="44" width="154" height="34" class="warn"/>
+    <text x="30" y="66" class="lbl ink-good">preamble</text>
+    <text x="120" y="66" class="strong ink-accent">conversation history &#8212; grows every turn</text>
+    <text x="558" y="66" class="lbl ink-warn">this turn</text>
+    <text x="20" y="94" class="lbl-dim">same for everyone</text>
+    <text x="220" y="94" class="lbl-dim">same within one conversation</text>
+    <text x="546" y="94" class="lbl-dim">never repeats</text>
+
+    <!-- MARK 2 · window ends in span one: a constant. -->
+    <path d="M20,116 L86,116" class="flow-bad" marker-end="url(#a9)"/>
+    <text x="100" y="120" class="lbl">ends in the <tspan class="strong">preamble</tspan> &#8594; the hash is a constant &#8594; <tspan class="strong ink-bad">every request to one replica</tspan></text>
+
+    <!-- MARK 3 · window ends in span two: constant per conversation. This is
+         the only one of the three that is affinity. -->
+    <path d="M20,144 L380,144" class="flow-good" marker-end="url(#a9)"/>
+    <text x="394" y="148" class="lbl">ends in the <tspan class="strong">history</tspan> &#8594; constant per conversation &#8594; <tspan class="strong ink-good">affinity</tspan></text>
+
+    <!-- MARK 4 · window covers span three: changes every request. -->
+    <path d="M20,172 L694,172" class="flow-bad" marker-end="url(#a9)"/>
+    <text x="20" y="192" class="lbl">covers <tspan class="strong">this turn</tspan> &#8594; a new hash every request &#8594; <tspan class="strong ink-bad">round-robin, with extra steps and a worse name</tspan></text>
+
+    <!-- MARK 5 · what the middle window is worth, measured. -->
+    <rect x="20" y="212" width="680" height="100" class="box-2"/>
+    <text x="34" y="236" class="mono strong">4 replicas &#183; 24 conversations &#215; 8 turns</text>
+    <text x="34" y="262" class="mono">hash covers this turn   hit 47%   p99 <tspan class="ink-bad strong">396 ms</tspan>   load 43-53</text>
+    <text x="34" y="284" class="mono">hash ends in history    hit <tspan class="ink-good strong">78%</tspan>   p99 <tspan class="ink-good strong">172 ms</tspan>   load 35-55</text>
+    <text x="34" y="304" class="lbl">Better hit rate <tspan class="strong">and</tspan> better tail, for slightly worse balance. That trade is the whole lesson.</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">Say this while you draw it</span>
+    <ol class="narrate">
+      <li>One bar, <b>three spans</b>: what every conversation shares, what one conversation shares with itself, and what never repeats. Every routing decision follows from this picture.</li>
+      <li>Now three arrows from the left edge, each ending in a different span. <b>These are the three things &#8220;hash the prefix&#8221; could mean</b>, and only one of them works.</li>
+      <li>Arrow one stops in the <b>preamble</b>. That text is identical for everyone, so the hash is a constant &#8212; <b>every request goes to one replica</b> and the rest idle.</li>
+      <li>Arrow two stops in the <b>history</b>. Constant per conversation, different between conversations. That is affinity, and it is the answer.</li>
+      <li>Arrow three reaches <b>this turn</b>. A new hash every request, so you have written round-robin with more code.</li>
+      <li>Then the numbers: <b>47&#8239;% and 396&#8239;ms against 78&#8239;% and 172</b>. Say that the load spread got slightly worse &#8212; 43-to-53 became 35-to-55 &#8212; because volunteering the cost is what makes the win credible.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. Three spans and three arrows. This is the drawing that answers &#8220;what does your load balancer do about sticky sessions&#8221; without you having to remember any product's feature name.</p>
+  <ul>
+    <li>The <b>three spans</b>, in the right order, with what each is shared by written underneath.</li>
+    <li><b>Three arrows ending in three different spans</b> &#8212; the failure, the answer, the other failure.</li>
+    <li>The two outcomes on the two failures: <b>one replica</b> and <b>round-robin</b>. They fail in opposite directions, which is why the middle exists.</li>
+    <li><b>47 to 78&#8239;%, and 396 to 172&#8239;ms</b>, with the load spread beside them.</li>
+  </ul>
+  <span class="timer">Draw the bar before you say anything. Everyone who gets this question wrong starts by talking about the balancer; the answer is a property of the prompt.</span>
+</div>
+
+<h2>Lab &#8212; five routers, one workload</h2>
+
+<div class="lab">
+  <header>
+    <span class="kicker">Lab 0009</span>
+    <span class="est">~20 minutes</span>
+    <h3>47&#8239;% to 78&#8239;%, and the router that puts everything on one box</h3>
+  </header>
+  <div class="body">
+    <div class="prereq">
+      <span>Needs:</span>
+      <span class="chip">anchor/vendor-eval-gateway</span>
+      <span class="chip">no Docker, no server</span>
+      <span class="chip">lesson 0008's prefix cache</span>
+    </div>
+
+    <div class="caution">
+      <span class="callout-label">Modelled, like lesson 0008's second half</span>
+      <p>The replicas here are <code>FakeUpstream</code> instances with lesson 0008's modelled prefix cache, running in one process. <strong>The milliseconds are not measurements of a GPU.</strong> What is real is the quantity being compared &#8212; the fraction of prompt tokens already resident on the replica the request landed on &#8212; which is decided entirely by the router and not at all by the hardware. Quote the hit rates and the ratios; do not quote the absolute latencies.</p>
+    </div>
+
+    <ol class="steps">
+      <li>
+        <p class="what">Run all five routers against one identical workload: 24 conversations of 8 turns each, over 4 replicas, with a short shared preamble so the conversation history is the interesting part.</p>
+        <pre class="cmd"><span class="prompt">$ </span>cd anchor/vendor-eval-gateway
+<span class="prompt">$ </span>uv run python bench/routing.py --replicas 4 --shared 64 --per-turn 128 --turns 8</pre>
+        <pre class="out">24 conversations x 8 turns over 4 replicas &#183; shared preamble 64 tokens
+
+strategy              hit rate  TTFW p50  TTFW p99            per replica
+round-robin             <span class="fail">49.0%</span>      172m      <span class="fail">396m</span>   [48, 48, 48, 48]  48-48
+least-outstanding       46.6%      172m      396m   [58, 51, 44, 39]  39-58
+hash-whole              46.8%      172m      396m   [45, 43, 53, 51]  43-53
+hash-prefix             <span class="pass">77.6%</span>      127m      <span class="pass">172m</span>   [55, 53, 49, 35]  35-55
+prefix-match            79.6%      127m      215m     <span class="fail">[192, 0, 0, 0]</span>  0-192
+prefix-match-cap        65.8%      127m      396m   [49, 50, 46, 47]  46-50</pre>
+        <div class="expect">
+          <span class="label">Read the table in this order</span>
+          <p><strong>The top three rows are the same router.</strong> Round-robin, least-outstanding and hashing the whole prompt all land within three points of each other &#8212; about 47&#8239;% hit rate and a 396&#8239;ms p99 &#8212; because all three are equally blind to what a replica holds. Consistent hashing is not the fix; hashing the <em>right span</em> is.</p>
+          <p><strong>Then the fourth row.</strong> Hashing 256 tokens of prefix, which for this workload reaches into the conversation history, gives <strong>77.6&#8239;%</strong> and cuts p99 by <strong>2.3&#215;</strong>. Load went from perfectly even to 35&#8211;55, and that is the price.</p>
+          <p>Run it more than once. The three hashing rows are deterministic and will reproduce exactly; the load-dependent rows &#8212; round-robin, least-outstanding and the capped router &#8212; move by a few points between runs, because they depend on the order the event loop happens to dispatch in. Anything you claim from this table should survive that wobble, which is why the claim is &#8220;47 to 78&#8221; and not &#8220;49.0 to 77.6&#8221;.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Now look at the two rows you were <em>expecting</em> to be the answer, because they are the interesting failures. Start with <code>prefix-match</code>: it asks each replica which leading blocks it already holds and routes to the longest match, breaking ties on load.</p>
+        <pre class="out">prefix-match            79.6%      127m      215m     <span class="fail">[192, 0, 0, 0]</span>  0-192</pre>
+        <div class="expect broken">
+          <span class="label">The best hit rate in the table, and it is unusable</span>
+          <p><strong>All 192 requests on one replica, and three sitting idle.</strong> This is the algorithm real cache-aware balancers use, and it collapsed &#8212; because once replica 0 has served one request it holds the shared preamble, so it has the longest match for <em>every</em> conversation forever. The load tiebreak never fires, since the match lengths are never equal.</p>
+          <p>Note that its hit rate is the highest of all six, at 79.6&#8239;%. A hit-rate dashboard would have called this the winner. The p99 is worse than <code>hash-prefix</code> anyway, and at any real scale it is a single-replica service with three expensive spares.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">So bolt a load ceiling onto it: consider only replicas within <code>--slack</code> in-flight requests of the least loaded, then take the longest match among those.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python bench/routing.py --replicas 4 --shared 64 --per-turn 128 --turns 8 --slack 1</pre>
+        <pre class="out">prefix-match-cap        65.8%      127m      396m   [49, 50, 46, 47]  46-50</pre>
+        <div class="expect broken">
+          <span class="label">Balanced, better than round-robin, and still beaten</span>
+          <p>The cap works as designed &#8212; load is back to 46&#8211;50 &#8212; and hit rate lands at <strong>65.8&#8239;%</strong>: clearly above round-robin's 47, clearly below hashing's 78. Every time the cap fires it sends a request away from the replica holding its prefix, and that request then pollutes a second replica with a copy of the same blocks.</p>
+          <p>Which is worth sitting with, because it is the general shape of hybrid policies: <strong>a preference that can be overridden produces a cache that is half-populated everywhere.</strong> Hashing is worse at balance and better at caching precisely because it is not allowed to change its mind.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Find the regime where none of this matters. Put the shared preamble back to a realistic 512 tokens and shorten the per-turn history, so most of the cacheable prompt is global rather than per-conversation.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python bench/routing.py --replicas 4 --shared 512 --per-turn 64 --turns 6</pre>
+        <pre class="out">strategy              hit rate  TTFW p50  TTFW p99            per replica
+round-robin             <span class="pass">76.3%</span>      127m      284m   [36, 36, 36, 36]  36-36
+least-outstanding       77.6%      126m      284m   [41, 38, 35, 30]  30-41
+hash-whole              77.1%      127m      284m   [31, 31, 44, 38]  31-44
+hash-prefix             90.5%      105m      185m     <span class="fail">[0, 0, 144, 0]</span>  0-144
+prefix-match            90.5%      105m      185m     <span class="fail">[144, 0, 0, 0]</span>  0-144
+prefix-match-cap        <span class="pass">86.2%</span>      104m      284m   [39, 38, 35, 32]  32-39</pre>
+        <div class="expect">
+          <span class="label">The regime flipped, and so did which router is a trap</span>
+          <p>Round-robin now gets <strong>76.3&#8239;%</strong> on its own, because a 512-token preamble shared by everyone is cached on every replica after one request each. And <code>hash-prefix</code> &#8212; the winner in step 1 &#8212; now puts <strong>everything on one replica</strong>, because 256 tokens of window no longer reaches past the preamble, so the hash is a constant again.</p>
+          <p>Same code, same flag, opposite outcome. <strong>The correct hash window is a property of your prompts, not of your infrastructure</strong> &#8212; and it changes when someone edits the system prompt's length, silently, with no deploy to the balancer at all.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Measure the cache cliff. Affinity means a replica's death takes its conversations' prefixes with it &#8212; so raise the replica count and watch what share of traffic one failure would strand.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python bench/routing.py --replicas 8 --shared 64 --per-turn 128 --turns 8 | grep -E 'strategy|hash-prefix|round-robin'</pre>
+        <pre class="out">strategy              hit rate  TTFW p50  TTFW p99            per replica
+round-robin             <span class="fail">32.0%</span>      217m      441m [24, 24, 24, 24, 24, 24, 24, 24]  24-24
+hash-prefix             <span class="pass">77.0%</span>      127m      172m [29, 45, 29, 25, 26, 8, 20, 10]   <span class="fail">8-45</span></pre>
+        <div class="expect">
+          <span class="label">Two things move, in opposite directions</span>
+          <p>Round-robin gets <strong>worse as you add replicas</strong> &#8212; about 47&#8239;% at four, <strong>32&#8239;% at eight</strong> &#8212; because a conversation's chance of returning to the replica holding its history is roughly one in N. Hashing is flat at 77&#8239;%, because affinity does not care how many replicas there are. So <strong>the cost of cache-blind routing grows with your replica count</strong>, which makes this argument stronger at scale rather than weaker.</p>
+          <p>But look at the load column, because it is the part I did not expect: hashing's spread went from 35&#8211;55 at four replicas to <strong>8&#8211;45 at eight</strong>. Fewer conversations per bucket means more variance, so <strong>affinity's imbalance also gets worse with scale</strong> &#8212; one replica served 45 requests while another served 8. Both sides of the trade grow together, which is exactly why the answer is a policy and not a preference.</p>
+          <p>And the cliff is the third cost: one replica of eight dying strands an eighth of conversations, each paying full prefill on its next turn, simultaneously. That is a stampede, and lesson 0005 already told you what to do about it.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Last, prove the top three rows really are one router. Set the think time to zero so every conversation advances in lockstep, and re-run.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python bench/routing.py --replicas 4 --shared 64 --per-turn 128 --turns 8 --think-ms 0 | head -6</pre>
+        <pre class="out">round-robin             <span class="fail">79.4%</span>      127m      149m   [48, 48, 48, 48]  48-48
+least-outstanding       73.6%      127m      440m   [48, 48, 48, 48]  48-48
+hash-whole              <span class="pass">46.8%</span>      172m      418m   [45, 43, 53, 51]  43-53</pre>
+        <div class="expect broken">
+          <span class="label">Round-robin at 79&#8239;%, which is a broken benchmark and not a finding</span>
+          <p>With zero think time, all 24 conversations take their turns in the same fixed rotation &#8212; and 24 divides by 4, so conversation <em>c</em> returns to the same replica every single round. <strong>Round-robin became perfect affinity by arithmetic accident</strong>, jumping from 47&#8239;% to 79.</p>
+          <p>The control is the third row. <code>hash-whole</code> did not move: it was 46.8&#8239;% with jitter and 46.8&#8239;% without, because a hash over text that changes every request scatters regardless of arrival pattern. When one row of a benchmark moves 30 points and another does not move at all, the workload is what changed &#8212; not the thing you were measuring.</p>
+          <p>This happened while writing the lesson, and for an hour it said routing made no difference. Keep it as the check it is: <strong>if a load-balancing experiment shows no effect, suspect the arrival pattern before you believe the result.</strong> A synchronised workload is not a workload; real conversations are staggered and think for different lengths of time, which is why the default is 300&#8239;ms of jitter.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+</div>
+
+<div class="evidence" data-evidence-for="0009">
+  <header>
+    <span class="callout-label">Your numbers, not mine</span>
+    <span class="hint">saved in this browser as you type</span>
+  </header>
+  <div class="body">
+    <p>Hit rates and ratios are the transferable quantities here; the milliseconds are modelled. The last row is the only one that is about your real system, and it is the one worth the most.</p>
+
+    <div class="rows">
+      <div class="row">
+        <span class="ran">Step 1, <strong>the cost of cache-blind routing</strong>: hit rate under round-robin and under prefix hashing, same workload</span>
+        <span class="field"><label for="e9-rr">round-robin</label><input type="text" id="e9-rr" data-field="rr" placeholder="e.g. 49%"></span>
+        <span class="field"><label for="e9-aff">hash-prefix</label><input type="text" id="e9-aff" data-field="affinity" placeholder="e.g. 78%"></span>
+        <span class="why-row"><label for="e9-blind">Three routers scored within three points of each other. Say what they have in common, in a sentence that would stop someone reaching for &#8220;consistent hashing&#8221; as a fix</label><textarea id="e9-blind" data-field="blind" placeholder="Round-robin, least-outstanding and whole-prompt hashing are all cache-blind. Consistent hashing is not the fix — hashing a span that identifies the conversation is, and hashing the wrong span is worse than not hashing."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 2, <strong>the collapse</strong>: what uncapped longest-prefix-match did to load, and what its hit rate was</span>
+        <span class="field"><label for="e9-load">load spread</label><input type="text" id="e9-load" data-field="load" placeholder="e.g. 0-192 of 192"></span>
+        <span class="field"><label for="e9-pmhit">its hit rate</label><input type="text" id="e9-pmhit" data-field="pm_hit" placeholder="e.g. 79.6% &#8212; the best"></span>
+        <span class="why-row"><label for="e9-metric">It had the highest hit rate in the table and was unusable. What does that tell you about hit rate as a routing dashboard, and what would you put beside it?</label><textarea id="e9-metric" data-field="metric" placeholder="Hit rate alone would have picked the collapsed router. It needs load spread beside it, and the real objective is the p99 both of them feed into."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 4, <strong>the regime flip</strong>: with a long shared preamble, what round-robin scored and what <code>hash-prefix</code> did</span>
+        <span class="field"><label for="e9-rr2">round-robin</label><input type="text" id="e9-rr2" data-field="rr_long" placeholder="e.g. 76.6%"></span>
+        <span class="field"><label for="e9-flip">hash-prefix load</label><input type="text" id="e9-flip" data-field="flip" placeholder="e.g. 0-144, collapsed"></span>
+        <span class="why-row"><label for="e9-window">The same 256-token window was right in step 1 and wrong in step 4. Write the rule that decides it &#8212; and say what would silently break it in production</label><textarea id="e9-window" data-field="window" placeholder="The window must end past everything shared globally and before anything unique to this request. Someone lengthening the system prompt moves that boundary with no change to the balancer, so the routing quietly becomes a constant."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 5, <strong>scale</strong>: round-robin's hit rate at 4 replicas and at 8, and hashing's at both</span>
+        <span class="field"><label for="e9-r4">RR at 4 / at 8</label><input type="text" id="e9-r4" data-field="scale_rr" placeholder="e.g. 49% &#8594; 30%"></span>
+        <span class="field"><label for="e9-r8">hash at 4 / at 8</label><input type="text" id="e9-r8" data-field="scale_hash" placeholder="e.g. 78% &#8594; 77%"></span>
+        <span class="why-row"><label for="e9-cliff">One replica of eight dies. Describe what its share of conversations experiences on their next turn, and name the lesson that already covers the fix</label><textarea id="e9-cliff" data-field="cliff" placeholder="An eighth of conversations lose their prefixes simultaneously and all pay full prefill on the next turn — a stampede, so the answer is single-flight per prefix plus enough headroom to absorb the prefill burst."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">The decision: <strong>in your system, how much of the cacheable prefix is per-conversation rather than global?</strong> Read the prompt-assembly code and estimate the split</span>
+        <span class="field"><label for="e9-global">global tokens</label><input type="text" id="e9-global" data-field="global_tok" placeholder="e.g. ~600 preamble"></span>
+        <span class="field"><label for="e9-convo">per-conversation</label><input type="text" id="e9-convo" data-field="convo_tok" placeholder="e.g. ~1 500 by turn 8"></span>
+        <span class="why-row"><label for="e9-verdict">Now answer the question honestly: does your system need cache-aware routing at all? A defensible &#8220;no, and here is the number&#8221; is a better answer than adopting it because this lesson was interesting</label><textarea id="e9-verdict" data-field="verdict" placeholder="Most of our prompt is the global preamble and turns are short, so round-robin already gets most of the win and affinity is not worth the cliff. It becomes worth it if conversation history grows past the preamble, which it does around turn N."></textarea></span>
+      </div>
+    </div>
+
+    <div class="earned">
+      <span class="callout-label">The bullet this lesson earns</span>
+      <p>&#8220;Established that request-count load balancing is the wrong objective once replicas hold prefix state, and quantified it: routing by conversation took prefix-cache hit rate from <span data-fill="rr" class="placeholder">[run step 1]</span> to <span data-fill="affinity" class="placeholder">[run step 1]</span> across four replicas, with the gap widening as replicas are added &#8212; and rejected the higher-hit-rate variant because it put <span data-fill="load" class="placeholder">[run step 2]</span>.&#8221;</p>
+      <p class="caveat">The last clause is doing the real work. Choosing the option with the <em>worse</em> headline metric, for a reason you can state in one sentence, is the thing that reads as judgement rather than as having followed a tutorial. Keep the reason attached to the number.</p>
+    </div>
+  </div>
+</div>
+
+<h2 id="underneath-0009">Underneath</h2>
+
+<div class="underneath">
+  <span class="callout-label">One layer down &#183; why the two obvious fixes fail in opposite directions</span>
+
+  <p>Four things. The first explains why round-robin was ever right, and the last is the one that decides whether you should do any of this.</p>
+
+  <h3>Round-robin is not stupid; its assumption expired</h3>
+
+  <p>Even distribution is the optimal policy when replicas are <b>interchangeable</b> and work is <b>homogeneous</b>. Both held for a stateless web tier, and both fail here: a replica holding a conversation's blocks is strictly better at that conversation's next turn than any other replica, and the cost of a request now depends on where it lands. The balancer is still solving its problem correctly &#8212; equalising counts &#8212; and the problem is no longer the one you have.</p>
+
+  <div class="derive">
+    <p>Which shows up as a hit rate that decays with the size of your fleet:</p>
+    <span class="eq">replicas        4       8
+round-robin   ~47%    32%    <b>P(land on the right replica) &#8776; 1/N</b>
+hash-prefix    78%    77%    <b>affinity is independent of N</b></span>
+    <p>That is the argument for cache-aware routing in one line, and note which direction it points: the case gets <em>stronger</em> as you scale, so &#8220;we are too small to worry about it&#8221; is a claim with an expiry date you can compute.</p>
+  </div>
+
+  <h3>&#8220;Hash the prefix&#8221; is three different policies, and two are broken</h3>
+
+  <p>Every prompt has three spans: what all conversations share, what one conversation shares with itself, and what is unique to this request. A hash window is a choice of where to stop, and the failure modes bracket the answer.</p>
+
+  <div class="derive">
+    <p>Same 256-token window, two prompt shapes, opposite results:</p>
+    <span class="eq">preamble 64 tokens   window reaches history   &#8594; <b>78% hit, load 35-55</b>
+preamble 512 tokens  window stops in preamble &#8594; <b>90% hit, load 0-144</b></span>
+    <p>The second row is the trap, and it is worth reading twice: the collapsed configuration has the <em>better hit rate</em>. Of course it does &#8212; one replica serving everything sees every prefix. Hit rate cannot distinguish affinity from centralisation, so it must never be the only number on the dashboard.</p>
+  </div>
+
+  <p>The other direction is quieter. Hashing the whole prompt is a hash over text containing this turn, so it produces a fresh value every request &#8212; measured at 46.8&#8239;%, statistically indistinguishable from round-robin. It <em>looks</em> like consistent hashing, it is described as consistent hashing in the config, and it is round-robin. The lesson is that <b>consistent hashing is not the mechanism; hashing something that is constant across the requests you want colocated is the mechanism.</b></p>
+
+  <h3>Longest-prefix match is what production does, and it needs a governor</h3>
+
+  <p>Real cache-aware balancers do not hash. They keep, per replica, the set of block hashes they have sent it &#8212; the same chained hashes from lesson 0008 &#8212; and route to whichever replica holds the longest matching prefix. It is strictly more informed than hashing: it needs no window, and it adapts when prompts change shape.</p>
+
+  <p>And on this workload it put <b>every one of 192 requests on one replica</b>. Not because of a bug: once a replica has served one request it holds the globally shared preamble, so it has the longest match for every conversation, forever, and the load tiebreak never fires because the match lengths are never equal. Unbounded, &#8220;route to the best cache&#8221; is a rule with a fixed point, and the fixed point is one server.</p>
+
+  <div class="derive">
+    <p>Capping it fixes the load and costs cache:</p>
+    <span class="eq">longest match, no cap    hit 79.6%   load <b>0-192</b>   p99 215 ms
+longest match, cap 1     hit <b>65.8%</b>   load 46-50   p99 396 ms
+hash on history          hit <b>77.6%</b>   load 35-55   p99 <b>172 ms</b></span>
+    <p>The capped router is beaten by plain hashing on both hit rate and tail, which is not intuitive until you see why: every time the cap diverts a request, that request installs a duplicate copy of its blocks on a second replica. A preference that can be overridden yields a cache that is <b>half-populated everywhere</b> rather than fully populated somewhere. Hashing wins by being unable to change its mind.</p>
+  </div>
+
+  <h3>Affinity's three costs, and the one that decides it</h3>
+
+  <p><b>Balance</b>, which gets worse with scale: 35&#8211;55 at four replicas, 8&#8211;45 at eight, because fewer conversations per bucket means more variance. <b>Elasticity</b>: adding a replica remaps a share of keys, and every remapped conversation pays full prefill on its next turn &#8212; so autoscaling now has a latency cost, which is an argument for consistent hashing over modulo, since modulo remaps nearly everything. And the <b>cliff</b>: a replica's death strands its conversations' prefixes simultaneously, and they all miss at once, which is a stampede with the shape lesson 0005 described and the same fix.</p>
+
+  <p>Against which the deciding question is not about balancers at all. It is: <b>how much of your cacheable prefix is per-conversation rather than global?</b> With a 512-token shared preamble and short turns, round-robin already reached 76&#8239;% unaided, because every replica caches the global span after one request each &#8212; and the whole apparatus buys ten points at the cost of the cliff. With a short preamble and a long conversation, it is 47 against 78 and the answer is obvious. Same code, same flag, and the regime is set by how somebody writes prompts.</p>
+
+  <p class="lands"><b>Cache-aware routing is a property of your prompts, not of your infrastructure.</b> Measure the split between globally shared and per-conversation prefix first; if the global span dominates, round-robin is already close to optimal and adopting affinity is a cost with no return. And when it does pay, remember that the highest hit rate in the table belonged to a router that had quietly become a single-node service.</p>
+</div>
+
+<h2>Check yourself</h2>
+
+<div class="quiz" data-quiz-id="0009-q1">
+  <p class="q">You add a second replica behind round-robin. What happens to prefix-cache hit rate for one ongoing conversation?</p>
+  <ol class="options">
+    <li data-correct="true">It falls, because consecutive turns land on different replicas</li>
+    <li>It holds, because both replicas cache the same blocks</li>
+    <li>It doubles, because there is twice the cache available</li>
+    <li>It rises, because each replica serves a smaller keyspace</li>
+  </ol>
+  <div class="why">
+    <p>It falls, and it keeps falling as you add more: the chance of a turn landing on the replica holding that conversation's history is roughly one in N. Measured at about 47&#8239;% across four replicas and <strong>32&#8239;% across eight</strong>, against a flat 77&#8239;% under affinity.</p>
+    <p>The &#8220;same blocks&#8221; answer is right about one span and wrong about the one that matters. The globally shared preamble <em>is</em> cached everywhere after one request each, which is why round-robin scores 47&#8239;% rather than nothing &#8212; but the conversation's own history exists on exactly one replica, and in a long interview that is most of the prompt.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0009-q2">
+  <p class="q">You route by hashing the entire prompt, including this turn's text. What do you get?</p>
+  <ol class="options">
+    <li data-correct="true">Scatter, because the hash changes on every single request</li>
+    <li>Affinity, because the shared preamble dominates the hash input</li>
+    <li>Overload, because one replica receives the whole hot keyspace</li>
+    <li>Nothing, because the block hashes already determine cache location</li>
+  </ol>
+  <div class="why">
+    <p>Scatter. This turn's text differs every request, so the hash does too &#8212; measured at <strong>46.8&#8239;%</strong>, indistinguishable from round-robin's 47, and stable at 46.8&#8239;% even when a lockstep workload pushed round-robin up to 79. It is round-robin wearing the word &#8220;consistent hashing&#8221;.</p>
+    <p>The overload answer is the <em>other</em> failure and it is real, just not this one: it happens when the window is too <strong>short</strong> and stops inside the globally shared preamble, making the hash a constant. That put 144 of 144 requests on one replica. The two mistakes bracket the correct window, which is why naming the span you hash matters more than naming the algorithm.</p>
+  </div>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">A spoken answer to <em>&#8220;the sessions are stateful &#8212; what is your load balancer doing about that?&#8221;</em> Your own prep notes list this as one of the things that breaks before the GPUs do. Read it aloud, then say it again with the page covered.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">Every turn of an interview carries the conversation so far, so the cacheable part of the prompt grows as it goes &#8212; and it exists in exactly one replica's memory. Nothing is shared between them.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">Round-robin equalises request counts, which is the right goal when servers are interchangeable. They stopped being interchangeable when they started holding state, so the balancer is optimising a quantity that no longer describes the cost.</p>
+      <p class="line">The chance a turn lands where its prefix already lives is about one over the replica count. So the loss gets <b>worse</b> as you scale out, not better.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">I compared five routers on one workload. Round-robin, least-outstanding and hashing the whole prompt all scored about <b>47 percent</b> hit rate, because all three are cache-blind. Hashing a window that reaches into the conversation history got <b>78 percent</b>, and cut p99 first word from <b>396 milliseconds to 172</b>.</p>
+      <p class="line">And I rejected the one with the best hit rate. Longest-prefix match scored <b>79.6</b> and put <b>all 192 requests on one replica</b>. After the first request that replica holds the shared preamble, so it wins every match forever and the load tiebreak never fires.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">Balance, and it degrades with scale. Even at four replicas the spread went from 48-48 to 35-55, and at eight from 8 up to 45 requests. Plus a cache cliff: when a replica dies, its conversations all miss at once on the next turn. That is a stampede, and it needs the coalescing fix.</p>
+      <p class="line">And the honest caveat is that whether it is worth it depends on the prompt, not the platform. With a long shared preamble and short turns, round-robin already reached <b>76 percent</b> on its own, and affinity buys ten points for all of that risk. I would measure the split before adopting it.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;We use consistent hashing so requests stick to the right replica.&#8221;</span> Consistent hashing is a property of the <em>function</em>, not of the <em>key</em>, and the key is the entire decision. Hash a window that stops inside the shared system prompt and you have a constant, so one replica takes everything. Hash the whole prompt and you have a fresh value per request, so you have written round-robin. Both are consistent hashing. The follow-up is <em>&#8220;what are you hashing?&#8221;</em>, and the version that holds names the span: <span class="quoted">&#8220;the leading tokens up to the end of the conversation history, so it is constant per conversation and different between them.&#8221;</span></p>
+  <p>The second trap is quoting a hit rate as though it settled the question. The best hit rate I measured belonged to the router that had become a single-node service with three idle spares. <span class="quoted">&#8220;We got hit rate up to 80&#8239;%&#8221;</span> invites <em>&#8220;and what happened to your load distribution?&#8221;</em> &#8212; so say both numbers, in the same sentence, before you are asked.</p>
+</div>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;Your sessions are stateful and you have four replicas. What is the load balancer doing?&#8221;
+      <span class="tell">Your prep notes flag this as one of the things that breaks before the GPUs do. Start from what the replicas hold, not from the balancer's feature list &#8212; the answer is a property of the prompt. Naming the quantity round-robin optimises, and why it is the wrong one, is the signal.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>By default, the wrong thing. Each replica holds its own prefix cache, so the replica that served a conversation's last turn is strictly better at its next turn &#8212; and round-robin equalises request counts, which was the right objective only while replicas were interchangeable. The probability a turn lands where its prefix lives is about one over the replica count, so the loss grows as I scale out.</p>
+        <p>I measured it: round-robin, least-outstanding and whole-prompt hashing all landed near <strong>47&#8239;% hit rate</strong>, and routing by a hash of the conversation-identifying prefix got <strong>78&#8239;%</strong> with p99 first word falling from 396&#8239;ms to 172. The cost is load balance &#8212; 48-48 became 35-55 &#8212; and a cache cliff when a replica dies.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What exactly do you hash?&#8221; &#8212; which is the real question, because hashing too little sends everything to one replica and hashing too much is round-robin.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Why not just route to whichever replica has the best cache for the request?&#8221;
+      <span class="tell">A good question with a counter-intuitive answer, and it is the strongest thing you can bring to this topic: you tried it, it had the best hit rate, and it was unusable. Say the failure and the mechanism behind it.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>I did try that &#8212; track which block hashes each replica has been sent, route to the longest match, break ties on load. It produced the highest hit rate I measured, <strong>79.6&#8239;%</strong>, and it put <strong>all 192 requests on one replica</strong> with three idle.</p>
+        <p>The reason is structural rather than a bug. After the first request, one replica holds the globally shared preamble, so it has the longest match for every conversation from then on &#8212; and because the match lengths are never equal, the load tiebreak never fires. Unbounded &#8220;route to the best cache&#8221; has a fixed point and the fixed point is one server. Adding a load ceiling fixed the balance and cost eight points of hit rate, because every diverted request installs a duplicate copy of its blocks elsewhere.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So plain hashing beat the smarter router?&#8221; &#8212; yes, on both hit rate and tail, because it cannot be talked out of its decision.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;What breaks when you add a replica?&#8221;
+      <span class="tell">Tests whether you have thought past steady state. Two things break, and the second one &#8212; that autoscaling now has a latency cost &#8212; is the part most people have not considered.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>A share of conversations gets remapped to a replica that does not hold their history, so every one of them pays full prefill on its next turn. With plain modulo hashing that is almost <em>all</em> of them, which is the argument for consistent hashing here rather than modulo &#8212; it moves roughly one over N of the keys instead of nearly all.</p>
+        <p>Which means scaling out is no longer latency-free, and that changes how I would autoscale: prefer scaling ahead of demand rather than reactively, because adding capacity during a spike causes a prefill burst at exactly the wrong moment. The same reasoning applies to a rolling deploy, and it is worse there, because every replica is replaced.</p>
+        <span class="invites">Invites &#183; <b>&#8220;And when one dies?&#8221; &#8212; its share of conversations all miss at once, which is a stampede, so it needs coalescing per prefix and headroom to absorb the prefill.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Would you actually put this in production?&#8221;
+      <span class="tell">A judgement question, and the strong answer is conditional with a measurement attached. Adopting a technique because it is interesting is the failure being probed for; so is dismissing it without a number.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Only after measuring one thing: how much of the cacheable prefix is per-conversation rather than shared by everybody. That ratio decides it. With a long shared system prompt and short turns, round-robin already reached <strong>76&#8239;%</strong> in my tests, because every replica caches the global span after one request each &#8212; so affinity buys about ten points and costs me the cliff and the deploy behaviour. I would not take that trade.</p>
+        <p>With a short preamble and a growing conversation, it was 47 against 78 and I would. So the answer is that it depends on how we write prompts, and it can change without anyone touching the balancer &#8212; someone lengthening the system prompt moves the boundary and can silently turn my hash window into a constant.</p>
+        <span class="invites">Invites &#183; <b>&#8220;How would you notice that happening?&#8221; &#8212; load spread across replicas, alerted on; it is the signal that catches both failure modes.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Suppose I told you routing made no measurable difference in your test. What would you check?&#8221;
+      <span class="tell">This happened, so answer from experience rather than hypothetically. It is really a question about benchmark scepticism, which is lesson 0002's territory, and the specific arithmetic accident is memorable enough to be worth telling.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>That is what my first run said, and the workload was wrong. Every conversation was advancing in lockstep, so dispatch order was the same rotation every round &#8212; and with 24 conversations over 4 replicas, 24 divides by 4, so each conversation returned to the same replica every time. <strong>Round-robin was accidentally perfect affinity</strong>, at 79&#8239;% instead of 47.</p>
+        <p>What gave it away was the control: whole-prompt hashing did not move at all between the two workloads, because it scatters regardless of arrival order. When one row shifts thirty points and another does not move, the workload changed rather than the thing under test. Adding staggered starts and variable think time made the difference appear, and it is closer to how people actually talk.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So how do you know the second workload is right?&#8221; &#8212; I do not, fully; what I can say is which property it fixed and that the deterministic strategies reproduce exactly.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="primary-source">
+  <span class="callout-label">Read this next &#8212; one source, not ten</span>
+  <span class="title"><a href="https://docs.vllm.ai/en/stable/design/prefix_caching/" target="_blank" rel="noopener">vLLM &#8212; Automatic Prefix Caching (design)</a></span>
+  <p>The same page as lesson 0008, read for a different purpose. Note that everything it describes is <strong>per-engine</strong>: the block table, the hash chain and the eviction all live inside one server, and nothing in it coordinates between replicas. That absence is what makes routing an external problem rather than a serving one, and reading the design with that question in mind is more useful than any balancer's documentation.</p>
+  <p class="cite">For the balancing half: <a href="https://www.eecs.harvard.edu/~michaelm/postscripts/handbook2001.pdf" target="_blank" rel="noopener">Mitzenmacher, &#8220;The Power of Two Choices in Randomized Load Balancing&#8221;</a> &#8212; why sampling two replicas and taking the less loaded is nearly as good as global knowledge, which is the standard way to add a load governor to a preference like affinity without needing a central view. And <a href="https://www.envoyproxy.io/docs/envoy/latest/intro/arch_overview/upstream/load_balancing/load_balancers" target="_blank" rel="noopener">Envoy's load balancer reference</a> for what ring-hash and maglev actually guarantee when a replica leaves.</p>
+</div>
+
+<h2>Recall &#8212; from lessons 0006&#8211;0008</h2>
+
+<div class="recall">
+  <details>
+    <summary>A replica under affinity dies, and its share of conversations all miss on their next turn. Name the failure and give the fix in one sentence each.</summary>
+    <p class="answer">It is a stampede: many concurrent requests for values that are absent, arriving inside one miss window whose width is the full prefill time. The fix has the same two parts as lesson 0005 &#8212; coalesce so that concurrent requests for the same prefix produce <em>one</em> prefill rather than hundreds, and stagger what can be staggered so the misses do not align. What you cannot do here is the thing that worked for Redis keys, namely serve stale, because there is no stale KV to serve; so the remaining lever is headroom to absorb the prefill burst.</p>
+    <span class="from">lesson 0005 &#183; stampede and single-flight</span>
+  </details>
+  <details>
+    <summary>Prefix affinity raised hit rate and made load spread worse. Which of those two would you alert on, and why is the answer not &#8220;both, equally&#8221;?</summary>
+    <p class="answer">Load spread, because it is the one that catches <em>both</em> failure modes and hit rate catches neither. A hash window that is too short collapses onto one replica and hit rate goes <em>up</em> while the service becomes single-node; a window that is too long scatters and hit rate falls quietly. Spread moves in an unmistakable direction in the first case and stays flat in the second, which combined with hit rate distinguishes the two. This is the same trap as reporting a median: one number that improves for two opposite reasons is not a signal.</p>
+    <span class="from">lesson 0002 &#183; one number hiding two behaviours</span>
+  </details>
+  <details>
+    <summary>Both this lesson's win and lesson 0008's depend on the shared prefix being byte-identical. What is the deployment event that breaks both at once, and what does it look like on a dashboard?</summary>
+    <p class="answer">A prompt change. Editing the shared preamble invalidates every block after the edit &#8212; the hashes are chained &#8212; so every replica goes cold simultaneously, and if the edit changes the preamble's <em>length</em> it can also move the correct hash window and silently break routing. On a dashboard it is a first-word spike lasting about one request per replica, which has healed before anyone looks, plus a step change in load spread that nobody is watching. A prompt change is a deploy and needs the same treatment.</p>
+    <span class="from">lesson 0008 &#183; the chained block hash</span>
+  </details>
+</div>
+
+<div class="ask">
+  <p><strong>This is the last lesson of the batch, and the calibration point.</strong> Two of these three lessons ended up refuting the thing I expected to teach &#8212; buffering was not what broke streaming, and the cleverest router was the one I had to reject. Tell me whether that shape is useful to you or just unsettling. And then the actual test, which matters more than any opinion about the writing: <strong>pick one of 0007, 0008 or 0009, cover the screen, redraw the diagram, and give the 75 seconds out loud.</strong> If that works, batch C gets built the same way. If it does not, tell me where it fell apart &#8212; that is more useful to me than knowing you enjoyed reading it.</p>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">Where this lands on the r&#233;sum&#233;</span>
+  <p>This lesson teaches the mechanism from first principles and breaks it in a lab. The chapter opposite defends what you actually did with it, including the number on the r&#233;sum&#233;. An interviewer crosses between those two registers without warning.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../resume-mastery/lessons/0002-llm-gateway-and-streaming.html">RM 0002 &#183; The gateway and the move to streaming</a>
+      <span class="bridge-why">An interview session is stateful and still has to land somewhere. The chapter is where the sticky-session question gets an answer.</span>
+    </li>
+  </ol>
+</div>
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0008-kv-cache-and-prefix-caching.html">&#8592; 0008 &#183; KV cache and prefix caching</a></span>
+  <span><span class="dir">Index</span><a href="index.html">All lessons &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

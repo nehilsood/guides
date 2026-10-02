@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>Memory for a Dementia Companion</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0015">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">R&#233;sum&#233; Mastery</a>
+    <span class="sep">/</span>
+    <span>Batch C &#183; Samsung Research</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Chapter 0015</span>
+  </div>
+  <h1>Memory for a dementia companion</h1>
+  <p class="standfirst">MemGPT lets the model write its own long-term memory. That is the whole idea and the whole danger, because a model that can write can also write something wrong and then believe it tomorrow. For this user, being wrong tomorrow is not a bug report.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Say what MemGPT adds that ordinary retrieval does not, name <em>three</em> kinds of memory with three different write policies, and then answer the question that follows: <em>what happens when the person tells you something that contradicts what you stored?</em></p>
+</div>
+
+<div class="claim-line">
+  <span class="callout-label">The line being defended</span>
+  <blockquote>&#8220;Prototyped an <strong>AI companion for dementia patients</strong> (MemGPT), implementing short- and long-term memory management for memory-grounded routine reminders across multi-session conversations.&#8221;</blockquote>
+  <span class="whose">Samsung Research &#183; bullet 3 of 5</span>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">For <em>&#8220;tell me about the dementia companion.&#8221;</em> Lead with prototype, then get to the read-and-write distinction fast, because that is the part with engineering in it.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">A prototype, and I would say that first. A companion for somebody with dementia, holding short conversations across days.</p>
+      <p class="line">The hard part is that the second conversation has to know what the first one learned. And the person cannot check whether it got it right.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">MemGPT treats the context window like RAM. What fits stays in, and what does not moves to a store outside it.</p>
+      <p class="line">The distinguishing part is that <b>the model reads and writes</b>. It calls functions to save a fact, replace one, and search older conversations.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">I split memory into three with <b>three different write policies</b>. Stable facts about the person, an append-only record of what happened, and the routine.</p>
+      <p class="line">And the routine is not memory. <b>It is a table and a timer</b>, because whether it is eight o'clock has one right answer and should not depend on what survived summarisation.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">A model that can write can write something wrong and then believe it. So a stable fact needs a second source or a caregiver before it changes.</p>
+      <p class="line">And when somebody contradicts a stored fact, <b>the system holds both and tells a caregiver</b>. It does not argue and it does not overwrite.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;I used MemGPT for short- and long-term memory so it remembers across sessions.&#8221;</span> That is the bullet read aloud. It contains no design and invites the only question that matters, which is what happens when the memory is wrong. Say &#8220;the model writes its own memory, so I had to decide what it was allowed to write&#8221; and the whole conversation improves.</p>
+  <p>The other trap is letting &#8220;for dementia patients&#8221; stand unqualified. If it sounds deployed, the next questions are about clinical validation and regulation. Say prototype first and those questions become interesting rather than damaging.</p>
+</div>
+
+
+<div class="trace">
+  <span class="callout-label">Walk them through it &#183; one fact, across three sessions</span>
+  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One thing somebody says, followed into storage, back out as a reminder, and then contradicted. Say prototype early and say it plainly.</p>
+  <p class="tr-case"><b>The picture.</b> A carer's notebook rather than a carer's memory. The notebook is written in, read back, and sometimes wrong. The whole design question is who is allowed to write in it, because the person it describes cannot check it.</p>
+  <p class="tr-case"><b>The case.</b> On Monday somebody says their daughter is visiting on Tuesday. Follow that sentence into memory, out again as a reminder, and then into the moment on Wednesday when they say she never came.</p>
+  <ol>
+    <li class="tr-step">
+      <span class="tr-k">The window</span>
+      <p><b>What happens.</b> A model has a context window and nothing else. When the conversation ends, everything in it is gone.</p>
+      <p><b>Concretely.</b> MemGPT treats that window the way an operating system treats RAM. What fits stays in and what does not moves to a store outside it.</p>
+      <p><b>If they ask why.</b> Worth knowing both names. The project was renamed Letta in September 2024, and the paper and the pattern are still called MemGPT. An interviewer may only have heard one.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Who writes</span>
+      <p><b>What happens.</b> The distinguishing feature is not the storage. It is who decides what gets stored.</p>
+      <p><b>Concretely.</b> The model calls functions to save a fact, replace a fact, or search for an older one. Retrieval reads. This reads and writes.</p>
+      <p><b>If they ask why.</b> That single change is the whole architecture, and every risk in this chapter comes from it too.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Three stores</span>
+      <p><b>What happens.</b> Calling all of it long-term memory hides the design, so I split it into three.</p>
+      <p><b>Concretely.</b> Stable facts about the person. An append-only record of what happened and when. And the daily routine.</p>
+      <p><b>If they ask why.</b> They differ in who is allowed to write to them, and that is the property worth organising around.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Monday</span>
+      <p><b>What happens.</b> The sentence about Tuesday arrives. Which store does it belong in?</p>
+      <p><b>Concretely.</b> That the daughter exists and is called Sarah is a stable fact. That a visit is expected on Tuesday is an event.</p>
+      <p><b>If they ask why.</b> Splitting one sentence across two stores is the point. They have different truth lifetimes, and merging them is how a one-off becomes a permanent belief.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The write rule</span>
+      <p><b>What happens.</b> The stable fact does not get written just because it was said once.</p>
+      <p><b>Concretely.</b> It needs a second mention in a different session, or a caregiver confirming it.</p>
+      <p><b>If they ask why.</b> A model that can write can write something wrong and then read it back as true. The person present has a failing memory and cannot catch it. Read-mostly is the only safe default here.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The record</span>
+      <p><b>What happens.</b> The event goes into the append-only store with a timestamp.</p>
+      <p><b>Concretely.</b> Nothing in that store is ever rewritten. Asking the same question three times in an afternoon is itself information somebody may need.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Tuesday</span>
+      <p><b>What happens.</b> Eight o'clock comes and a tablet reminder fires. That reminder does not come from memory at all.</p>
+      <p><b>Concretely.</b> The routine is a table and a timer. Whether it is eight o'clock has one right answer, so nothing should be asked about it.</p>
+      <p><b>If they ask why.</b> Only ask a model questions with no deterministic answer. A reminder that depends on what survived summarisation is a reminder that fails silently.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The next session</span>
+      <p><b>What happens.</b> A new conversation opens hours later and has to know what the earlier one learned.</p>
+      <p><b>Concretely.</b> The small block of always-present facts carries who the person is and who the companion is to them. Older detail is searched for rather than carried.</p>
+      <p><b>If they ask why.</b> If the second conversation does not know what the first one learned, none of this was worth building.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Wednesday</span>
+      <p><b>What happens.</b> Now the hard part. They say their daughter never visited, and the record says she did.</p>
+      <p><b>Concretely.</b> Perhaps the record is wrong. Perhaps they are confused. From one sentence, no system can tell those two apart.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">What it does</span>
+      <p><b>What happens.</b> It holds both versions and tells a caregiver. It does not argue and it does not overwrite.</p>
+      <p><b>Concretely.</b> That is deferral rather than a solution, and I would rather call it that than claim the system resolves it.</p>
+      <p><b>If they ask why.</b> The cost is real. The system learns more slowly, which is a genuine loss for a product whose value is knowing the person. I still think deferral is correct here.</p>
+    </li>
+  </ol>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 320" role="img" aria-labelledby="mech0015-t mech0015-d">
+    <defs>
+      <marker id="ar15" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+    </defs>
+    <title id="mech0015-t">A window that pages against three stores, only one of which the model may write</title>
+    <desc id="mech0015-d">The context window holds system instructions, a small always-present block of facts about the person, and the recent turns. Outside it sit three stores. Semantic memory holds stable facts and is read constantly but written rarely, and a change needs corroboration or a caregiver. Episodic memory is an append-only timestamped record of what happened and is never edited. The routine is not memory at all: it lives in a schedule table written by a caregiver and fired by a timer, so a medication reminder never depends on what survived summarisation. When the window fills, evicted turns are summarised and the summary returns to the window, which is lossy and irreversible.</desc>
+
+    <rect class="accent" x="8" y="16" width="360" height="104" rx="3"/>
+    <text class="lbl strong ink-accent" x="24" y="38">Main context &#8212; the window</text>
+    <text class="lbl-dim" x="24" y="58">system instructions</text>
+    <text class="lbl-dim" x="24" y="76">working context &#183; who they are, who you are</text>
+    <text class="lbl-dim" x="24" y="94">recent turns, first in first out</text>
+    <text class="num ink-warn" x="24" y="112">fills, then evicts</text>
+
+    <path class="flow" marker-end="url(#ar15)" d="M 372 52 H 430"/>
+    <text class="lbl-dim" x="376" y="44">search</text>
+    <path class="flow" marker-end="url(#ar15)" d="M 430 92 H 372"/>
+    <text class="lbl-dim" x="376" y="112">write</text>
+
+    <rect class="box" x="434" y="16" width="398" height="44" rx="3"/>
+    <text class="lbl strong" x="448" y="36">Semantic &#183; stable facts</text>
+    <text class="lbl-dim" x="448" y="53">read constantly &#183; written rarely &#183; needs a second source</text>
+
+    <rect class="box" x="434" y="64" width="398" height="44" rx="3"/>
+    <text class="lbl strong" x="448" y="84">Episodic &#183; what happened</text>
+    <text class="lbl-dim" x="448" y="101">append only &#183; timestamped &#183; never edited</text>
+
+    <rect class="box-2" x="434" y="112" width="398" height="52" rx="3"/>
+    <text class="lbl strong" x="448" y="132">Routine &#183; not memory</text>
+    <text class="lbl-dim" x="448" y="149">a table plus a timer &#183; written by a caregiver, never by the model</text>
+
+    <rect class="warn" x="8" y="136" width="380" height="52" rx="3"/>
+    <text class="lbl strong ink-warn" x="24" y="156">Eviction is lossy</text>
+    <text class="lbl-dim" x="24" y="174">evicted turns become a summary, and the detail does not come back</text>
+
+    <rect class="box-2" x="8" y="200" width="824" height="52" rx="3"/>
+    <text class="lbl strong" x="24" y="220">The reminder fires from the timer, not from the model</text>
+    <text class="lbl-dim" x="24" y="240">&#8220;is it eight o'clock&#8221; has one right answer &#8212; acknowledgement is written back to the table, never left in the chat</text>
+
+    <rect class="bad" x="8" y="262" width="824" height="50" rx="3"/>
+    <text class="lbl strong ink-bad" x="24" y="284">A contradiction is not resolved</text>
+    <text class="lbl-dim" x="24" y="304">Keep the fact, log the disagreement, tell a caregiver. One sentence cannot tell a move from confusion.</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">What you say while drawing it</span>
+    <ol class="narrate">
+      <li>One box for the window. It is small, and it is the only thing the model can see for free.</li>
+      <li>Inside it, a little block of facts that is always present. That is the person.</li>
+      <li>Two arrows across the boundary. Search going out, write coming back. The write arrow is what makes this MemGPT.</li>
+      <li>Three stores on the right. Say the write policy for each as you draw it.</li>
+      <li>Stable facts, read a lot, changed rarely, and never on one sentence alone.</li>
+      <li>What happened, append only, never edited.</li>
+      <li>And the routine, which is a table and a clock rather than memory at all.</li>
+      <li>The orange box. Eviction summarises, and a summary cannot be un-summarised.</li>
+      <li>The red box last. That is the answer to the question they are about to ask.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. One window, two arrows, three stores, one warning.</p>
+  <ul>
+    <li>The <b>write arrow</b>. Without it this is retrieval.</li>
+    <li>Three stores and <b>three write policies</b>, said aloud.</li>
+    <li><b>The routine is a table and a timer</b>, not memory.</li>
+    <li>The <b>contradiction rule</b>, because it is the follow-up question.</li>
+  </ul>
+  <span class="timer">Say &#8220;it reads and it writes&#8221; as you draw the second arrow. Five words and the architecture is distinguished.</span>
+</div>
+
+<div class="star">
+  <span class="callout-label">Behavioural &#183; the story for this bullet</span>
+  <p class="frame">For <em>&#8220;tell me about a time you deliberately limited what a system could do&#8221;</em> or <em>&#8220;a decision where the safe option was the harder build.&#8221;</em></p>
+  <ol class="rungs">
+    <li class="rung"><span class="rung-k">Decision</span><p>Whether the model should be allowed to write its own long-term memory freely, which is the feature MemGPT exists to provide.</p></li>
+    <li class="rung"><span class="rung-k">Situation</span><p>The user has a failing memory, so the system is the record. A wrong fact written today is read back as true tomorrow, and the one person present cannot catch it.</p></li>
+    <li class="rung"><span class="rung-k">Action</span><p>I split the store into three by write policy instead of one long-term memory. Stable facts became read-mostly, needing a second mention in a different session or a caregiver confirming. What happened became append-only and timestamped.</p><p>And I took the routine out of memory altogether. A schedule table and a timer fire the reminder, and the model only does the talking around it.</p></li>
+    <li class="rung"><span class="rung-k">Result</span><p>A single confused sentence could no longer become a permanent fact. A medication reminder no longer depended on anything surviving summarisation, which is the failure that would have been silent.</p></li>
+    <li class="rung"><span class="rung-k">What it cost</span><p>The system learns more slowly, and that is a genuine loss for a product whose value is knowing the person. It also still has no answer for a contradiction. It holds both versions and escalates, which is deferral rather than a solution. I think deferral is correct here, and I would rather say that than claim the system resolves it.</p></li>
+  </ol>
+</div>
+
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>A model has a context window and nothing else. When the conversation ends, everything in it is gone. MemGPT treats that window the way an operating system treats RAM. What fits stays in, what does not fit moves to a store outside, and something has to decide which is which.</p>
+  <p>The part that makes it MemGPT rather than retrieval is who decides. The model itself calls functions to save a fact, rewrite a fact, or search for one. It manages its own memory instead of being handed a paragraph by a retriever.</p>
+  <dl>
+    <dt>Main context</dt>
+    <dd>What is inside the context window right now. System instructions, a small editable block of facts, and the recent messages.</dd>
+
+    <dt>External context</dt>
+    <dd>Everything outside the window. Full conversation history, plus a store of saved facts that has to be searched to be seen.</dd>
+
+    <dt>Working context</dt>
+    <dd>The small editable block of facts that is always in the window. Who the person is, who you are to them. Never searched, because it is already there.</dd>
+
+    <dt>Self-editing memory</dt>
+    <dd>The model calling a function to change what it remembers. Append a fact, replace a fact, save something for later, search for something older.</dd>
+
+    <dt>Letta</dt>
+    <dd>What the MemGPT project was renamed to in September 2024. The paper and its design pattern are still called MemGPT. The framework you would actually install is Letta. Know both names, because an interviewer may only have heard one.</dd>
+
+    <dt>Eviction</dt>
+    <dd>Choosing what leaves the window when it fills. Evicted messages are summarised, and the summary goes back in.</dd>
+
+    <dt>Semantic memory</dt>
+    <dd>Stable facts about a person. Their daughter's name, where they live, what they take in the morning.</dd>
+
+    <dt>Episodic memory</dt>
+    <dd>What happened and when. Lunch at one, a phone call at four, the same question asked three times this afternoon.</dd>
+
+    <dt>Procedural memory</dt>
+    <dd>The routine itself. The eight o'clock tablet, the Tuesday visit. Not really memory at all, as the chapter argues.</dd>
+
+    <dt>Memory-grounded</dt>
+    <dd>A reminder that points at a stored fact rather than a generated one. The difference between recalling and inventing.</dd>
+
+    <dt>Multi-session</dt>
+    <dd>Two conversations hours or days apart. The second one has to know what the first one learned, or none of this is worth building.</dd>
+  </dl>
+</div>
+
+<div class="primer stack">
+  <span class="callout-label">The technology &#8212; what each named thing is</span>
+  <p>The primer above defines the kinds of memory. This one defines the machinery that moves things between them, starting from the ground. One fact outranks all of it. The user has dementia, so being wrong here is not a quality problem.</p>
+  <p>Every entry answers four things. What it actually is, in plain words. Where this system uses it. What it buys, meaning what goes wrong without it. And the follow-up an interviewer asks once you have said the name.</p>
+  <dl>
+    <dt>MemGPT</dt>
+    <dd><i>the paper, and the idea</i>An operating-systems analogy applied to a language model. A computer has fast memory that is small and slow storage that is large, and the operating system moves pages between them. MemGPT treats the context window as the fast memory and everything else as storage, with one twist: the model itself issues the paging calls, deciding what to load and what to write out. <b>In the app.</b> It is the named system in the bullet. <b>What it buys.</b> A conversation that can outlive the context window, which is the entire requirement for a companion that has to remember last Tuesday. <b>The follow-up.</b> What actually separates it from ordinary retrieval. In plain RAG an outer program decides what to fetch before the model runs. Here the model calls functions to search, to write and to evict, so memory management happens inside the reasoning loop rather than around it.</dd>
+
+    <dt>Letta</dt>
+    <dd><i>what MemGPT became</i>The open-source framework the research project turned into. It provides agents with persisted memory, a server to run them, and the memory-editing tools already wired up, so the paper's design is configuration rather than implementation. <b>In the app.</b> If the prototype used the released software rather than reimplementing the paper, this is the honest word for it. <b>What it buys.</b> Everything that is not the interesting part &#8212; persistence, the tool definitions, the server, the message history &#8212; arrives working, so the work goes into the domain instead of the plumbing. <b>The follow-up.</b> Which of the two you did. Reading the paper and building the loop yourself is a genuinely different claim from configuring the framework. Both are respectable and only one of them is true, so pick it deliberately before somebody asks.</dd>
+
+    <dt>Context window as RAM</dt>
+    <dd><i>the fixed budget</i>Everything the model can see when it generates the next token: the system instruction, the working memory block, whatever was retrieved, and the recent turns. It is a fixed number of tokens and it is the only thing that influences the output. Anything not in it might as well not exist. <b>In the app.</b> Every eviction decision in the system exists because this fills up. <b>What it buys.</b> Thinking of it as a budget rather than a limit, which is what makes the design tractable. You are allocating a scarce resource between competing claims, and that is a familiar problem with familiar answers. <b>The follow-up.</b> What gets dropped first, and why. Recent turns are cheap to lose and easy to recover from the transcript. The working memory block is neither, which is why it is carefully edited rather than trimmed when space runs short.</dd>
+
+    <dt>Self-editing memory</dt>
+    <dd><i>function calling, pointed inward</i>Function calling normally points outward at the world &#8212; search the web, read a file, send an email. Here the same mechanism points back at the agent's own state. The model is given tools that append a fact, replace a memory block, or search the archive, and it chooses when to call them. <b>In the app.</b> It is the mechanism behind the words &#8220;memory management&#8221; in the bullet. <b>What it buys.</b> Memory that updates during a conversation rather than after it. The model notices that something it holds is now wrong and fixes it in the same turn, with no batch job and no separate extraction pass. <b>The follow-up.</b> What stops it writing something false. Nothing, inside the loop. A model that misheard a name will persist the wrong one with complete confidence, and a system built for a confused user cannot fall back on the user to catch it.</dd>
+
+    <dt>Archival memory</dt>
+    <dd><i>the vector store behind it</i>The long-term half of the design. Past conversation and extracted facts are embedded and stored, and searched by similarity when the model asks for something it cannot see. It is ordinary retrieval, sitting behind a tool the model calls rather than a step that always runs. <b>In the app.</b> Continuity across sessions is this store plus the function that reads it. <b>What it buys.</b> Unbounded history at bounded context cost. Three months of conversation can exist without three months of tokens. <b>The follow-up.</b> Retrieval is not recall, and the difference matters more here than almost anywhere. If the fragment that mattered does not come back in the top results, the model behaves exactly as though it never existed. It will not notice, and it will not say so.</dd>
+
+    <dt>Compaction</dt>
+    <dd><i>summarising to make room</i>When the window fills, a long span of older conversation is replaced by a much shorter summary of it. The detail is gone and the gist remains, and the freed tokens go to new turns. <b>In the app.</b> It is what keeps a conversation spanning many sessions inside a fixed budget. <b>What it buys.</b> The conversation continues instead of hitting a wall, and the recent turns keep their full detail because the old ones gave up theirs. <b>The follow-up.</b> It is lossy and the loss compounds, because you eventually summarise summaries. Worse, it loses the wrong things first. Specifics disappear and generalities survive, which is exactly backwards when the specifics are the medication times and the generality is &#8220;we talked about the routine&#8221;.</dd>
+
+    <dt>Grounding</dt>
+    <dd><i>the non-negotiable one</i>Requiring that a statement point at something actually recorded rather than something the model produced. The test is whether you can trace the sentence back to a stored record. <b>In the app.</b> &#8220;Memory-grounded routine reminders&#8221; is the claim, and this is the one part of the bullet where being wrong has a real-world cost. <b>What it buys.</b> The difference between a reminder and a guess. A model asked what someone's routine is will always produce a plausible answer, and plausible is not the requirement here. <b>The follow-up.</b> How it is actually enforced. If the reminder is generated from whatever happens to be in the model's context, it is not grounded, whatever the word in the bullet says. Grounded means read from a record and shown with its source.</dd>
+
+    <dt>Personal health data</dt>
+    <dd><i>the constraint above the architecture</i>Routines, medication schedules and observations about cognitive state are health information, about a person whose capacity to consent meaningfully may itself be in question. That is a different legal and ethical category from ordinary personal data. <b>In the app.</b> It changes who the design must satisfy from the user alone to the user and their carer together. <b>What it buys.</b> Recognising it early is what keeps the design honest, because retention, access and disclosure stop being deferred questions. <b>The follow-up.</b> Who sees the log. A companion that records what somebody said all day is a surveillance artefact as much as a memory system, and deciding deliberately who may read it back is part of the architecture rather than a policy afterthought.</dd>
+
+    <dt>Memory evaluation</dt>
+    <dd><i>how you would test it</i>Scripted conversations that run across several sessions, where a fact is stated in the first session and needed in the fourth, scored on whether it came back and came back correctly. The gap between sessions is the thing being tested, so a single-session test proves nothing. <b>In the app.</b> The bullet claims memory works across sessions, and that is a testable claim rather than an architectural one. <b>What it buys.</b> Evidence instead of a design diagram. It also catches compaction damage, which is invisible in any short test. <b>The follow-up.</b> Test the negative too. A memory system must also not invent, so a probe asking about a fact that was never stated is half the suite, and it is the half people forget to write.</dd>
+  </dl>
+</div>
+
+
+
+
+<h2>What MemGPT adds, said in one sentence</h2>
+
+<p class="breath">Retrieval reads. MemGPT reads and writes. The model decides what is worth keeping, saves it, and finds it again in a later conversation. That single change is the whole architecture, and it is where every risk comes from too.</p>
+
+<p>In an ordinary retrieval system the corpus is fixed and somebody else built it. A retriever selects from it, the model answers, and nothing the model produced goes back into the store. Tomorrow's answer is not affected by today's.</p>
+
+<p>MemGPT breaks that loop open. The model calls a function to append a fact, or to replace one that changed, or to search older conversations for something it half remembers. The store grows out of the conversation.</p>
+
+<p>So the failure mode changes shape. A retrieval mistake is wrong once. A memory mistake is wrong from now on, because it was written down and will be read back as fact. That asymmetry is the thing to say out loud.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Normal retrieval is reading a filing cabinet somebody else filled. This one also files things, and it can file something wrong.</p>
+
+<h2>Three memories, three write policies</h2>
+
+<p class="breath">Lumping it all into &#8220;long-term memory&#8221; hides the design. Facts about a person, records of what happened, and the daily routine are three different stores. They differ in who is allowed to write to them.</p>
+
+<p>Semantic memory holds stable facts. The daughter's name, the address, the morning tablet. It is read constantly and written rarely, and a single sentence in one conversation should never be enough to overwrite it.</p>
+
+<p>Episodic memory holds what happened, with a timestamp. It is append-only and never edited, because editing history is how a system starts disagreeing with a caregiver about whether lunch happened.</p>
+
+<p>Procedural memory is the routine, and here is the claim worth defending. It should not live in the model's memory at all. It belongs in a schedule, written by a caregiver, fired by a timer.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Who they are, what happened, and what happens at eight o'clock are three different things. Only the third one has a fixed answer, so only the third one gets a table and a clock.</p>
+
+<h2>Why the reminder must not depend on remembering</h2>
+
+<p class="breath">Chapter 0009 gave a rule. Only ask a model questions with no deterministic answer. &#8220;Is it time for the tablet?&#8221; has a deterministic answer, so a scheduler answers it and the model does the talking around it.</p>
+
+<p>If the model has to remember to mention the tablet, then a long conversation, a full context window or an unlucky summarisation can lose it. None of those are rare. All of them are silent.</p>
+
+<p>Put the schedule in a table and let a timer fire it. The model's job starts after that. It phrases the reminder in the person's own terms, notices that they sound confused, and records what was said back.</p>
+
+<p>Acknowledgement goes in the same table, not in the conversation. Whether a tablet was taken is a fact with one right answer, and a duplicate dose is a real harm rather than an awkward exchange.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>A calendar reminds you at eight. The model is what makes it sound like a person rather than an alarm. Do not let the alarm depend on the model's memory.</p>
+
+<h2>The contradiction, which is the hard part</h2>
+
+<p class="breath">The person says something that disagrees with what you stored. Perhaps they moved house. Perhaps they are confused. From a single sentence, no system can tell those apart, and the honest design says so.</p>
+
+<p>The wrong answer is to overwrite the fact, because one confused sentence then becomes the truth for every conversation afterwards. The other wrong answer is to argue, which is distressing and achieves nothing.</p>
+
+<p>What works is to hold both. Keep the stored fact, record the contradiction in episodic memory with its timestamp, and raise it with a caregiver. Two people saying different things is information, not an error to resolve.</p>
+
+<p>And in the moment, do not correct them. Whether to orient somebody to reality or go along with them is a clinical judgment with real disagreement behind it. It is not a decision a prototype gets to make alone.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>If they say something that does not match your notes, do not argue and do not rewrite the notes. Write down that it happened and tell the family.</p>
+
+
+
+
+<section class="qset" id="toolbox">
+  <h2>Toolbox</h2>
+  <p class="qset-note">Every noun in the bullet, defined out loud, from the ground up. MemGPT is a specific idea with a specific analogy behind it, and an interviewer who knows the paper will want the analogy, not a paraphrase of the word memory.</p>
+  <ul class="qa-index">
+    <li><a href="#c15-t1">The MemGPT idea</a></li>
+    <li><a href="#c15-t2">How it differs from RAG</a></li>
+    <li><a href="#c15-t3">What the model can edit</a></li>
+    <li><a href="#c15-t4">What compaction loses</a></li>
+    <li><a href="#c15-t5">What grounded has to mean</a></li>
+    <li><a href="#c15-t6">Who the design serves</a></li>
+    <li><a href="#c15-t7">Testing that memory works</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c15-t1">
+      <p class="qa-q">What is the actual idea in MemGPT?</p>
+      <p class="qa-a">An operating-systems analogy applied to a language model. A computer has fast memory that is small. It has slow storage that is large. The operating system moves pages between them. MemGPT treats the context window as the fast memory and everything else as storage. The twist is that the model itself issues the paging calls, deciding what to load and what to write out. What that buys is a conversation outliving the context window, which is the whole requirement for a companion that has to remember last Tuesday. Without it you have a context window and a database, and no policy connecting them.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing it as &#8220;long-term memory for chatbots.&#8221; That is the outcome. The mechanism is paging, and the mechanism is what was novel.</p>
+    </li>
+    <li class="qa-item" id="c15-t2">
+      <p class="qa-q">How is that different from ordinary retrieval?</p>
+      <p class="qa-a">In plain retrieval an outer program decides what to fetch, before the model runs. Here the model calls functions to search, to write and to evict. Memory management happens inside the reasoning loop rather than around it. The long-term half is a vector store holding past conversation and extracted facts, searched when the model asks. What that buys is unbounded history at bounded context cost. Three months of conversation can exist without three months of tokens. It is also more flexible and much harder to reason about. What is remembered now depends on choices the model made three sessions ago, and nothing recorded why.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;It's RAG with extra steps.&#8221; The difference is who decides, and moving that decision inside the model changes the failure modes completely.</p>
+    </li>
+    <li class="qa-item" id="c15-t3">
+      <p class="qa-q">The model edits its own memory. What stops it writing something false?</p>
+      <p class="qa-a">Inside the loop, nothing. Function calling normally points outward at the world. Here the same mechanism points back at the agent's own state, with tools that append a fact, replace a block or search the archive. What that buys is memory updating during a conversation rather than after it, with no batch job and no separate extraction pass. The cost is that a model which misheard a name will persist the wrong one with full confidence, and keep using it. Normally the user corrects that. Here the user may not be able to. So anything that must be right belongs in a record a carer entered, not a block the model may rewrite.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Trusting self-editing memory for facts that matter. The interesting answer says which facts you would refuse to let it write.</p>
+    </li>
+    <li class="qa-item" id="c15-t4">
+      <p class="qa-q">What does compaction lose?</p>
+      <p class="qa-a">Specifics first. When the window fills, a long span of older conversation is replaced by a much shorter summary. The freed tokens go to new turns. What that buys is a conversation that continues instead of hitting a wall, with recent turns keeping their full detail. The cost is that it is lossy and the loss compounds, because you eventually summarise summaries. Worse, it loses the wrong things first. Specifics disappear and generalities survive. That is exactly backwards here, because the specifics are the medication times. The loss is also invisible. Nothing in the output says a fact was dropped rather than never mentioned.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling summarisation lossless enough. It compounds, and the things it discards are exactly the things this application exists to remember.</p>
+    </li>
+    <li class="qa-item" id="c15-t5">
+      <p class="qa-q">What does &#8220;memory-grounded&#8221; have to mean for a reminder?</p>
+      <p class="qa-a">That the reminder was read from a stored record, not generated from context. Grounding means a statement points at something actually recorded, and the test is whether you can trace the sentence back to a row. Those two look identical in the output and are completely different claims. What grounding buys is the difference between a reminder and a guess. A model asked what someone's routine is will always produce a plausible answer, and plausible is not the requirement here. If it is generated, the model can produce a medication time nobody ever entered. Grounded means the text traces to a row somebody wrote, and is shown with its source.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Letting the word grounded do the work. Say where the reminder came from. That is the whole of the claim.</p>
+    </li>
+    <li class="qa-item" id="c15-t6">
+      <p class="qa-q">Who is this design actually for?</p>
+      <p class="qa-a">The patient and the carer, which are two different sets of requirements. Routines, medication schedules and observations about cognitive state are health information. They are also about a person whose capacity to consent may itself be in question. That is a different category from ordinary personal data. What recognising that early buys is a design that stays honest, because retention, access and disclosure stop being deferred questions. The system also records what somebody said all day, so it is a surveillance artefact as much as a companion. Deciding deliberately who may read that log back is part of the architecture, not policy added later.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Answering only for the patient. The carer is the other user, and forgetting them is the most common failure in this product category.</p>
+    </li>
+    <li class="qa-item" id="c15-t7">
+      <p class="qa-q">How would you test that the memory works?</p>
+      <p class="qa-a">Scripted conversations that run across several sessions. State a fact in session one, need it in session four, and score whether it comes back correctly. The gap between sessions is the thing being tested, so a single-session test proves nothing. What that buys is evidence instead of a design diagram, and it catches compaction damage, which is invisible in any short test. Then test the negative. Probe for a fact that was never stated and check the system says it does not know. A memory system has to not invent, and that half is the one people leave out.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Demonstrating recall and stopping. Anyone can show one good trace. The test that convinces is the one where the right answer is &#8220;I do not have that.&#8221;</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="fundamentals">
+  <h2>Fundamentals</h2>
+  <p class="qset-note">Question one is the one that decides whether the rest of the conversation is interesting. Get the read-and-write distinction out early.</p>
+  <ul class="qa-index">
+    <li><a href="#c15-f1">What MemGPT adds</a></li>
+    <li><a href="#c15-f2">Short and long term</a></li>
+    <li><a href="#c15-f3">The three memories</a></li>
+    <li><a href="#c15-f4">What the model may write</a></li>
+    <li><a href="#c15-f5">Where the routine lives</a></li>
+    <li><a href="#c15-f6">Memory-grounded</a></li>
+    <li><a href="#c15-f7">Across sessions</a></li>
+    <li><a href="#c15-f8">The contradiction</a></li>
+    <li><a href="#c15-f9">Why this user changes it</a></li>
+    <li><a href="#c15-f10">The riskiest claim</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c15-f1">
+      <p class="qa-q">In two sentences, what does MemGPT give you that retrieval does not?</p>
+      <p class="qa-a">The model writes as well as reads. It calls functions to save a fact, replace one, or search older conversations. So the store grows out of the conversation rather than being built in advance.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing it as a bigger context window. The window is the same size. What changed is who decides what leaves it and what gets kept.</p>
+    </li>
+    <li class="qa-item" id="c15-f2">
+      <p class="qa-q">What are short-term and long-term memory here, concretely?</p>
+      <p class="qa-a">Short-term is the context window. System instructions, a small always-present block of facts about the person, and the recent turns. Long-term is everything outside it. Full conversation history and a store of saved facts, both of which have to be searched to be seen.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Naming them without saying where the boundary is. The boundary is the window, and the interesting engineering is what crosses it.</p>
+    </li>
+    <li class="qa-item" id="c15-f3">
+      <p class="qa-q">You said three kinds of memory. Name them and say why the split matters.</p>
+      <p class="qa-a">Semantic is stable facts about the person. Episodic is what happened, with times. Procedural is the routine. The split matters because they have different write policies. Semantic is read-mostly and needs corroboration to change. Episodic is append-only. Procedural is written by a caregiver and never by the model.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it all long-term memory. One store with one write policy is how a confused sentence becomes a permanent fact.</p>
+    </li>
+    <li class="qa-item" id="c15-f4">
+      <p class="qa-q">The model can write to its own memory. What are you afraid of?</p>
+      <p class="qa-a">That it writes something wrong and then reads it back as truth. A retrieval mistake is wrong once. A memory mistake is wrong from tomorrow onwards, and nothing in the loop rechecks it. So writes to stable facts need a second source or a person, and every write is timestamped and reversible.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating write access as a pure win. It is the feature and it is the failure mode, and saying both is what makes the answer credible.</p>
+    </li>
+    <li class="qa-item" id="c15-f5">
+      <p class="qa-q">Where does the eight o'clock tablet reminder actually live?</p>
+      <p class="qa-a">In a table, fired by a scheduler. Not in the model's memory. Whether it is eight o'clock has one right answer, so nothing about it should depend on what survived summarisation. The model phrases the reminder and reads the response. It does not decide that the reminder is due.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Letting the model remember the schedule. A full context window would then silently drop a medication reminder, and nothing would report it.</p>
+    </li>
+    <li class="qa-item" id="c15-f6">
+      <p class="qa-q">What does &#8220;memory-grounded&#8221; mean in this bullet?</p>
+      <p class="qa-a">That a reminder points at something stored rather than something generated. &#8220;Your daughter is coming on Tuesday&#8221; has to trace back to a row somebody wrote. If it cannot, the system should not say it, because this user has no way to check it against their own recollection.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating grounding as a quality nicety. For this user it is the safety property, since they cannot catch the error themselves.</p>
+    </li>
+    <li class="qa-item" id="c15-f7">
+      <p class="qa-q">What has to carry across from one session to the next?</p>
+      <p class="qa-a">The stable facts, which are small and always in the window. Plus a searchable record of what happened, so the system can find this morning if this afternoon needs it. What deliberately does not carry across is tone and thread. A new conversation should not resume mid-sentence.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Carrying the whole previous conversation forward. That fills the window with yesterday and leaves no room for today.</p>
+    </li>
+    <li class="qa-item" id="c15-f8">
+      <p class="qa-q">The person says something that contradicts a stored fact. What happens?</p>
+      <p class="qa-a">Nothing gets overwritten and nothing gets argued with. The stored fact stays. The contradiction goes into episodic memory with a timestamp, and a caregiver sees it. One sentence cannot tell a person who moved house from a person who is confused. Pretending otherwise is how the system starts being wrong permanently.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Correcting them in the moment. Whether to orient somebody to reality is a clinical judgment, and there is genuine disagreement about it.</p>
+    </li>
+    <li class="qa-item" id="c15-f9">
+      <p class="qa-q">Why does the user population change the engineering?</p>
+      <p class="qa-a">Because the usual safety net is gone. Most systems assume a user notices a wrong answer. Here the wrong answer is about the user's own life and they cannot check it. So confidence has to be earned from the store rather than from the model, and anything ungrounded should not be said at all.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Answering with tone and empathy. Those matter, but the engineering consequence is that user verification is not available, and that is what the interviewer is listening for.</p>
+    </li>
+    <li class="qa-item" id="c15-f10">
+      <p class="qa-q">What is the riskiest claim in this bullet?</p>
+      <p class="qa-a">&#8220;For dementia patients.&#8221; It was a prototype and I would say so first, because the alternative reading is that it was used by patients. That would raise clinical validation and regulatory questions I cannot answer. The memory architecture is defensible. The deployment claim is not one I am making.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Naming MemGPT as the risk. The architecture is the strong part. The word doing the heavy lifting is &#8220;patients.&#8221;</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="deep-dive">
+  <h2>Deep dive</h2>
+  <p class="qset-note">Paging, eviction and the cost of editing memory. The prefix-cache question in the middle is the one that surprises people.</p>
+  <ul class="qa-index">
+    <li><a href="#c15-d1">Window as a cache</a></li>
+    <li><a href="#c15-d2">What to evict</a></li>
+    <li><a href="#c15-d3">Summarisation is lossy</a></li>
+    <li><a href="#c15-d4">The cost of editing</a></li>
+    <li><a href="#c15-d5">Function shape</a></li>
+    <li><a href="#c15-d6">Deciding what to save</a></li>
+    <li><a href="#c15-d7">Searching old sessions</a></li>
+    <li><a href="#c15-d8">Two writers</a></li>
+    <li><a href="#c15-d9">Evaluating memory</a></li>
+    <li><a href="#c15-d10">Repetition</a></li>
+    <li><a href="#c15-d11">On device or not</a></li>
+    <li><a href="#c15-d12">Where it breaks</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c15-d1">
+      <p class="qa-q">Somebody calls the context window a cache. Is that fair?</p>
+      <p class="qa-a">Yes, and the comparison earns its keep. It is a small fast tier over a large slow one, it is populated on demand, and the model is the thing doing the populating. What it does not have is invalidation. A fact edited in the store does not update the copy sitting in the window.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Stopping at the analogy. The useful half is naming what the analogy lacks, which here is invalidation.</p>
+    </li>
+    <li class="qa-item" id="c15-d2">
+      <p class="qa-q">The window is full. What leaves?</p>
+      <p class="qa-a">Oldest turns first, which is the simple policy and mostly right for conversation. But it is wrong in the same way least-recently-used is wrong elsewhere. The person's name was mentioned once at the start and is needed every turn. That is why stable facts live in a pinned block rather than in the message queue.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Only naming the policy. The interesting part is which things are exempt from it and why.</p>
+    </li>
+    <li class="qa-item" id="c15-d3">
+      <p class="qa-q">Evicted turns get summarised. What does that cost?</p>
+      <p class="qa-a">Detail you cannot get back inside the window. The raw turns are still in the history store, so it is recoverable by search. But nothing triggers that search unless something notices the detail is missing, and a summary reads as complete. That is the quiet failure.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling summarisation lossless because the transcript is kept. The loss is that nobody knows to go looking.</p>
+    </li>
+    <li class="qa-item" id="c15-d4">
+      <p class="qa-q">What does editing the always-present block of facts actually cost at inference time?</p>
+      <p class="qa-a">The prefix cache. That block sits near the front of the prompt, so changing it invalidates every cached key and value after it. A whole conversation's worth of prefix has to be recomputed. It is a reason to batch memory edits at turn boundaries rather than mid-turn.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating a memory edit as free. It is the most expensive kind of edit available, precisely because it is at the front.</p>
+    </li>
+    <li class="qa-item" id="c15-d5">
+      <p class="qa-q">How should the memory functions be shaped?</p>
+      <p class="qa-a">As a small fixed set with typed arguments, the same discipline as chapter 0005's router. Append a fact, replace a fact given the old text, save to the long store, search it. Replace taking the old value is what stops a silent overwrite, because a stale replace fails instead of clobbering.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>A single write function taking free text. It can do anything, so nothing about it can be checked before it runs.</p>
+    </li>
+    <li class="qa-item" id="c15-d6">
+      <p class="qa-q">How does the system decide a fact is worth saving?</p>
+      <p class="qa-a">The model proposes and a policy disposes. Proposing is a judgment call with no deterministic answer, so that part suits a model. Committing to stable facts should need either a second mention in a different session or a caregiver confirming. Episodic writes need neither, because appending what was said is not a claim about truth.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Letting the model write directly to stable facts on first hearing. That is exactly the path by which a confused sentence becomes permanent.</p>
+    </li>
+    <li class="qa-item" id="c15-d7">
+      <p class="qa-q">When should it search old conversations rather than answer from the window?</p>
+      <p class="qa-a">When the question is about a specific past event and the window does not contain it. That is a narrow trigger on purpose. Searching on every turn is slow and fills the window with old material. That is the cost that makes a long conversation worse rather than better.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Searching always. Retrieved history competes for the same window the current conversation needs.</p>
+    </li>
+    <li class="qa-item" id="c15-d8">
+      <p class="qa-q">A caregiver edits a fact while a conversation is in progress. What happens?</p>
+      <p class="qa-a">Two writers, one record, and no isolation between them. The window holds a copy from before the edit. So the model keeps using the old value for the rest of the session. The fix is to reload the pinned block at each turn boundary, and to accept the prefix-cache cost when it changed.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Assuming the edit takes effect immediately. Nothing pushes it into a window that was built before it happened.</p>
+    </li>
+    <li class="qa-item" id="c15-d9">
+      <p class="qa-q">How would you evaluate the memory, not the conversation?</p>
+      <p class="qa-a">With scripted multi-session runs. Plant a fact in session one, ask for it in session four, and check it comes back exactly. Then plant a contradiction and check the stored fact survived. Both have deterministic answers, which is what makes them testable without a person judging.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Scoring conversation quality instead. Memory has right answers, so measure the part that does before reaching for a judge.</p>
+    </li>
+    <li class="qa-item" id="c15-d10">
+      <p class="qa-q">The person asks the same question five times in an hour. What does the system do?</p>
+      <p class="qa-a">Answers it five times, the same way each time. Repetition is the condition, not a signal that the answer was unsatisfactory. What it does do is log the repetition into episodic memory, because a caregiver wants to know the frequency changed.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Any form of &#8220;as I mentioned.&#8221; It is a correction the person cannot act on, and it makes the system something to be embarrassed in front of.</p>
+    </li>
+    <li class="qa-item" id="c15-d11">
+      <p class="qa-q">Should any of this run on the device?</p>
+      <p class="qa-a">The stores, yes. This is health data about somebody whose capacity to consent is exactly what is in question. The default should be that it never leaves the home. The model is harder, because a small local model is worse at the judgment calls. That trade is a real one and I would not pretend it away.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Answering on latency. The reason here is consent and sensitivity, and latency is the least of it.</p>
+    </li>
+    <li class="qa-item" id="c15-d12">
+      <p class="qa-q">Where does this design break first?</p>
+      <p class="qa-a">On the stable facts drifting out of date. A person's condition changes, and facts written six months ago describe somebody else. Nothing in the loop re-examines a fact once it is written. A review date on every stable fact is the cheap fix, and it is the one I would add first.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Answering on scale. One person's memory is tiny, and every real problem here is about correctness over time.</p>
+    </li>
+  </ol>
+</section>
+
+<div class="quiz" data-quiz-id="0015-q1">
+  <p class="q">What actually distinguishes MemGPT from an ordinary retrieval system?</p>
+  <ol class="options">
+    <li data-correct="true">The model also decides what gets written down</li>
+    <li>The store is searched by meaning, not keyword</li>
+    <li>The context window is larger than it was</li>
+    <li>The retrieved text is placed before the question</li>
+  </ol>
+  <div class="why">
+    <p>Retrieval reads a store somebody else built. MemGPT reads and writes, because the model calls functions to save a fact, replace one, and search for older material. The store grows out of the conversation.</p>
+    <p>That is also where the danger is. A retrieval mistake is wrong once. A memory mistake is written down and read back as fact tomorrow, and nothing in the loop rechecks it.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0015-q2">
+  <p class="q">The person asks the same question for the fifth time in an hour. Correct behaviour?</p>
+  <ol class="options">
+    <li data-correct="true">Answer it again, exactly as patiently as before</li>
+    <li>Point out that the question was already asked</li>
+    <li>Refuse and suggest they consult their written notes</li>
+    <li>Change the subject to something rather less repetitive</li>
+  </ol>
+  <div class="why">
+    <p>Repetition is the condition rather than a signal. Treating it as feedback that the answer was unsatisfactory is a design error, and any form of &#8220;as I mentioned&#8221; is a correction the person cannot act on.</p>
+    <p>The system still records it. A caregiver wants to know that the frequency changed this week, so the repetition goes into the episodic record even though the reply does not change.</p>
+  </div>
+</div>
+
+<section class="qset" id="edges">
+  <h2>Edges and exceptions</h2>
+  <p class="qset-note">Several of these have no engineering answer, and recognising which ones is most of the score.</p>
+  <ul class="qa-index">
+    <li><a href="#c15-e1">Distress mid-session</a></li>
+    <li><a href="#c15-e2">A fact that was always wrong</a></li>
+    <li><a href="#c15-e3">Someone has died</a></li>
+    <li><a href="#c15-e4">Two caregivers disagree</a></li>
+    <li><a href="#c15-e5">Consent</a></li>
+    <li><a href="#c15-e6">A missed reminder</a></li>
+    <li><a href="#c15-e7">Is it a medical device</a></li>
+    <li><a href="#c15-e8">What you would change</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c15-e1">
+      <p class="qa-q">The person becomes distressed and the window fills mid-conversation.</p>
+      <p class="qa-a">Eviction picks the worst possible moment, because the turns about to be summarised are the ones that matter most. The fix is to stop summarising by age during a flagged session and pin the current exchange. And distress should end the conversation into a caregiver alert rather than continue it well.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Handling it as a context-length problem. The right outcome is a human being contacted, not a longer window.</p>
+    </li>
+    <li class="qa-item" id="c15-e2">
+      <p class="qa-q">A stored fact turns out to have been wrong from the day it was written.</p>
+      <p class="qa-a">Then every reminder built on it was wrong too, and you need to know which ones. That is the argument for recording the source of each fact and each reminder that used it. Without it you can fix the fact and never find out what it caused.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Just correcting the row. Derived output is where the error actually lived, which is the same lesson as deleting an entry in chapter 0014.</p>
+    </li>
+    <li class="qa-item" id="c15-e3">
+      <p class="qa-q">The person asks about somebody who has died.</p>
+      <p class="qa-a">This is the case that decides whether the system is safe to build. There is no engineering answer. Whether to tell somebody with dementia, repeatedly, that their spouse has died is a clinical and family decision. The system carries whatever answer they gave. It does not choose one.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Picking a side. A candidate who answers this confidently in either direction has not understood the problem.</p>
+    </li>
+    <li class="qa-item" id="c15-e4">
+      <p class="qa-q">Two caregivers write contradictory facts.</p>
+      <p class="qa-a">The store cannot resolve it, so it should not try. Keep both with their author and timestamp, use neither for anything consequential, and surface the conflict. A last-write-wins rule would silently give one family member authority over another.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Last write wins. It looks like a sensible default and it is a decision about a family, made by accident.</p>
+    </li>
+    <li class="qa-item" id="c15-e5">
+      <p class="qa-q">Who consented to this, exactly?</p>
+      <p class="qa-a">That is the uncomfortable question and it deserves a straight answer. The person's capacity to consent is the condition being accommodated. Consent usually comes from a family member or a legal proxy, which makes it consent by somebody else. It is a real reason to keep the data local and the retention short.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating it as a checkbox. Naming that consent is proxied is what shows you thought about the user rather than the feature.</p>
+    </li>
+    <li class="qa-item" id="c15-e6">
+      <p class="qa-q">A medication reminder fires and nobody responds.</p>
+      <p class="qa-a">Then the system knows nothing, and unknown is not the same as taken. It should not assume either. Escalation belongs in the schedule layer, which retries and then alerts a caregiver. What it must never do is fire again later from an assumption, because a duplicate dose is a real harm.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Recording it as done. The two failure directions cost very different amounts, and only one of them is medical.</p>
+    </li>
+    <li class="qa-item" id="c15-e7">
+      <p class="qa-q">Is this a medical device?</p>
+      <p class="qa-a">Anything reminding about medication is close enough to that line that I would not answer it myself. It was a prototype, not a deployed product, and that distinction is the honest thing to lead with. Shipping it would need a clinician and a regulatory review before it needed more engineering.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying no confidently. Confidence about a regulatory boundary you have not checked reads worse than saying you would ask.</p>
+    </li>
+    <li class="qa-item" id="c15-e8">
+      <p class="qa-q">What would you change?</p>
+      <p class="qa-a">Put a review date on every stable fact. Nothing should be trusted forever without being looked at. Record which fact each reminder came from, so a wrong one is traceable to what it caused. And make the caregiver a first-class user, because half the real decisions belong to them.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Proposing a larger model. Every real problem here is about write policy, traceability and who is allowed to decide.</p>
+    </li>
+  </ol>
+</section>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;Why MemGPT rather than just retrieval?&#8221;
+      <span class="tell">The opening question every time. An answer about bigger context loses the room immediately.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Because the model writes as well as reads. In retrieval the corpus is fixed and somebody else built it, so nothing the model produced goes back in. Here the model calls a function to save a fact, replace one that changed, or search older conversations, and the store grows out of the conversation. That is the feature, and it is also the risk, because a retrieval mistake is wrong once and a memory mistake is wrong from tomorrow onwards.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;What stops it from remembering something wrong?&#8221;
+      <span class="tell">The follow-up that decides the conversation. The write-policy answer is specific and it lands.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Splitting memory by write policy rather than by lifetime. Stable facts about the person are read constantly and written rarely, and changing one needs a second mention in a different session or a caregiver confirming it. What happened is append-only and timestamped, so it can hold a contradiction without resolving it. Nothing in the system lets a single sentence overwrite a fact, because a single sentence cannot tell a person who moved house from a person who is confused.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;How do you make sure the eight o'clock reminder actually happens?&#8221;
+      <span class="tell">Looking for whether you know which parts deserve a model at all.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>By taking it out of the model entirely. Whether it is eight o'clock has one right answer, so it belongs in a table with a timer, not in memory that can be summarised away. The model phrases the reminder in the person's own terms and records what they said back. Acknowledgement goes into the same table rather than staying in the conversation, because a duplicate dose is a real harm and the record of it needs to be somewhere a scheduler can read.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;They tell you something that contradicts what you stored. Now what?&#8221;
+      <span class="tell">The question that separates a product answer from a database answer. Do not resolve it.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Hold both. The stored fact stays, the contradiction is appended with a timestamp, and a caregiver sees it. I would not overwrite, because one confused sentence would then be the truth forever. And I would not correct them in the moment, because whether to orient somebody to reality or go along with them is a clinical judgment with genuine disagreement behind it. That is not a decision a prototype should be making by itself.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;What does editing memory cost you at inference time?&#8221;
+      <span class="tell">A systems question inside an LLM question. Very few candidates connect the two.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The prefix cache. The always-present block of facts sits near the front of the prompt, so changing it invalidates every cached key and value after it and the whole conversation's prefix is recomputed. It is the most expensive edit in the system precisely because it is the earliest one. The practical consequence is to batch memory edits at turn boundaries rather than writing mid-turn, and to keep that block small.</p>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="recall">
+  <details>
+    <summary>Chapter 0009 gave a rule about what a model should be asked. Apply it to a routine reminder and say what falls out.</summary>
+    <p class="answer">The rule is that a model should only be asked questions with no deterministic answer. Whether it is eight o'clock, and whether the tablet was taken, both have one right answer, so neither belongs to the model. They go in a schedule table with a timer and an acknowledgement column. What is left for the model is the part with no fixed answer: how to phrase it for this person today, and what to make of the reply.</p>
+    <span class="from"><a href="0009-llm-and-agents.html">Chapter 0009 &#183; the oracle rule</a></span>
+  </details>
+  <details>
+    <summary>Chapter 0014 asked what happens when a journal entry is deleted. What is the identical problem here?</summary>
+    <p class="answer">A stored fact that was wrong from the start. Deleting or fixing the row is the easy half. The influence has already spread into every reminder that used it, and into any summary written while it was believed. The shared rule is that in a derived system you need the provenance of the derived thing, or you can correct the source and never find out what it caused.</p>
+    <span class="from"><a href="0014-agentic-journaling.html">Chapter 0014 &#183; deletion in a derived system</a></span>
+  </details>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">The lessons behind this chapter</span>
+  <p>System Design School teaches these mechanisms from first principles and breaks them in a lab. This chapter defends what you did with them. An interviewer moves between those two registers without warning.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0003-cache-aside-and-friends.html">SDS 0003 &#183; Cache-aside and friends</a>
+      <span class="bridge-why">The context window is a small fast tier populated on demand from a large slow one, which is cache-aside with the model as the cache manager.</span>
+    </li>
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0004-eviction-and-why-lru-is-wrong.html">SDS 0004 &#183; Eviction, and why LRU is wrong</a>
+      <span class="bridge-why">Oldest-first eviction drops the person's name, mentioned once at the start and needed every turn, which is exactly why some things get pinned.</span>
+    </li>
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0008-kv-cache-and-prefix-caching.html">SDS 0008 &#183; KV cache and prefix caching</a>
+      <span class="bridge-why">Editing the always-present block of facts invalidates every cached key and value after it, which is what a memory write actually costs.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0016 &#183; MVCC, then isolation levels &#8212; not yet built</span>
+      <span class="bridge-why">Three stores with three write policies, and a caregiver editing a fact while a conversation holds a copy from before the edit.</span>
+    </li>
+  </ol>
+</div>
+
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0014-agentic-journaling.html">&#8592; 0014 &#183; Agentic journaling and semantic routing</a></span>
+  <span><span class="dir">Next</span><a href="0016-pretraining-data-pipeline.html">0016 &#183; A pretraining data pipeline at 150&#8239;GB &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

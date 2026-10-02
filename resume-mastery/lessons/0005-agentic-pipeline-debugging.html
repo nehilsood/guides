@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>Agentic Pipeline-Failure Debugging</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0005">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">R&#233;sum&#233; Mastery</a>
+    <span class="sep">/</span>
+    <span>Batch A &#183; Innovaccer</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Chapter 0005</span>
+  </div>
+  <h1>Agentic pipeline-failure debugging</h1>
+  <p class="standfirst">The interesting decision here is not the agents. It is the triage in front of them: most pipeline failures are not worth investigating, and a system that investigates all of them is unaffordable. This chapter also corrects one word in the r&#233;sum&#233;, and it is better to correct it yourself.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Explain an autonomous system that can retrigger production, and make the interviewer comfortable rather than alarmed &#8212; because you can name every gate between a model's opinion and a pipeline actually running again.</p>
+</div>
+
+<div class="claim-line">
+  <span class="callout-label">The line being defended</span>
+  <blockquote>&#8220;Built an agentic <strong>pipeline-failure debugger</strong> end-to-end (CrewAI) &#8212; triaging each failure against a vector store of past incidents, dispatching specialist crews for SQL, Python, file, and infrastructure faults in parallel, then reviewing their findings and either applying the fix or retriggering the pipeline unattended.&#8221;</blockquote>
+  <span class="whose">Innovaccer &#183; bullet 1 of 3</span>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">A spoken answer to <em>&#8220;tell me about the pipeline debugger.&#8221;</em> Lead with the triage, because it is the judgment call. The autonomy lands better once the interviewer has heard how little of the work reaches it.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">A data platform runs thousands of scheduled jobs and some fail every night. Someone on call reads each log and decides whether it matters.</p>
+      <p class="line">Most of it is repetitive, and most failures are not interesting.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">The system is a state machine, not a conversation. Named steps, explicit routers, one readable control path.</p>
+      <p class="line">In front of everything is a cheap screener. It matches the log against past incidents and returns one of three categories: <b>retry it, ignore it, or investigate it</b>.</p>
+      <p class="line">That triage is the whole idea. Only the third branch costs anything, and it is the rare one.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">On the investigate branch it can propose a fix and <b>retrigger the pipeline unattended</b>. So the part I would want you to push on is what stands in the way.</p>
+      <p class="line">Four things. The screener has to escalate. The solution's action field has to say apply. A router has to agree. And a feature flag with a hard retry threshold has to allow it.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">Two corrections I would rather make myself. My r&#233;sum&#233; says the specialists run <b>in parallel</b>. On the default path they do not.</p>
+      <p class="line">One agent holds them as five tools and reasons through them in sequence. There is a parallel branch, and it is behind a flag that is off.</p>
+      <p class="line">And the validation layer that proves a fix before applying it defaults to <b>off</b>. That is the first thing I would change.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;Specialist agents debug SQL, Python, file and infrastructure faults in parallel.&#8221;</span> It is the r&#233;sum&#233; read aloud, and the default configuration does not do it. One question about the dispatcher gets there. Say &#8220;five tools on one reasoning agent by default, with a parallel branch behind a flag&#8221; instead, and you sound like someone who has read their own config.</p>
+  <p>The other trap is <span class="quoted">&#8220;it fixes pipelines automatically.&#8221;</span> Said flat, it makes an interviewer nervous and they start looking for what you forgot. Said as &#8220;it can retrigger unattended, and here are the four gates,&#8221; the same fact reads as careful engineering.</p>
+</div>
+
+
+<div class="trace">
+  <span class="callout-label">Walk them through it &#183; one failure, end to end</span>
+  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One failed pipeline, followed from the log line to the moment it runs again. The failure is a stand-in. Every gate it passes through is real, and so are the defaults.</p>
+  <p class="tr-case"><b>The picture.</b> A hospital triage nurse. Almost nobody walking through the door needs a surgeon. The nurse does not treat anyone. The whole job is deciding who gets treated and how urgently, and that decision costs a minute rather than an afternoon.</p>
+  <p class="tr-case"><b>The case.</b> At two in the morning a nightly job fails. Its log ends in a Snowflake error about a column that does not exist. Twenty other jobs failed in the same window. Follow this one.</p>
+  <ol>
+    <li class="tr-step">
+      <span class="tr-k">The failure</span>
+      <p><b>What happens.</b> A scheduled job dies and the jobs downstream of it start failing too. Somebody on call would read the log and decide whether it matters.</p>
+      <p><b>Concretely.</b> Most nightly failures are timeouts, auth blips, or a file that never arrived. Most of them are not interesting.</p>
+      <p><b>If they ask why.</b> The obvious build is one agent that reads a log and debugs it. That works in a demo. In production it means paying full price for every uninteresting failure.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The screener</span>
+      <p><b>What happens.</b> A cheap screener runs first. It reads the log and retrieves the five most similar past incidents from a vector store.</p>
+      <p><b>Concretely.</b> That store finds text by meaning rather than by keyword, so a new log matches old ones that read similarly even when the wording differs.</p>
+      <p><b>If they ask why.</b> The screener is built with DSPy rather than CrewAI, and that is deliberate. It has a typed signature, so the decision comes back as a named category instead of prose somebody has to parse.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Three buckets</span>
+      <p><b>What happens.</b> The screener returns one of three answers. Retry it, overlook it, or investigate it.</p>
+      <p><b>Concretely.</b> Two of those cost almost nothing. Everything expensive in this system sits behind the third branch, and the third branch is the rare one.</p>
+      <p><b>If they ask why.</b> That triage is the whole idea. It is what made the expensive path affordable enough to leave running unattended.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The flow</span>
+      <p><b>What happens.</b> Our failure comes back as investigate, and routing takes it down that branch.</p>
+      <p><b>Concretely.</b> This is a CrewAI Flow, which is a state machine. Named steps, explicit routers, and one readable control path in one class.</p>
+      <p><b>If they ask why.</b> It is not agents chatting until they agree. When it makes a wrong call, you can see which branch it took and why. That property is what makes it debuggable at all.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The specialists</span>
+      <p><b>What happens.</b> Now the investigation runs. There are specialists for SQL, Python, file and infrastructure faults.</p>
+      <p><b>Concretely.</b> My r&#233;sum&#233; says they run in parallel. On the default path they do not. One lead manager holds them as five tools and reasons through them in sequence.</p>
+      <p><b>If they ask why.</b> The parallel branch exists and it is behind a flag that is off. I would rather correct that myself than have it found.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The proposal</span>
+      <p><b>What happens.</b> The investigation produces a proposed solution, and that solution carries an action field.</p>
+      <p><b>Concretely.</b> For our case it proposes a column rename in the query and sets the action to apply.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The gates</span>
+      <p><b>What happens.</b> This is the part worth pushing on, because the next step can rerun a production pipeline with nobody watching.</p>
+      <p><b>Concretely.</b> Four separate things have to agree. The screener must escalate. The action field must say apply. A router must agree. And a feature flag with a hard retry threshold must allow it.</p>
+      <p><b>If they ask why.</b> Being able to name all four is the difference between an interviewer feeling comfortable and feeling alarmed.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The retrigger</span>
+      <p><b>What happens.</b> All four agree, the fix is applied, and the pipeline runs again unattended.</p>
+      <p><b>Concretely.</b> That single action is what makes every other design decision in this system matter.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Its own retries</span>
+      <p><b>What happens.</b> The response reviewer catches its own errors and retries three times with exponential backoff.</p>
+      <p><b>Concretely.</b> That is sensible for a flaky model call. It is also where a small mistake turns into an expensive one, because a bad proposal gets three attempts rather than one.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The asymmetry</span>
+      <p><b>What happens.</b> The screener can be wrong, and the two ways it is wrong are not equally bad.</p>
+      <p><b>Concretely.</b> A wrong retry is self-correcting, because the job simply fails again. A wrong overlook closes a real failure and nobody ever hears about it.</p>
+      <p><b>If they ask why.</b> If I were measuring one thing here it would be overlook precision, and we were not measuring it separately. The validation layer that proves a fix before applying it also defaults to off. That is the first thing I would change.</p>
+    </li>
+  </ol>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 340" role="img" aria-labelledby="mech0005-t mech0005-d">
+    <defs>
+      <marker id="ar5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+      <marker id="ar5g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head" style="fill:var(--good)"/>
+      </marker>
+    </defs>
+    <title id="mech0005-t">A three-way triage in front of one expensive investigation path</title>
+    <desc id="mech0005-d">A failed pipeline produces an error log. A DSPy screener retrieves the five most similar past incidents from a vector store and returns one of three categories. Retry and overlook are cheap terminal branches. Only investigate reaches the expensive path, where by default a single lead manager agent uses five specialist tools in sequence. Its findings go to a review crew, which produces a typed solution. If that solution says apply, and a feature flag allows it, the pipeline is retriggered unattended.</desc>
+
+    <rect class="box" x="8" y="16" width="150" height="50" rx="3"/>
+    <text class="lbl strong" x="83" y="38" text-anchor="middle">Pipeline fails</text>
+    <text class="lbl-dim" x="83" y="55" text-anchor="middle">error log + config</text>
+
+    <path class="flow" marker-end="url(#ar5)" d="M 162 41 H 200"/>
+
+    <rect class="box-2" x="204" y="10" width="210" height="62" rx="3"/>
+    <text class="lbl strong" x="309" y="32" text-anchor="middle">Screener &#183; DSPy ReAct</text>
+    <text class="lbl-dim" x="309" y="50" text-anchor="middle">retrieves k=5 known issues</text>
+    <text class="lbl-dim" x="309" y="65" text-anchor="middle">typed category + confidence</text>
+
+    <path class="flow-good" marker-end="url(#ar5g)" d="M 418 30 H 470"/>
+    <text class="lbl ink-good" x="476" y="26">RETRY</text>
+    <text class="lbl-dim" x="476" y="42">rerun, no investigation</text>
+
+    <path class="flow-good" marker-end="url(#ar5g)" d="M 418 58 H 470"/>
+    <text class="lbl ink-good" x="476" y="62">OVERLOOK</text>
+    <text class="lbl-dim" x="476" y="78">close, nothing to do</text>
+
+    <path class="flow" marker-end="url(#ar5)" d="M 309 76 V 104"/>
+    <text class="lbl ink-warn" x="316" y="96">INVESTIGATE &#8212; the only expensive branch</text>
+
+    <rect class="warn" x="60" y="108" width="500" height="94" rx="3"/>
+    <text class="lbl strong ink-warn" x="76" y="130">Lead manager &#183; USE_LEAD_MANAGER defaults true</text>
+    <text class="lbl-dim" x="76" y="150">One ReAct agent, reasoning=True, max_iter=10</text>
+    <text class="lbl-dim" x="76" y="168">Tools: past incidents &#183; file &#183; code &#183; lineage &#183; infra</text>
+    <text class="num ink-bad" x="76" y="192">sequential by construction, not parallel</text>
+
+    <text class="lbl-dim" x="580" y="130">Flag off instead:</text>
+    <text class="lbl-dim" x="580" y="148">ThreadPoolExecutor(3)</text>
+    <text class="lbl-dim" x="580" y="166">confluence, code, file</text>
+    <text class="lbl-dim" x="580" y="184">genuinely parallel</text>
+
+    <path class="flow" marker-end="url(#ar5)" d="M 310 206 V 232"/>
+
+    <rect class="box" x="120" y="236" width="380" height="50" rx="3"/>
+    <text class="lbl strong" x="310" y="258" text-anchor="middle">Response review &#8594; PipelineDebugSolution</text>
+    <text class="lbl-dim" x="310" y="276" text-anchor="middle">action: APPLY_RESOLUTION | MANUAL_INTERVENTION_REQUIRED</text>
+
+    <path class="flow" marker-end="url(#ar5)" d="M 504 261 H 544"/>
+
+    <rect class="accent" x="548" y="236" width="284" height="50" rx="3"/>
+    <text class="lbl strong ink-accent" x="690" y="258" text-anchor="middle">retrigger_pipeline</text>
+    <text class="lbl-dim" x="690" y="276" text-anchor="middle">gated by ENABLE_RETRIGGER_PIPELINE</text>
+
+    <text class="lbl-dim" x="8" y="312">Review retries itself up to 3 times on model error, sleeping 2**n seconds</text>
+    <text class="lbl-dim" x="8" y="332">ENABLE_PIPELINE_VALIDATIONS defaults to false &#183; RETRIGGER_PIPELINE_THRESHOLD defaults to 1</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">What you say while drawing it</span>
+    <ol class="narrate">
+      <li>A pipeline fails and produces an error log.</li>
+      <li>The screener is cheap. It pulls the five most similar past incidents and returns a typed category.</li>
+      <li>Retry and overlook go sideways and stop. Those are most failures, and they cost nothing.</li>
+      <li>Only investigate goes down, and that arrow is the expensive one.</li>
+      <li>By default it is one agent with five tools, reasoning in sequence. Not four crews at once.</li>
+      <li>The parallel mode is written on the right, and it is behind a flag that is off.</li>
+      <li>Findings go to a review step that returns a typed solution with a two-value action field.</li>
+      <li>If it says apply, and the flag allows it, the pipeline gets retriggered with nobody watching.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. The shape is a funnel with two cheap exits and one expensive path that ends in production.</p>
+  <ul>
+    <li>The <b>three-way split</b> at the screener. Two arrows sideways, one down.</li>
+    <li>&#8220;<b>the only expensive branch</b>&#8221; on the downward arrow. The one mark to keep.</li>
+    <li><b>Sequential, not parallel</b> inside the lead manager box.</li>
+    <li>The <b>retrigger box</b> and the flag guarding it.</li>
+    <li>The word <b>false</b> next to pipeline validations, so you never forget it.</li>
+  </ul>
+  <span class="timer">Say &#8220;retry, overlook, investigate&#8221; out loud as you draw the split. Three words and the whole economics is explained.</span>
+</div>
+
+<div class="star">
+  <span class="callout-label">Behavioural &#183; the story for this bullet</span>
+  <p class="frame">For <em>&#8220;tell me about a time you designed for cost&#8221;</em> or <em>&#8220;a time you deliberately made the system do less.&#8221;</em></p>
+  <ol class="rungs">
+    <li class="rung"><span class="rung-k">Decision</span><p>Whether every pipeline failure should get a full agentic investigation, or whether something cheap should decide first which ones deserve one.</p></li>
+    <li class="rung"><span class="rung-k">Situation</span><p>The obvious build is one agent that reads a log and debugs it. That works in a demo. In production the platform throws a large number of failures nightly, and most are timeouts, auth blips or files that never arrived.</p></li>
+    <li class="rung"><span class="rung-k">Action</span><p>I put a screener in front, with a typed three-value output rather than prose. It retrieves the five most similar past incidents and returns retry, overlook or investigate.</p><p>The typed literal was the part I insisted on. A category you have to parse out of a sentence is a category that eventually comes back as a fourth value nobody handled.</p></li>
+    <li class="rung"><span class="rung-k">Result</span><p>The expensive path became the exception rather than the rule. That is what made it viable to leave running. The routing is also readable. When it makes a wrong call you can see which branch it took and why.</p></li>
+    <li class="rung"><span class="rung-k">What it cost</span><p>The screener can be wrong, and the two ways it is wrong are not symmetric. A bad retry is self-correcting, because the job fails again. A bad overlook closes a real failure and nobody hears about it. If I were measuring one thing here it would be overlook precision. We were not measuring it separately.</p></li>
+  </ol>
+</div>
+
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>A data platform runs thousands of scheduled jobs. Some fail every night. A human on call reads the log, works out whether it matters, and either reruns it, fixes something, or ignores it. Most of that work is repetitive, and most failures are not interesting.</p>
+  <p>This system does the first pass. It reads the error log and compares it against failures it has seen before. Then it sorts the failure into one of three buckets. <b>Just retry it</b>, <b>ignore it</b>, or <b>this needs looking at</b>. Only the third bucket costs anything. For that one it investigates, proposes a fix, reviews its own proposal, and can retrigger the pipeline without a person.</p>
+  <dl>
+    <dt>Pipeline</dt>
+    <dd>A scheduled data job. It reads from somewhere, transforms, and writes somewhere. When one fails, downstream jobs that depend on it fail too.</dd>
+
+    <dt>Triage</dt>
+    <dd>Deciding how much attention something deserves before spending any. The cheapest step in the system and the one that makes the rest affordable.</dd>
+
+    <dt>Vector store</dt>
+    <dd>A database that finds text by meaning rather than by keyword. Here it holds past incidents, so a new log can be matched against old ones that read similarly.</dd>
+
+    <dt>CrewAI</dt>
+    <dd>The framework this is built on. It supplies agents, tools, and a <b>Flow</b>, which is a state machine whose steps are decorated with <code>@start</code>, <code>@listen</code> and <code>@router</code>.</dd>
+
+    <dt>DSPy</dt>
+    <dd>A different framework, used only for the screener. It defines a typed signature of inputs and outputs, so the triage decision comes back as a named category rather than as prose to be parsed.</dd>
+
+    <dt>ReAct</dt>
+    <dd>A loop where a model reasons, calls a tool, reads the result, and reasons again. Sequential by nature, because each step depends on the last one's output.</dd>
+
+    <dt>Crew</dt>
+    <dd>A group of agents with tools, assigned to one kind of problem. There are crews for code, for files, and for documentation lookups.</dd>
+
+    <dt>Lead manager</dt>
+    <dd>An alternative to running crews separately. One agent holds all the specialist capabilities as <em>tools</em> and decides which to use. It is on by default.</dd>
+
+    <dt>Retrigger</dt>
+    <dd>Running the failed pipeline again, unattended, after applying a proposed fix. The action that makes every other design decision in this system matter.</dd>
+
+    <dt>Feature flag</dt>
+    <dd>An environment variable that turns behaviour on or off without a deploy. Several of the riskiest behaviours here sit behind one, and their defaults are worth knowing.</dd>
+  </dl>
+</div>
+
+<div class="primer stack">
+  <span class="callout-label">The technology &#8212; what each named thing is</span>
+  <p>The primer above names the parts of the debugging problem. This one names the frameworks, starting from the ground. Two of them are young enough that plenty of people say the word without being able to define it.</p>
+  <p>Every entry answers four things. What it actually is, in plain words. Where this system uses it. What it buys, meaning what goes wrong without it. And the follow-up an interviewer asks once you have said the name.</p>
+  <dl>
+    <dt>CrewAI</dt>
+    <dd><i>the framework in the bullet</i>A Python framework for building systems where several model-driven workers cooperate. Its base unit is the <b>Crew</b>: a set of agents, each given a role, a goal and some tools, working through a list of tasks. You describe the team and the brief in Python, and it handles the prompting, the tool calls and the passing of one task's output into the next. <b>In the app.</b> One crew per fault type &#8212; SQL, Python, file and infrastructure. <b>What it buys.</b> Separation. Each crew's prompt, tools and permissions are scoped to one kind of failure, so the SQL specialist never sees infrastructure credentials and its instructions stay short enough to be reliable. <b>The follow-up.</b> A Crew is stateless and has no branching. It runs its tasks and returns a result. Everything about ordering, retries, and what happens next lives one level above it, which is the next entry.</dd>
+
+    <dt>Flow</dt>
+    <dd><i><code>Flow[PipelineDebuggerState]</code></i>CrewAI's orchestration layer, and a genuinely different thing from a Crew. A Flow is an ordinary Python class whose methods are wired together with decorators. <code>@start</code> marks the entry point, <code>@listen</code> fires a method when a named earlier one finishes, and <code>@router</code> branches by returning a label. A typed state object is threaded through every step. <b>In the app.</b> Triage, dispatch, review, then apply or retrigger. <b>What it buys.</b> A state machine that is readable in one file and testable without calling a model at all. The branching lives in Python, where it can be unit tested, rather than in a prompt, where it cannot. <b>The follow-up.</b> Where the intelligence is. The Flow itself is deterministic. Only the crews inside it ask a model anything, and being able to point at that line is the whole answer.</dd>
+
+    <dt>Agent and Task</dt>
+    <dd><i>what a Crew is made of</i>An agent is a role, a goal, a backstory and a set of tools it may use. A task is one piece of work with a description and an expected output, assigned to an agent. A crew is agents plus tasks, and that is the entire model. <b>In the app.</b> &#8220;Specialist crews for SQL, Python, file and infrastructure faults&#8221; is four of these, each with its own tools. <b>What it buys.</b> A place to put scope. Tools are attached per agent, so capability is bounded by construction rather than by instruction. <b>The follow-up.</b> What the role actually buys, and be honest. It is prompt text, not a capability. A named role gives the model a frame to answer within, and absolutely nothing stops it answering outside that frame. The tool list is the part with teeth.</dd>
+
+    <dt>DSPy</dt>
+    <dd><i>the other framework here</i>A library for programming language models instead of prompting them. Rather than writing prompt text, you declare a <b>signature</b>, which is a typed description of the transformation you want, and choose a <b>module</b> that implements it. DSPy generates the actual prompt, and an optimizer can then rewrite that prompt automatically by testing candidates against a metric and a small development set. <b>In the app.</b> The log screener, which has a fixed input and a fixed output type. <b>What it buys.</b> Prompts stop being strings people edit by hand and hope about. The declaration is version-controlled and typed, and the wording underneath can be regenerated rather than negotiated. <b>The follow-up.</b> Whether you actually ran an optimizer. Using the signatures for their structure and never optimizing is a perfectly legitimate answer, and a far better one than implying a tuning loop you did not run.</dd>
+
+    <dt>Signature</dt>
+    <dd><i><code>LogScreenerSignature</code></i>The declaration itself. Named input fields, named output fields, and a docstring saying what the transformation is. Six lines, and not one word of prompt text. <b>In the app.</b> It is the short, showable artefact that names its own output type, which is the point of showing it. <b>What it buys.</b> The contract is visible at a glance. Anyone reading the class knows what goes in and what comes out without reading a paragraph of instructions to infer it. <b>The follow-up.</b> What DSPy does with it. It builds the prompt from the field names and the docstring, and parses the reply back into those fields. Which means renaming a field changes the prompt, and that is a surprising thing to discover during a rename.</dd>
+
+    <dt>ReAct</dt>
+    <dd><i>reason and act</i>A loop rather than a single call. The model writes down a thought, chooses an action, sees the result of that action, and then goes round again with that result in view, until it decides it can answer. Reasoning and acting interleave instead of the model planning everything up front. <b>In the app.</b> Investigating a failure has exactly that shape. <b>What it buys.</b> The ability to follow evidence. You cannot know which log to read second until you have read the first, and a single-shot prompt has to guess the whole path in advance. <b>The follow-up.</b> The iteration cap. <code>max_iter=10</code> exists because the loop has no natural end and a confused model will happily go round forever. What happens when the cap is hit is a design decision, not an error case, and you should have an answer for it.</dd>
+
+    <dt>Vector store</dt>
+    <dd><i>Chroma, via <code>ChromadbRM</code></i>A database that stores text as lists of numbers and searches by closeness rather than by matching words. Each past incident goes in as a vector, and a query returns the nearest ones. <b>In the app.</b> Looking up whether a failure resembles something already seen and solved. <b>What it buys.</b> Matching on meaning instead of wording. Two incidents describing the same root cause in entirely different words still land near each other, which keyword search would never connect. <b>The follow-up.</b> What is actually stored. The vector is one particular model's representation of that text. Change the embedding model and every stored vector is stale, because distances only mean anything within a single model's space. That is a migration, not a config change.</dd>
+
+    <dt>Embedding</dt>
+    <dd><i>the numbers themselves</i>A fixed-length list of numbers produced from a piece of text by a model, arranged so that texts with similar meaning end up close together in that space. Closeness is usually measured as cosine distance, the angle between two vectors. <b>In the app.</b> It is what turns &#8220;have we seen this before&#8221; from a search into a lookup. <b>What it buys.</b> Similarity that survives paraphrase, which is the only kind worth having when the input is a human-written error report. <b>The follow-up.</b> Where it fails. Two stack traces with completely different root causes can read almost identically, so nearest-neighbour retrieval hands back confident and wrong precedent. Nothing in the store flags this, so the guard has to be a distance threshold and a human check.</dd>
+
+    <dt><code>ThreadPoolExecutor</code></dt>
+    <dd><i>the parallel bit</i>Python's built-in thread pool. You hand it callables, it hands back futures, and you collect results as they finish. The pool size caps how many run at once, which is three here. <b>In the app.</b> It is the actual mechanism behind the word &#8220;parallel&#8221; in the bullet. <b>What it buys.</b> Four crews investigating at the same time instead of one after another, so total time is roughly the slowest crew rather than the sum of all of them. The cap is what stops four simultaneous model calls becoming forty. <b>The follow-up.</b> The GIL, and say it before you are asked. Python threads do not execute bytecode simultaneously. What they overlap is waiting, which is all this needs, because every crew spends its time waiting on a model. Claiming true parallelism here would be wrong and easily caught.</dd>
+
+    <dt>Exponential backoff</dt>
+    <dd><i><code>2 ** retry_count</code></i>Doubling the wait between attempts. One second, then two, then four, then eight. The idea is that a dependency which is struggling gets hit less often as it struggles more, instead of being hammered at a fixed rate by every client at once. <b>In the app.</b> Retriggering a pipeline that failed for an environmental reason is the whole unattended path. <b>What it buys.</b> Retries that help rather than finish the job off. A fixed-interval retry storm is how a recoverable outage becomes an unrecoverable one. <b>The follow-up.</b> Jitter. Plain doubling synchronises every retrying client onto the same instants, so they all come back together and the thundering herd survives the backoff. A real implementation randomises the wait, and naming that is the difference between having read about backoff and having run it.</dd>
+
+    <dt>Feature flag</dt>
+    <dd><i><code>USE_LEAD_MANAGER</code>, <code>ENABLE_RETRIGGER_PIPELINE</code></i>A named switch, read at runtime, that changes behaviour without shipping new code. Deploy the code off, turn it on for one environment, turn it off again in seconds if it misbehaves. <b>In the app.</b> The autonomous half of this system is gated behind these. <b>What it buys.</b> It is the reason code that can retrigger a production pipeline was allowed anywhere near production. Shipping and enabling become separate decisions, and the off switch does not require a release. <b>The follow-up.</b> The default. A flag's default value is the real behaviour of the system, and a bullet that describes the branch nobody has ever turned on is describing something that did not happen. Know which way yours were set.</dd>
+  </dl>
+</div>
+
+
+
+
+
+<h2>The shape: a state machine, not a conversation</h2>
+
+<p class="breath">It is a flow with named steps and explicit routing. Not agents chatting until they agree. You can read the whole control path in one class, which is the property that makes it debuggable.</p>
+
+<p><code>PipelineDebuggerFlow</code> extends <code>Flow[PipelineDebuggerState]</code>. Steps are decorated. <code>@start</code> loads the workflow data. <code>@listen(start_flow)</code> runs the screener. <code>@router(screener)</code> reads the screener's category and returns a branch name.</p>
+
+<p>That matters for the same reason chapter 0001's orchestrator matters. The routing decisions are in one file, in order, and typed. A multi-agent system where agents decide what happens next has no such file, and no way to answer &#8220;why did it do that?&#8221;</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>There is a flowchart, and it is written down. The agents do work inside the boxes. They do not draw the arrows.</p>
+
+<h2>The triage, which is the real idea</h2>
+
+<p class="breath">Three categories, and two of them cost almost nothing. Retry it, ignore it, or investigate it. Everything expensive sits behind that third branch.</p>
+
+<p>The screener is a DSPy <code>ReAct</code> module over a <code>LogScreenerSignature</code>. It takes the logs, the node configuration, and context retrieved from a ChromaDB collection of <code>known_issues</code> at <b>k=5</b>. It returns an investigation, a resolution, a <code>resolution_category</code>, and a confidence.</p>
+
+<p>The category is a typed literal with exactly three values. <b>RETRY</b> for transient faults: timeouts, auth blips, connection resets. <b>OVERLOOK</b> for things outside our control, like a file that was never going to arrive. <b>INVESTIGATE</b> for everything that actually needs work.</p>
+
+<p>Say the economics out loud, because it is the part that shows judgment. If most nightly failures are transient and a large model investigation costs real money and minutes, then the screener is what makes the system deployable at all.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Before calling the expensive specialist, ask a cheap question: is this worth anyone's time? Usually it is not.</p>
+
+<h2>The word in the r&#233;sum&#233; that needs correcting</h2>
+
+<p class="breath">The bullet says the specialists run in parallel. In the default configuration they do not. One agent holds them as tools and works through them in sequence. The parallel path exists and is not the default.</p>
+
+<p><code>USE_LEAD_MANAGER</code> defaults to <b>true</b>. On that path, <code>LeadManagerCrew</code> is a single agent with five tools: past incidents, file debugging, code debugging, workflow lineage, and infrastructure. It runs with <code>reasoning=True</code> and <code>max_iter=10</code>. A ReAct loop is sequential by construction, because each tool call is chosen after reading the previous result.</p>
+
+<p>Only when the flag is off does the dispatcher use a <code>ThreadPoolExecutor(max_workers=3)</code> over the confluence, code and file crews. That branch is genuinely parallel, and it covers three of the four fault types &#8212; infrastructure is reached through the lead manager.</p>
+
+<p>The correction to make, unprompted: <em>the specialists are tools on one reasoning agent by default, and there is a parallel branch behind a flag.</em> That sentence is more impressive than the r&#233;sum&#233;'s, because it shows you know which branch is live.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>One investigator with five instruments, used one at a time. Not four investigators working at once. There is a mode that does that, and it is switched off.</p>
+
+<h2>What stands between a model's opinion and production</h2>
+
+<p class="breath">The system can rerun a production pipeline on its own. Four separate things have to agree before that happens, and every one of them is worth being able to name.</p>
+
+<p>First, the screener has to route to <code>INVESTIGATE</code>. Second, the investigation has to produce a <code>PipelineDebugSolution</code> whose <code>action</code> is <code>APPLY_RESOLUTION</code> rather than <code>MANUAL_INTERVENTION_REQUIRED</code>. Third, <code>action_router</code> has to read that recommendation and return <code>TRIGGER_RETRY</code>. Fourth, <code>ENABLE_RETRIGGER_PIPELINE</code> has to be on, and <code>RETRIGGER_PIPELINE_THRESHOLD</code> bounds how many times.</p>
+
+<p>The output model is typed, which is the same lesson as chapter 0001's grounding. The action is a literal with two values, and confidence is a float bounded between zero and one. A model cannot return &#8220;probably fine, go ahead&#8221; because the schema has no shape for it.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Four locks between a suggestion and a real rerun, and one of them is a switch an operator can flip.</p>
+
+<h2>Where it retries itself, and why that is the weak spot</h2>
+
+<p class="breath">The response reviewer catches its own errors and retries three times, with exponential backoff. That is sensible for a flaky model call. It is also the place where a small mistake becomes an expensive one.</p>
+
+<p><code>response_reviewer</code> wraps its crew call in a try block. On failure it increments a counter, sleeps <code>2 ** retry_count</code>, and calls itself again, up to three attempts. That is a recursive retry, not a loop, and the distinction matters when you talk about it.</p>
+
+<p>It is the right behaviour for a transient LiteLLM error. The thing to say before being asked is that a retry which re-runs a synthesis crew is not cheap, and that three attempts at up to four seconds of sleep sits inside whatever deadline the caller has. If nothing above it enforces a ceiling, the ladder is the deadline.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>If the summariser fails, try it again a few times, waiting longer each time. Just know what three attempts costs before promising a response time.</p>
+
+
+
+
+
+<section class="qset" id="toolbox">
+  <h2>Toolbox</h2>
+  <p class="qset-note">Every noun in the bullet, defined out loud, from the ground up. CrewAI and DSPy are both recent, and an interviewer who has used neither will ask you to define them before letting you argue about them. Each answer says what the thing is, what it does here, and what you would lose without it.</p>
+  <ul class="qa-index">
+    <li><a href="#c05-t1">What CrewAI is</a></li>
+    <li><a href="#c05-t2">Flow against Crew</a></li>
+    <li><a href="#c05-t3">What DSPy is for</a></li>
+    <li><a href="#c05-t4">What ReAct is</a></li>
+    <li><a href="#c05-t5">What a vector store holds</a></li>
+    <li><a href="#c05-t6">Threads and the GIL</a></li>
+    <li><a href="#c05-t7">What backoff is missing</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c05-t1">
+      <p class="qa-q">What is CrewAI, and what is a Crew made of?</p>
+      <p class="qa-a">CrewAI is a Python framework for building systems where several model-driven workers cooperate. A Crew is a set of agents and a set of tasks. Each agent has a role, a goal and tools it may use. Each task has a description, an expected output and an owner. You describe the team and the brief in Python. It handles the prompting, the tool calls, and the passing of one task's output into the next. What that buys here is separation. Each crew's prompt, tools and permissions are scoped to one kind of failure. The SQL specialist never sees infrastructure credentials, and its instructions stay short enough to be reliable. A Crew holds no state between runs and has no branching of its own.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing a Crew as the whole system. It is the worker. Everything about ordering and retries sits above it.</p>
+    </li>
+    <li class="qa-item" id="c05-t2">
+      <p class="qa-q">What is a Flow, and why is it not just a bigger Crew?</p>
+      <p class="qa-a">A Flow is CrewAI's orchestration layer, and a genuinely different thing. It is an ordinary Python class whose methods are wired together by decorators. Start marks the entry point, listen fires a method when a named earlier one finishes, and router branches by returning a label. A typed state object is threaded through every step. What that buys is a state machine you can read in one file and test without calling a model at all. The branching lives in Python, where it can be unit tested, rather than in a prompt, where it cannot. The Flow is deterministic code. Only the crews inside it ask a model anything, and being able to point at that line is the whole answer.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Implying the model chooses the route. The router is a Python function reading state, and that is the reason the path is reproducible.</p>
+    </li>
+    <li class="qa-item" id="c05-t3">
+      <p class="qa-q">What is DSPy, and what does a signature give you?</p>
+      <p class="qa-a">DSPy lets you program a model instead of prompting it. Rather than writing prompt text, you declare a signature. That is named input fields, named output fields, and a line saying what the transformation is. A module implements that signature with a technique such as ReAct. DSPy then generates the actual prompt from the declaration. What it buys is prompts that stop being strings people edit by hand and hope about. The declaration is typed and version-controlled, and the wording underneath can be regenerated rather than argued over. An optimizer can go further and rewrite that prompt by testing candidates against a metric. Using the signatures without ever running an optimizer is a perfectly fair answer.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Implying you compiled and optimized prompts if you did not. The declaration alone is worth having, and claiming the optimizer invites a question about the dev set.</p>
+    </li>
+    <li class="qa-item" id="c05-t4">
+      <p class="qa-q">What is ReAct?</p>
+      <p class="qa-a">A loop rather than a single call. The model writes down a thought, picks an action, and sees the result. Then it goes round again with that result in view, until it can answer. Reasoning and acting interleave instead of the model planning everything up front. What that buys is the ability to follow evidence. You cannot know which log to read second until you have read the first. A single-shot prompt has to guess the whole path in advance. The part worth naming is the iteration cap. The loop has no natural end and a confused model will go round forever. What happens when it runs out is a decision you made.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it a prompting style. It is a control loop with a budget, and the budget is the part that reaches production.</p>
+    </li>
+    <li class="qa-item" id="c05-t5">
+      <p class="qa-q">What is a vector store, and what is actually stored in it?</p>
+      <p class="qa-a">Embeddings. A model reads a piece of text and outputs a fixed-length list of numbers, placed so that texts meaning similar things land close together. Each past incident goes in as one of those. Retrieval is nearest neighbour, usually by cosine distance, rather than keyword match. What that buys is matching on meaning instead of wording. Two incidents describing the same root cause in entirely different words still land near each other, which keyword search would never connect. On human-written error reports that is the only kind of similarity worth having. The catch is that vectors are only comparable within one embedding model. Changing the model makes every stored vector meaningless, so it is a migration rather than a config change.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;It searches semantically&#8221; with nothing behind it. Say what is stored, how distance is measured, and what makes the distance meaningless.</p>
+    </li>
+    <li class="qa-item" id="c05-t6">
+      <p class="qa-q">You said crews run in parallel. What does a thread pool actually give you in Python?</p>
+      <p class="qa-a">Overlapped waiting, not overlapped computation. A thread pool takes callables and hands back futures, with the pool size capping how many run at once. The GIL means two threads never run Python bytecode at the same instant. It is released around blocking calls, so three crews waiting on model responses do overlap. What that buys is a total time close to the slowest crew rather than the sum of all of them. The cap is what stops four simultaneous model calls becoming forty. That is the whole benefit here, and it is enough, because none of the work is CPU-bound. Say it before the interviewer says it to you.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying &#8220;in parallel&#8221; and meaning cores. With threads in Python you get concurrency. Claiming parallelism invites the GIL question and you will lose it.</p>
+    </li>
+    <li class="qa-item" id="c05-t7">
+      <p class="qa-q">What is exponential backoff, and what is missing from doubling alone?</p>
+      <p class="qa-a">Backoff doubles the wait after each failure. One second, then two, then four, then eight. The idea is that a struggling dependency gets hit less often as it struggles more. Otherwise every client hammers it at a fixed rate at once. What that buys is retries that help instead of finishing the job off. A fixed-interval retry storm is how a recoverable outage becomes an unrecoverable one. What doubling alone lacks is jitter. Every client that failed at the same moment retries at the same moment. The pattern repeats at each step, so the herd survives the backoff. A real implementation randomises within the window. It also needs a ceiling and a give-up point.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Stopping at &#8220;we retry with backoff.&#8221; Jitter and a cap are the two follow-ups, and naming them unprompted is what separates read-about from run-in-production.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="fundamentals">
+  <h2>Fundamentals</h2>
+  <p class="qset-note">The warm-up. Question three is the one that separates this from &#8220;we pointed an LLM at our logs.&#8221;</p>
+  <ul class="qa-index">
+    <li><a href="#c05-f1">What it does</a></li>
+    <li><a href="#c05-f2">Why a flow, not a chat</a></li>
+    <li><a href="#c05-f3">The three categories</a></li>
+    <li><a href="#c05-f4">What the vector store holds</a></li>
+    <li><a href="#c05-f5">Why DSPy for the screener</a></li>
+    <li><a href="#c05-f6">What a crew is</a></li>
+    <li><a href="#c05-f7">Parallel or sequential</a></li>
+    <li><a href="#c05-f8">What it is allowed to do</a></li>
+    <li><a href="#c05-f9">What the output model is</a></li>
+    <li><a href="#c05-f10">The riskiest claim</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c05-f1">
+      <p class="qa-q">In two sentences, what does this system do?</p>
+      <p class="qa-a">It reads a failed data pipeline's error log and decides what kind of failure it is. From there it does one of three things. It reruns the job, it ignores it, or it investigates properly. On that third path it proposes a fix it can apply and retrigger without a person.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Opening with CrewAI. The framework is the least interesting fact about this system and it invites the weakest follow-up.</p>
+    </li>
+    <li class="qa-item" id="c05-f2">
+      <p class="qa-q">Why is it a state machine rather than agents talking to each other?</p>
+      <p class="qa-a">Because the control path has to be readable. <code>PipelineDebuggerFlow</code> has decorated steps and explicit routers, so you can read what happens next in one file. A system where agents decide the sequence cannot answer why it did something, and this one can retrigger production.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;That is how CrewAI works.&#8221; Flows are one option in CrewAI and crews talking is another. It was a choice.</p>
+    </li>
+    <li class="qa-item" id="c05-f3">
+      <p class="qa-q">What are the three triage categories?</p>
+      <p class="qa-a">RETRY, OVERLOOK and INVESTIGATE. Retry is for transient faults like timeouts and connection resets. Overlook is for things outside our control, such as a file that never arrived. Investigate is everything else, and it is the only branch that costs real money.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing it as classification. It is admission control, and saying so frames the whole system correctly.</p>
+    </li>
+    <li class="qa-item" id="c05-f4">
+      <p class="qa-q">What is in the vector store?</p>
+      <p class="qa-a">Past incidents and known issues, in ChromaDB collections. The screener retrieves the top five most similar entries and puts them in context before deciding. So the triage decision is informed by what happened last time a log looked like this one.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it RAG and stopping. Name what is retrieved and what it is used for, because the retrieval here feeds a routing decision rather than an answer.</p>
+    </li>
+    <li class="qa-item" id="c05-f5">
+      <p class="qa-q">Why is the screener written in DSPy when everything else is CrewAI?</p>
+      <p class="qa-a">Because the screener's output is a decision, not prose. A DSPy signature declares typed fields, so <code>resolution_category</code> comes back as one of three literals with a confidence float. There is no parsing step and no chance of a fourth category appearing. For a routing decision that is worth a second framework.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying it was inherited. Two frameworks in one service needs a reason, and this one has a good one.</p>
+    </li>
+    <li class="qa-item" id="c05-f6">
+      <p class="qa-q">What is a crew, concretely?</p>
+      <p class="qa-a">A set of agents with tools and tasks, pointed at one kind of problem, run by a process. There are crews for code debugging, file issues and documentation lookups, plus a review crew that synthesises everything. Each one is a bundle of capability, not a personality.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Anthropomorphising. &#8220;The SQL expert talks to the file expert&#8221; is how people describe systems they have not read.</p>
+    </li>
+    <li class="qa-item" id="c05-f7">
+      <p class="qa-q">The bullet says the specialists run in parallel. Do they?</p>
+      <p class="qa-a">Not on the default path, and I would correct that myself. <code>USE_LEAD_MANAGER</code> defaults to true. On that path one agent holds the specialists as five tools and works through them in a ReAct loop, which is sequential. There is a genuinely parallel branch behind the flag, using three worker threads.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Defending the word &#8220;parallel.&#8221; One question about the dispatcher exposes it, and volunteering the correction costs nothing.</p>
+    </li>
+    <li class="qa-item" id="c05-f8">
+      <p class="qa-q">What is this system actually allowed to do to production?</p>
+      <p class="qa-a">Retrigger a failed pipeline, with a resolution applied, unattended. That is the strongest permission it has. It sits behind four gates. The screener has to route to investigate. The solution's action field has to say apply. The action router has to agree. And a feature flag with a retry threshold has to allow it.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Underselling it. If you describe it as advisory, the interviewer reads the bullet's word &#8220;unattended&#8221; and stops believing the rest.</p>
+    </li>
+    <li class="qa-item" id="c05-f9">
+      <p class="qa-q">What does the investigation return?</p>
+      <p class="qa-a">A typed <code>PipelineDebugSolution</code>. It carries the investigation text and a step-by-step resolution. It also carries an action that is either apply or manual intervention required. Then optional corrected code with its type, and a confidence bounded between zero and one. The action being a two-value literal is the part that matters.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying it returns a recommendation. The shape is the safety property, in the same way the claim schema was in chapter 0001.</p>
+    </li>
+    <li class="qa-item" id="c05-f10">
+      <p class="qa-q">What is the riskiest claim in this bullet?</p>
+      <p class="qa-a">The word &#8220;parallel,&#8221; because the default configuration is sequential. The second riskiest is &#8220;infrastructure,&#8221; since infra is reached as a tool on the lead manager rather than as its own crew. Both are one question deep, so I would say them before being asked.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Naming the autonomy as the risk. Autonomy is the impressive part and it is well gated. The wording is what will not survive contact.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="deep-dive">
+  <h2>Deep dive</h2>
+  <p class="qset-note">The autonomy questions are the ones that decide this round. An interviewer is working out whether you understood what you were allowed to build.</p>
+  <ul class="qa-index">
+    <li><a href="#c05-d1">Walk the flow</a></li>
+    <li><a href="#c05-d2">Why triage first</a></li>
+    <li><a href="#c05-d3">Retrieval feeding a decision</a></li>
+    <li><a href="#c05-d4">k equals five</a></li>
+    <li><a href="#c05-d5">Lead manager versus crews</a></li>
+    <li><a href="#c05-d6">The four gates</a></li>
+    <li><a href="#c05-d7">Recursive retry</a></li>
+    <li><a href="#c05-d8">Confidence as a field</a></li>
+    <li><a href="#c05-d9">A wrong RETRY</a></li>
+    <li><a href="#c05-d10">A wrong OVERLOOK</a></li>
+    <li><a href="#c05-d11">Feature flag defaults</a></li>
+    <li><a href="#c05-d12">How you would measure it</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c05-d1">
+      <p class="qa-q">Walk me through the flow from failure to retrigger.</p>
+      <p class="qa-a">Start loads the workflow data. The screener classifies. A router branches on the category. Investigate dispatches the lead manager or the parallel crews. Response review synthesises into a typed solution. An action router reads the recommendation. If it says apply, trigger retry calls <code>retrigger_pipeline</code> with the resolution attached.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Skipping the routers. They are where the decisions live, and naming them shows you have read the control path rather than the README.</p>
+    </li>
+    <li class="qa-item" id="c05-d2">
+      <p class="qa-q">Why put triage in front at all? Why not investigate everything?</p>
+      <p class="qa-a">Cost and latency. A full investigation is a large-model reasoning loop with up to ten tool calls. Most nightly failures are timeouts and missing files. If every one of those triggered an investigation, the system would be too slow and too expensive. It would be turned off, which means it would not exist.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Framing it as accuracy. It is admission control, and the honest reason is that the expensive path has to be rare.</p>
+    </li>
+    <li class="qa-item" id="c05-d3">
+      <p class="qa-q">The retrieval feeds a routing decision rather than an answer. Why does that distinction matter?</p>
+      <p class="qa-a">Because the failure modes are different. In normal retrieval, a bad chunk gives a worse answer. Here a bad chunk changes which branch runs. A misleading similar incident can turn an investigate into a retry, and the pipeline reruns and fails again with nobody looking. Retrieval quality becomes a control-flow property.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating this as ordinary RAG. The consequence of a bad retrieval here is a wrong action, not a wrong sentence.</p>
+    </li>
+    <li class="qa-item" id="c05-d4">
+      <p class="qa-q">Why k equals five, and what would you change it to?</p>
+      <p class="qa-a">Five is a chosen default and I would say so. The tradeoff is real though. Too few and a genuinely known issue is missed. Too many and unrelated incidents dilute the context and pull the category around. What I would actually do is measure category stability as k varies, because that is the number that matters here.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Justifying five after the fact. An unexamined k is normal and admitting it, then naming the experiment, is the stronger answer.</p>
+    </li>
+    <li class="qa-item" id="c05-d5">
+      <p class="qa-q">Lead manager or separate crews. Which is better and why is the flag defaulted where it is?</p>
+      <p class="qa-a">They optimise different things. The lead manager reasons across tools, so it can use a file finding to direct a code lookup. Separate crews are faster because they run together, but they cannot see each other's findings. Defaulting to the manager trades latency for the ability to follow a thread.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying parallel is simply better. Parallel loses cross-tool reasoning, and knowing what you gave up is the point.</p>
+    </li>
+    <li class="qa-item" id="c05-d6">
+      <p class="qa-q">Name everything between a model's opinion and a production rerun.</p>
+      <p class="qa-a">Four things. The screener has to route to investigate. The solution's action field has to say apply rather than manual intervention required. The action router has to agree and return trigger retry. And <code>ENABLE_RETRIGGER_PIPELINE</code> has to be on, with a threshold bounding how many retriggers are allowed.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Not having the list ready. This is the question the autonomy claim exists to invite, and hesitating here undoes the whole bullet.</p>
+    </li>
+    <li class="qa-item" id="c05-d7">
+      <p class="qa-q">The response reviewer retries itself. Talk me through that.</p>
+      <p class="qa-a">It wraps the crew call in a try block. On a model error it increments a counter and sleeps two to the power of that count. Then it calls itself again, to a maximum of three attempts. It is recursion rather than a loop. That is fine at three, and a higher bound would grow the stack.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Not costing it. Three attempts with one, two and four second sleeps is seven seconds of sleep plus three synthesis runs, and that sits inside somebody's deadline.</p>
+    </li>
+    <li class="qa-item" id="c05-d8">
+      <p class="qa-q">Both the screener and the solution return a confidence. What do you do with it?</p>
+      <p class="qa-a">Honestly, less than we should. It is captured and available for thresholding but the routing is on category rather than on confidence. The obvious improvement is to require a minimum confidence before an autonomous retrigger, so a hesitant apply becomes a manual intervention instead of an action.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Claiming it gates behaviour. If it does not, saying so and naming the improvement is better than being caught.</p>
+    </li>
+    <li class="qa-item" id="c05-d9">
+      <p class="qa-q">The screener says RETRY and it is wrong. What happens?</p>
+      <p class="qa-a">The pipeline reruns and fails the same way. That is mostly self-limiting, because a real fault does not fix itself, and the retrigger threshold bounds how many times. The genuine cost is delay: a real problem looks like a flaky one for another cycle, and nobody is paged in the meantime.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it harmless. It is the cheaper of the two wrong answers, and it still burns a scheduling window.</p>
+    </li>
+    <li class="qa-item" id="c05-d10">
+      <p class="qa-q">And a wrong OVERLOOK?</p>
+      <p class="qa-a">That one is worse, and I would volunteer it. Overlook closes the failure with no action and no rerun. A real fault classified as beyond our control simply disappears, and downstream jobs fail for reasons nobody connects back. Retry is self-correcting and overlook is not, so overlook is where I would want precision measured.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating the three categories as equally risky. They are not, and knowing which one silently loses information is the senior observation.</p>
+    </li>
+    <li class="qa-item" id="c05-d11">
+      <p class="qa-q">Tell me about the feature flags and their defaults.</p>
+      <p class="qa-a">Three matter. <code>USE_LEAD_MANAGER</code> defaults true, which is why the default path is sequential. <code>ENABLE_RETRIGGER_PIPELINE</code> defaults true, so the autonomous action is on. And <code>ENABLE_PIPELINE_VALIDATIONS</code> defaults <em>false</em>, which is the one I would raise myself in any conversation about safety.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Not knowing the defaults. A flag whose default you cannot state is a behaviour you do not control.</p>
+    </li>
+    <li class="qa-item" id="c05-d12">
+      <p class="qa-q">How would you measure whether this system is working?</p>
+      <p class="qa-a">Per category, not overall. Overlook precision, because a wrong overlook loses a real failure. Retrigger success rate, meaning the share of autonomous reruns that then pass. And the fraction of investigations a human later disagreed with. A single accuracy number across all three categories would hide the only one that matters.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Proposing one overall accuracy figure. The categories have different costs, so they need different metrics.</p>
+    </li>
+  </ol>
+</section>
+
+<div class="quiz" data-quiz-id="0005-q1">
+  <p class="q">The screener classifies a failure as RETRY. What happens next?</p>
+  <ol class="options">
+    <li data-correct="true">The flow retries it without dispatching any debugging crew</li>
+    <li>A lead manager investigates using all five available tools</li>
+    <li>Three specialist crews run in parallel against the logs</li>
+    <li>The failure is recorded and the flow completes silently</li>
+  </ol>
+  <div class="why">
+    <p>The router returns RETRY and the expensive branch is never entered. That is the point of the triage: transient faults are the common case and they must not cost an investigation.</p>
+    <p>Completing silently is what OVERLOOK does, and the difference matters. A wrong RETRY is mostly self-correcting because the job fails again. A wrong OVERLOOK closes the incident and loses it.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0005-q2">
+  <p class="q">With <code>USE_LEAD_MANAGER</code> at its default value, how do the specialist capabilities run?</p>
+  <ol class="options">
+    <li data-correct="true">Sequentially, as tools inside one single reasoning loop</li>
+    <li>In parallel, across a pool of independent threads</li>
+    <li>Sequentially, but only after the screener has escalated</li>
+    <li>In parallel, with one crew per separate fault</li>
+  </ol>
+  <div class="why">
+    <p>The flag defaults to true, so one agent holds past incidents, file, code, lineage and infra as five tools and works through them in a ReAct loop. A ReAct loop is sequential by construction, because each tool is chosen after reading the last result.</p>
+    <p>The parallel option is real but it is the other branch, and it uses three worker threads over confluence, code and file. The r&#233;sum&#233; says parallel, which describes the branch that is switched off.</p>
+  </div>
+</div>
+
+<section class="qset" id="edges">
+  <h2>Edges and exceptions</h2>
+  <p class="qset-note">Autonomy invites hard questions and you want them, because the gating is genuinely good. The wording is the soft part, not the design.</p>
+  <ul class="qa-index">
+    <li><a href="#c05-e1">A fix that makes it worse</a></li>
+    <li><a href="#c05-e2">Retrigger loops</a></li>
+    <li><a href="#c05-e3">A novel failure</a></li>
+    <li><a href="#c05-e4">Poisoned incident history</a></li>
+    <li><a href="#c05-e5">Two failures, same root cause</a></li>
+    <li><a href="#c05-e6">The vector store is down</a></li>
+    <li><a href="#c05-e7">Who is accountable</a></li>
+    <li><a href="#c05-e8">What you would change</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c05-e1">
+      <p class="qa-q">The system applies a fix that makes things worse. What stops that?</p>
+      <p class="qa-a">Less than I would like, and that is the honest answer. The action field and the feature flag gate whether a fix is applied at all. What is missing is a validation layer proving the fix before it runs, and <code>ENABLE_PIPELINE_VALIDATIONS</code> defaults to false. Chapter 0006 is about that layer, and its default is the thing to know.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Claiming validation always runs. The flag default says otherwise, and an interviewer who reads config will find it.</p>
+    </li>
+    <li class="qa-item" id="c05-e2">
+      <p class="qa-q">What stops an infinite retrigger loop?</p>
+      <p class="qa-a"><code>RETRIGGER_PIPELINE_THRESHOLD</code>, which defaults to one. So a failure gets one autonomous rerun and then stops being eligible. That is a blunt instrument and the right kind of blunt. A counter that a model cannot reason its way past is worth more here than a smarter rule.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing a clever adaptive policy. For an autonomous production action, the boring hard limit is the feature.</p>
+    </li>
+    <li class="qa-item" id="c05-e3">
+      <p class="qa-q">A failure arrives that looks like nothing in the store. What happens?</p>
+      <p class="qa-a">The screener retrieves five loosely similar incidents and still has to return a category. That is the uncomfortable case, because the retrieval is unconditional. There is no &#8220;nothing matched&#8221; branch. The safe design would be a similarity floor below which it routes to investigate by default, and that is not there.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Assuming a low-similarity result is ignored. Top-k always returns k, and knowing that about your own retriever is the answer.</p>
+    </li>
+    <li class="qa-item" id="c05-e4">
+      <p class="qa-q">Somebody resolves an incident incorrectly and it goes into the store. What then?</p>
+      <p class="qa-a">It becomes evidence. The store is built from past incidents and their resolutions, so a wrong resolution teaches the screener to make the same mistake on similar logs. That is a data quality problem with a control-flow consequence, and it argues for the store being curated rather than appended to automatically.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating the incident history as ground truth. People wrote it, under time pressure, at night.</p>
+    </li>
+    <li class="qa-item" id="c05-e5">
+      <p class="qa-q">Twenty pipelines fail at once from one upstream outage. What does the system do?</p>
+      <p class="qa-a">Twenty independent investigations, because nothing correlates them. Each one sees its own log and reaches its own conclusion, and they will mostly agree, expensively. The right shape is to cluster failures within a window before triage, and that does not exist. It is the change I would make first at scale.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying the screener would catch it. The screener sees one log at a time and has no notion of a concurrent storm.</p>
+    </li>
+    <li class="qa-item" id="c05-e6">
+      <p class="qa-q">ChromaDB is unavailable when a failure arrives.</p>
+      <p class="qa-a">The screener loses its context and has to decide from the log alone. The important question is whether that degrades to investigate or to something cheaper. Failing towards investigate is the safe default, because it costs money rather than losing a failure. I would want that to be explicit rather than emergent.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Not having a view. Every dependency has a failure behaviour, and the interviewer is asking which direction yours fails in.</p>
+    </li>
+    <li class="qa-item" id="c05-e7">
+      <p class="qa-q">The system retriggers a pipeline at 3am and it corrupts a table. Who is accountable?</p>
+      <p class="qa-a">The team that turned the flag on, and that is the correct answer rather than a deflection. The design makes it a deliberate decision. An operator sets <code>ENABLE_RETRIGGER_PIPELINE</code> and a threshold. What I would add before any post-mortem is an audit record. It should tie every autonomous action to the category, the solution and the confidence.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Blaming the model. Autonomy is a configuration choice a human made, and saying so is what makes the design defensible.</p>
+    </li>
+    <li class="qa-item" id="c05-e8">
+      <p class="qa-q">What would you change first?</p>
+      <p class="qa-a">Turn the validation flag on and make it required before any autonomous apply. Then add a similarity floor to the screener so an unfamiliar failure routes to investigate rather than guessing. Third, cluster concurrent failures before triage. The first one is a config change with a real safety payoff.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Reaching for a better model. Everything limiting this system is a gate that is off or a policy that is missing.</p>
+    </li>
+  </ol>
+</section>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;What stops this from breaking production?&#8221;
+      <span class="tell">The question every autonomous system gets. The gating here is genuinely good, so the only way to lose is to be vague about it.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Four gates, in order. The screener has to route to investigate rather than retry or overlook. The solution has to come back with its action field set to apply rather than manual intervention required. The action router has to agree. And a feature flag has to be on, with a threshold that defaults to a single retrigger per failure. I would also tell you what is missing: a validation layer exists and its flag defaults to off.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;In parallel? Walk me through the dispatcher.&#8221;
+      <span class="tell">If the interviewer is technical they will ask this, and the r&#233;sum&#233;'s wording does not survive it. Volunteer the correction before the question arrives.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>I would correct my own wording there. The dispatcher branches on <code>USE_LEAD_MANAGER</code>, which defaults to true. On that path it is one agent with five tools, reasoning across them in sequence, capped at ten iterations. The other branch uses a three-worker thread pool over confluence, code and file, which is genuinely parallel, and it is not the default. Infrastructure is a tool rather than a crew in either case.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Which of your three categories is the dangerous one?&#8221;
+      <span class="tell">A good question, and the answer reveals whether you have thought about asymmetric error costs or just built a classifier.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Overlook. A wrong retry is largely self-correcting, because the job runs again and fails again, and the threshold bounds it. A wrong overlook closes the incident with no action and no rerun, so a real failure disappears and downstream jobs break for reasons nobody connects back to it. If I could measure one thing about this system it would be overlook precision.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Your retriever always returns five results. What if nothing is actually similar?&#8221;
+      <span class="tell">Tests whether you know how top-k behaves. Most candidates assume a relevance filter that is not there.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Then it returns the five least dissimilar things, and the screener still has to choose a category. There is no similarity floor and no nothing-matched branch, which is a real gap. The fix I would want is a distance threshold below which it routes to investigate by default, so an unfamiliar failure fails towards spending money rather than towards silence.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Twenty pipelines fail at once. What does your system do?&#8221;
+      <span class="tell">A scale question disguised as a correctness question. The honest answer names a missing feature.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Twenty independent investigations, because nothing correlates them. Each sees only its own log. They will mostly reach the same conclusion at twenty times the cost, and twenty retriggers may hit an upstream that is still down. The shape I would add is clustering failures inside a time window before triage, so one investigation covers the incident and the rest reference it.</p>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="recall">
+  <details>
+    <summary>The screener is a cheap gate in front of an expensive path, and the expensive path can be triggered many times at once. Which System Design School lesson names that pattern, and what is the number you should be able to give?</summary>
+    <p class="answer">Lesson 0001's discipline. The investigation path is a large-model loop capped at ten tool calls, plus a review step that can retry itself three times with exponential sleeps. The worst case of that chain, summed, is the number to have ready. If nothing above it enforces a ceiling then the chain <em>is</em> the deadline, and here nothing above it does.</p>
+    <span class="from"><a href="../../system-design-school/lessons/0001-latency-budget-arithmetic.html">SDS 0001 &#183; Latency budget arithmetic</a></span>
+  </details>
+  <details>
+    <summary>Your triage decision depends on retrieving similar incidents. Which chapter already taught you what happens when a retrieval step fails quietly, and what is the shared fix?</summary>
+    <p class="answer">Chapter 0001. The Scout soft-fails, so a total search outage is indistinguishable from a vendor with no public footprint, and the report comes back confident and empty. Here the same shape gives a screener with no useful context that still returns a confident category. The shared fix is making absence distinguishable from emptiness, which for this system means a similarity floor.</p>
+    <span class="from"><a href="0001-vendor-evaluation-platform.html">Chapter 0001 &#183; confident and empty</a></span>
+  </details>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">The lessons behind this chapter</span>
+  <p>System Design School teaches these mechanisms from first principles and breaks them in a lab. This chapter defends what you did with them. An interviewer moves between those two registers without warning.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0001-latency-budget-arithmetic.html">SDS 0001 &#183; Latency budget arithmetic</a>
+      <span class="bridge-why">A ten-iteration reasoning loop plus a three-attempt retry with exponential sleeps is a budget. This is the lesson that makes you write the sum down.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0011 &#183; Circuit breaker &#8212; not yet built</span>
+      <span class="bridge-why">Triage against a flaky upstream is exactly where a breaker's thresholds have to be defended rather than guessed.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0031 &#183; RAG retrieval as a system &#8212; not yet built</span>
+      <span class="bridge-why">Here retrieval feeds a routing decision rather than an answer, so an unexamined k is a control-flow risk.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0035 &#183; Metrics and logs at volume &#8212; not yet built</span>
+      <span class="bridge-why">Overlook precision is the number this system lives on, and nothing currently reports it.</span>
+    </li>
+  </ol>
+</div>
+
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0004-hybrid-lineage-extraction.html">&#8592; 0004 &#183; Hybrid deterministic-LLM lineage extraction</a></span>
+  <span><span class="dir">Next</span><a href="0006-layered-validation.html">0006 &#183; Layered validation on an autonomous path &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

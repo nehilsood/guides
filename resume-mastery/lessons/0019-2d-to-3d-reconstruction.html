@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>2D to 3D: NeRF, Instant-NGP, Splatting</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0019">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">R&#233;sum&#233; Mastery</a>
+    <span class="sep">/</span>
+    <span>Batch D &#183; Data With D</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Chapter 0019</span>
+  </div>
+  <h1>2D to 3D: NeRF, Instant-NGP, splatting</h1>
+  <p class="standfirst">Three weeks to a hundred minutes is not an algorithm getting faster. It is a person being replaced by a fitting procedure, and saying that first is what stops the number sounding impossible.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Say what the 3-weeks number is actually comparing, explain a radiance field without saying &#8220;geometry,&#8221; and know which of these three things is slow, which is fast and <em>why</em> &#8212; then defend the one number in the bullet that has no unit on it.</p>
+</div>
+
+<div class="claim-line">
+  <span class="callout-label">The line being defended</span>
+  <blockquote>&#8220;<strong>jar4u.com</strong> &#8212; Cut 2D-to-3D reconstruction from 3 weeks to 100 minutes (<strong>98%</strong> less manual effort) with NeRF and Instant-NGP, and raised render quality <strong>30%</strong> via Gaussian splatting with real-time SNeRG synthesis on WebXR.&#8221;</blockquote>
+  <span class="whose">Data With D &#183; bullet 2 of 2</span>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">For <em>&#8220;tell me about the 3D reconstruction work.&#8221;</em> Disarm the three-week number in the first sentence, then get to what a radiance field actually is.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">Photographs of a product go in and something viewable from any angle comes out, in a browser.</p>
+      <p class="line">And the three weeks was a person modelling it by hand. <b>That number compares a person to a program</b>, not one algorithm to another.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">The thing being fitted is not a shape. <b>It is a function from a point and a viewing direction to a colour and a density.</b></p>
+      <p class="line">You render by walking along each ray and adding up what it passes through. And it is a fit per object, not a model you reuse.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">Two separate speed problems. Training got fast by <b>moving the learning into lookup tables</b> so the network could stay tiny.</p>
+      <p class="line">Rendering got fast by changing the representation. Splatting draws a few million fuzzy blobs, which is what a graphics card already does.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">The stage that fails is the one before any of that. <b>Working out where each photo was taken from</b>, which needs texture and reports success either way.</p>
+      <p class="line">And I would qualify the quality number. Thirty per cent needs a metric on it, and on the usual one a percentage is the wrong unit entirely.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;We cut reconstruction from three weeks to a hundred minutes with NeRF and Instant-NGP.&#8221;</span> Said without qualification it claims a three-hundred-fold speedup, and the honest answer to &#8220;how&#8221; is that no algorithm got three hundred times faster. A person stopped doing it. Say that first and the number becomes credible rather than suspicious.</p>
+  <p>The other trap is the thirty per cent. It is the only figure on the line with no unit, and a graphics interviewer will ask which metric before they ask anything else. Correcting it yourself is much cheaper than defending it.</p>
+</div>
+
+
+<div class="trace">
+  <span class="callout-label">Walk them through it &#183; one object, photos to browser</span>
+  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One product, followed from a set of photographs to something a person can turn around in a browser. The stage that actually fails is not the one they will expect.</p>
+  <p class="tr-case"><b>The picture.</b> Not a model of the furniture in a room, but a rule that answers one question. Stand at this spot, look that way, what colour is it and how solid? Answer that for every spot and every direction and you can render the room without ever having built it.</p>
+  <p class="tr-case"><b>The case.</b> Somebody photographs a product from forty or so angles and uploads them. Follow those photographs all the way to a headset.</p>
+  <ol>
+    <li class="tr-step">
+      <span class="tr-k">The old way</span>
+      <p><b>What happens.</b> Before any of this, a person built the model by hand in modelling software.</p>
+      <p><b>Concretely.</b> That is where three weeks went. Be precise about what the number compares. It is a person against a program, not one algorithm against another.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The quiet stage</span>
+      <p><b>What happens.</b> The first thing that has to happen is not learning anything. It is working out where each photograph was taken from.</p>
+      <p><b>Concretely.</b> Nobody recorded that. It is recovered by matching features between the photographs, which needs texture to match on.</p>
+      <p><b>If they ask why.</b> This is the stage that actually fails, and it is the answer worth leading with. A plain surface, a reflection, or photos taken too far apart all produce wrong positions and no error message.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The fit</span>
+      <p><b>What happens.</b> With positions known, a small neural network is fitted to the photographs.</p>
+      <p><b>Concretely.</b> What it learns is a function. Give it a point in space and a direction you are looking from, and it returns a colour and a density.</p>
+      <p><b>If they ask why.</b> Say it without the word geometry. It does not build a shape. And it is fitted per object rather than being a model you reuse on the next one.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Rendering it</span>
+      <p><b>What happens.</b> To make a picture, walk along the ray for each pixel and add up what it passes through.</p>
+      <p><b>Concretely.</b> That is many network evaluations per pixel, which is why the original version was slow to render.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Training fast</span>
+      <p><b>What happens.</b> The first speed problem was how long the fit took, and it was hours.</p>
+      <p><b>Concretely.</b> Instant-NGP moves most of what is learned into lookup tables and leaves the network tiny. That is what turned hours into minutes.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Rendering fast</span>
+      <p><b>What happens.</b> The second speed problem is different and was solved by changing the representation entirely.</p>
+      <p><b>Concretely.</b> Gaussian splatting stores the scene as a few million fuzzy blobs, each with a position, a shape, an opacity and a colour.</p>
+      <p><b>If they ask why.</b> Drawing those is projecting and blending, which is what a graphics card does natively. No network runs at render time at all.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Not versions</span>
+      <p><b>What happens.</b> The common mistake is treating those two as versions of the same idea.</p>
+      <p><b>Concretely.</b> One made training fast. The other made rendering fast. They solve different problems and neither replaces the other.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Into a browser</span>
+      <p><b>What happens.</b> A browser cannot run the original network per pixel, so the field gets baked.</p>
+      <p><b>Concretely.</b> SNeRG bakes a trained radiance field into a sparse grid the browser can render directly.</p>
+      <p><b>If they ask why.</b> Then it has to hold up in a headset. Two eyes, a tight frame budget and no dedicated graphics runtime. That is the real constraint on the whole pipeline.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The number</span>
+      <p><b>What happens.</b> One number in the bullet has no unit on it, and I would rather qualify it than defend it.</p>
+      <p><b>Concretely.</b> Thirty per cent needs a metric attached. On the usual image quality measure, which is decibels on a log scale, a percentage means very little.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The lesson</span>
+      <p><b>What happens.</b> Blurry results looked like a training problem and were not.</p>
+      <p><b>Concretely.</b> Once I looked at the pose stage instead, the failures that had seemed like model problems stopped. What remained were the honestly hard cases like glass and polished metal.</p>
+      <p><b>If they ask why.</b> A protocol only helps if people follow it. A submission with too few photographs still succeeds at pose estimation and fails quietly afterwards. Holding out some views and rendering from them is cheap, and I would build that check first next time.</p>
+    </li>
+  </ol>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 330" role="img" aria-labelledby="mech0019-t mech0019-d">
+    <defs>
+      <marker id="ar19" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+    </defs>
+    <title id="mech0019-t">One pipeline, two speed problems, and the stage that quietly fails</title>
+    <desc id="mech0019-d">Photographs go in. Structure from motion recovers where each one was taken from, and this is the stage where almost every real failure happens, because feature matching needs texture and it reports success even when the poses are wrong. A radiance field is then fitted per scene: a function from a position and a viewing direction to a colour and a density, trained by comparing rendered pixels against the photographs. Instant-NGP makes that training fast by moving most of the learned capacity into multiresolution hash tables so the network can stay tiny. Delivery is a separate problem. Baking the field into a sparse grid lets a browser render it without the original network, and Gaussian splatting replaces the representation entirely with a few million fuzzy blobs that rasterise rather than ray-march. On a headset the frame budget is about eleven milliseconds for two eyes, and splatting pays a per-frame depth sort for its alpha blending.
+
+    </desc>
+
+    <rect class="box" x="8" y="16" width="120" height="44" rx="3"/>
+    <text class="lbl strong" x="68" y="34" text-anchor="middle">Photographs</text>
+    <text class="lbl-dim" x="68" y="50" text-anchor="middle">one object</text>
+
+    <path class="flow" marker-end="url(#ar19)" d="M 132 38 H 170"/>
+
+    <rect class="bad" x="174" y="16" width="220" height="44" rx="3"/>
+    <text class="lbl strong ink-bad" x="284" y="34" text-anchor="middle">Structure from motion</text>
+    <text class="lbl-dim" x="284" y="50" text-anchor="middle">where was each photo taken from</text>
+
+    <path class="flow" marker-end="url(#ar19)" d="M 398 38 H 436"/>
+
+    <rect class="accent" x="440" y="16" width="220" height="44" rx="3"/>
+    <text class="lbl strong ink-accent" x="550" y="34" text-anchor="middle">Fit a radiance field</text>
+    <text class="lbl-dim" x="550" y="50" text-anchor="middle">position + direction &#8594; colour, density</text>
+
+    <path class="flow" marker-end="url(#ar19)" d="M 664 38 H 702"/>
+
+    <rect class="box" x="706" y="16" width="126" height="44" rx="3"/>
+    <text class="lbl strong" x="769" y="34" text-anchor="middle">Deliver it</text>
+    <text class="lbl-dim" x="769" y="50" text-anchor="middle">in a browser</text>
+
+    <rect class="bad" x="8" y="72" width="444" height="58" rx="3"/>
+    <text class="lbl strong ink-bad" x="24" y="94">This is the stage that fails</text>
+    <text class="lbl-dim" x="24" y="114">plain walls, reflections, repeating patterns, photos too far apart</text>
+    <text class="num ink-warn" x="24" y="128">and it reports success &#8212; the symptom appears two stages later</text>
+
+    <rect class="box-2" x="464" y="72" width="368" height="58" rx="3"/>
+    <text class="lbl strong" x="480" y="94">Per scene, not a reusable model</text>
+    <text class="lbl-dim" x="480" y="114">every object is its own training run from its own photographs</text>
+
+    <rect class="box-2" x="8" y="142" width="408" height="84" rx="3"/>
+    <text class="lbl strong" x="24" y="164">Speed problem one &#183; training</text>
+    <text class="lbl-dim" x="24" y="184">Instant-NGP &#183; capacity moves into hash tables</text>
+    <text class="lbl-dim" x="24" y="202">at several resolutions, read by a tiny network</text>
+    <text class="num ink-good" x="24" y="220">a lookup is cheap where a network evaluation is not</text>
+
+    <rect class="box-2" x="424" y="142" width="408" height="84" rx="3"/>
+    <text class="lbl strong" x="440" y="164">Speed problem two &#183; rendering</text>
+    <text class="lbl-dim" x="440" y="184">splatting &#183; the scene is fuzzy blobs, not a function</text>
+    <text class="lbl-dim" x="440" y="202">project and blend instead of marching rays</text>
+    <text class="num ink-good" x="440" y="220">the hardware already does exactly this</text>
+
+    <rect class="warn" x="8" y="238" width="824" height="84" rx="3"/>
+    <text class="lbl strong ink-warn" x="24" y="260">On a headset the budget is the constraint</text>
+    <text class="lbl-dim" x="24" y="280">about eleven milliseconds per frame &#183; two eyes &#183; a phone-class chip &#183; a browser</text>
+    <text class="lbl-dim" x="24" y="298">splatting pays a depth sort every frame, per view, because blending needs an order</text>
+    <text class="num ink-bad" x="24" y="316">a dropped frame in a headset is not an average problem &#8212; it is felt</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">What you say while drawing it</span>
+    <ol class="narrate">
+      <li>Photographs in, one object.</li>
+      <li>Then the red box, and say it is red on purpose. This is where it fails.</li>
+      <li>It works out where each photo was taken from, and it lies about succeeding.</li>
+      <li>Then the fit. Point plus direction gives colour and density. Not a shape.</li>
+      <li>And per scene. Every object is its own training run.</li>
+      <li>Two speed problems along the bottom, and say they are separate.</li>
+      <li>Instant-NGP made training fast by moving the learning into tables.</li>
+      <li>Splatting made rendering fast by drawing blobs the hardware already understands.</li>
+      <li>Then the budget band. Eleven milliseconds, two eyes, in a browser.</li>
+      <li>And the sort, which is the cost nobody mentions.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. Four boxes across, two speed problems, one budget.</p>
+  <ul>
+    <li>The <b>red pose box</b>, because that is where it breaks.</li>
+    <li><b>Point plus direction, colour plus density.</b> The definition.</li>
+    <li>Two separate speed wins: <b>tables for training, blobs for rendering</b>.</li>
+    <li><b>Eleven milliseconds, two eyes</b>, and the per-frame sort.</li>
+  </ul>
+  <span class="timer">Say &#8220;it does not build a shape&#8221; as you draw the third box. It is the sentence that stops the wrong mental model.</span>
+</div>
+
+<div class="star">
+  <span class="callout-label">Behavioural &#183; the story for this bullet</span>
+  <p class="frame">For <em>&#8220;tell me about a time the problem was not where everyone was looking&#8221;</em> or <em>&#8220;a quality issue you traced to an unexpected place.&#8221;</em></p>
+  <ol class="rungs">
+    <li class="rung"><span class="rung-k">Decision</span><p>Whether soft, ghosted reconstructions were a training problem to tune away, or a symptom of a stage that had already reported success.</p></li>
+    <li class="rung"><span class="rung-k">Situation</span><p>Some objects reconstructed cleanly and others came out blurry with floating fragments. The obvious suspects were training length and the model, because that is where the interesting machinery is.</p></li>
+    <li class="rung"><span class="rung-k">Action</span><p>I looked at the stage before it instead. Camera poses are recovered by matching features between photographs, and that needs texture. A plain surface, a reflection, or photos taken too far apart all produce wrong poses with no error.</p><p>So the fix was upstream of the pipeline entirely. A capture protocol saying how many photographs, how much overlap, what lighting, and which surfaces not to attempt.</p></li>
+    <li class="rung"><span class="rung-k">Result</span><p>The failures that had looked like model problems stopped happening, and the ones that remained were the honestly hard cases like glass and polished metal.</p></li>
+    <li class="rung"><span class="rung-k">What it cost</span><p>A protocol only helps if people follow it. A submission with too few photographs still succeeds at pose estimation, then fails quietly afterwards. The automatic check for that arrived later than it should have. Holding out some views and rendering from them is cheap. I would build it first next time.</p></li>
+  </ol>
+</div>
+
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>Photographs of an object go in and something viewable from any angle comes out. Before, a person built that by hand in modelling software, which is where three weeks went. After, a program fits it from the photos.</p>
+  <p>Two ways of representing the result appear in this bullet. One stores the scene inside a small neural network. The other stores it as a few million fuzzy coloured blobs. The second one is why it can run in a browser.</p>
+  <dl>
+    <dt>Radiance field</dt>
+    <dd>A function from a point in space and a viewing direction to a colour and a density. Not a shape, a function.</dd>
+
+    <dt>NeRF</dt>
+    <dd>Fitting that function with a small neural network, per scene. Rendering means marching along each ray and adding up what it passes through.</dd>
+
+    <dt>Camera pose</dt>
+    <dd>Where each photograph was taken from, and pointing which way. Not given, and it has to be worked out first.</dd>
+
+    <dt>Structure from motion</dt>
+    <dd>Recovering those poses from the photos alone, by matching features between them. The quiet stage that decides whether any of this works.</dd>
+
+    <dt>Instant-NGP</dt>
+    <dd>The trick that turned hours into minutes. Store most of what is learned in lookup tables and leave the network tiny.</dd>
+
+    <dt>Gaussian splatting</dt>
+    <dd>A different representation entirely. The scene is a pile of fuzzy 3D blobs, each with a position, a shape, an opacity and a colour.</dd>
+
+    <dt>Rasterisation</dt>
+    <dd>Projecting things onto the screen and blending them. What a graphics card does natively, and why splatting renders fast.</dd>
+
+    <dt>SNeRG</dt>
+    <dd>Baking a trained radiance field into a sparse grid so a browser can render it without running the original network.</dd>
+
+    <dt>WebXR</dt>
+    <dd>The browser interface for headsets and phone-based viewing. Two eyes, tight frame budget, no dedicated graphics runtime.</dd>
+
+    <dt>PSNR</dt>
+    <dd>The usual image quality number. It is measured in decibels on a log scale, which is why a percentage on it means very little.</dd>
+  </dl>
+</div>
+
+<div class="primer stack">
+  <span class="callout-label">The technology &#8212; what each named thing is</span>
+  <p>The primer above defines the methods. This one defines the pipeline they sit in, starting from the ground, and the arithmetic behind the two numbers. Four named techniques in one bullet is a lot of surface, so the follow-ups matter as much as the definitions.</p>
+  <p>Every entry answers four things. What it actually is, in plain words. Where this pipeline uses it. What it buys, meaning what goes wrong without it. And the follow-up an interviewer asks once you have said the name.</p>
+  <dl>
+    <dt>COLMAP</dt>
+    <dd><i>structure from motion, in practice</i>You have forty photographs of an object and no idea where the camera was for any of them. Structure from motion recovers that: it finds features that appear in several images, works out the camera position and orientation that makes all those sightings consistent, and produces a sparse cloud of 3D points as a by-product. COLMAP is the standard open-source implementation. <b>In the app.</b> It runs first, because nothing downstream can begin without camera poses. <b>What it buys.</b> Turning a handful of ordinary photographs into calibrated input, with no rig, no turntable and no measured setup. <b>The follow-up.</b> It fails on texture-less surfaces, reflections and glass, because those give no stable features to match between views. A jar is shiny, so this is the realistic failure mode in this project rather than a theoretical one.</dd>
+
+    <dt>Volume rendering</dt>
+    <dd><i>how a NeRF makes a pixel</i>A NeRF does not store a surface. It stores a function that, given a point in space and a viewing direction, returns a colour and a density. To produce one pixel you shoot a ray out through it, sample many points along that ray, ask the network at each point, and composite the results front to back so that dense points block what is behind them. <b>In the app.</b> It explains both NeRF's quality and its cost in one go. <b>What it buys.</b> Semi-transparency, soft edges and volumetric effects that a mesh cannot represent at all. There is no surface to get wrong. <b>The follow-up.</b> The cost is the sample count. Hundreds of network evaluations per pixel per frame is why plain NeRF cannot render in real time on any hardware, and that fact is what the rest of this list is reacting to.</dd>
+
+    <dt>Multiresolution hash encoding</dt>
+    <dd><i>what made Instant-NGP fast</i>The original NeRF put a 3D position through a large network, so all the scene's detail had to be stored in network weights and every sample cost a full forward pass. This replaces most of that. The position is looked up in a stack of hash tables at several resolutions, the results are interpolated and concatenated, and only then does a very small network run. <b>In the app.</b> It is the actual mechanism behind the training speed-up in the bullet. <b>What it buys.</b> Training in minutes rather than a day, which changes the process from an experiment into something a pipeline can run per object. <b>The follow-up.</b> Where the speed comes from. The network shrank and the capacity moved into the tables, and gradient updates became sparse because one sample touches only a few table entries instead of every weight.</dd>
+
+    <dt>Gaussian splatting</dt>
+    <dd><i>the representation change</i>A different answer to the same problem. Rather than a function you query along rays, the scene is stored as a few million 3D Gaussians, each a soft blob with a position, a covariance describing its shape and orientation, an opacity and a colour. Rendering projects each blob onto the image plane and blends them in depth order. <b>In the app.</b> It is the second half of the bullet and the reason real-time rendering became possible. <b>What it buys.</b> Real-time frame rates at comparable quality, which is the whole difference between a research result and something shippable to a browser. <b>The follow-up.</b> Why it is faster. It rasterises instead of ray-marching, so work is proportional to the number of primitives rather than to samples along every ray. That is exactly what graphics hardware was built to do.</dd>
+
+    <dt>Spherical harmonics</dt>
+    <dd><i>how colour varies with angle</i>A real surface does not look the same from every direction &#8212; a glossy jar has a highlight that moves as you walk around it. Spherical harmonics are a compact way to describe a function defined over directions, in the way a Fourier series describes a function over time. Each Gaussian carries a few coefficients rather than one flat colour. <b>In the app.</b> It is what keeps specular highlights on a glossy object instead of flattening it into matte plastic. <b>What it buys.</b> View-dependent appearance for a handful of numbers per primitive, rather than storing a separate colour per viewpoint. <b>The follow-up.</b> The order is a size and quality dial. More coefficients per Gaussian means more memory, and memory is what decides whether a scene loads in a browser on a phone.</dd>
+
+    <dt>Image metrics</dt>
+    <dd><i>PSNR, SSIM, LPIPS</i>Three ways to score a rendered image against a real photograph. PSNR is pixel-by-pixel error on a logarithmic scale, and its known weakness is that it rewards blur, because a blurry image has lower average error than a sharp one that is slightly misaligned. SSIM compares local structure, contrast and luminance instead. LPIPS compares features from a deep network and correlates best with what people actually judge to look right. <b>In the app.</b> &#8220;Render quality up 30%&#8221; is a claim about one of these three. <b>What it buys.</b> A quality claim that can be reproduced by somebody else. <b>The follow-up.</b> Which metric, and thirty percent of what. PSNR is quoted in decibels and does not move by percentages in a way anybody can interpret, so the metric has to be named for the number to mean anything.</dd>
+
+    <dt>Baking</dt>
+    <dd><i>what SNeRG does</i>Converting a trained radiance field, which only a specialised renderer can evaluate, into a structure an ordinary renderer can draw. In practice a sparse voxel grid holding colour and opacity, plus a very small shader that handles the view-dependent part. The expensive network evaluation is done once, ahead of time, and the result stored. <b>In the app.</b> It is how a field trained on a workstation GPU ends up running inside a phone browser. <b>What it buys.</b> Rendering that needs no neural network at run time at all, which is what makes the delivery target reachable. <b>The follow-up.</b> Baking freezes quality at bake time. You trade the ability to keep improving the model for the ability to render it anywhere, and the resulting file size becomes the real product constraint.</dd>
+
+    <dt>WebGL and WebGPU</dt>
+    <dd><i>what the browser can actually do</i>The two graphics APIs available to a web page. WebGL is old, based on a mobile graphics standard from 2007, supported essentially everywhere, and has no compute shaders. WebGPU is the modern replacement, with compute shaders and a design that matches how GPUs actually work now, but its support is far newer and less universal. <b>In the app.</b> WebXR ultimately renders through one of the two. <b>What it buys.</b> The choice is really a choice about who can open your link. <b>The follow-up.</b> Which one you targeted decides device coverage directly, and on a consumer product that is a business answer as much as a technical one.</dd>
+
+    <dt>WebXR</dt>
+    <dd><i>the delivery target</i>The browser API for presenting to a headset or to a phone held up in augmented reality. It handles the parts a normal page has no concept of: tracking the viewer's head pose, rendering a separate image per eye, and matching the display's refresh cycle. <b>In the app.</b> It is the last word in the bullet, and the reason everything upstream had to be made cheap. <b>What it buys.</b> Immersive viewing with no app to install, from a URL. <b>The follow-up.</b> The frame budget, which is the number that settles every argument here. Stereo at ninety frames a second leaves about five milliseconds per eye per frame, and that single figure is what rules out every ray-marched approach.</dd>
+
+    <dt>The baseline</dt>
+    <dd><i>three weeks, and what was in it</i>Not a technology, but the contestable half of the headline number. The process being replaced was a person modelling an object by hand in 3D software, and three weeks is an estimate of that. <b>In the app.</b> &#8220;3 weeks to 100 minutes&#8221; compares two things that may not be the same kind of thing at all. <b>What it buys.</b> Defining the baseline precisely is what turns the claim from marketing into a measurement. <b>The follow-up.</b> Whether capture, cleanup and review sit inside the 100 minutes. If the comparison is a human's wall-clock time against a machine's compute time, say so plainly, because the honest version is still a very good number.</dd>
+  </dl>
+</div>
+
+
+
+
+<h2>What the three-week number is actually comparing</h2>
+
+<p class="breath">Not an old algorithm against a new one. A person against a program. Three weeks was somebody modelling an object by hand, and a hundred minutes is a fitting run on a machine.</p>
+
+<p>Lead with that, because otherwise the number sounds like a three-hundred-fold algorithmic speedup and the next question is how. There is no such speedup. There is a different kind of work being done.</p>
+
+<p>The bracketed figure says the same thing more honestly. Ninety-eight per cent less manual effort is a labour claim, and labour is the thing that actually changed. The wall-clock number is a consequence.</p>
+
+<p>It also sets up the real trade, which is worth volunteering. Hand modelling gives you a clean mesh somebody can edit. Reconstruction gives you something that looks right from the angles you photographed and is much harder to fix by hand.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Nothing got three hundred times faster. A person stopped doing it and a program started, and those are not the same job.</p>
+
+<h2>A radiance field, without the word geometry</h2>
+
+<p class="breath">A NeRF does not build a shape. It fits a function. Give it a point and a direction you are looking from. It returns a colour and a density.</p>
+
+<p>To render a pixel you walk along the ray behind it, ask that function at many points, and accumulate colour weighted by density until the ray is blocked. Training is minimising the difference between rendered pixels and the actual photographs.</p>
+
+<p>The direction argument is the part worth saying, because it is what makes the result look real. A wet surface is a different colour from different angles, and a representation that ignores direction cannot do that.</p>
+
+<p>And it is a fit per scene, not a model you reuse. Every object is a fresh training run from its own photographs. People who have only read about it usually assume the opposite.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>It does not work out the shape. It learns what you would see from any point, looking in any direction, and then renders by looking.</p>
+
+<h2>Why one of these is fast and the other is real-time</h2>
+
+<p class="breath">Two different speed problems, solved twice. Instant-NGP made training fast. Gaussian splatting made rendering fast. They are not versions of each other and confusing them is the common mistake.</p>
+
+<p>Instant-NGP's trick is where the learning is stored. Instead of a large network holding everything, feature vectors live in hash tables at several resolutions, and a very small network reads them. Lookups are cheap where network evaluations are not.</p>
+
+<p>Splatting changes the representation rather than the training. The scene becomes a few million fuzzy blobs with positions, shapes, opacities and colours. Rendering is projecting them onto the screen and blending, which is what graphics hardware already does.</p>
+
+<p>That is the whole reason it hits frame rate. Marching rays means many samples per pixel. Rasterising means touching each blob once and blending. The second one is built into every graphics card on earth.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>One of them made the learning quick. The other threw away ray marching and drew blobs instead, which is what a graphics card is for.</p>
+
+<h2>The stage that actually fails</h2>
+
+<p class="breath">Almost nothing goes wrong inside the radiance field. What goes wrong is the camera poses, worked out from the photos before any of this starts. Bad poses produce a blurry result and no error message.</p>
+
+<p>Feature matching needs texture. A plain white wall, a reflective surface, a repeating pattern, or photographs taken too far apart, and the pose estimate is wrong or missing for some of them.</p>
+
+<p>The failure looks like a modelling failure. The reconstruction is soft, or has ghosting, or one side is wrong. Every one of those symptoms points backwards at a stage that reported success.</p>
+
+<p>Which makes capture protocol the real deliverable. How many photographs, how much overlap, what lighting, what not to photograph. That is the part that decides whether the hundred minutes produces anything usable.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>The step that works out where each photo was taken from is the one that breaks. When it does, everything after it looks blurry and nothing says why.</p>
+
+
+
+
+<section class="qset" id="toolbox">
+  <h2>Toolbox</h2>
+  <p class="qset-note">Every noun in the bullet, defined out loud, from the ground up. Four named techniques is a wide claim, and a graphics interviewer will pick the one you sound least sure about.</p>
+  <ul class="qa-index">
+    <li><a href="#c19-t1">What has to happen first</a></li>
+    <li><a href="#c19-t2">Why plain NeRF is slow</a></li>
+    <li><a href="#c19-t3">What made Instant-NGP fast</a></li>
+    <li><a href="#c19-t4">Why splatting renders fast</a></li>
+    <li><a href="#c19-t5">Which quality metric</a></li>
+    <li><a href="#c19-t6">What it takes to run in a browser</a></li>
+    <li><a href="#c19-t7">What the two numbers compare</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c19-t1">
+      <p class="qa-q">Before any of this runs, what has to happen?</p>
+      <p class="qa-a">Camera poses. You have forty photographs and no idea where the camera was for any of them. Structure from motion recovers that. It finds features appearing in several images, then works out the camera positions that make all those sightings consistent. A sparse cloud of 3D points falls out as a by-product. COLMAP is the standard implementation. What it buys is turning ordinary photographs into calibrated input, with no rig and no measured setup. Nothing downstream can start without it. It is also where a capture usually fails, because the method needs texture to match. Shiny, reflective and glass surfaces defeat it, and a jar is all three.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Starting the story at the neural part. Pose estimation is the step that decides whether there is a reconstruction at all.</p>
+    </li>
+    <li class="qa-item" id="c19-t2">
+      <p class="qa-q">Why can a plain NeRF not render in real time?</p>
+      <p class="qa-a">Because of how it makes a pixel. A NeRF does not store a surface. It stores a function that, given a point in space and a viewing direction, returns a colour and a density. So to make one pixel you shoot a ray through it and sample many points along that ray. You ask the network at each, then composite front to back. What that representation buys is semi-transparency, soft edges and volumetric effects a mesh cannot express, because there is no surface to get wrong. What it costs is hundreds of network evaluations per pixel per frame. The cost is the sample count, not the hardware. No GPU makes that shape of work interactive.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Blaming model size. It is the number of queries per pixel, and understanding that is what motivates everything that came after.</p>
+    </li>
+    <li class="qa-item" id="c19-t3">
+      <p class="qa-q">What actually made Instant-NGP fast?</p>
+      <p class="qa-a">The encoding. The original NeRF pushed a position through a large network. All the scene's detail lived in network weights, and every sample cost a full forward pass. This replaces most of that. A position is looked up in a stack of hash tables at several resolutions. The lookups are interpolated, concatenated, and fed to a very small network. What it buys is training in minutes rather than a day, which turns the method from an experiment into something a pipeline runs per object. Capacity moved from the network into the tables. Updates became sparse, because one sample touches only a few entries rather than every weight.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;It uses CUDA optimisations.&#8221; Those help. The contribution is the encoding, and naming it is the difference between using the tool and knowing it.</p>
+    </li>
+    <li class="qa-item" id="c19-t4">
+      <p class="qa-q">Why is Gaussian splatting faster to render than a radiance field?</p>
+      <p class="qa-a">It rasterises instead of ray-marching. The scene is stored as a few million 3D Gaussians. Each is a soft blob with a position, a covariance describing its shape, an opacity and a colour. Rendering projects each blob onto the image plane and blends them in depth order. So the work is proportional to the number of primitives rather than to samples along every ray. That is exactly what graphics hardware was built to do. What it buys is real-time frame rates at comparable quality. That is the difference between a research result and something you can ship to a browser.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it a faster NeRF. It is a different representation with a different rendering algorithm, and the algorithm is the reason.</p>
+    </li>
+    <li class="qa-item" id="c19-t5">
+      <p class="qa-q">You say render quality rose 30%. Measured how?</p>
+      <p class="qa-a">Name the metric, because the three disagree. PSNR is pixel-by-pixel error on a logarithmic scale, and its known weakness is rewarding blur. A blurry image has lower average error than a sharp one slightly misaligned. SSIM compares local structure, contrast and luminance instead. LPIPS compares features from a deep network and correlates best with what people actually judge to look right. What naming it buys is a quality claim somebody else can reproduce. A percentage on a decibel scale is not interpretable, so if the number came from PSNR, quote the decibels instead.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;Quality improved 30%&#8221; with no metric. Any graphics interviewer asks which one, and the percentage form is itself a hint that it was not measured carefully.</p>
+    </li>
+    <li class="qa-item" id="c19-t6">
+      <p class="qa-q">What does it take to run this in a browser headset?</p>
+      <p class="qa-a">A frame budget of about five milliseconds per eye at ninety frames a second. That single number rules out anything ray-marched. So the field is baked, which means converting the trained radiance field into a structure an ordinary renderer can draw. Usually a sparse voxel grid plus a tiny shader for the view-dependent part, which is what SNeRG does. What baking buys is rendering with no neural network at run time at all. It is drawn through WebGL or WebGPU under WebXR, which handles head pose and stereo. The cost is that quality freezes at bake time, and file size becomes the real product constraint.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Talking about quality without the frame budget. In XR a dropped frame is nausea, so the deadline outranks the picture.</p>
+    </li>
+    <li class="qa-item" id="c19-t7">
+      <p class="qa-q">Three weeks to 100 minutes. What is on each side of that?</p>
+      <p class="qa-a">Say what each number includes. The process being replaced was a person modelling an object by hand in 3D software, so three weeks is human time. If 100 minutes is compute time, those are different units and the comparison needs saying out loud. What defining the baseline buys is turning the claim from marketing into a measurement. Also say whether capture, cleanup and review sit inside the 100 minutes. If the comparison is a human's wall clock against a machine's compute, say so plainly. The honest version is still a very good number.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Defending the ratio. Nobody doubts the direction. They doubt that the two sides were measured the same way, and they are right to.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="fundamentals">
+  <h2>Fundamentals</h2>
+  <p class="qset-note">This is the furthest chapter from your current work, so assume less shared vocabulary and explain more. Question one sets up everything else.</p>
+  <ul class="qa-index">
+    <li><a href="#c19-f1">What the number compares</a></li>
+    <li><a href="#c19-f2">What a NeRF is</a></li>
+    <li><a href="#c19-f3">Where poses come from</a></li>
+    <li><a href="#c19-f4">Why Instant-NGP is fast</a></li>
+    <li><a href="#c19-f5">What splatting changes</a></li>
+    <li><a href="#c19-f6">Splatting against NeRF</a></li>
+    <li><a href="#c19-f7">What SNeRG is for</a></li>
+    <li><a href="#c19-f8">The 30 per cent</a></li>
+    <li><a href="#c19-f9">What actually fails</a></li>
+    <li><a href="#c19-f10">The riskiest claim</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c19-f1">
+      <p class="qa-q">Three weeks to a hundred minutes. What is being compared?</p>
+      <p class="qa-a">A person against a program, not an old algorithm against a new one. Three weeks was somebody modelling the object by hand. A hundred minutes is a fitting run. The bracketed figure says it more honestly, because ninety-eight per cent less manual effort is a labour claim.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Letting it sound like a three-hundred-fold speedup. There is no such speedup, and the follow-up asking how is unanswerable.</p>
+    </li>
+    <li class="qa-item" id="c19-f2">
+      <p class="qa-q">Explain a NeRF without using the word geometry.</p>
+      <p class="qa-a">It fits a function. Give it a point in space and a direction you are looking from, and it returns a colour and how solid things are there. To render a pixel you walk along its ray, ask that function at many points, and accumulate until the ray is blocked.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing it as reconstructing a mesh. It never produces one, and that difference is what the rest of the conversation turns on.</p>
+    </li>
+    <li class="qa-item" id="c19-f3">
+      <p class="qa-q">Training needs to know where each photograph was taken from. Where does that come from?</p>
+      <p class="qa-a">Structure from motion, run before anything else. It matches features across the photographs and solves for camera positions and orientations. It is the least glamorous stage and it is where almost all real failures happen.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Assuming poses are given. On a phone they are not, and treating them as an input skips the stage that actually decides the outcome.</p>
+    </li>
+    <li class="qa-item" id="c19-f4">
+      <p class="qa-q">Why is Instant-NGP so much faster to train?</p>
+      <p class="qa-a">Because most of the capacity moved out of the network and into lookup tables. Feature vectors sit in hash tables at several resolutions, indexed by position. A very small network reads them. A table lookup is far cheaper than evaluating a large network, and training touches that function millions of times.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying it uses better hardware. The representation changed, and that is why the same hardware got orders of magnitude more done.</p>
+    </li>
+    <li class="qa-item" id="c19-f5">
+      <p class="qa-q">What does Gaussian splatting change?</p>
+      <p class="qa-a">The representation, not the training. The scene becomes a few million fuzzy 3D blobs, each with a position, a shape, an opacity and a colour. Rendering is projecting them onto the screen and blending, which is what graphics hardware already does natively.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it a faster NeRF. It is a different representation with different failure modes, and the speed comes from rasterising rather than from any training trick.</p>
+    </li>
+    <li class="qa-item" id="c19-f6">
+      <p class="qa-q">So why does splatting hit frame rate when a NeRF does not?</p>
+      <p class="qa-a">Marching a ray means dozens of samples per pixel, each one a network evaluation. Rasterising means touching each blob once and blending it into the pixels it covers. Every graphics card on earth is built for the second thing and for none of the first.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Answering with model size. A small network evaluated fifty times per pixel is still fifty times per pixel.</p>
+    </li>
+    <li class="qa-item" id="c19-f7">
+      <p class="qa-q">What is SNeRG doing in this bullet?</p>
+      <p class="qa-a">Making a trained radiance field renderable in a browser. It bakes the field into a sparse grid holding colour, density and a small feature. Rendering is then a cheap walk through that grid, plus a tiny per-pixel step for shine. You do not run the original network at all.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing it as compression. It is a change of representation for playback, and the original model is not what gets shipped.</p>
+    </li>
+    <li class="qa-item" id="c19-f8">
+      <p class="qa-q">Thirty per cent better render quality. Thirty per cent of what?</p>
+      <p class="qa-a">This is the number I would qualify before being asked. Peak signal-to-noise ratio is decibels on a log scale. A percentage of it does not mean anything stable. The defensible version names the metric, gives both values, and says which scenes it was measured on.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Repeating the percentage confidently. Anyone who works in graphics will ask which metric, and a percentage on a log scale is the first thing they notice.</p>
+    </li>
+    <li class="qa-item" id="c19-f9">
+      <p class="qa-q">In practice, what fails?</p>
+      <p class="qa-a">The camera poses, nearly every time. Feature matching needs texture, so a plain wall, a reflective surface, a repeating pattern or photographs taken too far apart all break it. The symptom is a blurry or ghosted reconstruction, which looks like a modelling problem and is not.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Blaming the network. It reports success, produces something, and the something is soft. The stage before it is where to look.</p>
+    </li>
+    <li class="qa-item" id="c19-f10">
+      <p class="qa-q">What is the riskiest claim in this bullet?</p>
+      <p class="qa-a">The thirty per cent, because it has no unit. After that, the density of named techniques. Four in one sentence invites a question about any of them. And two of the four are competing delivery paths rather than steps in one.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Naming the three weeks. That one is defensible as soon as you say it is a labour comparison.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="deep-dive">
+  <h2>Deep dive</h2>
+  <p class="qset-note">The trade-offs between the two representations, and the delivery constraints that decide which one ships. The metric question in the middle is the one to rehearse.</p>
+  <ul class="qa-index">
+    <li><a href="#c19-d1">The hash collisions</a></li>
+    <li><a href="#c19-d2">Adaptive density</a></li>
+    <li><a href="#c19-d3">The sorting cost</a></li>
+    <li><a href="#c19-d4">Asset size</a></li>
+    <li><a href="#c19-d5">Editing the result</a></li>
+    <li><a href="#c19-d6">Naming the metric</a></li>
+    <li><a href="#c19-d7">Both paths at once</a></li>
+    <li><a href="#c19-d8">Capture protocol</a></li>
+    <li><a href="#c19-d9">Where the hundred minutes goes</a></li>
+    <li><a href="#c19-d10">Backgrounds</a></li>
+    <li><a href="#c19-d11">Batch scale</a></li>
+    <li><a href="#c19-d12">What is stale now</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c19-d1">
+      <p class="qa-q">Hash tables collide. Does that not corrupt the result?</p>
+      <p class="qa-a">It would if anything tried to resolve the collisions, and nothing does. Two distant points can land on the same entry, and the small network learns to tell them apart from the other resolutions it also reads. Collisions in empty space cost nothing, because gradients there are tiny.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Assuming a collision-handling scheme. The absence of one is the design, and it is the part that sounds wrong until you say why it works.</p>
+    </li>
+    <li class="qa-item" id="c19-d2">
+      <p class="qa-q">Where do the blobs come from, and how many?</p>
+      <p class="qa-a">They start from the sparse points that structure from motion already produced, then the optimiser adds and removes them. Where the reconstruction is poor it clones or splits blobs to add detail. Where they are nearly transparent it deletes them. That control loop is most of why the method works.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing a fixed number of blobs. The count changes throughout training and that is the mechanism, not an implementation detail.</p>
+    </li>
+    <li class="qa-item" id="c19-d3">
+      <p class="qa-q">What does splatting cost that ray marching does not?</p>
+      <p class="qa-a">A depth sort, every frame, for every view. Blending semi-transparent things is order-dependent, so the blobs have to be drawn back to front. On a headset that is two sorts per frame, over hundreds of thousands of items. It is the part that decides whether the frame budget holds.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Presenting splatting as free. The sort is the hidden cost and naming it is what shows you rendered with it rather than read about it.</p>
+    </li>
+    <li class="qa-item" id="c19-d4">
+      <p class="qa-q">What has to be true for this to load in a browser?</p>
+      <p class="qa-a">The asset has to be tens of megabytes, not gigabytes. And it has to render with what a browser has, not with a graphics toolkit. Both representations need reducing for delivery. A baked grid is pruned to occupied space. A splat set is trimmed and its colours stored at lower precision.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Ignoring download size. On a phone the first thirty seconds are download, and no frame rate rescues that.</p>
+    </li>
+    <li class="qa-item" id="c19-d5">
+      <p class="qa-q">Somebody wants to change the object afterwards. What can they do?</p>
+      <p class="qa-a">Very little, and this is the honest cost of the whole approach. Hand modelling produces a mesh an artist can edit. Neither of these produces anything with editable structure. Moving a part of a splat scene means selecting blobs, and nothing about them corresponds to a part of the object.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Claiming a mesh can be extracted and edited. You can extract one, and it is usually worse than the render it came from.</p>
+    </li>
+    <li class="qa-item" id="c19-d6">
+      <p class="qa-q">How would you state the quality improvement properly?</p>
+      <p class="qa-a">Name the metric, give both values, and say what it was measured over. Peak signal-to-noise ratio is decibels on a log scale. A percentage is meaningless on it. If the number came from a perceptual metric, say which one. Those behave differently and track what people see rather more closely.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Defending the percentage. Restating it precisely costs one sentence and removes the only easy attack on this bullet.</p>
+    </li>
+    <li class="qa-item" id="c19-d7">
+      <p class="qa-q">The bullet names both a baked radiance field and splatting. Why both?</p>
+      <p class="qa-a">They are two different delivery paths and using both needs a reason. The plausible one is a sequence. Bake the trained field first, because that is what a browser could run. Then move to splatting once it looked better at the same frame rate. If they ran at once, that is worth explaining.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Listing both as though they compose. One replaces the representation the other bakes, and anyone in graphics will notice.</p>
+    </li>
+    <li class="qa-item" id="c19-d8">
+      <p class="qa-q">What is the real deliverable for making this repeatable?</p>
+      <p class="qa-a">A capture protocol. How many photographs, how much overlap between them, what lighting, and what surfaces to avoid. That document is what decides whether the hundred minutes produces something usable, and it is worth more than any parameter choice in the training.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Answering with training hyperparameters. The input quality dominates, and the protocol is the only lever on it.</p>
+    </li>
+    <li class="qa-item" id="c19-d9">
+      <p class="qa-q">Where does the hundred minutes actually go?</p>
+      <p class="qa-a">Mostly not in the part people expect. Pose estimation over a few hundred photographs is a real chunk. Training is minutes with the hash-table approach. Then baking or trimming for delivery, plus whatever check confirms the result is acceptable. Saying which stage dominates is a good sign you ran it.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Assuming training dominates. That was true before the fast encoding and it stopped being true, which is the whole point of it.</p>
+    </li>
+    <li class="qa-item" id="c19-d10">
+      <p class="qa-q">The background comes along with the object. Is that a problem?</p>
+      <p class="qa-a">Usually yes, for a product catalogue. The field learns the room as readily as the object, because nothing told it which was which. Masking the object during capture or before training is the practical fix, and it is another thing the capture protocol has to specify.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Assuming the object is separated for you. Nothing in the method has a concept of an object at all.</p>
+    </li>
+    <li class="qa-item" id="c19-d11">
+      <p class="qa-q">A hundred objects rather than one. What changes?</p>
+      <p class="qa-a">It becomes a scheduling problem and stops being a research one. Every object is an independent run on a machine with a graphics card. So it parallelises perfectly and the cost is linear. What needs building is the queue, the retry, and a check that catches a bad reconstruction automatically.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Reaching for a shared model across objects. There is no shared model. Each one is its own fit.</p>
+    </li>
+    <li class="qa-item" id="c19-d12">
+      <p class="qa-q">This was a while ago. What has moved since?</p>
+      <p class="qa-a">Splatting became the default for anything that has to render in real time, and the baked-grid route is now mostly historical. Saying that yourself is better than being told. It shows the work is dated without suggesting the understanding is.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Presenting it as current practice. The field moved fast, and pretending otherwise is the thing that actually damages the claim.</p>
+    </li>
+  </ol>
+</section>
+
+<div class="quiz" data-quiz-id="0019-q1">
+  <p class="q">Why does Instant-NGP train so much faster than a plain radiance field?</p>
+  <ol class="options">
+    <li data-correct="true">Most of the capacity sits in lookup tables</li>
+    <li>It trains on far fewer input photographs overall</li>
+    <li>The rendered images are at a lower resolution</li>
+    <li>It skips the slow camera pose estimation step</li>
+  </ol>
+  <div class="why">
+    <p>Feature vectors live in hash tables at several resolutions, indexed by position, and a very small network reads them. A table lookup is far cheaper than evaluating a large network, and training touches that function millions of times.</p>
+    <p>Pose estimation still runs, and it is a substantial part of the wall-clock time. The number of photographs and the render resolution are unchanged, which is what makes the comparison fair.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0019-q2">
+  <p class="q">What lets Gaussian splatting render at frame rate where ray marching cannot?</p>
+  <ol class="options">
+    <li data-correct="true">It rasterises the scene instead of marching rays</li>
+    <li>It uses a considerably smaller neural network inside</li>
+    <li>It renders only the visible front-facing surfaces first</li>
+    <li>It caches whole frames that were already drawn</li>
+  </ol>
+  <div class="why">
+    <p>Marching a ray means dozens of samples per pixel. Rasterising means touching each blob once and blending it into the pixels it covers, which is exactly what graphics hardware is built to do.</p>
+    <p>There is no neural network at render time at all. And the blobs are semi-transparent, so front faces do not occlude anything, which is why the method pays a depth sort every frame instead.</p>
+  </div>
+</div>
+
+<section class="qset" id="edges">
+  <h2>Edges and exceptions</h2>
+  <p class="qset-note">Mostly about capture and delivery, because those are where this fails in production rather than in a paper.</p>
+  <ul class="qa-index">
+    <li><a href="#c19-e1">Glass and metal</a></li>
+    <li><a href="#c19-e2">Something moved</a></li>
+    <li><a href="#c19-e3">Too few photographs</a></li>
+    <li><a href="#c19-e4">A view nobody captured</a></li>
+    <li><a href="#c19-e5">A phone that cannot cope</a></li>
+    <li><a href="#c19-e6">Detecting a bad result</a></li>
+    <li><a href="#c19-e7">Defending 30 per cent</a></li>
+    <li><a href="#c19-e8">What you would change</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c19-e1">
+      <p class="qa-q">The object is glass, or polished metal.</p>
+      <p class="qa-a">Both stages struggle. Feature matching fails because the surface has no stable texture to match, and what it does have moves with the camera. The field then tries to explain reflections as geometry and produces floating fragments. This is a capture limitation and there is no parameter that fixes it.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Promising it works on anything. Reflective and transparent objects are the known hard case and saying so is more convincing than claiming coverage.</p>
+    </li>
+    <li class="qa-item" id="c19-e2">
+      <p class="qa-q">Something in the scene moved between photographs.</p>
+      <p class="qa-a">The whole approach assumes the scene is still, so a moving thing gets explained as semi-transparent haze in several places at once. Those are the floating fragments people call floaters. The fix is capture discipline rather than anything in the pipeline.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating floaters as a training artefact to tune away. Most of them are the method faithfully representing inconsistent inputs.</p>
+    </li>
+    <li class="qa-item" id="c19-e3">
+      <p class="qa-q">Someone submits twenty photographs instead of two hundred.</p>
+      <p class="qa-a">Pose estimation may still succeed, which is the dangerous part, and the reconstruction will be confident and wrong between the views. The useful safeguard is to check coverage before training rather than after. A pose solution that used only half the photographs is a signal worth acting on.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Relying on the result looking wrong. From the captured angles it will look fine, which is exactly the problem.</p>
+    </li>
+    <li class="qa-item" id="c19-e4">
+      <p class="qa-q">Somebody views it from an angle nobody photographed.</p>
+      <p class="qa-a">It will render something, and there is no signal that it is invented. The representation has no notion of unobserved space, so a gap in coverage looks like a smooth surface. For a product catalogue that matters, because the unphotographed side is often the underneath.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it interpolation. It is extrapolation with no uncertainty attached, and it is the failure a buyer actually encounters.</p>
+    </li>
+    <li class="qa-item" id="c19-e5">
+      <p class="qa-q">The viewer's phone cannot hold the frame rate.</p>
+      <p class="qa-a">In a headset that is not a quality issue, it is a comfort issue, and people stop within a minute. The lever is the number of blobs, so ship a reduced set for weaker devices. Deciding that from device capability before download is better than discovering it at runtime.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Reducing resolution instead. Fewer blobs helps the sort and the blending together, and resolution only helps one of them.</p>
+    </li>
+    <li class="qa-item" id="c19-e6">
+      <p class="qa-q">How do you catch a bad reconstruction without a person looking?</p>
+      <p class="qa-a">Hold out some photographs, render from their camera positions, and compare. That gives a number per object and it catches the bad cases well. It will not catch a scene that is consistently wrong everywhere, which is why a human check on a sample stays in the loop.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Checking only the training views. Those are what it was fitted to, so they always look good.</p>
+    </li>
+    <li class="qa-item" id="c19-e7">
+      <p class="qa-q">Defend the thirty per cent.</p>
+      <p class="qa-a">Only by restating it. Name the metric, give both values, say how many scenes. If it was peak signal-to-noise ratio then a percentage is the wrong unit, since that number is decibels on a log scale. I would rather correct my own bullet than defend a percentage with nothing attached.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Standing behind the figure as written. It is the one number on this line that an expert will question immediately.</p>
+    </li>
+    <li class="qa-item" id="c19-e8">
+      <p class="qa-q">What would you change?</p>
+      <p class="qa-a">Put a unit on the quality number, or take it out. Say which stage of the hundred minutes dominates, because that is the detail that proves you ran it. And add the held-out view check, since an automatic quality gate is what turns one object into a hundred.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Adding another technique to the list. Four named methods in one sentence is already more surface than the sentence can defend.</p>
+    </li>
+  </ol>
+</section>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;Three weeks to a hundred minutes. How?&#8221;
+      <span class="tell">The first question and the one that goes wrong if you answer it as an algorithmic speedup.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>By replacing a person with a fitting procedure. Three weeks was somebody modelling the object by hand in a 3D package. A hundred minutes is recovering camera poses from photographs, fitting a radiance field, and preparing it for delivery. Nothing got three hundred times faster. The bracketed figure in the bullet says it more honestly, because ninety-eight per cent less manual effort is a labour claim and labour is what actually changed.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;What is a NeRF, in your own words?&#8221;
+      <span class="tell">A definitional question. Saying it without reaching for the word mesh is what shows you used one.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It fits a function rather than reconstructing a shape. Give it a point in space and a direction you are looking from, and it returns a colour and how solid things are there. To render a pixel you walk along its ray, ask that function at many points, and accumulate colour weighted by density until the ray is blocked. Training minimises the difference between rendered pixels and the real photographs. And it is a fit per scene, so every object is its own training run.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Why is splatting real-time and a NeRF is not?&#8221;
+      <span class="tell">Where people conflate the two speed problems. Keep them separate.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Because it stops marching rays. A radiance field needs dozens of samples per pixel, each one a network evaluation. Splatting represents the scene as a few million fuzzy blobs with a position, a shape, an opacity and a colour, and rendering means projecting them onto the screen and blending. Graphics hardware is built for exactly that. The cost it pays instead is a depth sort every frame, per view, because blending semi-transparent things is order-dependent.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;What actually fails in production?&#8221;
+      <span class="tell">Separates having run this from having read about it. The answer is two stages upstream.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Camera pose estimation, nearly every time. It matches features between photographs, so it needs texture, and a plain wall or a reflective surface or photos taken too far apart all break it. The worst part is that it reports success and produces poses anyway. The symptom appears two stages later as a soft or ghosted reconstruction, which looks like a model problem. That is why the real deliverable was a capture protocol rather than a parameter setting.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Thirty per cent better quality on what?&#8221;
+      <span class="tell">The one number with no unit. Correct it yourself before this gets asked.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>That is the figure I would restate. If it came from peak signal-to-noise ratio then a percentage is the wrong unit, because that number is decibels on a log scale and a percentage of it does not mean anything stable. The defensible version names the metric, gives both values, and says how many scenes it was measured over. If it came from a perceptual metric instead, that is worth saying, because those track what people actually see rather more closely.</p>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="recall">
+  <details>
+    <summary>Chapter 0012 made an argument about numbers without a denominator. What is the same argument here?</summary>
+    <p class="answer">A percentage with no metric attached is the same failure as an accuracy with no denominator. Thirty per cent better render quality does not say better on what, measured over how many scenes, against which baseline. And if the underlying metric is peak signal-to-noise ratio, then a percentage is not merely unstated but wrong, because that number is decibels on a log scale. The fix in both chapters is identical: name the measure, give both values, and say what it was measured over.</p>
+    <span class="from"><a href="0012-rag-and-evaluation.html">Chapter 0012 &#183; a number needs its denominator</a></span>
+  </details>
+  <details>
+    <summary>Chapter 0010 did memory arithmetic for a model. Do the equivalent arithmetic for a scene in a browser.</summary>
+    <p class="answer">Each blob carries a position, a covariance, an opacity and colour coefficients, which is a couple of hundred bytes. A few hundred thousand of them lands in the tens to low hundreds of megabytes, before any compression. That is a download on a phone rather than an instant load. The levers are the same shape as quantization: fewer items, and fewer bits per item. And unlike a model, the count is tunable per device. That is how a weaker phone still gets a viewable scene.</p>
+    <span class="from"><a href="0010-model-optimization.html">Chapter 0010 &#183; memory arithmetic first</a></span>
+  </details>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">The lessons behind this chapter</span>
+  <p>System Design School teaches these mechanisms from first principles and breaks them in a lab. This chapter defends what you did with them. An interviewer moves between those two registers without warning.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0001-latency-budget-arithmetic.html">SDS 0001 &#183; Latency budget arithmetic</a>
+      <span class="bridge-why">Eleven milliseconds per frame, two eyes, and a per-frame depth sort inside it. The same summing discipline, with a much smaller number.</span>
+    </li>
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0002-p50-is-a-lie.html">SDS 0002 &#183; p50 is a lie</a>
+      <span class="bridge-why">An average frame rate in a headset hides the dropped frames, and dropped frames are the ones a person physically feels.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0024 &#183; Queue shapes &#8212; not yet built</span>
+      <span class="bridge-why">A hundred objects is a hundred independent runs, so what needs building is the queue, the retry and the quality gate.</span>
+    </li>
+  </ol>
+</div>
+
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0018-voice-commerce-ondc.html">&#8592; 0018 &#183; Voice-only commerce on ONDC</a></span>
+  <span><span class="dir">Next</span><a href="0020-hand-pose-lstm.html">0020 &#183; Time-distributed LSTM over hand pose &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>Timeout Budgets and Deadline Propagation</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0012">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">System Design School</a>
+    <span class="sep">/</span>
+    <span>Tier 1 &#183; Resilience</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Lesson 0012</span>
+    <span class="sep">/</span>
+    <span>No Docker</span>
+  </div>
+  <h1>Timeout Budgets and Deadline Propagation</h1>
+  <p class="standfirst">Five stages, five perfectly reasonable timeouts, every one of them honoured, and a turn that runs <strong>half as long again</strong> as the budget you promised. Then the fix, which caps it exactly &#8212; by converting twenty-six late answers into failures.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Push a turn <strong>past 11 seconds</strong> against an 8 000&#8239;ms budget with no timeout violated anywhere, then pass one absolute deadline down and watch the maximum land on <strong>8 001&#8239;ms</strong>, every run &#8212; and measure what that costs, which is <strong>26 turns of 200</strong>.</p>
+</div>
+
+<div class="anchor-box">
+  <span class="callout-label">Why you, specifically</span>
+  <blockquote>&#8220;&#8230;cutting end-to-end turn latency <strong>47&#8239;% at p50</strong> (4.1&#8239;s to 2.2&#8239;s) and <strong>52&#8239;% at p90</strong> (5.1&#8239;s to 2.4&#8239;s), with zero mid-interview session drops.&#8221;</blockquote>
+  <p>That bullet is a claim about a distribution, and behind it is an 8-second per-turn budget that lives in exactly one place: the edge. Every stage underneath it has its own timeout, chosen by whoever wrote the stage, and none of them knows what the others are spending.</p>
+  <p>The question that finds this is not &#8220;what is your p50&#8221;. It is <em>&#8220;what enforces the eight seconds?&#8221;</em> &#8212; and if the honest answer is &#8220;nothing below the edge&#8221;, the p90 in that bullet is a measurement rather than a guarantee.</p>
+  <p>That sentence is defended in full in <a href="../../resume-mastery/lessons/0002-llm-gateway-and-streaming.html">chapter 0002 of R&#233;sum&#233; Mastery</a> &#8212; this lesson is where the mechanism underneath it gets built and broken.</p>
+</div>
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>A <b>timeout</b> is relative: &#8220;give up after 1600&#8239;ms&#8221;. Every hop that has one starts its own clock, so five hops with a 1600&#8239;ms timeout can legally take eight seconds, and with a retry at each hop, much longer. Nothing in the system notices, because no single component exceeded its own limit.</p>
+  <p>A <b>deadline</b> is absolute: &#8220;be finished by this instant&#8221;. It is the same instant however many hops read it, so five hops under one deadline cannot sum past it &#8212; the last one gets whatever the earlier ones left. That one difference is the whole lesson, and everything else here is bookkeeping around it.</p>
+  <dl>
+    <dt>Turn budget</dt>
+    <dd>The end-to-end time you have promised for one user-visible operation. Here, <b>8&#8239;s</b>. It is a promise only if something enforces it.</dd>
+
+    <dt>Timeout</dt>
+    <dd>A limit on one call, measured from when that call starts. A property of the <em>call</em>, which is why it cannot be passed down.</dd>
+
+    <dt>Deadline</dt>
+    <dd>An absolute instant by which the whole request must be done. A property of the <em>request</em>, which is why it can.</dd>
+
+    <dt>Propagation</dt>
+    <dd>Passing that instant to everything the request touches &#8212; an argument in-process, a header across a service boundary &#8212; so every hop reads the same clock.</dd>
+
+    <dt>Remaining budget</dt>
+    <dd>Deadline minus now. The number a stage should actually use as its limit, and the number a retry has to fit inside.</dd>
+
+    <dt>Monotonic clock</dt>
+    <dd>A clock that only moves forward. Deadlines use it because a wall clock can step backwards when NTP corrects it, firing deadlines early for reasons no log explains.</dd>
+
+    <dt>Bulkhead</dt>
+    <dd>A cap on <b>concurrency</b> for one dependency, so one slow thing cannot consume every worker. Bounds how many, never how long &#8212; confusing the two is why people add one and watch latency get worse.</dd>
+
+    <dt>Hedge</dt>
+    <dd>Issuing a second attempt before the first has failed, when it is late. Costs capacity instead of time, which is what makes it usable where a retry does not fit.</dd>
+
+    <dt>Deadline exceeded</dt>
+    <dd>A distinct failure from &#8220;this hop was slow&#8221;. Worth its own error type, because a slow hop may be worth retrying and an expired deadline never is.</dd>
+  </dl>
+</div>
+
+<h2>Five reasonable timeouts do not add up to one budget</h2>
+
+<p>The arithmetic looks like it should work. The budget is 8&#8239;000&#8239;ms and there are five stages, so each stage gets 1&#8239;600&#8239;ms, and if every stage honours its limit the turn cannot exceed the budget. That is true, and it is also not what any real system looks like, for two reasons that pull in opposite directions.</p>
+
+<p>The first is that nobody derives 1&#8239;600. A stage owner asked how long their model call should be allowed to take says &#8220;five seconds, that is generous&#8221;, and they are right about their stage in isolation. Five such decisions make a ceiling of 25&#8239;s for a turn budgeted at 8. The second is that when someone <em>does</em> derive it, the equal slice turns out to be wrong in the other direction &#8212; stages are not equally expensive, and a limit set at one fifth of the budget kills a quarter of the turns that would have finished in time.</p>
+
+<div class="note">
+  <span class="callout-label">Why a retry makes this structural rather than sloppy</span>
+  <p>Give each stage one retry and a stage is now worth <em>two</em> of its timeout. At 1&#8239;600&#8239;ms that is 3&#8239;200&#8239;ms for one stage, and five of them is 16&#8239;s. Nothing has been configured wrongly: the timeout is per call, the retry is per stage, and both are behaving exactly as written.</p>
+  <p>This is the reason the fix is not &#8220;pick better timeouts&#8221;. There is no set of per-call limits that composes into a per-request guarantee, because the quantity being limited is the wrong one. You need something that measures the request rather than the call.</p>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 352" role="img" aria-labelledby="mech0012-t mech0012-d">
+    <title id="mech0012-t">The same five stages under independent timeouts and under one absolute deadline</title>
+    <desc id="mech0012-d">One time axis running from zero to twelve seconds, with the eight-second turn budget drawn as a vertical wall. Above it, five pipeline stages laid end to end, each honouring its own five-second timeout; two slow stages consume five seconds each and the turn finishes at eleven thousand eight hundred and eighty milliseconds, forty-eight percent past the budget, with no timeout violated. Below it, the same five stages under one absolute deadline: stages one to three run identically, stage four is given only the two point two seconds that remain rather than a fresh five, the turn stops exactly at the wall, and stage five never starts because its retry does not fit the remaining time.</desc>
+    <defs>
+      <marker id="a12" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+    </defs>
+
+    <text x="20" y="20" class="strong">A timeout limits a call. A deadline limits the request. Only one of them composes.</text>
+
+    <!-- MARK 1 &#183; one time axis, and the budget drawn as a wall on it. -->
+    <path d="M60,300 L810,300" class="rule"/>
+    <text x="52" y="318" class="lbl-dim">0</text>
+    <text x="520" y="318" class="lbl-dim">8&#8239;s</text>
+    <text x="780" y="318" class="lbl-dim">12&#8239;s</text>
+    <path d="M553,44 L553,300" class="flow-bad"/>
+    <text x="440" y="38" class="strong ink-bad">the 8&#8239;s budget you promised</text>
+
+    <!-- MARK 2 &#183; five stages, each inside its own 5 s timeout, all honoured. -->
+    <text x="20" y="70" class="lbl-dim">independent timeouts</text>
+    <rect x="60" y="80" width="25" height="30" class="box"/>
+    <rect x="85" y="80" width="308" height="30" class="warn"/>
+    <rect x="393" y="80" width="25" height="30" class="box"/>
+    <rect x="418" y="80" width="308" height="30" class="warn"/>
+    <rect x="726" y="80" width="67" height="30" class="box"/>
+    <text x="96" y="100" class="lbl ink-warn">stage 2 &#183; hit its 5&#8239;s timeout</text>
+    <text x="429" y="100" class="lbl ink-warn">stage 4 &#183; hit its 5&#8239;s timeout</text>
+
+    <!-- MARK 3 &#183; so the turn ends at 11880 ms and nothing was violated. -->
+    <path d="M793,116 L793,140" class="flow-bad" marker-end="url(#a12)"/>
+    <text x="630" y="136" class="strong ink-bad">11 880&#8239;ms &#183; 48&#8239;% over</text>
+    <text x="60" y="136" class="lbl">every stage honoured its own limit; no timeout was violated</text>
+
+    <!-- MARK 4 &#183; the same stages, under one absolute instant instead. -->
+    <text x="20" y="184" class="lbl-dim">one propagated deadline</text>
+    <rect x="60" y="194" width="25" height="30" class="box"/>
+    <rect x="85" y="194" width="308" height="30" class="warn"/>
+    <rect x="393" y="194" width="25" height="30" class="box"/>
+    <rect x="418" y="194" width="135" height="30" class="good"/>
+    <text x="429" y="214" class="lbl ink-good">stage 4 &#183; 2.2&#8239;s left</text>
+
+    <!-- MARK 5 &#183; a later stage is handed the remainder, not a fresh timeout. -->
+    <path d="M553,232 L553,256" class="flow-good" marker-end="url(#a12)"/>
+    <text x="566" y="252" class="strong ink-good">8 001&#8239;ms &#183; every run</text>
+
+    <!-- MARK 6 &#183; and what that costs: refused attempts and failed turns. -->
+    <rect x="566" y="194" width="227" height="30" class="plain"/>
+    <text x="578" y="214" class="lbl-dim">stage 5 never starts &#183; retry refused</text>
+    <text x="60" y="276" class="lbl">25 attempts refused for not fitting, and <tspan class="strong ink-bad">26 turns of 200</tspan> that used to finish late now fail</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">Say this while you draw it</span>
+    <ol class="narrate">
+      <li>One time axis, and the <b>8-second budget as a vertical wall</b> on it. Everything in this drawing is about which things are allowed to cross that wall.</li>
+      <li>Top row: five stages end to end. Two of them hit their own <b>5-second timeout</b>, which is a perfectly reasonable limit for one model call.</li>
+      <li>The turn ends at <b>11 880&#8239;ms</b>, 48&#8239;% past the wall, and <b>no timeout was violated</b>. That is the whole problem in one sentence.</li>
+      <li>Bottom row: identical stages, but now they share <b>one absolute instant</b> rather than each starting its own clock.</li>
+      <li>Stages 1 to 3 are unchanged. Stage 4 is handed <b>the 2.2 seconds that are left</b>, not a fresh five, so the turn stops exactly on the wall.</li>
+      <li>Then the cost, because it is the honest half: stage 5 never starts, <b>25 retries are refused for not fitting</b>, and <b>26 turns of 200</b> that used to finish late now fail instead.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. One axis, one wall, two rows of bars. The second row is only different from the first in one bar, and that bar is the answer.</p>
+  <ul>
+    <li>The <b>axis and the budget wall</b>, with the wall roughly two thirds along so there is room to overrun it.</li>
+    <li>Top row: five stages, two of them long, ending <b>past the wall</b> &#8212; with &#8220;no timeout violated&#8221; written under it.</li>
+    <li>Bottom row: the same stages, with <b>stage 4 shortened to what is left</b> and the turn stopping on the wall.</li>
+    <li>The two numbers: <b>11 880 against 8 001</b>, and the cost, <b>26 turns of 200</b>.</li>
+  </ul>
+  <span class="timer">Draw the wall first. Everyone who gets this wrong draws the stages first and then has nowhere to put the budget, which is exactly the mistake the system makes.</span>
+</div>
+
+<h2>Lab &#8212; blow the budget without breaking a rule</h2>
+
+<div class="lab">
+  <header>
+    <span class="kicker">Lab 0012</span>
+    <span class="est">~20 minutes</span>
+    <h3>11 880&#8239;ms with every timeout honoured, then 8 001 with a cost</h3>
+  </header>
+  <div class="body">
+    <div class="prereq">
+      <span>Needs:</span>
+      <span class="chip">anchor/vendor-eval-gateway</span>
+      <span class="chip">no Docker, no server</span>
+      <span class="chip">~20 min</span>
+    </div>
+
+    <div class="caution">
+      <span class="callout-label">Real milliseconds, fake provider</span>
+      <p>The turns here run concurrently against <code>FakeUpstream</code> and each one times only itself, so these <strong>are</strong> real elapsed milliseconds rather than a scaled model &#8212; which is why 200 turns take one turn's wall clock. What is modelled is the latency distribution of a model call, not the timing machinery.</p>
+      <p><strong>Know which columns hold still before you quote one.</strong> Over five runs of the 5&#8239;000&#8239;ms case: <code>refused</code> was <strong>25 every time</strong>, <code>deadline</code>'s maximum was <strong>8 001&#8211;8 002&#8239;ms every time</strong>, and <code>independent</code> completed <strong>174 of 200 every time</strong>. The unbounded rows wander, because whether a given turn crosses a timeout depends on event-loop scheduling under load: <code>independent+retry</code>'s p99 ranged <strong>8 955&#8211;10 578&#8239;ms</strong> and its maximum <strong>11 053&#8211;12 260&#8239;ms</strong>. That is itself the finding &#8212; the bounded row is bounded and the unbounded one is not &#8212; so claim the shape and the stable figures, not a particular millisecond.</p>
+    </div>
+
+    <ol class="steps">
+      <li>
+        <p class="what">Start with the timeout that looks correct: the budget divided by the stage count. 8&#8239;000&#8239;ms over five stages is 1&#8239;600&#8239;ms each, and by construction five of those cannot exceed the budget.</p>
+        <pre class="cmd"><span class="prompt">$ </span>cd anchor/vendor-eval-gateway
+<span class="prompt">$ </span>uv run python -m bench.deadline --turns 200 --stage-timeout-ms 1600</pre>
+        <pre class="out">budget 8000 ms, 5 stages, per-stage timeout 1600 ms, 200 turns
+
+mode                     p50     p99     max  over budget  completed  refused
+independent             2072    3679    3809        0 /200     147 /200        0
+independent+retry       2309    5010    5847        0 /200     200 /200        0
+deadline                2280    5078    5614        0 /200     197 /200        0</pre>
+        <div class="expect broken">
+          <span class="label">Zero turns over budget, and 53 of 200 failed</span>
+          <p>The budget is perfectly safe and the first row completed <strong>147 of 200 turns</strong>. The equal slice is not a compromise between the stages, it is a limit that a quarter of turns cannot meet, because stage latency is a distribution and 1&#8239;600&#8239;ms sits inside it. The retry row rescues completion to 200 of 200 by spending up to 3&#8239;200&#8239;ms on a stage.</p>
+          <p>So the derived timeout fails in the direction nobody warns you about. It protects the budget by refusing work that would have fitted, because <strong>dividing a budget equally assumes the stages are equal and that each one's latency is a point rather than a spread</strong>.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Now use the timeout a real team writes. Ask each stage owner how long their model call should get and they say five seconds, which is generous and defensible for one call.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.deadline --turns 200 --stage-timeout-ms 5000</pre>
+        <pre class="out">budget 8000 ms, 5 stages, per-stage timeout 5000 ms, 200 turns
+
+mode                     p50     p99     max  over budget  completed  refused
+independent             2253    7323    8671        1 /200     174 /200        0
+independent+retry       2273    9015   11880        4 /200     200 /200        0
+deadline                2258    7005    8001        1 /200     174 /200       25</pre>
+        <div class="expect broken">
+          <span class="label">p99 of 9&#8239;s and a worst case of 11.9&#8239;s, against a budget of 8</span>
+          <p>Look at the second row. <strong>p99 is 9 015&#8239;ms and the maximum is 11 880&#8239;ms &#8212; 48&#8239;% past the budget.</strong> Every stage honoured its 5&#8239;000&#8239;ms timeout and every retry was permitted, so there is no configuration error to find and no alert that would fire. The p50 is a healthy 2 273&#8239;ms, which is exactly the number that would go on a slide.</p>
+          <p>Run it again and that row moves &#8212; across five runs its p99 ranged 8 955 to 10 578&#8239;ms and its maximum 11 053 to 12 260. <strong>That is the point rather than noise in the way.</strong> The row has no ceiling, so what you measure is wherever the distribution landed today; the number to carry is &#8220;between 11 and 12 seconds against a budget of 8&#8221;, not one millisecond figure.</p>
+          <p>This is the shape to recognise: <strong>a median that looks fine and a tail that is not bounded by anything</strong>. Five local limits of 5&#8239;s permit a 25&#8239;s ceiling, and one retry per stage makes it 50. What you actually observe is wherever the latency distribution lands inside that.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Turn on propagation and change nothing else. One <code>Deadline</code> is built at the edge from the turn budget and handed to every stage.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.deadline --turns 200 --stage-timeout-ms 5000 | tail -1</pre>
+        <pre class="out">deadline                2258    7005    8001        1 /200     174 /200       25</pre>
+        <div class="ba">
+          <span class="label">Before / after &#183; one object, passed down</span>
+          <p><strong>Maximum 11 880&#8239;ms &#8594; 8 001&#8239;ms.</strong> Not &#8220;usually under&#8221; &#8212; across five runs the bounded maximum was 8 001 or 8 002&#8239;ms while the unbounded one wandered between 11 053 and 12 260, because a stage is bounded by <code>min(its own timeout, what is left)</code> and the remainder cannot be negative.</p>
+          <p>The p50 barely moves: <strong>2 273 &#8594; 2 258&#8239;ms</strong>. Propagation is a tail intervention, and it costs the median nothing.</p>
+        </div>
+        <div class="expect">
+          <span class="label">And the &#8220;1 over budget&#8221; is worth explaining rather than hiding</span>
+          <p>One turn of 200 is still counted as over, at <strong>8 001&#8239;ms</strong>. That is the measurement including about a millisecond of loop overhead after the deadline fired, not a turn that escaped &#8212; the deadline stopped the work at 8&#8239;000. It is worth noticing because it is the difference between &#8220;the budget is enforced&#8221; and &#8220;the budget plus whatever your instrumentation costs is enforced&#8221;, and at a tighter budget that gap matters.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Now find the cost, because a change that only improves things is a change you have not measured properly. Compare the completion column between the retry row and the deadline row.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.deadline --turns 200 --stage-timeout-ms 5000 | tail -2</pre>
+        <pre class="out">independent+retry       2273    9015   11880        4 /200     200 /200        0
+deadline                2258    7005    8001        1 /200     174 /200       25</pre>
+        <div class="expect">
+          <span class="label">200 of 200 became 174 of 200</span>
+          <p><strong>Twenty-six turns that used to finish, late, now fail.</strong> Across five runs the retry row completed 199 or 200 and the deadline row 173 or 174, so the gap is 26 give or take one. That is not a regression &#8212; it is the trade being made explicit. Without a deadline those 26 turns returned an answer after nine, ten, eleven seconds to a user who had been promised eight, and quite possibly to a client that had already given up. With it they fail at the budget.</p>
+          <p>Which is better is a product decision rather than an engineering one, and the honest framing is: <strong>a deadline converts overruns into failures.</strong> If a late answer is genuinely worth more than a fast failure, the correct response is to raise the budget, not to drop the deadline &#8212; because at least then the promise matches the system.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Look at the <code>refused</code> column, which is the interaction with lesson 0010 and the part most retry code gets wrong.</p>
+        <pre class="cmd"><span class="prompt">$ </span>grep -n -B1 -A3 "cannot finish inside" bench/deadline.py</pre>
+        <pre class="out">103-                # The question a retry almost never asks. An attempt that
+104:                # cannot finish inside the remaining budget is pure load: it
+105-                # costs the upstream a whole call and cannot return in time
+106-                # to be used.
+107-                if deadline is not None and not deadline.fits(args.stage_timeout_ms):</pre>
+        <div class="expect">
+          <span class="label">Twenty-five attempts that would have been started and thrown away</span>
+          <p>A retry that cannot finish before the deadline is <strong>pure load</strong>: it costs the upstream a full unit of work and its result arrives after anyone stopped caring. Checking <code>remaining</code> before starting one refused <strong>25 attempts</strong> in 200 turns.</p>
+          <p>This is what makes lesson 0010's <code>T &#8804; 433&#8239;ms</code> enforceable rather than aspirational. Without a deadline, &#8220;three attempts fit in 1&#8239;600&#8239;ms&#8221; is a calculation you did once on a whiteboard; with one, the third attempt is actually refused at runtime when the first two ran long. <strong>A retry policy without a deadline is a policy nothing checks.</strong></p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Last, see where the deadline physically lives, and confirm it is absolute rather than a divided-up budget.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -c "
+from app.deadline import Deadline
+class C:
+    t = 100.0
+    def __call__(self): return self.t
+c = C(); d = Deadline.in_ms(8000, clock=c)
+for stage, spend in enumerate(['0.4','5.0','0.4','9.9'], 1):
+    print(f'stage {stage}: gets min(5000, {d.remaining_ms():7.0f}) = {min(5000, d.remaining_ms()):7.0f} ms')
+    c.t += float(spend)"</pre>
+        <pre class="out">stage 1: gets min(5000,    8000) =    5000 ms
+stage 2: gets min(5000,    7600) =    5000 ms
+stage 3: gets min(5000,    2600) =    2600 ms
+stage 4: gets min(5000,    2200) =    2200 ms</pre>
+        <div class="expect">
+          <span class="label">The same object, read four times, giving four different answers</span>
+          <p>Nothing divided the budget in advance. Each stage asks the <em>same</em> deadline what is left, and the answer shrinks as the clock is spent &#8212; stage 3 is handed 2&#8239;600&#8239;ms because stage 2 took five seconds, without anyone having to tell it that. An equal-slice scheme could not do this: it would have given stage 3 its 1&#8239;600 regardless.</p>
+          <p>Two implementation details worth carrying. The clock is <code>time.monotonic</code>, never <code>time.time</code>, because a wall clock steps backwards when NTP corrects it and a deadline that moves backwards fires early for reasons no log will explain. And the <code>Deadline</code> is a frozen dataclass: a callee that can extend its own deadline does not have one, and &#8220;just give this stage a bit more time&#8221; is exactly how an 8-second budget becomes fourteen.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+</div>
+
+<div class="evidence" data-evidence-for="0012">
+  <header>
+    <span class="callout-label">Your numbers, not mine</span>
+    <span class="hint">saved in this browser as you type</span>
+  </header>
+  <div class="body">
+    <p>The counts here are exact and the milliseconds are real elapsed time against a modelled provider. The last row is about your system, and it is the one that decides whether the rest of this lesson applies to you at all.</p>
+
+    <div class="rows">
+      <div class="row">
+        <span class="ran">Step 1, <strong>the derived timeout</strong>: turns completed under an equal slice of the budget, and how many went over</span>
+        <span class="field"><label for="e12-eq">completed</label><input type="text" id="e12-eq" data-field="equal_done" placeholder="e.g. 147 / 200"></span>
+        <span class="field"><label for="e12-eqo">over budget</label><input type="text" id="e12-eqo" data-field="equal_over" placeholder="e.g. 0 / 200"></span>
+        <span class="why-row"><label for="e12-slice">The equal slice protected the budget perfectly and still failed a quarter of turns. Say what assumption it makes that is false</label><textarea id="e12-slice" data-field="slice" placeholder="That the stages cost the same and that each one's latency is a point rather than a spread. A limit at one fifth of the budget sits inside the distribution, so it refuses work that would have finished in time."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 2, <strong>the locally reasonable timeout</strong>: p99 and worst case for the retry row against the 8&#8239;000&#8239;ms budget</span>
+        <span class="field"><label for="e12-p99">p99</label><input type="text" id="e12-p99" data-field="p99" placeholder="e.g. 9015 ms"></span>
+        <span class="field"><label for="e12-max">max</label><input type="text" id="e12-max" data-field="max" placeholder="e.g. 11880 ms, 48% over"></span>
+        <span class="why-row"><label for="e12-nothing">Name what was misconfigured. The answer is &#8220;nothing&#8221;, so say why that is the point rather than a dodge</label><textarea id="e12-nothing" data-field="nothing" placeholder="Nothing was. Every stage honoured its own limit and every retry was permitted. A timeout bounds a call and the budget is a property of the request, so no set of per-call limits composes into a per-request guarantee."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 3, <strong>propagation</strong>: worst case with one absolute deadline, and what it did to the median</span>
+        <span class="field"><label for="e12-dmax">max</label><input type="text" id="e12-dmax" data-field="deadline_max" placeholder="e.g. 8001 ms, every run"></span>
+        <span class="field"><label for="e12-p50">p50 before / after</label><input type="text" id="e12-p50" data-field="p50" placeholder="e.g. 2273 &#8594; 2258 ms"></span>
+        <span class="why-row"><label for="e12-tail">Say which part of the distribution this intervention touches, and why that makes it cheap to adopt</label><textarea id="e12-tail" data-field="tail" placeholder="Only the tail. The median moved by 15 ms, because a deadline never binds on a turn that was going to finish anyway &#8212; it only ever truncates the runs that were about to break the promise."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 4, <strong>the cost</strong>: turns completed with and without the deadline, and attempts refused for not fitting</span>
+        <span class="field"><label for="e12-done">completed</label><input type="text" id="e12-done" data-field="done" placeholder="e.g. 200 &#8594; 174 of 200"></span>
+        <span class="field"><label for="e12-ref">refused</label><input type="text" id="e12-ref" data-field="refused" placeholder="e.g. 25 attempts"></span>
+        <span class="why-row"><label for="e12-trade">A deadline converts overruns into failures. For your product, is a late answer worth more than a fast failure &#8212; and what follows if it is?</label><textarea id="e12-trade" data-field="trade" placeholder="For a live interview a late token is worthless because the client has moved on, so failing at the budget is strictly better. If a late answer were worth more, the right response would be to raise the budget so the promise matches the system, not to drop the deadline."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">The decision: <strong>what enforces your real per-turn budget today, below the edge?</strong> Read the code and answer honestly, naming the file</span>
+        <span class="field"><label for="e12-where">enforced at</label><input type="text" id="e12-where" data-field="where" placeholder="e.g. edge only, nothing below"></span>
+        <span class="field"><label for="e12-ceiling">theoretical ceiling</label><input type="text" id="e12-ceiling" data-field="ceiling" placeholder="e.g. 5&#215;5&#8239;s&#215;2 = 50&#8239;s"></span>
+        <span class="why-row"><label for="e12-first">If it is the edge only, what is the smallest change that would bound the tail &#8212; and which stage would you thread it through first?</label><textarea id="e12-first" data-field="first" placeholder="Build a Deadline at the edge from the turn budget and pass it into the pipeline driver, bounding each stage by min(its timeout, remaining). Start with the model stage, because it owns most of the budget and is the one that runs long."></textarea></span>
+      </div>
+    </div>
+
+    <div class="earned">
+      <span class="callout-label">The bullet this lesson earns</span>
+      <p>&#8220;Found that the 8&#8239;s per-turn budget was enforced only at the edge, and that five independently reasonable stage timeouts permitted a measured worst case of <span data-fill="max" class="placeholder">[run step 2]</span> with no timeout violated; propagating one absolute deadline bounded it to <span data-fill="deadline_max" class="placeholder">[run step 3]</span> for a median cost of <span data-fill="p50" class="placeholder">[run step 3]</span>, and converted <span data-fill="done" class="placeholder">[run step 4]</span> late answers into fast failures.&#8221;</p>
+      <p class="caveat">The last clause is the one to keep. Anybody can claim they added deadline propagation; stating the number of requests it turned from late into failed, without being asked, is what shows the trade was made on purpose rather than discovered afterwards.</p>
+    </div>
+  </div>
+</div>
+
+<h2 id="underneath-0012">Underneath</h2>
+
+<div class="underneath">
+  <span class="callout-label">One layer down &#183; why relative limits cannot be composed</span>
+
+  <p>Four things. The first is the whole argument, the second closes 0010's loop, the third is the distinction that makes people add a bulkhead and get slower, and the fourth is where the thing physically lives.</p>
+
+  <h3>A timeout is a property of a call; a budget is a property of a request</h3>
+
+  <p>This is not pedantry, it is the reason no amount of tuning fixes it. A timeout starts its clock when its call starts, so <em>n</em> hops with timeout <em>t</em> permit <em>n&#183;t</em>, and each hop is individually correct the entire time. A deadline is one instant, so <em>n</em> hops reading it permit exactly the deadline, regardless of <em>n</em>. Adding a hop changes the ceiling in the first scheme and changes nothing in the second, which is the property you actually want, because hops get added by people who have never seen your budget.</p>
+
+  <div class="derive">
+    <p>The ceiling each scheme permits, for five stages with one retry:</p>
+    <span class="eq">scheme                   ceiling              measured max
+1600 ms each             5 &#215; 1600 = 8000 ms        3809 ms
+1600 ms each + retry     5 &#215; 3200 = 16 s           5847 ms
+5000 ms each             5 &#215; 5000 = 25 s           8671 ms
+5000 ms each + retry      5 &#215; 10 000 = 50 s        11 880 ms
+one 8000 ms deadline     8000 ms, always            8001 ms</span>
+    <p>What you observe is wherever the latency distribution happens to land inside the ceiling, which is why this never shows up as a bug report. The p50 is healthy in every row. Only the last row has a ceiling you could put in a contract.</p>
+  </div>
+
+  <h3>A retry has to fit the remaining deadline, not restart the clock</h3>
+
+  <p>Lesson 0010 derived that three attempts fit a 1&#8239;600&#8239;ms stage slice only while a call stays under <b>433&#8239;ms</b>. Without a deadline that derivation is a whiteboard exercise: nothing at runtime knows how much of the slice the first two attempts consumed, so the third starts regardless. With one, the attempt is checked against what is left and refused if it cannot finish &#8212; <b>25 times in 200 turns</b> here.</p>
+
+  <div class="derive">
+    <p>What one stage is actually allowed, as the turn is spent, at a nominal 5000&#8239;ms timeout:</p>
+    <span class="eq">stage   spent so far   remaining   limit = min(5000, remaining)
+1              0 ms      8000 ms                    5000 ms
+2            400 ms      7600 ms                    5000 ms
+3           5400 ms      2600 ms                    2600 ms
+4           5800 ms      2200 ms                    2200 ms</span>
+    <p>Nothing divided the budget in advance. Each stage asks the same deadline what is left, so a
+    stage that ran long leaves less for the next one automatically &#8212; which is precisely what an
+    equal slice cannot do, because it would hand stage 3 its fixed fifth regardless.</p>
+  </div>
+
+  <p>The refusal is the point rather than a side effect. An attempt that cannot complete before the deadline costs the upstream a full unit of work and produces a result nobody can use, which is the definition of pure load. This is also the cleanest example of the two lessons composing: the budget in 0010 bounds <em>how many</em> retries exist, and the deadline here bounds <em>whether this particular one is worth starting</em>.</p>
+
+  <h3>Bulkheads bound concurrency, and confusing that with time makes things worse</h3>
+
+  <p>A bulkhead caps how many calls to one dependency can be in flight, so a slow dependency cannot consume every worker. It says nothing about how long any of them takes. People reach for one when latency is the problem and are surprised when p99 gets <em>worse</em>: capping concurrency at 8 when 20 requests arrive means 12 of them now wait for a slot <em>before</em> starting their own timeout, and that queueing time is invisible to every per-call limit in the system.</p>
+
+  <div class="derive">
+    <p>Three controls, and the quantity each one actually bounds:</p>
+    <span class="eq">control     bounds              does not bound
+timeout     one call's duration  the request total
+deadline    the request total    how many run at once
+bulkhead    concurrent calls     any duration at all</span>
+    <p>You generally want all three, and the failure is using one to do another's job. A bulkhead without a deadline converts a latency problem into a queueing problem and hides it from your timeouts.</p>
+  </div>
+
+  <h3>Where the deadline lives, in-process and across a boundary</h3>
+
+  <p>In one process it is an object threaded through the call path, and <code>asyncio.timeout</code> is what enforces it &#8212; taking <code>remaining_ms()</code> rather than a constant, so a later stage is bounded by what is left. Across a service boundary the same instant travels as a header and is rebuilt on the other side; gRPC does this natively with <code>grpc-timeout</code>, and over HTTP it is a header you agree on and a middleware that turns it back into a deadline. Both halves have to exist or the budget stops at your edge, which is the failure this lesson opens with.</p>
+
+  <p>Two details that are easy to get wrong and expensive to debug. The clock must be <b>monotonic</b>: a wall clock steps backwards when NTP corrects it, and a deadline that moves backwards fires early with nothing in any log to explain it. And &#8220;deadline exceeded&#8221; deserves to be its own error rather than a generic timeout, because a slow hop may be worth retrying and an expired deadline never is &#8212; code that cannot tell them apart will retry into a budget that is already gone.</p>
+
+  <p class="lands">Which lands on the sentence worth keeping: the budget is not enforced by being written down, and five correct components can produce an incorrect system. The fix is not better numbers, it is measuring the right quantity &#8212; and the cost of measuring it is that some requests which used to arrive late now do not arrive at all.</p>
+</div>
+
+<h2>Check yourself</h2>
+
+<div class="quiz" data-quiz-id="0012-q1">
+  <p class="q">Five stages each honour a 5&#8239;s timeout, each retries once, and a turn takes 11 880&#8239;ms against an 8&#8239;s budget. Which component is misconfigured?</p>
+  <ol class="options">
+    <li data-correct="true">Nothing; a per-call limit cannot bound a request</li>
+    <li>The stage timeouts, which should each be 1600ms</li>
+    <li>The retry policy, which doubled every stage timeout</li>
+    <li>The budget, which was set unrealistically low throughout</li>
+  </ol>
+  <div class="why">
+    <p>Nothing is misconfigured, and that is the finding rather than a dodge. Every stage stayed inside its own limit and every retry was permitted. A timeout measures a <em>call</em> and the budget is a property of the <em>request</em>, so no set of per-call limits composes into a per-request guarantee &#8212; five 5&#8239;s timeouts with one retry each permit a 50&#8239;s ceiling, and 11 880&#8239;ms is just where the distribution landed.</p>
+    <p>The 1&#8239;600&#8239;ms answer is tempting and was measured too: it does keep every turn inside the budget, and it <strong>failed 53 of 200 turns</strong>, because an equal slice assumes stages cost the same and that each one's latency is a point rather than a spread.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0012-q2">
+  <p class="q">Propagating one deadline capped the worst turn at 8 001&#8239;ms and dropped completions from 200 of 200 to 174 of 200. What happened to those 26 turns?</p>
+  <ol class="options">
+    <li data-correct="true">They finished late before and now fail on time</li>
+    <li>They were refused by the retry budget token bucket</li>
+    <li>They hit the per-stage timeout instead of the deadline</li>
+    <li>They completed faster and stopped appearing in the tail</li>
+  </ol>
+  <div class="why">
+    <p>They used to return an answer at nine, ten or eleven seconds, to a user promised eight and to a client that had quite possibly given up. Now they fail at the budget. <strong>A deadline converts overruns into failures</strong> &#8212; it does not make slow work fast, and any claim that it improved things without this sentence attached is incomplete.</p>
+    <p>Whether that is an improvement is a product decision. If a late answer really is worth more than a fast failure, the correct response is to raise the budget so the promise matches the system, rather than to remove the thing enforcing it.</p>
+  </div>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">A spoken answer to <em>&#8220;you promised an 8-second turn &#8212; what actually enforces it?&#8221;</em> Read it aloud, then say it again with the page covered.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">Our turn budget is eight seconds, and it lived at the edge. Every stage below it had its own timeout, chosen by whoever wrote that stage.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">A timeout is relative, so every hop starts its own clock. A deadline is absolute, so every hop reads the same instant. Only the second one composes.</p>
+      <p class="line">Five stages at five seconds each permit a twenty-five second ceiling, and one retry per stage makes it fifty. Nothing is misconfigured; the limits just do not add up to a promise.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">I measured it across two hundred turns. The worst case was <b>11 880 milliseconds</b> against an eight-second budget, with every timeout honoured and no alert that could have fired.</p>
+      <p class="line">Then I built one deadline at the edge and passed it to every stage, bounding each by whatever was left. The maximum landed on <b>8001 milliseconds</b>, every run.</p>
+      <p class="line">It also refused <b>25 retries</b> that could not have finished in the time remaining. That is what makes a retry budget enforceable instead of a whiteboard calculation.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">Completed turns went from <b>200 of 200 down to 174</b>. A deadline converts overruns into failures. Twenty-six answers that used to arrive late now do not arrive.</p>
+      <p class="line">The median cost nothing, moving about fifteen milliseconds, because a deadline only ever binds on the runs that were going to break the promise anyway.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;We have timeouts on every external call.&#8221;</span> Said as though it were the answer, when it is the configuration that produced the problem. The follow-up is <em>&#8220;so what is the worst case for a whole turn?&#8221;</em>, and the honest arithmetic &#8212; stages times timeout times attempts &#8212; is usually a number that surprises the person saying it. The version that holds distinguishes the two quantities: <span class="quoted">&#8220;each call has a timeout, and the request carries an absolute deadline that every stage reads, so the turn is bounded at eight seconds no matter how many hops get added.&#8221;</span></p>
+  <p>The second trap is claiming deadline propagation as a pure win. It is a tail intervention with a real cost, and an interviewer who has implemented one knows that some requests now fail which previously succeeded late. Saying the number yourself &#8212; twenty-six turns of two hundred &#8212; is the difference between having read about the pattern and having shipped it.</p>
+</div>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;You promised an 8-second turn. What enforces it?&#8221;
+      <span class="tell">The question behind the r&#233;sum&#233; bullet. Answering with the p50 misses it entirely &#8212; this is about the ceiling, not the distribution. Saying where it is <em>not</em> enforced is the honest opening.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It was enforced at the edge and nowhere below it, which means it was a measurement rather than a guarantee. Each of five stages had its own timeout, so the ceiling was five times the timeout, doubled again by one retry per stage. With 5&#8239;s stage timeouts that is a 50&#8239;s ceiling for an 8&#8239;s budget, and I measured a worst case of <strong>11 880&#8239;ms</strong> with no timeout violated anywhere.</p>
+        <p>The fix is a single absolute deadline built at the edge and passed to every stage, with each bounded by <code>min(its own timeout, remaining)</code>. That put the maximum at <strong>8 001&#8239;ms</strong> on every run, and moved the median by about 15&#8239;ms &#8212; it is a tail intervention, so it costs the common case nothing.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What did it cost?&#8221; &#8212; 26 turns of 200 that used to finish late now fail, which is the trade.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Why not just set every stage's timeout to the budget divided by the number of stages?&#8221;
+      <span class="tell">Sounds like the obvious fix and is worth having measured, because it fails in a direction people do not expect. Give the number, not the theory.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>I tried it: 8&#8239;000 over five stages is 1&#8239;600&#8239;ms each, and it does keep every turn inside the budget &#8212; zero over, out of 200. It also <strong>failed 53 of those 200 turns</strong>, because an equal slice assumes the stages cost the same and that each one's latency is a point rather than a spread. A 1&#8239;600&#8239;ms limit sits well inside our stage distribution, so it refuses work that would have finished in time.</p>
+        <p>A deadline gets this right without anyone allocating anything: each stage asks what is left, so a stage that runs long simply leaves less for the next one, instead of every stage getting its fixed fifth regardless. That is the real advantage over a static split &#8212; it reallocates automatically, in the direction the actual run went.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So what do you do when a stage runs out?&#8221; &#8212; fail fast with a distinct error, or degrade, but never extend.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;How does this interact with your retries?&#8221;
+      <span class="tell">The composition question, and the place two lessons meet. The specific detail &#8212; checking remaining time before starting an attempt &#8212; is in the SRE book and almost never in real code.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It is what makes the retry arithmetic enforceable. I had worked out that three attempts fit a 1&#8239;600&#8239;ms stage only while a call stays under <strong>433&#8239;ms</strong>, but nothing at runtime knew how much of the slice the earlier attempts had eaten, so the third started regardless. With a deadline, an attempt is checked against the time remaining and refused if it cannot finish &#8212; <strong>25 refusals in 200 turns</strong>.</p>
+        <p>The reason to refuse rather than start is that a late attempt is pure load: it costs the provider a full call and returns after anyone stopped caring. The SRE book puts it as checking there is enough time left before each stage, and treats work past a client's deadline as resources spent while no progress is made.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What about the request already in flight when the deadline passes?&#8221; &#8212; cancel it, and that is where SSE having no upstream channel bites.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Would a bulkhead help here?&#8221;
+      <span class="tell">A trap worth recognising. Bulkheads are good and they do not solve this, and being able to say which quantity each control bounds is the whole answer.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Not with this problem, no. A bulkhead bounds <em>concurrency</em> &#8212; how many calls to one dependency are in flight &#8212; so it stops a slow dependency consuming every worker. It bounds nothing about duration, so a turn can still run to fifty seconds inside it.</p>
+        <p>It can actually make the symptom worse. Capping concurrency at 8 when 20 requests arrive means 12 of them wait for a slot <em>before</em> starting their own timeout, and that queueing time is invisible to every per-call limit in the system. I would want all three controls, with each doing its own job: a timeout for one call, a deadline for the request total, and a bulkhead for how many run at once.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So where does queueing time show up?&#8221; &#8212; only in an end-to-end measurement, which is why the deadline starts at the edge.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Where does the deadline physically live once you cross a service boundary?&#8221;
+      <span class="tell">Checks whether you have implemented this or only read about it. The monotonic-clock detail and the distinct error type are the two things that sound like experience.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>In-process it is an object threaded through the call path, enforced with <code>asyncio.timeout</code> given <code>remaining_ms()</code> rather than a constant. Across a boundary the same instant travels as a header and is rebuilt on the other side &#8212; gRPC does it natively with <code>grpc-timeout</code>; over HTTP it is a header you agree on plus middleware that converts it back. Both halves have to exist or the budget stops at your edge.</p>
+        <p>Two details I would not skip. The clock is <code>time.monotonic</code>, never wall clock, because NTP can step a wall clock backwards and a deadline that moves backwards fires early with nothing in the logs to explain it. And &#8220;deadline exceeded&#8221; is its own error type rather than a generic timeout, because a slow hop might be worth retrying and an expired deadline never is.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What if a downstream ignores the header?&#8221; &#8212; then your own deadline still fires, which is why it is enforced on both sides.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="primary-source">
+  <span class="callout-label">Read this next &#8212; one source, not ten</span>
+  <span class="title"><a href="https://sre.google/sre-book/addressing-cascading-failures/" target="_blank" rel="noopener">Google SRE Book &#8212; Addressing Cascading Failures</a></span>
+  <p>Read the deadlines section. It states the rule directly &#8212; <em>&#8220;rather than inventing a deadline when sending RPCs to backends, servers should employ deadline propagation&#8221;</em> &#8212; and names the waste this lesson's <code>refused</code> column measures: servers that <em>&#8220;spend resources handling requests that will exceed their deadlines on the client&#8230; resources are spent while no progress is made&#8221;</em>. It also gives the stage-boundary check that <code>Deadline.fits()</code> implements, recommending you verify there is enough time left before each stage.</p>
+  <p class="cite">For the wire format, <a href="https://grpc.io/docs/guides/deadlines/" target="_blank" rel="noopener">gRPC's deadlines guide</a> is the clearest description of propagation as a protocol feature rather than a convention &#8212; worth reading even if you are on HTTP, because it shows what you are re-implementing by hand. The rest of the cascading-failures chapter is the best free writing on why an overloaded system does not recover on its own, which is lesson 0013, next in this tier.</p>
+</div>
+
+<h2>Recall &#8212; from lessons 0009&#8211;0011</h2>
+
+<div class="recall">
+  <details>
+    <summary>Deadline propagation cancels a stage mid-call. What did lesson 0009 say about where that request's work was happening, and what does the cancellation waste?</summary>
+    <p class="answer">It was happening on one specific replica, which had already paid prefill for that prompt's prefix and now holds those key-value blocks. Cancelling frees your worker but does not free the replica immediately, and the blocks it built stay resident under eviction pressure until something displaces them. So a cancelled request has already spent the expensive half of the work. The practical consequence is that cancellation is worth much more to the caller than to the provider, and that a retry of a cancelled request routed to the <em>same</em> replica is unusually cheap, because the prefix is still there &#8212; which is an argument for cancelling and retrying with affinity rather than cancelling and scattering.</p>
+    <span class="from">lesson 0009 &#183; work is resident on one replica</span>
+  </details>
+  <details>
+    <summary>0010 derived that three attempts fit a 1600&#8239;ms stage only while a call stays under 433&#8239;ms, and measured p90 at 670&#8239;ms. What does a deadline change about that conclusion?</summary>
+    <p class="answer">It turns the derivation from advice into enforcement. Without a deadline the attempt count is a fixed number chosen against the median, so at p90 the third attempt starts anyway and overruns the slice &#8212; the arithmetic was right and nothing was checking it. With a deadline each attempt is tested against the time actually remaining, so on a fast run all three happen and on a slow run the third is refused, which is exactly the adaptive behaviour the static number was trying to approximate. That is why the refused count is 25 rather than 0 or 200: it fires only on the runs where the earlier attempts ran long.</p>
+    <span class="from">lesson 0010 &#183; T &#8804; 433 ms, and nothing checked it</span>
+  </details>
+  <details>
+    <summary>0011 found that a breaker ignores a dependency that is slow rather than failing, unless the timeout counts as a failure. How does a propagated deadline change what &#8220;the timeout&#8221; even means?</summary>
+    <p class="answer">It makes the limit vary per call, which the breaker has to be told about. Under propagation a late stage may be bounded at 400&#8239;ms rather than its nominal 5&#8239;s, so a call can be cut off while the dependency is behaving perfectly normally &#8212; and recording that as a dependency failure would open the breaker on evidence about your own budget rather than about the upstream. So the two have to be distinguished: a deadline-exceeded outcome should not feed the failure estimator, while a genuine stage timeout should. This is the concrete reason <code>DeadlineExceeded</code> is its own error type rather than a plain <code>TimeoutError</code>.</p>
+    <span class="from">lesson 0011 &#183; the estimator only sees what you hand it</span>
+  </details>
+</div>
+
+<div class="ask">
+  <p><strong>This is the last lesson of the batch, and the calibration point &#8212; which is now two batches overdue.</strong> The test is not whether these read well. It is: <strong>pick one of 0010, 0011 or 0012, cover the screen, redraw the diagram, and give the 75 seconds out loud.</strong> Then take three probes cold, answering before you open the fold. If the redraw works, batch C2 &#8212; admission control and idempotency &#8212; gets built the same way. If it does not, tell me where it fell apart, because the likeliest cause is that the diagrams are carrying too much and the 12-mark ceiling needs to come down before thirty more lessons inherit it.</p>
+  <p>One thing I would flag about this batch specifically. All three lessons ended up arguing with their own sources or their own plan &#8212; the 243&#215; belongs to a shape your pipeline is not, the best writing on retries says not to build a breaker, and the derived per-stage timeout fails a quarter of turns. <strong>Tell me whether that is the useful shape or whether it is becoming a mannerism.</strong> I would rather be told now than build nine more like it.</p>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">Where this lands on the r&#233;sum&#233;</span>
+  <p>This lesson teaches the mechanism from first principles and breaks it in a lab. The chapter opposite defends what you actually did with it, including the number on the r&#233;sum&#233;. An interviewer crosses between those two registers without warning.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../resume-mastery/lessons/0002-llm-gateway-and-streaming.html">RM 0002 &#183; The gateway and the move to streaming</a>
+      <span class="bridge-why">The bullet claims a p50 and a p90 against an 8-second budget. This is the lesson that decides whether that budget is a guarantee or a measurement.</span>
+    </li>
+  </ol>
+</div>
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0011-the-breaker-you-have-to-defend.html">&#8592; 0011 &#183; The breaker you have to defend</a></span>
+  <span><span class="dir">Index</span><a href="index.html">All lessons &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>Lock, Retry, or Don't Read</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0018">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">System Design School</a>
+    <span class="sep">/</span>
+    <span>Tier 1 &#183; Postgres</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Lesson 0018</span>
+    <span class="sep">/</span>
+    <span>Needs Postgres</span>
+  </div>
+  <h1>Lock, Retry, or Don't Read</h1>
+  <p class="standfirst">The optimistic-versus-pessimistic argument assumes a gap between reading a value and writing it back. Measured across five contention levels and two gap lengths, <strong>optimistic never once beat the lock</strong> &#8212; and the strategy that appears in neither camp beat both by <strong>twelve times</strong>, because it removes the gap the argument is about.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Run the same sixteen writers four ways and watch the fastest one produce the wrong answer. Then find that optimistic locking started <strong>136 transactions to make 16 writes</strong> &#8212; exactly <code>16&#215;17&#247;2</code>, not approximately &#8212; and lost to the lock at every contention level tested. Then fix the whole thing with one statement that never reads at all, and finish on the clause that is for a completely different problem.</p>
+</div>
+
+<div class="anchor-box">
+  <span class="callout-label">Why you, specifically</span>
+  <blockquote>&#8220;Owned an <strong>AI vendor-evaluation platform</strong> end-to-end (Python/FastAPI, async SQLAlchemy, PostgreSQL, GKE) &#8212; live avatar interviews scored against a weighted rubric, with a two-pass <strong>Scout/Evaluator pipeline</strong> (Gemini, Tavily) grounding every vendor claim in a cited source.&#8221;</blockquote>
+  <p>&#8220;Two-pass&#8221; is the phrase this lesson lives in. Two passes over the same vendor means two writers for one rubric score, and the interview question that follows is never about the model &#8212; it is <em>&#8220;what happens when both passes finish at once?&#8221;</em></p>
+  <p>&#8220;Weighted rubric&#8221; is the second half, and it is worse. A weighted score is a value computed from other values, so it is the exact shape that invites a read, a computation and a write &#8212; which is the gap. And a rubric has an invariant across rows, which lesson 0016 already showed is invisible to everything except the strongest isolation level.</p>
+  <p>The claim is defended in full in <a href="../../resume-mastery/lessons/0001-vendor-evaluation-platform.html">chapter 0001 of R&#233;sum&#233; Mastery</a>. This lesson is where the four available answers get measured against each other.</p>
+</div>
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>Two workers want to change the same number. There are only three things you can do about it: make one of them wait, let both try and make the loser repeat its work, or write the change in a way that does not depend on having read the old value first.</p>
+  <p>The first two have names and a literature. The third has neither, is shorter than both, and is the right answer more often than the argument between them suggests &#8212; because the argument takes the gap for granted and the third option deletes it.</p>
+  <dl>
+    <dt>Pessimistic locking</dt>
+    <dd><code>SELECT &#8230; FOR UPDATE</code>. Take the row, then nobody else can, until you commit. Assumes a conflict is likely enough to be worth preventing.</dd>
+
+    <dt>Optimistic locking</dt>
+    <dd>Read a version, write with <code>WHERE version = :seen</code>. Assumes a conflict is unlikely, and pays a whole repeated transaction when it happens.</dd>
+
+    <dt>Version column</dt>
+    <dd>An integer incremented on every write. The mechanism behind optimistic locking, and the reason the conflict arrives as a <em>row count</em> rather than an error.</dd>
+
+    <dt>Atomic write</dt>
+    <dd>One statement that computes from the current value: <code>SET score = score + 1</code>. No read, so no gap, so nothing to defend.</dd>
+
+    <dt>The gap</dt>
+    <dd>The interval between reading a value and writing the value that depends on it. Every strategy here is an answer to it, and one of them deletes it.</dd>
+
+    <dt>Contention level</dt>
+    <dd>How many writers can reach one row at once. The axis the whole argument is supposedly about, and the one nobody measures.</dd>
+
+    <dt><code>SKIP LOCKED</code></dt>
+    <dd>Return rows nobody else has locked, rather than waiting. For handing out work, not for protecting a value.</dd>
+
+    <dt><code>NOWAIT</code></dt>
+    <dd>Error immediately rather than waiting for a lock. The third option in the same clause, and the one for when waiting is worse than failing.</dd>
+
+    <dt>Work queue</dt>
+    <dd>A table of jobs that many workers pull from. Superficially the same problem as a contended row, and actually the opposite one.</dd>
+  </dl>
+</div>
+
+<h2>Four answers, and the fastest one is wrong</h2>
+
+<p>Start with the measurement rather than the argument. Sixteen writers, one row, each adding one, with a forty-millisecond gap between reading the value and writing it back. Three of the four strategies produce sixteen. The fourth produces one, and it is <em>ten times faster than the correct ones</em> &#8212; which is exactly why it is what most code does.</p>
+
+<p>That speed is not a coincidence or a trade. It is the whole reason the bug persists: the broken version is fast because it does no coordinating, and nothing in a load test distinguishes &#8220;fast because it is efficient&#8221; from &#8220;fast because it is not doing the work&#8221;.</p>
+
+<div class="note">
+  <span class="callout-label">Why the usual framing sets you up to lose</span>
+  <p>The received wisdom is that optimistic locking wins under low contention and pessimistic wins under high, so you pick by measuring your conflict rate. That is a testable claim, and this lesson tests it across five contention levels and two gap lengths.</p>
+  <p><strong>It did not reproduce.</strong> Optimistic never beat the lock at any point in the table &#8212; it was equal where conflicts were rare and considerably worse where they were common. The reason is in the next section and it is not subtle, but it is invisible if you reason about the two strategies rather than measuring them.</p>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 400" role="img" aria-labelledby="mech0018-t mech0018-d">
+    <title id="mech0018-t">Four ways for two writers to change one number, and what each does with the gap between the read and the write</title>
+    <desc id="mech0018-d">Four stacked rows, each showing two writers acting on one value. The first row, naive read-modify-write, shows both writers reading, both computing, and both writing, with the second write overwriting the first, so the final answer is one instead of two and no error is raised. The second row, lock, shows the second writer waiting for the whole of the first writer's gap before it can begin. The third row, optimistic, shows both writers proceeding and the second one discovering its version has moved, discarding its work and running the whole transaction again. The fourth row, atomic, shows no read at all: both writers issue a single statement that adds to the current value, and both complete immediately. Measured results are given alongside: sixteen writers on one row produced a final value of one in nought point zero seven seconds for naive, sixteen in nought point seven zero for the lock, sixteen in nought point seven five for optimistic after one hundred and thirty-six transactions, and sixteen in nought point zero six for atomic.</desc>
+
+    <text x="20" y="22" class="strong">Three of these are correct. The fastest one is not, and that is why it ships.</text>
+
+    <!-- MARK 1 &#183; naive: both read, both compute, the second write wins. -->
+    <text x="20" y="62" class="lbl-dim">naive</text>
+    <rect x="150" y="48" width="60" height="22" class="box"/>
+    <text x="160" y="64" class="lbl">read</text>
+    <rect x="210" y="48" width="150" height="22" class="box-2"/>
+    <text x="220" y="64" class="lbl-dim">the gap</text>
+    <rect x="360" y="48" width="70" height="22" class="warn"/>
+    <text x="370" y="64" class="lbl ink-warn">write</text>
+    <rect x="360" y="74" width="70" height="22" class="warn"/>
+    <text x="370" y="90" class="lbl ink-warn">write</text>
+
+    <!-- MARK 2 &#183; so one of the two updates is simply gone. -->
+    <text x="450" y="64" class="lbl ink-bad">final 1 of 16</text>
+    <text x="450" y="90" class="lbl ink-bad">0.07&#8239;s &#8212; the fastest row</text>
+
+    <!-- MARK 3 &#183; lock: writer two waits out the whole gap. -->
+    <text x="20" y="138" class="lbl-dim">lock</text>
+    <rect x="150" y="124" width="60" height="22" class="good"/>
+    <text x="160" y="140" class="lbl ink-good">lock</text>
+    <rect x="210" y="124" width="150" height="22" class="box-2"/>
+    <text x="220" y="140" class="lbl-dim">the gap</text>
+    <rect x="360" y="124" width="70" height="22" class="good"/>
+    <text x="370" y="140" class="lbl ink-good">write</text>
+
+    <!-- MARK 4 &#183; which is a queue, and the queue is the cost. -->
+    <path d="M150,166 L430,166" class="flow-dim"/>
+    <text x="160" y="162" class="lbl-dim">writer 2 waits here</text>
+    <text x="450" y="140" class="lbl">16 of 16 &#183; 0.70&#8239;s</text>
+
+    <!-- MARK 5 &#183; optimistic: nobody waits, and the loser starts over. -->
+    <text x="20" y="212" class="lbl-dim">optimistic</text>
+    <rect x="150" y="198" width="60" height="22" class="box"/>
+    <text x="160" y="214" class="lbl">read v</text>
+    <rect x="210" y="198" width="150" height="22" class="box-2"/>
+    <text x="220" y="214" class="lbl-dim">the gap</text>
+    <rect x="360" y="198" width="70" height="22" class="warn"/>
+    <text x="370" y="214" class="lbl ink-warn">0 rows</text>
+
+    <!-- MARK 6 &#183; so the whole transaction runs again, gap included. -->
+    <path d="M430,210 L500,210" class="flow-bad"/>
+    <text x="510" y="214" class="lbl ink-bad">redo the whole thing</text>
+    <text x="510" y="238" class="lbl">16 of 16 &#183; 0.75&#8239;s &#183; <tspan class="strong ink-bad">136 transactions</tspan></text>
+
+    <!-- MARK 7 &#183; atomic: there is no read, so there is no gap. -->
+    <text x="20" y="288" class="lbl-dim">atomic</text>
+    <rect x="150" y="274" width="220" height="22" class="good"/>
+    <text x="160" y="290" class="lbl ink-good">UPDATE &#8230; SET score = score + 1</text>
+    <text x="450" y="290" class="lbl ink-good">16 of 16 &#183; 0.06&#8239;s</text>
+
+    <!-- MARK 8 &#183; and nothing to wait for or repeat, at any contention. -->
+    <text x="150" y="316" class="lbl-dim">no read, no gap, nothing to defend</text>
+
+    <!-- MARK 9 &#183; the retry cost, which is a shape rather than a rate. -->
+    <text x="150" y="348" class="lbl">optimistic retries cost <tspan class="strong">N(N+1)&#247;2</tspan> transactions &#8212; 16 gives 136, exactly</text>
+
+    <!-- MARK 10 &#183; and the measured verdict the textbook does not predict. -->
+    <text x="150" y="372" class="lbl">optimistic <tspan class="strong ink-bad">never beat the lock</tspan>, at any contention level tested</text>
+
+    <!-- MARK 11 &#183; the other clause, for the other problem entirely. -->
+    <rect x="560" y="330" width="230" height="26" class="box-2"/>
+    <text x="572" y="348" class="lbl">SKIP LOCKED: 1.51&#8239;s &#8594; 0.20</text>
+
+    <!-- MARK 12 &#183; which is not a correctness fix, and does not claim to be. -->
+    <text x="560" y="372" class="lbl-dim">different problem: handing out work</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">Say this while you draw it</span>
+    <ol class="narrate">
+      <li>Four rows, and in every one the middle box is <b>the gap</b> &#8212; between reading the value and writing what depends on it.</li>
+      <li>Naive: both writers read, both write, one update is gone. <b>Final 1 of 16</b>, and it is the fastest row on the page.</li>
+      <li>Lock: writer two <b>waits out the whole gap</b>. Correct, and it is a queue. 0.70&#8239;s.</li>
+      <li>Optimistic: nobody waits, the loser finds <b>zero rows updated</b> and redoes the entire transaction. 136 transactions for 16 writes.</li>
+      <li>Atomic: <b>there is no read</b>, so there is no gap and nothing to defend. Same answer, 0.06&#8239;s.</li>
+      <li>Then the two findings: the retry cost is <b>N(N+1)&#247;2</b>, exactly &#8212; and <b>optimistic never beat the lock</b> at any contention level.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. Twelve marks, the standing ceiling. This is the last diagram of the batch and the one with the clearest structure, so it is the fairest test of the ceiling in the four.</p>
+  <ul>
+    <li>Four rows with <b>the same gap box</b> in the first three, and none in the fourth.</li>
+    <li>What each does with it: <b>ignore it, wait it out, redo it, delete it</b>.</li>
+    <li>The two numbers that matter: <b>136 transactions for 16 writes</b>, and <b>0.06&#8239;s against 0.70</b>.</li>
+    <li>That <b>SKIP LOCKED is not on this list</b>, because it answers a different question.</li>
+  </ul>
+  <span class="timer">Draw the gap box in all three rows before you draw anything else. If you draw the strategies first you will make the gaps different widths, and the entire diagram is the claim that they are the same gap.</span>
+</div>
+
+<h2>Lab &#8212; four strategies, five contention levels, one clause that is off-topic</h2>
+
+<div class="lab">
+  <header>
+    <span class="kicker">Lab 0018</span>
+    <span class="est">~25 minutes</span>
+    <h3>The fastest wrong answer, a triangular number, and a claim that does not reproduce</h3>
+  </header>
+  <div class="body">
+    <div class="prereq">
+      <span>Needs:</span>
+      <span class="chip">anchor/vendor-eval-gateway</span>
+      <span class="chip">Docker &#183; Postgres</span>
+      <span class="chip">~25 min</span>
+    </div>
+
+    <div class="caution">
+      <span class="callout-label">Counts are exact; wall clock is not</span>
+      <p>The <code>attempts</code> and <code>conflicts</code> columns have been identical on every run taken &#8212; they are decided by ordering, not by timing. The <code>wall</code> column moves by a few hundredths of a second. Where an argument below rests on a count, it is safe; where it rests on a duration, the step says so.</p>
+    </div>
+
+    <ol class="steps">
+      <li>
+        <p class="what">Start Postgres and run all four strategies against the same sixteen writers on one row.</p>
+        <pre class="cmd"><span class="prompt">$ </span>cd anchor/vendor-eval-gateway
+<span class="prompt">$ </span>docker compose up -d postgres
+<span class="prompt">$ </span>uv run python -m bench.contention --experiment strategies</pre>
+        <pre class="out">16 writers, all adding 1 to the SAME row, with a 40 ms gap
+between reading the value and writing it back. The right answer is 16.
+
+strategy     final  lost  applied  attempts  conflicts     wall
+naive            1    15       16        16          0    0.07s
+for-update      16     0       16        16          0    0.70s
+optimistic      16     0       16       136        120    0.75s
+atomic          16     0       16        16          0    0.06s
+
+'attempts' is transactions started, so for the optimistic row it is
+the work you paid for and threw away. 'atomic' does no read at all,
+which is why it has nothing to lose and nothing to retry.</pre>
+        <div class="expect broken">
+          <span class="label">The wrong answer is ten times faster than the right ones</span>
+          <p>Row one is the shape most application code has. <strong>Sixteen writers applied, fifteen updates lost, zero errors, 0.07&#8239;s</strong> &#8212; and that speed is the reason it survives. Nothing in a load test tells you whether a fast path is efficient or simply not doing the coordination.</p>
+          <p>Rows two and three are both correct and cost about the same in wall clock, which is the first surprise. The difference is in the <code>attempts</code> column: the lock started <strong>16</strong> transactions and optimistic started <strong>136</strong>. Same answer, eight and a half times the work.</p>
+          <p>Row four is the one that is missing from most discussions of this topic. It is correct, it is <strong>as fast as the broken version</strong>, and it is shorter than either of the two strategies people argue about &#8212; because it never reads the value it is changing.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Check where 136 comes from, by halving the writers. If it is arithmetic rather than an artefact, the shape will hold.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.contention --experiment strategies --writers 8 | sed -n '4,8p'</pre>
+        <pre class="out">strategy     final  lost  applied  attempts  conflicts     wall
+naive            1     7        8         8          0    0.05s
+for-update       8     0        8         8          0    0.35s
+optimistic       8     0        8        36         28    0.38s
+atomic           8     0        8         8          0    0.05s</pre>
+        <div class="expect">
+          <span class="label">36 and 28, which are the numbers the arithmetic predicts</span>
+          <p>Under total contention the writers succeed strictly one at a time, so the n-th writer loses to the n&#8722;1 already ahead of it. The total work is therefore <code>1 + 2 + &#8230; + N</code>, which is <strong>N(N+1)&#247;2</strong>: eight writers give 36 and sixteen give 136. The conflicts are the same sum less the successes, <strong>N(N&#8722;1)&#247;2</strong>: 28 and 120.</p>
+          <p>Both figures are exact on every run, which makes this a derivation you can do in an interview rather than a benchmark result you have to have memorised. The practical form: <strong>doubling the contention quadruples the wasted work</strong>, because it is quadratic in the number of writers.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Now test the claim everybody repeats: that optimistic wins when conflicts are rare. Spread the same sixteen writers over a rising number of rows.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.contention --experiment contention | sed -n '4,10p'</pre>
+        <pre class="out"> rows            for-update            optimistic                atomic
+            wall / attempts       wall / attempts       wall / attempts
+    1           0.72s / 16            0.74s / 136           0.06s / 16
+    2           0.36s / 16            0.37s / 72            0.05s / 16
+    4           0.18s / 16            0.19s / 40            0.05s / 16
+    8           0.09s / 16            0.10s / 24            0.05s / 16
+   16           0.05s / 16            0.05s / 16            0.05s / 16</pre>
+        <div class="expect broken">
+          <span class="label">It did not reproduce, at any point in the table</span>
+          <p>Read the optimistic column against the for-update column, row by row: 0.74 against 0.72, 0.37 against 0.36, 0.19 against 0.18, 0.10 against 0.09, 0.05 against 0.05. <strong>Optimistic is equal at best and never faster.</strong> The claimed crossover is not there.</p>
+          <p>The reason is structural rather than a measurement artefact, and it is one sentence: <strong>both strategies hold a pooled connection for the whole of the gap</strong>, so they queue against each other in exactly the same way. The only difference between them is what happens on a collision &#8212; one waits, the other repeats &#8212; and waiting is cheaper than repeating.</p>
+          <p>Where optimistic genuinely wins is a case this bench cannot contain: a gap you <em>cannot</em> hold a transaction across, such as a form a person has open for three minutes. That is a real and important use, and it is not a throughput argument at all.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Rule out the obvious objection &#8212; that the gap was too short to matter &#8212; by making it five times longer.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.contention --experiment contention --think-ms 200 | sed -n '4,10p'</pre>
+        <pre class="out"> rows            for-update            optimistic                atomic
+            wall / attempts       wall / attempts       wall / attempts
+    1           3.30s / 16            3.31s / 136           0.21s / 16
+    2           1.63s / 16            1.66s / 72            0.21s / 16
+    4           0.82s / 16            0.84s / 40            0.21s / 16
+    8           0.41s / 16            0.41s / 24            0.21s / 16
+   16           0.21s / 16            0.21s / 16            0.21s / 16</pre>
+        <div class="ba">
+          <span class="label">Before / after &#183; same verdict, five times the gap</span>
+          <p>Every cell in the first two columns scaled by roughly five and their relationship did not change. <strong>Optimistic still never wins.</strong> So the result is not an artefact of a short gap, which was the most plausible reason to distrust the previous step.</p>
+          <p>Look at the atomic column while you are here: <strong>0.21&#8239;s in every row</strong>, unchanged by contention. It is flat because the arithmetic happens inside the statement, so there is no interval during which anybody else's write is a problem. Every other column is a strategy for surviving an interval; this one does not have the interval.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Now the clause that gets recommended for this problem and is for a different one: many workers pulling jobs from a table.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.contention --experiment queue</pre>
+        <pre class="out">8 workers claiming 32 queued runs, one at a time,
+each holding its claim for 40 ms before committing.
+
+clause                      claimed  duplicates  idle takes     wall
+FOR UPDATE                       32           0           8    1.51s
+FOR UPDATE SKIP LOCKED           32           0           8    0.20s
+
+Both are correct -- no run is claimed twice either way. Plain FOR
+UPDATE queues every worker behind the same row, so the workers are a
+single-file line holding N connections to do one connection's work.</pre>
+        <div class="expect">
+          <span class="label">Seven times faster, and the duplicates column is zero in both rows</span>
+          <p>The zero is the important number. <code>SKIP LOCKED</code> did not make anything <em>correct</em> &#8212; plain <code>FOR UPDATE</code> was already correct and claimed no job twice. What it changed is which row each worker took: without it, all eight workers queue behind whoever holds the first row, so eight connections do one connection's work.</p>
+          <p>The Postgres documentation is unusually blunt about the limitation, and it is worth being able to quote: <em>&#8220;Skipping locked rows provides an inconsistent view of the data, so this is not suitable for general purpose work, but can be used to avoid lock contention with multiple consumers accessing a queue-like table.&#8221;</em></p>
+          <p>Which is why recommending it for a contended rubric score is wrong. A queue has other work waiting behind the locked row; a contended value does not. <strong>Skipping is only safe when the thing you skipped was interchangeable.</strong></p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Finally run the tests, one of which asserts the triangular number rather than a wall-clock figure.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run pytest tests/test_scores.py -q 2&gt;&amp;1 | tail -1</pre>
+        <pre class="out">6 passed in 1.21s</pre>
+        <div class="expect">
+          <span class="label">The arithmetic is a test, because it is exact</span>
+          <p><code>test_optimistic_retries_cost_a_triangular_number_of_transactions</code> asserts <code>sum(attempts) == N(N+1)//2</code> and <code>sum(conflicts) == N(N-1)//2</code> for six writers &#8212; 21 and 15. It is an equality rather than a bound because the numbers are decided by ordering, and a test that can assert equality should.</p>
+          <p>The other one worth reading is <code>test_read_modify_write_loses_every_update_but_one</code>, which asserts that <strong>every writer reported success</strong> and the final value is 1. Both halves are the finding; asserting only the second would let a version that raised errors pass.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+</div>
+
+<div class="evidence" data-evidence-for="0018">
+  <header>
+    <span class="callout-label">Your numbers, not mine</span>
+    <span class="hint">saved in this browser as you type</span>
+  </header>
+  <div class="body">
+    <p>The attempt and conflict counts are exact and have reproduced on every run. The wall-clock column moves by hundredths. The last row is about your system.</p>
+
+    <div class="rows">
+      <div class="row">
+        <span class="ran">Step 1, <strong>the four strategies</strong>: the final value and wall clock for the naive one and for atomic</span>
+        <span class="field"><label for="e18-naive">naive</label><input type="text" id="e18-naive" data-field="naive" placeholder="e.g. 1 of 16 in 0.07s"></span>
+        <span class="field"><label for="e18-atomic">atomic</label><input type="text" id="e18-atomic" data-field="atomic" placeholder="e.g. 16 of 16 in 0.06s"></span>
+        <span class="why-row"><label for="e18-fast">The broken version was the fastest. Say why that matters more than it sounds</label><textarea id="e18-fast" data-field="fast" placeholder="Because no load test distinguishes fast-because-efficient from fast-because-not-coordinating. The wrong answer wins every benchmark that measures throughput and not correctness, which is most of them."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 2, <strong>the retry cost</strong>: transactions started by the optimistic strategy at your two writer counts</span>
+        <span class="field"><label for="e18-16">16 writers</label><input type="text" id="e18-16" data-field="sixteen" placeholder="e.g. 136 for 16 writes"></span>
+        <span class="field"><label for="e18-8">8 writers</label><input type="text" id="e18-8" data-field="eight" placeholder="e.g. 36 for 8 writes"></span>
+        <span class="why-row"><label for="e18-tri">Write the formula and say what it implies about doubling the contention</label><textarea id="e18-tri" data-field="tri" placeholder="N(N+1)/2 transactions and N(N-1)/2 conflicts, because the n-th writer loses to the n-1 ahead of it. It is quadratic, so doubling the writers quadruples the wasted work rather than doubling it."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Steps 3 and 4, <strong>the claim that did not reproduce</strong>: optimistic against the lock at your lowest contention</span>
+        <span class="field"><label for="e18-low">at 16 rows</label><input type="text" id="e18-low" data-field="low" placeholder="e.g. 0.05s vs 0.05s"></span>
+        <span class="field"><label for="e18-high">at 1 row</label><input type="text" id="e18-high" data-field="high" placeholder="e.g. 0.74s vs 0.72s"></span>
+        <span class="why-row"><label for="e18-why">Explain why they tie, and name the case where optimistic really is the only option</label><textarea id="e18-why" data-field="whytie" placeholder="Both hold a connection for the whole gap, so they queue identically; the only difference is that one waits and the other repeats. Optimistic is the only option when you cannot hold a transaction across the gap at all -- a human editing a form, or a gap that spans two requests."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 5, <strong>the queue</strong>: wall clock and duplicate claims, with and without SKIP LOCKED</span>
+        <span class="field"><label for="e18-skip">wall</label><input type="text" id="e18-skip" data-field="skip" placeholder="e.g. 1.51s to 0.20s"></span>
+        <span class="field"><label for="e18-dup">duplicates</label><input type="text" id="e18-dup" data-field="dup" placeholder="e.g. 0 and 0"></span>
+        <span class="why-row"><label for="e18-diff">Why is SKIP LOCKED wrong for a contended score and right for a queue?</label><textarea id="e18-diff" data-field="diff" placeholder="Because skipping is only safe when the row you skipped was interchangeable. A queue has other jobs behind the locked one; a rubric score has nothing behind it, so skipping it means not doing the work."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">The decision: <strong>which contended write in your system could become a single statement, and which one genuinely cannot?</strong></span>
+        <span class="field"><label for="e18-can">can</label><input type="text" id="e18-can" data-field="can" placeholder="e.g. the running score total"></span>
+        <span class="field"><label for="e18-cant">cannot</label><input type="text" id="e18-cant" data-field="cant" placeholder="e.g. the rubric verdict text"></span>
+        <span class="why-row"><label for="e18-choose">For the one that cannot, choose between the lock and the version column, and defend it</label><textarea id="e18-choose" data-field="choose" placeholder="The lock, because our two passes contend on the same row by design rather than by accident, and at that contention the version column costs a quadratic number of repeated transactions for the same answer. The version column would be right if the gap spanned two requests."></textarea></span>
+      </div>
+    </div>
+
+    <div class="earned">
+      <span class="callout-label">The bullet this lesson earns</span>
+      <p>&#8220;Measured four write strategies against the contended rubric score: the shape already in the code applied every write and produced <span data-fill="naive" class="placeholder">[run step 1]</span>, while optimistic locking cost <span data-fill="sixteen" class="placeholder">[run step 2]</span> and never beat a row lock at any contention level tested; replaced the read-modify-write with a single atomic statement (<span data-fill="atomic" class="placeholder">[run step 1]</span>), which removes the gap the other three strategies exist to defend.&#8221;</p>
+      <p class="caveat">The middle clause is the one that will be pushed back on, which is why it is worth having measured rather than read. Most people expect optimistic to win somewhere on that axis, and being able to say where you looked and what you found is a stronger position than agreeing.</p>
+    </div>
+  </div>
+</div>
+
+<h2 id="underneath-0018">Underneath</h2>
+
+<div class="underneath">
+  <span class="callout-label">One layer down &#183; the gap is the whole subject</span>
+
+  <p>Four things. The first is what the four strategies actually differ on, the second is why optimistic retries are quadratic, the third is why the textbook claim did not reproduce, and the fourth is why the clause everybody recommends is for a different problem.</p>
+
+  <h3>Every strategy is an answer to the same interval</h3>
+
+  <p>Read a value, compute something from it, write the result. The interval between the read and the write is the only thing any of these four strategies is about, and they exhaust the possible responses: ignore it, prevent anybody else entering it, detect afterwards that somebody did, or arrange not to have one.</p>
+
+  <p>Putting it that way makes the fourth option obvious, and it is missing from most treatments of this topic because the topic is usually named <em>&#8220;optimistic versus pessimistic&#8221;</em> &#8212; a framing that presupposes there is an interval to defend. For anything expressible as a function of the current value, there is not. <code>SET score = score + 1</code> has no gap, so the entire argument is inapplicable.</p>
+
+  <p>The limit is worth stating precisely, because it is what an interviewer will probe. The atomic form works when the new value is a function of the old one <em>that the database can compute</em>. If the new value comes from a model, a person, or anything else outside the statement, you are back to having a gap and back to the argument.</p>
+
+  <h3>Optimistic retries are quadratic, and the number is exact</h3>
+
+  <p>Under total contention on one row, the writers succeed strictly one at a time, because each successful write increments the version and invalidates every read taken before it. So the first writer succeeds on attempt one, the second has lost once and succeeds on attempt two, and the n-th has lost n&#8722;1 times.</p>
+
+  <div class="derive">
+    <p>The sum, and what arrived:</p>
+    <span class="eq">writers   predicted attempts   measured   predicted conflicts   measured
+      2         2x3/2 =    3           3          2x1/2 =   1          1
+      8         8x9/2 =   36          36          8x7/2 =  28         28
+     16       16x17/2 =  136         136        16x15/2 = 120        120</span>
+    <p>Exact on every run, because these counts are decided by ordering rather than timing. The consequence to carry: the cost is <b>quadratic in the number of contending writers</b>, so doubling the contention quadruples the wasted work &#8212; and the retry budget has to grow linearly with it, which lesson 0016 measured from the other side when a budget of eight silently dropped eight of sixteen writes.</p>
+  </div>
+
+  <h3>The textbook crossover did not reproduce, and the reason is the pool</h3>
+
+  <p>The received version is that optimistic locking wins under low contention because it avoids the cost of taking a lock. Measured across five contention levels and two gap lengths, it never won: equal at sixteen rows, 0.74 against 0.72 at one row, and equal or slightly worse at every point in between.</p>
+
+  <p>The explanation is that the thing being avoided is not the expensive part. An uncontended row lock is one extra clause on a statement you were issuing anyway &#8212; it is microseconds. What actually costs is <em>holding a connection for the length of the gap</em>, and both strategies do that identically, which is lesson 0015's ceiling applying equally to both.</p>
+
+  <div class="derive">
+    <p>What each strategy pays for, per write:</p>
+    <span class="eq">                  lock taken   connection held   work repeated on conflict
+naive                    no        for the gap   none; it overwrote instead
+for-update              yes        for the gap   none; the loser waited
+optimistic               no        for the gap   the entire transaction
+atomic                yes, us         one stmt   none; there is no gap</span>
+    <p>The middle column is the same for the three that read first, which is why their timings converge. <b>The argument is about the last column and the cost is in the middle one.</b> That is the whole of why the crossover is not where it is supposed to be &#8212; and it also predicts where optimistic genuinely wins: when you cannot hold a transaction across the gap at all, because the gap spans a person, a request boundary, or a queue.</p>
+  </div>
+
+  <h3><code>SKIP LOCKED</code> answers a different question, and says so</h3>
+
+  <p>It is routinely recommended for lock contention, which is true in the way that changes the subject. It does not protect a value and it does not prevent a lost update; it changes <em>which row</em> a worker takes when the one it wanted is busy. Measured on a work table it took the same thirty-two jobs seven times faster with zero duplicate claims &#8212; and plain <code>FOR UPDATE</code> also had zero duplicate claims.</p>
+
+  <p>The Postgres documentation states the limitation without being asked, which is the sentence worth carrying: <em>&#8220;Skipping locked rows provides an inconsistent view of the data, so this is not suitable for general purpose work, but can be used to avoid lock contention with multiple consumers accessing a queue-like table.&#8221;</em> The same paragraph gives <code>NOWAIT</code> as the third option: <em>&#8220;the statement reports an error, rather than waiting, if a selected row cannot be locked immediately&#8221;</em>.</p>
+
+  <div class="derive">
+    <p>Three ways of not waiting, and what each is for:</p>
+    <span class="eq">clause          when the row is locked      use it when
+(none)          wait for it                 you need that specific row
+NOWAIT          fail immediately            waiting is worse than failing
+SKIP LOCKED     take a different row        the rows are interchangeable</span>
+    <p>The last row is the test, and it is one question: <b>is the row you skipped interchangeable with the one you took?</b> For a queued job, yes &#8212; the work still gets done by somebody. For a rubric score, no &#8212; skipping it means the score is not written, and nothing tells you.</p>
+  </div>
+
+  <p class="lands">Which lands on the sentence worth keeping: <b>optimistic and pessimistic are two answers to a gap, and the best answer is usually not to have one.</b> The argument is real, it is narrower than it is presented, and it applies only where the new value cannot be computed from the old.</p>
+</div>
+
+<h2>Check yourself</h2>
+
+<div class="quiz" data-quiz-id="0018-q1">
+  <p class="q">Sixteen writers add one to the same row with optimistic locking. The bench started <strong>136</strong> transactions to make sixteen writes. Where does 136 come from?</p>
+  <ol class="options">
+    <li data-correct="true">Every writer retries once for each writer ahead of it</li>
+    <li>Postgres restarted them after each conflict it chose to detect</li>
+    <li>The connection pool forced them to run in eight batches</li>
+    <li>Each transaction was simply far too slow to finish first</li>
+  </ol>
+  <div class="why">
+    <p>Each successful write increments the version, invalidating every read taken before it, so the writers succeed strictly one at a time and the n-th has lost n&#8722;1 times. The total is <code>1 + 2 + &#8230; + 16</code>, which is <strong>16&#215;17&#247;2 = 136</strong>, and the conflicts are <strong>16&#215;15&#247;2 = 120</strong>. Both figures were exact on every run.</p>
+    <p>The consequence worth carrying is that the cost is <em>quadratic</em>: doubling the contention quadruples the wasted work, and the retry budget has to grow linearly with the writer count &#8212; which is the same failure lesson 0016 found from the other side when a budget of eight dropped eight of sixteen writes.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0018-q2">
+  <p class="q">Adding <code>SKIP LOCKED</code> took the same thirty-two jobs in 0.20&#8239;s instead of 1.51&#8239;s, with <strong>zero</strong> duplicate claims either way. What did it actually change?</p>
+  <ol class="options">
+    <li data-correct="true">Which row each worker took, not whether any was correct</li>
+    <li>It dropped the row lock so workers no longer waited</li>
+    <li>It let two workers claim the very same job concurrently</li>
+    <li>It moved the whole queue into memory instead of Postgres</li>
+  </ol>
+  <div class="why">
+    <p>Only which row. Plain <code>FOR UPDATE</code> was <em>already correct</em> &#8212; the duplicates column is zero in both rows &#8212; it just made all eight workers queue behind whoever held the first job, so eight connections did one connection's work. <code>SKIP LOCKED</code> still takes a lock; it simply does not wait for one somebody else holds.</p>
+    <p>Which is why it is the wrong recommendation for a contended value. The test is whether the row you skipped was interchangeable with the one you took: for a queued job it is, and for a rubric score it is not &#8212; skipping there means the score is never written, and nothing reports it.</p>
+  </div>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">A spoken answer to <em>&#8220;two passes write the same rubric score &#8212; optimistic or pessimistic locking?&#8221;</em> Read it aloud, then say it again with the page covered.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">A Scout pass and an Evaluator pass both write one rubric score. Two writers, one row, by design rather than by accident.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">Both strategies are answers to the same thing: the gap between reading a value and writing what depends on it.</p>
+      <p class="line">One prevents anybody else entering the gap. The other detects afterwards that somebody did, and repeats the whole transaction.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">I measured four, not two. The read-modify-write we had applied all sixteen writes and left a total of <b>one</b>, with no errors.</p>
+      <p class="line">Optimistic cost <b>136 transactions for 16 writes</b>, which is n times n plus one over two. It never beat the lock at any contention level.</p>
+      <p class="line">So I removed the gap instead. One statement that adds to the current value: same answer, <b>twelve times faster</b>.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">It only works when the new value is a function of the old one. A verdict written by a model is not.</p>
+      <p class="line">For those we take the lock, because our two passes contend by design and repeated work is quadratic in the writers.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;We use optimistic locking because contention is low.&#8221;</span> The received answer, and the follow-up is <em>&#8220;how low, and how did you measure it?&#8221;</em> If the number does not exist, the position is a preference. Worse, the measured version does not support it: across five contention levels optimistic never beat the row lock, because both hold a connection for the whole gap and only the collision behaviour differs. The version that holds names the real boundary: <span class="quoted">&#8220;optimistic when the gap spans something we cannot hold a transaction across &#8212; a person, or two requests &#8212; and a lock otherwise.&#8221;</span></p>
+  <p>The second trap is offering <code>SKIP LOCKED</code> as a fix for a contended row. It sounds current and it answers a different question, and the person asking will know, because the documentation itself says it gives <em>&#8220;an inconsistent view of the data&#8221;</em>. Skipping a row is only safe when that row was interchangeable with the one you took instead &#8212; true of a queued job, false of a score somebody is waiting for.</p>
+</div>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;Two workers write the same row. Optimistic or pessimistic?&#8221;
+      <span class="tell">Phrased as a two-way choice on purpose. The answer that scores is the one that notices there are four options and that the question presupposes a gap.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Both of those are answers to the same thing &#8212; the gap between reading the value and writing what depends on it &#8212; so my first question is whether the gap has to exist. If the new value is a function of the old one, it does not: one statement that adds to the current value has no gap, and I measured it at <strong>0.06&#8239;s against 0.70 for the lock</strong>, with the same correct answer.</p>
+        <p>Where the gap is unavoidable, because the new value comes from a model or a person, I take the lock. I measured optimistic across five contention levels and it never beat the row lock &#8212; equal where conflicts are rare, and <strong>136 transactions for 16 writes</strong> where they are common. The case for optimistic is not throughput; it is a gap you cannot hold a transaction across at all.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Why 136?&#8221; &#8212; it is a triangular number, and it is exact.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Surely optimistic wins when contention is low?&#8221;
+      <span class="tell">The standard follow-up, stated as fact. Disagreeing is only safe if you have the measurement, and this is the one place in the batch worth disagreeing.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>That is what I expected and it did not reproduce. Sixteen writers spread across one, two, four, eight and sixteen rows: <strong>optimistic was equal at best and never faster</strong>, and I re-ran it with a gap five times longer in case the gap was too short to matter. Same verdict.</p>
+        <p>The reason is that the thing optimistic avoids is not the expensive part. An uncontended row lock is one clause on a statement you were already issuing. What costs is holding a pooled connection for the length of the gap, and <strong>both strategies do that identically</strong> &#8212; so they queue the same way and differ only in whether the loser waits or repeats. Waiting is cheaper than repeating.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Then when would you ever use optimistic?&#8221; &#8212; when the gap spans something you cannot keep a transaction open across.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;What does your retry loop cost when everybody hits the same row?&#8221;
+      <span class="tell">Asks for a number. Most answers are &#8220;a few retries&#8221;; the good one is a formula, because the shape is exactly derivable.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p><strong>N(N+1)&#247;2 transactions for N writes</strong>, because each successful write invalidates every read taken before it, so the writers land one at a time and the n-th has lost n&#8722;1 times. Measured exactly: sixteen writers started 136 transactions with 120 conflicts, eight writers started 36 with 28. Not approximately &#8212; identical on every run, because the counts are decided by ordering rather than timing.</p>
+        <p>The consequence is that it is quadratic, so doubling the contention quadruples the wasted work, and the retry budget has to grow linearly with the writer count. I broke that deliberately in the previous lesson: sixteen writers against a budget of eight dropped <strong>exactly eight writes</strong>, as quietly as the bug the retry loop was added to fix.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So what do you do when the writer count is unbounded?&#8221; &#8212; stop contending; the loop cannot be the answer.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Would <code>SKIP LOCKED</code> help here?&#8221;
+      <span class="tell">Offered as a helpful suggestion and usually a test. It is the right answer to the neighbouring problem, and accepting it uncritically is the failure.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Not for a contended score, no &#8212; it answers a different question. It does not protect a value; it changes which row a worker takes when the one it wanted is busy. On a work table I measured it taking the same thirty-two jobs seven times faster, <strong>and plain <code>FOR UPDATE</code> already had zero duplicate claims</strong>. It bought throughput, not correctness.</p>
+        <p>The test I use is one question: is the row you skipped interchangeable with the one you took instead? For a queued job, yes. For a rubric score, no &#8212; skipping it means it is never written and nothing reports that. The documentation says as much itself: it gives <em>&#8220;an inconsistent view of the data, so this is not suitable for general purpose work&#8221;</em>.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What about NOWAIT?&#8221; &#8212; the third option in the same clause, for when waiting is worse than failing.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Your fastest implementation gave the wrong answer. How would a load test have caught that?&#8221;
+      <span class="tell">A sharp question and the honest answer is that it would not. What is being tested is whether you know which of your gates could have caught it.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It would not, and that is the part worth saying plainly. The broken version was <strong>ten times faster than the correct ones</strong> &#8212; 0.07&#8239;s against 0.70 &#8212; because it does no coordinating, and a load test that measures throughput cannot distinguish fast-because-efficient from fast-because-not-doing-the-work. It also raised no errors, so an error-rate gate sees nothing.</p>
+        <p>What catches it is asserting the invariant: sixteen writers each adding one should leave sixteen. That is a test rather than a benchmark, and it is why the assertion I wrote checks <em>both</em> that every writer reported success and that the total is wrong &#8212; checking only the total would let a version that crashed loudly pass as fixed.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What else in your system is only checkable by invariant?&#8221; &#8212; anything where failure is a missing write rather than an error.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="primary-source">
+  <span class="callout-label">Read this next &#8212; one source, not ten</span>
+  <span class="title"><a href="https://www.postgresql.org/docs/17/sql-select.html" target="_blank" rel="noopener">PostgreSQL &#8212; SELECT, the locking clauses</a></span>
+  <p>Skip to <em>The Locking Clause</em>. It is two screens and it contains the three options people argue about without reading: waiting, <code>NOWAIT</code> and <code>SKIP LOCKED</code>, with the trade stated rather than implied &#8212; <em>&#8220;Skipping locked rows provides an inconsistent view of the data, so this is not suitable for general purpose work, but can be used to avoid lock contention with multiple consumers accessing a queue-like table.&#8221;</em> A document that names its own limitation is worth more than a blog post that recommends it.</p>
+  <p class="cite">Read it against <a href="https://www.postgresql.org/docs/17/transaction-iso.html" target="_blank" rel="noopener">the isolation chapter</a> from lesson 0016, because the two halves interlock: a version column and a row lock are both row-level mechanisms, and neither can enforce an invariant that spans rows. The optimistic-versus-pessimistic result in this lesson is measured here rather than cited &#8212; no source claims the crossover does not exist, and this is one bench on one machine.</p>
+</div>
+
+<h2>Recall &#8212; from lessons 0015&#8211;0017</h2>
+
+<div class="recall">
+  <details>
+    <summary>0015 measured a connection pool as a queue with a computable ceiling. How does that explain why optimistic never beat the lock here?</summary>
+    <p class="answer">Because both strategies hold a connection for the whole of the gap, so they draw from the same queue in the same way and the pool's ceiling applies to both equally. The thing optimistic avoids is taking a row lock, and an uncontended row lock is one extra clause on a statement you were issuing anyway &#8212; microseconds against a gap measured in tens or hundreds of milliseconds. So the saving is real and irrelevant, and the two strategies converge to within a hundredth of a second at every contention level tested. It also predicts where optimistic genuinely does win, which the bench cannot show: when the gap spans something you cannot hold a transaction across at all, such as a person with a form open. There the comparison is not lock-versus-version, it is version-versus-nothing, because holding a pooled connection for three minutes is not an option anybody would offer.</p>
+    <span class="from">lesson 0015 &#183; the pool as a shared ceiling</span>
+  </details>
+  <details>
+    <summary>0016 found that a retry budget of eight silently dropped eight of sixteen writes. This lesson derived N(N+1)/2. Are those the same fact?</summary>
+    <p class="answer">Two halves of it. The derivation says the n-th writer must lose n&#8722;1 times before it wins, so the total work is triangular and the <em>worst-case retries any single writer needs</em> is N&#8722;1. The budget failure is what happens when the loop is allowed fewer than that: with sixteen writers and a budget of eight, the ninth writer and everything after it runs out of attempts, and exactly eight writes are dropped. So the formula gives both the aggregate cost and the minimum safe budget, and the second is the one that turns into a bug. The practical form is a pair: <b>budget at least the contention level, and expect quadratic wasted work while you do</b>. And when the contention level is unbounded, the pair has no solution, which is the argument for removing the gap rather than defending it &#8212; the point both lessons converge on from different directions.</p>
+    <span class="from">lesson 0016 &#183; a retry budget smaller than the contention</span>
+  </details>
+  <details>
+    <summary>0017's fix was to move the model call out of the transaction, which reopened the lost-update problem. Which of this lesson's four strategies closes it again?</summary>
+    <p class="answer">Atomic where the value allows it, and the version column where it does not &#8212; and notably <em>not</em> the lock, which is what the held transaction was doing accidentally. That is the whole reason these two lessons are adjacent. Holding a transaction across a model call protects the read-modify-write at a cost of 0.9 turns a second instead of 5.5; moving the call out restores the throughput and removes the protection. Putting the arithmetic inside the statement gives you both, because the write no longer depends on a value anybody remembered. Where the new value genuinely comes from the model and cannot be expressed as a function of the old one, the version column is the right replacement: it is checked at write time, so it needs no transaction spanning the call, and it converts the lost update into a retry whose budget you size from the contention level. A lock would work too and would reintroduce exactly the wait 0017 removed.</p>
+    <span class="from">lesson 0017 &#183; the short transaction that reopened a gap</span>
+  </details>
+</div>
+
+<div class="ask">
+  <p><strong>This is the last lesson of the batch, and the one number I would like back is a disagreement.</strong> The claim that optimistic locking wins under low contention is repeated everywhere and it did not reproduce here, across five contention levels and two gap lengths. That is one bench on one machine against a widely held belief, which is exactly the situation where I would rather be checked than believed.</p>
+  <p>If you run step 3 and see a crossover, tell me where it is. If you do not, the sentence to carry into an interview is the narrow one rather than the confident one: <em>both strategies hold a connection for the gap, so the choice is about what the failure looks like, not about throughput.</em></p>
+  <p>The redraw experiment from lesson 0014 is also still open &#8212; 0013's diagram at twelve marks against 0014's at eight. All four diagrams in this batch were drawn to twelve, so nothing in it has changed while that question waits.</p>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">Where this lands on the r&#233;sum&#233;</span>
+  <p>This lesson teaches the mechanism from first principles and breaks it in a lab. The chapter opposite defends the platform whose two-pass pipeline creates the contention, and where a weighted rubric is the exact shape that invites a read, a computation and a write.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../resume-mastery/lessons/0001-vendor-evaluation-platform.html">RM 0001 &#183; The vendor-evaluation platform</a>
+      <span class="bridge-why">&#8220;Two-pass Scout/Evaluator&#8221; is two writers for one rubric score, and &#8220;weighted rubric&#8221; is a value computed from other values &#8212; which is the gap, by construction.</span>
+    </li>
+  </ol>
+</div>
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0017-the-await-inside-the-transaction.html">&#8592; 0017 &#183; The await inside the transaction</a></span>
+  <span><span class="dir">Index</span><a href="index.html">All lessons &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

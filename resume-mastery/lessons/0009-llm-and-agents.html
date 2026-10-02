@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>LLM and Agents</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0009">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">R&#233;sum&#233; Mastery</a>
+    <span class="sep">/</span>
+    <span>Batch B &#183; Technical Skills</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Chapter 0009</span>
+  </div>
+  <h1>LLM and agents</h1>
+  <p class="standfirst">This is the line the whole loop is about. Ten named things, and most of them are genuinely backed by the work. Two are not. The chapter's argument is that the strongest thing you can say about agents is where you refused to use one.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Give a definition of &#8220;agent&#8221; that survives a senior follow-up &#8212; then defend the boundary you actually drew, which is that agents never call each other.</p>
+</div>
+
+<div class="claim-line">
+  <span class="callout-label">The line being defended</span>
+  <blockquote>&#8220;<strong>LLM &amp; Agents:</strong> Google ADK, MCP, function calling, multi-agent orchestration, semantic routing, MemGPT; Gemini, GPT, Claude, Llama&#8221;</blockquote>
+  <span class="whose">Technical Skills &#183; line 2 of 4</span>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">For <em>&#8220;tell me about your agent experience&#8221;</em> &#8212; the most likely opening question of the entire loop. Lead with the definition, then the restriction, because the restriction is what makes you sound like you have run these in production.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">I have built agent systems in three frameworks across two companies. Google ADK, CrewAI and DSPy.</p>
+      <p class="line">What they have in common is the only definition I think is useful. An agent is a model in a loop with tools, and the model proposes calls that <b>my code</b> executes.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">The design decision I would defend hardest is a restriction rather than a capability. In the vendor platform, <b>agents never call each other</b>.</p>
+      <p class="line">There is exactly one file that composes them. That is the only reason there is one place to put a deadline and one place to read the control flow.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">Concretely: an ADK <b>LoopAgent</b> over ten sub-agents with three different exit conditions, in the schematization pipeline.</p>
+      <p class="line">A CrewAI <b>Flow</b> with explicit routers in the pipeline debugger, where a cheap typed router decides whether the expensive path runs at all.</p>
+      <p class="line">And a <b>before-tool callback</b> in the lineage agent, used to make a precondition unskippable rather than asking the model more nicely.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">Two things on that skills line I would qualify before you ask.</p>
+      <p class="line"><b>GPT</b> means I built an OpenAI-compatible gateway. I know that API contract well, and behind it I was calling Gemini.</p>
+      <p class="line">And <b>Llama</b> has no project behind it. It should either earn a bullet or come off the line.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;I've built multi-agent systems with autonomous agents collaborating.&#8221;</span> The word collaborating is the problem. It invites <em>&#8220;so how does one agent know what another found?&#8221;</em> and the honest answer is that they do not, because they never talk. That restriction is your best design decision and this sentence hides it.</p>
+  <p>The other trap is <span class="quoted">&#8220;the agent calls the tool.&#8221;</span> It does not. It emits a request and your code decides. The distinction sounds pedantic and it is the entire security model, so an interviewer testing for depth will hear which version you used.</p>
+</div>
+
+
+<div class="trace">
+  <span class="callout-label">Walk them through it &#183; one tool call, end to end</span>
+  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One trip round an agent loop, followed from the model's first note to the answer. Then the boundary that matters more than the loop does.</p>
+  <p class="tr-case"><b>The picture.</b> Somebody very well read, locked in a room with a letterbox. They cannot look anything up and cannot do anything at all. They can write a note asking for one specific thing, and you slide the answer back through the slot. That loop is the whole of what people call an agent.</p>
+  <p class="tr-case"><b>The case.</b> A vendor has claimed something during an interview and the Scout needs to check it. Follow one round of the loop, then look at what is deliberately not allowed to happen.</p>
+  <ol>
+    <li class="tr-step">
+      <span class="tr-k">The model alone</span>
+      <p><b>What happens.</b> A language model produces text. That is the entire capability and everything else is built on top of it.</p>
+      <p><b>Concretely.</b> It cannot search, read a database, or call an API. Left by itself it can only write something that looks like an answer.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The tools</span>
+      <p><b>What happens.</b> We hand it a list of functions it is allowed to ask for, each with typed parameters.</p>
+      <p><b>Concretely.</b> One of them is a web search taking a query string. The model does not run it. It returns a request to run it.</p>
+      <p><b>If they ask why.</b> The description of each tool is part of the interface, not a comment. The description is how the model decides whether to reach for that tool at all.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The note</span>
+      <p><b>What happens.</b> The model replies with a request to call search, and the query it wants.</p>
+      <p><b>Concretely.</b> My code is what executes it. The model never touches the network, and that is the security property rather than a detail of plumbing.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Back through the slot</span>
+      <p><b>What happens.</b> The result goes back into the conversation and the model reads it.</p>
+      <p><b>Concretely.</b> Now it either answers or asks for another tool. Reason, act, observe, and round again.</p>
+      <p><b>If they ask why.</b> That shape is sequential by construction. Each action depends on the previous observation, which is why an agent loop cannot simply be parallelised.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The definition</span>
+      <p><b>What happens.</b> That is the whole thing, and it is worth saying plainly because most definitions of agent do not survive a follow-up.</p>
+      <p><b>Concretely.</b> A model, a list of tools, and a loop. Without the loop and the tools it is a prompt, not an agent.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The restriction</span>
+      <p><b>What happens.</b> Now the part I would actually defend, and it is a restriction rather than a capability.</p>
+      <p><b>Concretely.</b> In the vendor platform the three agents never call each other. They are plain functions, and exactly one file composes them.</p>
+      <p><b>If they ask why.</b> The natural design is for the Evaluator to ask the Scout for more evidence when it wants some. That is what the frameworks encourage and what every demo looks like.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">What it buys</span>
+      <p><b>What happens.</b> The research step can be wrapped in a hard deadline and a catch-all, in one place.</p>
+      <p><b>Concretely.</b> Research failing never costs an interview its scorecard, and there is one file that says so.</p>
+      <p><b>If they ask why.</b> With delegation, a Scout timeout surfaces as an Evaluator problem. No file anywhere says which stage owned the budget.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">What it costs</span>
+      <p><b>What happens.</b> The orchestrator knows all three signatures, so it changes whenever any stage's interface changes.</p>
+      <p><b>Concretely.</b> That is real coupling and it is the honest price of the design.</p>
+      <p><b>If they ask why.</b> I would pay it again. It buys the one thing an autonomous design gives up, which is being able to answer why the system did what it did.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Routing</span>
+      <p><b>What happens.</b> Semantic routing shows up on the same line and deserves its own warning.</p>
+      <p><b>Concretely.</b> It chooses a branch by meaning rather than by keyword. A router reads the input and returns which path it belongs on.</p>
+      <p><b>If they ask why.</b> It is retrieval with a consequence attached. An ordinary bad retrieval gives a worse answer. A bad routing decision sends the request down the wrong branch entirely.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The line itself</span>
+      <p><b>What happens.</b> Six of the ten items on that skills line have a specific project behind them. Two do not, and I would rather name them.</p>
+      <p><b>Concretely.</b> GPT means I built an OpenAI-compatible gateway. I know that API contract well, and behind it I was calling Gemini.</p>
+      <p><b>If they ask why.</b> Llama has no project behind it at all. It should either earn a bullet or come off the line.</p>
+    </li>
+  </ol>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 300" role="img" aria-labelledby="mech0009-t mech0009-d">
+    <defs>
+      <marker id="ar9" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+      <marker id="ar9b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head" style="fill:var(--bad)"/>
+      </marker>
+    </defs>
+    <title id="mech0009-t">The agent loop, and the boundary that keeps it readable</title>
+    <desc id="mech0009-d">A model is given a list of tools and proposes a call. The proposal crosses a boundary into your own process, which decides whether to honour it, executes the tool, and returns the result into the loop. The model never executes anything itself. Around that loop sits one orchestrator holding the sequence, and the rule that agents never call each other. The crossed-out arrow shows the design that was rejected, where one agent calls another directly and no single file holds the deadline or the control flow.</desc>
+
+    <rect class="box-2" x="24" y="30" width="200" height="90" rx="3"/>
+    <text class="lbl strong" x="124" y="56" text-anchor="middle">Model</text>
+    <text class="lbl-dim" x="124" y="76" text-anchor="middle">proposes a call</text>
+    <text class="lbl-dim" x="124" y="94" text-anchor="middle">name + arguments</text>
+    <text class="lbl-dim" x="124" y="112" text-anchor="middle">executes nothing</text>
+
+    <path class="flow" marker-end="url(#ar9)" d="M 228 60 H 300"/>
+    <text class="lbl-dim" x="234" y="52">proposal</text>
+
+    <path class="flow" marker-end="url(#ar9)" d="M 300 100 H 228"/>
+    <text class="lbl-dim" x="238" y="118">result</text>
+
+    <rect class="good" x="304" y="30" width="230" height="90" rx="3"/>
+    <text class="lbl strong ink-good" x="419" y="56" text-anchor="middle">Your code</text>
+    <text class="lbl-dim" x="419" y="76" text-anchor="middle">validate &#183; log &#183; refuse</text>
+    <text class="lbl-dim" x="419" y="94" text-anchor="middle">then execute the tool</text>
+    <text class="num ink-good" x="419" y="112" text-anchor="middle">the only thing that acts</text>
+
+    <text class="num ink-accent" x="266" y="148" text-anchor="middle">the boundary</text>
+
+    <rect class="accent" x="24" y="164" width="510" height="54" rx="3"/>
+    <text class="lbl strong ink-accent" x="40" y="186">One orchestrator holds the sequence</text>
+    <text class="lbl-dim" x="40" y="206">pipeline.py &#183; ADK LoopAgent &#183; CrewAI Flow with explicit routers</text>
+
+    <rect class="bad" x="570" y="30" width="250" height="90" rx="3"/>
+    <text class="lbl strong ink-bad" x="695" y="56" text-anchor="middle">Rejected: agents calling agents</text>
+    <text class="lbl-dim" x="695" y="78" text-anchor="middle">no single control flow</text>
+    <text class="lbl-dim" x="695" y="96" text-anchor="middle">no single place for a deadline</text>
+    <text class="lbl-dim" x="695" y="114" text-anchor="middle">no stage testable alone</text>
+
+    <path class="flow-bad" marker-end="url(#ar9b)" d="M 695 130 V 162" style="stroke-dasharray:5 4"/>
+    <text class="num ink-bad" x="570" y="186">A Scout timeout becomes</text>
+    <text class="num ink-bad" x="570" y="204">an Evaluator problem</text>
+
+    <text class="lbl-dim" x="24" y="248">Evidenced: ADK (0003, 0004) &#183; MCP (0003) &#183; function calling (0005, 0013) &#183; routing (0005) &#183; MemGPT (0015)</text>
+    <text class="lbl-dim" x="24" y="268">Models shipped: Gemini everywhere &#183; Claude in the debugger crews</text>
+    <text class="num ink-bad" x="24" y="288">GPT is an API shape here, not a model &#183; Llama has no project behind it</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">What you say while drawing it</span>
+    <ol class="narrate">
+      <li>The model on the left. It proposes a call and executes nothing.</li>
+      <li>The arrow out is a proposal. Just a name and some arguments.</li>
+      <li>The box on the right is your code, and it is the only thing that acts.</li>
+      <li>Validate, log, refuse, then execute. The return arrow carries the result back.</li>
+      <li>Write &#8220;the boundary&#8221; between them, because that is the whole security model.</li>
+      <li>Underneath, the orchestrator. One place holds the sequence, in all three systems.</li>
+      <li>On the right, the design that was rejected: agents calling each other.</li>
+      <li>And the reason, in one line: a Scout timeout becomes an Evaluator problem.</li>
+      <li>Then the inventory along the bottom, including the two items with nothing behind them.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. Two boxes, two arrows, one line underneath, and one crossed-out alternative.</p>
+  <ul>
+    <li>The <b>two boxes and the boundary</b>. The model proposes, your code acts.</li>
+    <li><b>One orchestrator holds the sequence.</b> The one mark to keep.</li>
+    <li>The <b>rejected design</b> and its one-line reason.</li>
+    <li>The <b>two unbacked items</b> along the bottom, so you never quote the list unqualified.</li>
+  </ul>
+  <span class="timer">Say &#8220;proposes, does not execute&#8221; as you draw the first arrow. Three words and the security model is stated.</span>
+</div>
+
+<div class="star">
+  <span class="callout-label">Behavioural &#183; the story for this bullet</span>
+  <p class="frame">For <em>&#8220;tell me about an architectural decision you defended&#8221;</em> or <em>&#8220;a time you argued against the obvious approach.&#8221;</em></p>
+  <ol class="rungs">
+    <li class="rung"><span class="rung-k">Decision</span><p>Whether the three agents in the vendor platform should call each other, which is what every multi-agent example shows. Or whether one file should compose them.</p></li>
+    <li class="rung"><span class="rung-k">Situation</span><p>The Scout researches, the Evaluator scores, the Coordinator recommends. The natural design is for the Evaluator to ask the Scout for more evidence when it needs it. That is what the frameworks encourage and what the demos look like.</p></li>
+    <li class="rung"><span class="rung-k">Action</span><p>I made them plain functions that take inputs and return values, composed in one orchestrator module. None of them knows the others exist.</p><p>The argument was about three specific properties. One readable control flow. One place a deadline can live. And the ability to test a stage in isolation.</p></li>
+    <li class="rung"><span class="rung-k">Result</span><p>The research step could then be wrapped in a hard deadline and a catch-all, in one place. Research failing never costs an interview its scorecard. With delegation, a Scout timeout would have surfaced as an Evaluator problem. No file would say which stage owned the budget.</p></li>
+    <li class="rung"><span class="rung-k">What it cost</span><p>The orchestrator knows all three signatures, so it changes whenever any stage's interface changes. That is real coupling and it is the honest price. I would pay it again. It buys the one thing an autonomous design gives up, which is being able to answer why the system did what it did.</p></li>
+  </ol>
+</div>
+
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>A language model produces text. That is all it does. Everything called an agent is that one capability wrapped in a loop. The text can ask your code to do something and get an answer back.</p>
+  <p>The interesting engineering is never the model. It is the boundary around it: what the model is allowed to decide, what your code decides, and who is allowed to call whom. Most of this chapter is about that boundary, because it is what an interviewer is really testing.</p>
+  <dl>
+    <dt>Agent</dt>
+    <dd>A loop where a model is given tools, chooses one, sees the result, and chooses again. Without a loop and tools it is a prompt, not an agent.</dd>
+
+    <dt>Function calling</dt>
+    <dd>Giving the model a list of functions with typed parameters. It returns a request to call one. <b>Your code executes it</b> and hands back the result.</dd>
+
+    <dt>Tool</dt>
+    <dd>One such function. The description is part of the interface, because the description is how the model decides whether to reach for it.</dd>
+
+    <dt>ReAct</dt>
+    <dd>Reason, act, observe, repeat. The most common agent loop shape. Sequential by construction, because each action depends on the previous observation.</dd>
+
+    <dt>Orchestration</dt>
+    <dd>One component deciding the order of work. The opposite is choreography, where each component reacts to events and no single place holds the sequence.</dd>
+
+    <dt>Google ADK</dt>
+    <dd>An agent framework. Supplies agent types, a loop, session state, and hooks that run before or after a tool.</dd>
+
+    <dt>MCP</dt>
+    <dd>Model Context Protocol. A standard way to expose tools and data to a model, so a capability is described once rather than re-wrapped per framework.</dd>
+
+    <dt>Semantic routing</dt>
+    <dd>Choosing a branch by meaning rather than by keyword. A router reads an input and returns which path it belongs on.</dd>
+
+    <dt>MemGPT</dt>
+    <dd>A pattern where a model manages its own memory in tiers, paging things between its limited context and an external store.</dd>
+
+    <dt>Structured output</dt>
+    <dd>Forcing the reply into a schema. The safety property is that the schema has no shape for the answer you do not want.</dd>
+  </dl>
+</div>
+
+<div class="primer stack">
+  <span class="callout-label">The technology &#8212; what each named thing is</span>
+  <p>The primer above defines the patterns on this line. This one defines the models at the end of it, starting from the ground, along with the handful of knobs every one of them shares. Naming four families invites the question of what actually separates them.</p>
+  <p>Every entry answers four things. What it actually is, in plain words. Where it shows up in this work. What it buys, meaning what goes wrong without it. And the follow-up an interviewer asks once you have said the name.</p>
+  <dl>
+    <dt>Gemini</dt>
+    <dd><i>Google</i>Google's family of large language models. Closed-weight, which means the parameters are never published and the only way to use it is to send text to Google's API and get text back. It comes in tiers that trade cost and speed against reasoning ability, and it carries a very long context window. Reached through the Google GenAI SDK, and also through an OpenAI-compatible shim. <b>In the app.</b> It is the model behind four of the systems on this r&#233;sum&#233;. <b>What it buys.</b> Native structured output, a long context, and tight integration with the rest of the Google stack these projects already run on. <b>The follow-up.</b> Which tier, and why. A pipeline with a retry loop multiplies its model calls, so tier choice is a cost decision you should be able to put an actual number against rather than a preference.</dd>
+
+    <dt>GPT</dt>
+    <dd><i>OpenAI</i>OpenAI's model family, also closed-weight and API-only. Its lasting significance is less the models than the interface: the shape of its chat-completions request and response became the default that everyone else imitates, so an enormous amount of software speaks that shape regardless of which model is actually behind it. <b>In the app.</b> The gateway in chapter 0002 is OpenAI-compatible, which is a statement about this wire format and nothing else. <b>What it buys.</b> Portability. Serving that shape means every existing client library, evaluation harness and internal tool works against you unchanged. <b>The follow-up.</b> Compatible is not the same as used, and the two sound almost identical said out loud. Be explicit about which one you mean before an interviewer assumes the other.</dd>
+
+    <dt>Claude</dt>
+    <dd><i>Anthropic</i>Anthropic's model family. Closed-weight and API-only, like the two above. It is known for long-context work and for tool use inside agent loops, and it is where the Model Context Protocol in the primer above originated. <b>In the app.</b> It is the third of the frontier API families, and a r&#233;sum&#233; line naming models is expected to be able to place all of them. <b>What it buys.</b> Knowing the landscape rather than one vendor, which is what a skills line is really claiming. <b>The follow-up.</b> Where you have actually used it, and if the honest answer is nowhere, say so plainly. A skills line naming four families with three untouched is a thing to correct on the page before the room, not during it.</dd>
+
+    <dt>Llama</dt>
+    <dd><i>Meta, open weights</i>Meta's model family, and the odd one out here. The parameters are published, so you can download them and run the model on your own hardware. That changes every deployment question at once. There is no per-token bill, no data leaving your network, and no dependency on somebody else's uptime. In exchange, the serving cost, the GPUs and the operations are all yours. <b>In the app.</b> It is the open-weight member of the list and the foundation the on-device work depends on. <b>What it buys.</b> The option to run offline, on a phone, or inside a network that forbids sending data out. No API-only model can do those at all. <b>The follow-up.</b> Open weights is not open source. You get the parameters under a licence with conditions attached. You do not get the training data, the training code, or an unrestricted right to do as you like with the result.</dd>
+
+    <dt>Context window</dt>
+    <dd><i>the working memory</i>The total number of tokens the model can look at in one go, counting the prompt and the reply together. Anything outside it does not exist as far as the model is concerned. Frontier families now reach roughly a million tokens, which is a large book. <b>In the app.</b> Every retrieval design on this r&#233;sum&#233; exists because this number is finite. <b>What it buys.</b> A hard, checkable limit to design against. You can measure your prompt and know in advance whether it fits, rather than discovering truncation in production. <b>The follow-up.</b> Big is not free, and this is the trap. Cost and time-to-first-token both rise with what you send, attention quality sags in the middle of a very long context, and a large window is not a reason to stop retrieving.</dd>
+
+    <dt>Token</dt>
+    <dd><i>the unit of everything</i>Models do not see letters or words. Text is first cut into tokens, each roughly three quarters of an English word, and each token becomes a number. Output is generated one token at a time. Context is counted in tokens and billing is per thousand or per million of them. <b>In the app.</b> Every cost and latency answer on this line is denominated in them. <b>What it buys.</b> A single unit that makes cost, speed and context capacity all comparable and predictable before you run anything. <b>The follow-up.</b> Input and output are priced differently, with output usually several times dearer. So a verbose response format costs more than a terse one carrying exactly the same information, and that is a real lever on a bill.</dd>
+
+    <dt>Temperature</dt>
+    <dd><i>and the other sampling knobs</i>At each step the model produces a probability for every possible next token, and something has to choose one. Temperature controls how much that choice is allowed to wander. Near zero it almost always takes the most likely token. Higher values flatten the distribution and let unlikely tokens through. Top-p and top-k are different ways of cutting off the candidate list before sampling. <b>In the app.</b> Extraction, routing and scoring all want the low end. <b>What it buys.</b> One dial that moves output between reliable and varied, which are genuinely different jobs. <b>The follow-up.</b> Zero is not deterministic. Batch composition, hardware and floating-point ordering still shift the result, so reproducibility comes from recording outputs, never from a setting.</dd>
+
+    <dt>System prompt</dt>
+    <dd><i>the standing instruction</i>Text placed at the very front of the conversation that sets the model's role, its rules and its output format. It is marked differently from user turns and weighted more heavily, but underneath it is still just text sitting in the same context window. <b>In the app.</b> It is where agent roles, tool policies and output rules live in every agentic project here. <b>What it buys.</b> Behaviour set once instead of repeated in every request, and a single place to change it. <b>The follow-up.</b> It is not a security boundary, and this is the important part. Content that arrives later in the context can argue with it and sometimes win. That is the prompt-injection problem from chapter 0006, stated from the other side.</dd>
+
+    <dt>Fine-tuning</dt>
+    <dd><i>against prompting and retrieval</i>Continuing to train the model on your own examples so that the weights themselves change. Full fine-tuning updates every parameter and is expensive. LoRA is the cheap standard: freeze the original weights and train small added matrices alongside them, which is a fraction of the cost and produces a small file rather than a new model. <b>In the app.</b> It is the third option whenever a model is not doing what you want. <b>What it buys.</b> Behaviour and format that stick without being restated in every prompt, and a shorter prompt as a result. <b>The follow-up.</b> The order to try them in. Prompting changes instructions. Retrieval changes available facts. Fine-tuning changes behaviour and style. Reaching for fine-tuning to fix a knowledge gap is the classic wrong answer, because the model will learn the shape of your facts without learning the facts.</dd>
+
+    <dt>Structured output</dt>
+    <dd><i>the feature under all of it</i>Supplying a schema with the request so that generation is constrained to match it. The decoder is restricted rather than the model being asked nicely, so a reply that does not parse cannot be produced. Every family here supports some version of it under a different name. <b>In the app.</b> Every routing, extraction and scoring claim on this r&#233;sum&#233; depends on a parse that cannot fail. <b>What it buys.</b> The whole retry-on-bad-JSON layer disappears, along with its latency and its cost. <b>The follow-up.</b> Shape is not truth, and support is uneven between providers. A schema feature a provider only partly honours fails when you call it rather than when you write it, which is why the deterministic checks downstream are not optional.</dd>
+  </dl>
+</div>
+
+
+
+<h2>What an agent actually is</h2>
+
+<p class="breath">A model, a list of tools, and a loop. The model proposes a call, your code runs it, the result goes back in, and it goes round again. Everything else is naming.</p>
+
+<p>Be able to say this plainly, because vagueness here is the most common way to lose a senior LLM interview. The model never executes anything. It emits a request to call a named function with arguments, and it is your process that decides whether to honour that.</p>
+
+<p>That last point is the whole security model. A tool is not something the model has. It is something you offer, and the offer is revocable, checkable and loggable on every single call.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>The model can ask for things. It cannot take them. Everything it asks for goes through code you wrote.</p>
+
+<h2>The boundary worth defending</h2>
+
+<p class="breath">The best answer about multi-agent systems on this r&#233;sum&#233; is a restriction, not a capability. Agents never call each other. One file composes them, and that is the only reason a deadline has one home.</p>
+
+<p>The vendor-evaluation pipeline has three agents and a single orchestrator module. The Scout, the Evaluator and the Coordinator are functions taking inputs and returning values. None of them knows the others exist.</p>
+
+<p>Say why, because the reasons are the answer. One readable control flow. One place to put a deadline. The ability to test a stage alone. With agents calling agents, a Scout timeout becomes an Evaluator problem and no file tells you which stage owns the budget.</p>
+
+<p>The same shape appears twice more. Chapter 0003's ten sub-agents sit inside one ADK <code>LoopAgent</code> that sequences them. Chapter 0005's debugger is a <code>Flow</code> with decorated steps and explicit routers. In all three, the sequence is written down rather than negotiated.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>There is a conductor and there are musicians. The musicians never take cues from each other, which is why anyone can read the score.</p>
+
+<h2>Where each named thing is actually evidenced</h2>
+
+<p class="breath">Six of the ten items have a specific project behind them. Two models are named that appear nowhere. Knowing which is which is the difference between a list and a claim.</p>
+
+<p><b>Google ADK</b> is the strongest. Chapter 0003's retry loop is an ADK <code>LoopAgent</code> over ten sub-agents, exiting through <code>EventActions.escalate</code>. Chapter 0004 is a two-stage <code>SequentialAgent</code> with a <code>before_tool_callback</code> used as a precondition. That is framework knowledge at the level of its hooks, not its README.</p>
+
+<p><b>MCP</b> appears in three conditional sub-agents in chapter 0003: StatVar discovery, a spot check and error resolution. All three are optional, so the pipeline runs without them. That is worth stating accurately.</p>
+
+<p><b>Function calling</b> and <b>multi-agent orchestration</b> run through everything. <b>Semantic routing</b> is the DSPy screener in chapter 0005, which retrieves similar incidents and returns one of three typed categories. <b>MemGPT</b> is the Samsung dementia companion in chapter 0015.</p>
+
+<p><b>Gemini</b> is everywhere at CloudSufi. <b>Claude</b> is the model behind the pipeline debugger's crews. <b>GPT</b> is the weak one: what the gateway implements is OpenAI's <em>API shape</em>, not OpenAI's models. And <b>Llama</b> has nothing behind it at all.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Most of the list is real work. One model name describes a format rather than a model, and one is simply not there.</p>
+
+<h2>Semantic routing, and why it is riskier than it looks</h2>
+
+<p class="breath">Routing by meaning is retrieval with a consequence. An ordinary bad retrieval gives a worse answer. A bad routing decision sends the request down the wrong branch entirely.</p>
+
+<p>The screener in chapter 0005 is the clean example. It embeds the error log, pulls the five most similar past incidents, and returns <code>RETRY</code>, <code>OVERLOOK</code> or <code>INVESTIGATE</code> as a typed literal with a confidence.</p>
+
+<p>Two design choices there are worth naming. The output is a literal with exactly three values, so no fourth category can appear and nothing has to be parsed out of prose. And the retrieval is unconditional top-k, so it always returns five things even when nothing is actually similar.</p>
+
+<p>That second one is the real risk. A routing decision built on five loosely related incidents is still a confident decision. The fix is a similarity floor below which it routes to the expensive branch by default, which is the safe direction.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>If the router is wrong, the request does not get a worse answer. It gets a different journey.</p>
+
+<h2>Choosing a model, and pinning it</h2>
+
+<p class="breath">Two model decisions appear across these systems. Pick the tier by what the step is for. And name the exact version, because an alias is a dependency that can change under you.</p>
+
+<p>The tier choice is visible in chapter 0001. Scoring runs on the pro-tier model, because the interview is over and nobody is waiting, so better judgment is worth buying. Latency-sensitive paths use faster tiers.</p>
+
+<p>The pinning lesson came the hard way, in chapter 0002. Model aliases plus a substring test meant every turn was diagnosed as an outage and silently retried on a fallback. Four days, 236 warnings, every request returning success.</p>
+
+<p>Chapter 0004 shows the fix applied elsewhere: the lineage agent reads its model from a <code>LINEAGE_MODEL</code> variable defaulting to a named version. A pinned version fails loudly when it disappears. An alias fails quietly when it moves.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Buy the expensive model where judgment matters and nobody is waiting. And always say exactly which one, not &#8220;the latest.&#8221;</p>
+
+
+
+<section class="qset" id="toolbox">
+  <h2>Toolbox</h2>
+  <p class="qset-note">Every noun on the line, defined out loud, from the ground up. This one lists four model families and six patterns, so it is the single most probeable line on the r&#233;sum&#233;. Each answer says what the thing is, what it does for you, and what you would lose without it.</p>
+  <ul class="qa-index">
+    <li><a href="#c09-t1">What separates the four families</a></li>
+    <li><a href="#c09-t2">What open weights means</a></li>
+    <li><a href="#c09-t3">What a context window costs</a></li>
+    <li><a href="#c09-t4">Temperature and determinism</a></li>
+    <li><a href="#c09-t5">What a system prompt is not</a></li>
+    <li><a href="#c09-t6">Prompt, retrieve or fine-tune</a></li>
+    <li><a href="#c09-t7">What drives the bill</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c09-t1">
+      <p class="qa-q">You list Gemini, GPT, Claude and Llama. What actually separates them?</p>
+      <p class="qa-a">Three are closed weights behind an API. The parameters are never published, and the only way to use them is to send text to somebody's server. Llama is open weights. You download the parameters and run the model on your own hardware. That difference changes an architecture rather than a preference. It decides whether data leaves your network. It decides whether you pay per token or per GPU hour. It decides whether the system can work offline or inside a network that forbids sending data out. Capability rankings move every few months. The deployment property does not, so lead with it.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Ranking them by benchmark. The ranking will be stale before the offer letter, and it tells the interviewer nothing about how you would choose.</p>
+    </li>
+    <li class="qa-item" id="c09-t2">
+      <p class="qa-q">What does &#8220;open weights&#8221; mean, and how is it not open source?</p>
+      <p class="qa-a">A model is billions of numbers learned during training. Open weights means those numbers are published, so you can download them and run the model yourself. What that buys is the option to run offline, on your own GPUs, or inside a network that forbids outbound calls. No API-only model can do those at all. What you do not get is the training data, the training code, or an unrestricted licence. Most of these come with conditions on scale and on use. So it buys self-hosting and privacy. It does not buy the ability to rebuild the model or fully audit what went into it.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Using open source and open weights interchangeably. The distinction is a licensing fact, and legal teams in regulated industries ask about it first.</p>
+    </li>
+    <li class="qa-item" id="c09-t3">
+      <p class="qa-q">What is a context window, and why not just use a huge one?</p>
+      <p class="qa-a">It is the total number of tokens the model can look at in one go, prompt and reply together. Anything outside it does not exist as far as the model is concerned. Frontier models now reach about a million tokens, which is a large book. What that buys is a hard, checkable limit to design against. You can measure your prompt and know in advance whether it fits, instead of discovering truncation in production. The reason not to fill it is that you pay for every token and wait for every token. Attention also thins in the middle of a very long context. A big window is not a replacement for retrieving the right thing.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;Long context makes RAG obsolete.&#8221; It changes the cost curve. It does not change the fact that you still have to choose what goes in.</p>
+    </li>
+    <li class="qa-item" id="c09-t4">
+      <p class="qa-q">What is temperature, and does zero give you determinism?</p>
+      <p class="qa-a">At each step the model produces a probability for every possible next token, and something has to choose one. Temperature controls how much that choice may wander. Near zero it almost always takes the most likely token. Higher values flatten the distribution and let unlikely ones through. What it buys is one dial moving output between reliable and varied, which are genuinely different jobs. Extraction, routing and scoring all want the low end. But zero does not give determinism. Batch composition, hardware and floating-point ordering still move results between runs. If you need reproducibility, record the outputs. A setting is not a guarantee.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Promising reproducible output from temperature zero. It is a common claim and it is wrong, and this is a question people ask precisely to see who repeats it.</p>
+    </li>
+    <li class="qa-item" id="c09-t5">
+      <p class="qa-q">What is a system prompt, and what is it not?</p>
+      <p class="qa-a">Text placed at the very front of the conversation, setting the model's role, its rules and its output format. It is marked differently from user turns and weighted more heavily. Underneath, it is still just text in the same context window. What it buys is behaviour set once rather than repeated in every request, and a single place to change it. What it is not is a security boundary. Anything arriving later in the context can argue with it and sometimes win. Untrusted text in the context is exactly the prompt-injection problem. Rules you must actually enforce belong in code.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing a prompt as a guardrail. A guardrail is something the model cannot get past, and a paragraph of instructions is not that.</p>
+    </li>
+    <li class="qa-item" id="c09-t6">
+      <p class="qa-q">A model is not doing what you want. Prompt, retrieve, or fine-tune?</p>
+      <p class="qa-a">In that order, and for different faults. Prompting fixes instructions it is not following, and costs one edit. Retrieval fixes facts it does not have, and the facts stay current because they live outside the model. Fine-tuning continues training on your examples so the weights change, and it fixes behaviour and output format you cannot get any other way. LoRA makes it cheap by freezing the original weights and training small added matrices. What that buys is style that sticks without being restated, and a shorter prompt. The classic mistake is fine-tuning to teach facts. The model learns the shape of your facts without learning the facts.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Naming fine-tuning first. It is the most expensive option with the slowest feedback loop, and the interviewer is checking whether you know that.</p>
+    </li>
+    <li class="qa-item" id="c09-t7">
+      <p class="qa-q">What actually drives the bill on an agent system?</p>
+      <p class="qa-a">Tokens, multiplied by the number of calls. A token is a chunk of text about three quarters of a word, and everything is priced in them. An agent loop re-sends its history every turn, so the cost grows faster than the conversation does. Output tokens usually cost several times more than input, which makes a verbose response format genuinely expensive. Knowing the unit is what lets you predict a bill before running anything. The lever that matters most is how many calls a run makes. That is why a fixed sequence beats a loop deciding for itself.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Quoting a per-token price as the answer. The multiplier is the call count, and that is an architecture decision rather than a vendor one.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="fundamentals">
+  <h2>Fundamentals</h2>
+  <p class="qset-note">Question one gets asked in some form in every LLM interview. Question four is where most candidates overclaim.</p>
+  <ul class="qa-index">
+    <li><a href="#c09-f1">What an agent is</a></li>
+    <li><a href="#c09-f2">Who runs the tool</a></li>
+    <li><a href="#c09-f3">Why tool descriptions matter</a></li>
+    <li><a href="#c09-f4">What makes it multi-agent</a></li>
+    <li><a href="#c09-f5">Orchestration or choreography</a></li>
+    <li><a href="#c09-f6">What ADK gave you</a></li>
+    <li><a href="#c09-f7">What MCP is for</a></li>
+    <li><a href="#c09-f8">Semantic routing</a></li>
+    <li><a href="#c09-f9">Which models, honestly</a></li>
+    <li><a href="#c09-f10">The riskiest claim</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c09-f1">
+      <p class="qa-q">What is an agent?</p>
+      <p class="qa-a">A model in a loop with tools. It is given a set of functions, it proposes a call, your code runs it, and the result goes back in. Then it decides again. Without the loop and the tools it is just a prompt with a nice name.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Defining it by autonomy or goals. Those are properties of some agents. The loop and the tools are what make it one at all.</p>
+    </li>
+    <li class="qa-item" id="c09-f2">
+      <p class="qa-q">When a model calls a function, who executes it?</p>
+      <p class="qa-a">My code does. The model emits a request naming a function and its arguments. My process decides whether to honour that, runs it, and returns the result. The model never touches anything directly, which is why every tool call is a place I can validate, log or refuse.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying the model executes it. This is the single most revealing misconception in LLM interviews, because the whole security model follows from it.</p>
+    </li>
+    <li class="qa-item" id="c09-f3">
+      <p class="qa-q">Why does a tool's description matter so much?</p>
+      <p class="qa-a">Because the description is the interface. The model chooses a tool by reading it, so a vague description means the tool gets used in the wrong situation. It is prompt text that behaves like an API contract, and it is edited far more casually than an API contract would be.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating descriptions as documentation. They are dispatch logic, and changing one changes behaviour.</p>
+    </li>
+    <li class="qa-item" id="c09-f4">
+      <p class="qa-q">What makes your system multi-agent rather than three function calls?</p>
+      <p class="qa-a">Honestly, in the vendor platform it <em>is</em> three function calls with one composer, and that is on purpose. What makes it worth the name is that each stage carries its own prompt, schema and model tier. What it deliberately is not is autonomous: they never call each other.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Defending the label. Conceding the structure and defending the constraint is a much stronger position, and it is the true one.</p>
+    </li>
+    <li class="qa-item" id="c09-f5">
+      <p class="qa-q">Orchestration or choreography, and why?</p>
+      <p class="qa-a">Orchestration, everywhere. One place holds the sequence, so there is one file to read and one place a deadline can live. Choreography spreads the control flow across components, which is fine for decoupled services and bad when you need to answer why the system did something.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Not knowing the pair of terms. They are the standard vocabulary for the exact choice you made.</p>
+    </li>
+    <li class="qa-item" id="c09-f6">
+      <p class="qa-q">What did Google ADK actually give you?</p>
+      <p class="qa-a">The loop, sub-agent sequencing, session state between iterations, and lifecycle hooks. Two specifics I would cite. <code>LoopAgent</code> with <code>EventActions.escalate</code> as the early exit, in the schematization retry loop. And a <code>before_tool_callback</code> in the lineage agent, used to make a precondition unskippable.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Listing features. Name the two hooks you used and what each one bought, or it sounds like a framework you read about.</p>
+    </li>
+    <li class="qa-item" id="c09-f7">
+      <p class="qa-q">What is MCP for?</p>
+      <p class="qa-a">Describing a tool or data source once, in a standard shape, so any model client can use it without a bespoke wrapper. In the schematization pipeline it gives three sub-agents live access to the target knowledge graph. All three are conditional, so the pipeline still runs with MCP disabled.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Explaining the protocol abstractly. Say what it bought in your system, which was a cheap live pre-check before an expensive subprocess.</p>
+    </li>
+    <li class="qa-item" id="c09-f8">
+      <p class="qa-q">What is semantic routing, in your system?</p>
+      <p class="qa-a">Choosing a branch by meaning. The debugger's screener embeds an error log, retrieves the five most similar past incidents, and returns one of three typed categories. That category decides whether the failure is retried, ignored, or investigated. The routing is the expensive decision, not the answer.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing it as classification. It is control flow, and framing it that way is what makes the risk visible.</p>
+    </li>
+    <li class="qa-item" id="c09-f9">
+      <p class="qa-q">Which of those four models have you actually shipped on?</p>
+      <p class="qa-a">Gemini extensively, across every CloudSufi system. Claude in the pipeline debugger's crews. GPT I would qualify: what I built is an OpenAI-compatible gateway, so it is the API shape rather than the model. Llama I would take off the line, because nothing on the page supports it.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Letting four model names stand equally. Two are real, one is a format, and one is absent.</p>
+    </li>
+    <li class="qa-item" id="c09-f10">
+      <p class="qa-q">What is the riskiest claim on this line?</p>
+      <p class="qa-a">Llama, since no project on the page uses it. GPT is second, because implementing an OpenAI-compatible endpoint is not the same as building on GPT, and a careful reader will make that distinction. Everything else here is backed by a specific system I can describe in detail.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Naming MemGPT. It is genuinely evidenced by the Samsung companion, and undervaluing it wastes a distinctive item.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="deep-dive">
+  <h2>Deep dive</h2>
+  <p class="qset-note">This is the line the loop is about, so these go deeper than the other skills chapters. Several connect two systems, which is where senior signal lives.</p>
+  <ul class="qa-index">
+    <li><a href="#c09-d1">Structured output as safety</a></li>
+    <li><a href="#c09-d2">When to add an agent</a></li>
+    <li><a href="#c09-d3">ADK hooks in anger</a></li>
+    <li><a href="#c09-d4">Sequential or parallel tools</a></li>
+    <li><a href="#c09-d5">MCP against a bespoke tool</a></li>
+    <li><a href="#c09-d6">Typed routing outputs</a></li>
+    <li><a href="#c09-d7">The unconditional top-k</a></li>
+    <li><a href="#c09-d8">Model tiers</a></li>
+    <li><a href="#c09-d9">Pinning versions</a></li>
+    <li><a href="#c09-d10">MemGPT memory tiers</a></li>
+    <li><a href="#c09-d11">Context growth</a></li>
+    <li><a href="#c09-d12">Evaluating an agent</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c09-d1">
+      <p class="qa-q">How does structured output make a system safer?</p>
+      <p class="qa-a">By removing shapes rather than discouraging them. The scout claim schema has no form for an uncited claim, so an uncited claim cannot be emitted. The debug solution's action is a two-value literal, so it cannot return a hedge. A prompt asking for the same thing is advice a model can ignore.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it validation. Validation rejects bad output after the fact. A schema stops it being expressible, and that is a stronger property.</p>
+    </li>
+    <li class="qa-item" id="c09-d2">
+      <p class="qa-q">When is an agent the wrong answer?</p>
+      <p class="qa-a">Whenever the sequence is known in advance. If you can write the steps down, write them down. An agent is worth it when the path depends on what is found. The debugger's lead manager uses a file finding to direct a code lookup. Most pipelines are not that, including two of mine.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Advocating agents generally. The strongest thing you can say here is where you chose not to use one.</p>
+    </li>
+    <li class="qa-item" id="c09-d3">
+      <p class="qa-q">Give me a framework hook you used for something non-obvious.</p>
+      <p class="qa-a">The <code>before_tool_callback</code> in the lineage agent. The model sometimes called merge before the deterministic extraction had run, producing a graph with zero field mappings and no error. The callback runs extraction if it has not run. That turns a prompt-shaped hope into a precondition.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Naming a hook without the failure it fixed. The failure is what makes it a real answer.</p>
+    </li>
+    <li class="qa-item" id="c09-d4">
+      <p class="qa-q">When should tool calls run in sequence, and when in parallel?</p>
+      <p class="qa-a">Sequence when a later call depends on an earlier result, which is what ReAct is. Parallel when they are independent. The vendor Scout runs three model calls concurrently because all three judge the same gathered sources. The debugger's lead manager is sequential because it reasons across tools.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating parallel as the better default. Parallel loses cross-tool reasoning, and that loss is exactly why the debugger defaults the other way.</p>
+    </li>
+    <li class="qa-item" id="c09-d5">
+      <p class="qa-q">Why MCP rather than writing the tool yourself?</p>
+      <p class="qa-a">Because a capability described once is usable by every client. Writing it yourself means re-wrapping it per framework, and the wrappers drift. The honest counterpoint is that MCP adds a transport and a dependency. A local function would often do. That is why all three MCP sub-agents in the schematization pipeline are optional.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Selling the protocol. The interesting answer includes why you made it optional.</p>
+    </li>
+    <li class="qa-item" id="c09-d6">
+      <p class="qa-q">Why is the router's output a typed literal rather than text?</p>
+      <p class="qa-a">Because the value is control flow. A category parsed out of prose can come back as a fourth thing nobody handled. The handler for that does not exist. A DSPy signature declares three literals and a confidence float. So the router cannot return a branch with no code behind it.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Framing it as convenience. It is the same argument as structured output: remove the shape rather than handle it.</p>
+    </li>
+    <li class="qa-item" id="c09-d7">
+      <p class="qa-q">Your router always retrieves five incidents. What if nothing is similar?</p>
+      <p class="qa-a">It returns the five least dissimilar things and routes anyway. Top-k always returns k. There is no similarity floor and no nothing-matched branch, so an unfamiliar failure gets a confident category built on loose matches. The fix is a distance threshold that routes to the expensive branch by default.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Assuming a relevance filter exists. It does not, and knowing that about your own retriever is the whole question.</p>
+    </li>
+    <li class="qa-item" id="c09-d8">
+      <p class="qa-q">How do you choose between model tiers?</p>
+      <p class="qa-a">By what the step is for and who is waiting. Scoring runs on the pro tier because the interview is over, nobody is waiting, and better judgment is worth buying. A live conversational turn uses a faster tier because a person is sitting there. The bake-off in chapter 0001 also showed the cheaper model erring in the more dangerous direction.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Choosing on benchmark scores. The deciding factors are latency tolerance and which direction the errors go.</p>
+    </li>
+    <li class="qa-item" id="c09-d9">
+      <p class="qa-q">Why pin a model version?</p>
+      <p class="qa-a">Because an alias is a dependency that can change without a deploy. In the gateway, aliases plus a substring test meant every turn was diagnosed as an outage and silently retried on a fallback. Four days, 236 warnings, and every request returning success. A pinned version fails loudly when it goes away.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Citing reproducibility alone. The real argument is failure mode: loud versus silent.</p>
+    </li>
+    <li class="qa-item" id="c09-d10">
+      <p class="qa-q">Explain MemGPT's idea in one breath.</p>
+      <p class="qa-a">The model manages its own memory in tiers. A small working context, and a larger external store it pages things in and out of. The model decides what is worth keeping and what to retrieve, so the effective memory is much larger than the context window. It is virtual memory with the model as the pager.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing it as RAG. Retrieval is read-only and driven by the query. Here the model also decides what to <em>write</em>, which is the difference.</p>
+    </li>
+    <li class="qa-item" id="c09-d11">
+      <p class="qa-q">An agent loop grows its context every iteration. What do you do?</p>
+      <p class="qa-a">Compact, and do it by structure rather than by truncation. The schematization retry loop splits feedback on its section headers, drops generation-only sections entirely, and compacts others. Blind truncation is the trap, because it usually cuts the newest errors, which are exactly what the next iteration needs.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Proposing a summarisation call. That adds a model call inside the loop and a new place to lose information.</p>
+    </li>
+    <li class="qa-item" id="c09-d12">
+      <p class="qa-q">How do you evaluate an agent?</p>
+      <p class="qa-a">Per decision, not end to end. For the router, per-category precision, because a wrong overlook loses a real failure while a wrong retry is self-correcting. For tool use, whether the right tool was chosen. For output, an oracle where one exists. A single end-to-end score averages away the only thing worth knowing.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Proposing one overall accuracy number. The decisions have different costs, so they need different metrics.</p>
+    </li>
+  </ol>
+</section>
+
+<div class="quiz" data-quiz-id="0009-q1">
+  <p class="q">A model emits a function call in an agent loop. What actually executes that function?</p>
+  <ol class="options">
+    <li data-correct="true">Your own code, once the model proposes a call</li>
+    <li>The model itself, inside a sandbox the provider runs</li>
+    <li>The framework alone, with no code that you control</li>
+    <li>The provider, on their own side of the network</li>
+  </ol>
+  <div class="why">
+    <p>Your code. The model returns a request naming a function and its arguments, and your process decides whether to honour it. That is why every tool call is a point where you can validate, log or refuse.</p>
+    <p>Getting this wrong is the most revealing mistake in an LLM interview, because the entire security model follows from it. A tool is not something the model has. It is something you offer, on every single call.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0009-q2">
+  <p class="q">Semantic routing picks one of three branches. What is the extra risk compared with ordinary retrieval?</p>
+  <ol class="options">
+    <li data-correct="true">A bad match changes control flow, not just wording</li>
+    <li>A bad match costs more tokens on every request</li>
+    <li>A bad match is caught by the schema validator</li>
+    <li>A bad match only degrades the final answer text</li>
+  </ol>
+  <div class="why">
+    <p>The consequence is a different journey, not a worse sentence. In ordinary retrieval a poor chunk gives a slightly worse answer. Here a misleading similar incident can turn an investigate into a retry, so the pipeline reruns and fails again with nobody looking.</p>
+    <p>A schema cannot catch it, which is the trap in the third option. The schema guarantees the category is one of three valid values. It has no opinion on whether it is the <em>right</em> one.</p>
+  </div>
+</div>
+
+<section class="qset" id="edges">
+  <h2>Edges and exceptions</h2>
+  <p class="qset-note">Three of these are about the r&#233;sum&#233; and five about failure. That ratio is right for the line the whole loop is about.</p>
+  <ul class="qa-index">
+    <li><a href="#c09-e1">Prompt injection through a tool</a></li>
+    <li><a href="#c09-e2">A loop that will not stop</a></li>
+    <li><a href="#c09-e3">A tool that is never chosen</a></li>
+    <li><a href="#c09-e4">Non-determinism</a></li>
+    <li><a href="#c09-e5">Asked about Llama</a></li>
+    <li><a href="#c09-e6">GPT, precisely</a></li>
+    <li><a href="#c09-e7">Frameworks come and go</a></li>
+    <li><a href="#c09-e8">What you would change</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c09-e1">
+      <p class="qa-q">A tool returns text containing instructions. What stops the model following them?</p>
+      <p class="qa-a">Structurally, nothing. Tool output enters the context as content and the model has no reliable way to tell data from instruction. That is the genuine open problem in agent design. What limits the damage is the boundary. Since my code executes every call, a tool cannot make the system do anything it was not already allowed to do.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Claiming a prompt prevents it. Containment through what tools exist is the real mitigation, not instruction wording.</p>
+    </li>
+    <li class="qa-item" id="c09-e2">
+      <p class="qa-q">An agent loops without converging. What stops it?</p>
+      <p class="qa-a">A counter, and it has to be outside the model's reasoning. The debugger's lead manager caps at ten iterations. The schematization loop exits on quality acceptable, quality stagnant, or attempts exhausted. The stagnation exit is the interesting one: stop when the score stops moving, not only when it succeeds.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Relying on the model deciding it is done. That is the thing that has already failed if you are asking the question.</p>
+    </li>
+    <li class="qa-item" id="c09-e3">
+      <p class="qa-q">You add a tool and the model never uses it.</p>
+      <p class="qa-a">Almost always the description, not the model. If the description does not clearly say when to reach for it, another tool wins. The second cause is overlap: two tools that sound similar split the choice unpredictably. I would debug it by reading the descriptions as if I were the model, with no other context.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Reaching for a bigger model. It is a documentation bug in a system where documentation is dispatch.</p>
+    </li>
+    <li class="qa-item" id="c09-e4">
+      <p class="qa-q">How do you handle an agent that gives different answers on identical input?</p>
+      <p class="qa-a">Measure it rather than assume temperature fixes it. In the vendor platform about one claim in five gets a different verdict on identical evidence, and pinning temperature to zero did not fix it. Nearly every flip sits on one category boundary, which points at the prompt's definition rather than at sampling.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying temperature zero makes it deterministic. It does not, and having measured that is a much better answer than assuming it.</p>
+    </li>
+    <li class="qa-item" id="c09-e5">
+      <p class="qa-q">The interviewer asks what you have done with Llama.</p>
+      <p class="qa-a">Say it plainly. Nothing production. It is on the line as familiarity rather than shipped work, and it should either earn a project or come off. The nearest true thing is the on-device work at Samsung over a quantized small model, and that was MobileLLM rather than Llama.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Stretching the Samsung work to cover it. A different model family is a different model family, and the stretch is what gets caught.</p>
+    </li>
+    <li class="qa-item" id="c09-e6">
+      <p class="qa-q">And GPT?</p>
+      <p class="qa-a">I would qualify it immediately. What I built is an OpenAI-<em>compatible</em> gateway. So what I know deeply is the API contract: the chat-completions shape, streaming deltas, how tool calls are expressed. Behind that contract I was calling Gemini. That is genuinely useful knowledge, and it is not the same as building on GPT.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Letting it stand unqualified. The gateway detail makes the distinction obvious to anyone who reads the bullet above it.</p>
+    </li>
+    <li class="qa-item" id="c09-e7">
+      <p class="qa-q">You have used ADK, CrewAI and DSPy. Does framework knowledge transfer?</p>
+      <p class="qa-a">The concepts do and the details do not. Every one of them has a loop, tools, state and hooks, so the third framework takes days rather than weeks. What does not transfer is the failure modes, and those are what matter. Tool-calling order variance in one, flow routing in another.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Claiming frameworks are interchangeable. The concepts are, and the sharp edges are where all the real time goes.</p>
+    </li>
+    <li class="qa-item" id="c09-e8">
+      <p class="qa-q">What would you change about this line?</p>
+      <p class="qa-a">Drop Llama and qualify GPT, so every remaining item is backed by a system I can describe. I would also consider naming DSPy and CrewAI, since both are shipped and neither appears. The line currently names a model I have not used and omits two frameworks I have.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Only adding. The line is long already, and swapping the unbacked items for backed ones is the change that improves it.</p>
+    </li>
+  </ol>
+</section>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;What is an agent, to you?&#8221;
+      <span class="tell">The opening question of most LLM loops. A vague answer sets the level for everything after it, and vagueness here is very common.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>A model in a loop with tools. It is given typed functions, it proposes a call, my code executes it and returns the result, and it decides again. Without the loop and the tools it is a prompt. The part I would emphasise is that the model never executes anything itself. It emits a request and my process decides whether to honour it, which is where validation, logging and refusal all live.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Why is that multi-agent rather than three function calls?&#8221;
+      <span class="tell">The standard challenge, and the one where conceding beats defending. The restriction is the impressive part.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>In the vendor platform it genuinely is three function calls with one composer, on purpose. Each stage has its own prompt, schema and model tier, which is what makes them worth separating. What it deliberately is not is autonomous: agents never call each other. That restriction is what gives one readable control flow, one place for a deadline, and a stage you can test alone. Agents-calling-agents was rejected, not unavailable.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;How do you stop an agent doing something dangerous?&#8221;
+      <span class="tell">Testing whether you think about containment or about prompting. Only one of those answers holds up.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>By controlling what tools exist, because that bounds what is reachable at all. Then by executing every call in my own code, where I can validate, log or refuse. Then by structured output, so a dangerous instruction has no shape to arrive in. Prompt wording is the weakest layer and I would not lead with it. In the debugger, the strongest control on generated SQL is an allowlist permitting only SELECT and EXPLAIN.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Which of these models have you actually used in production?&#8221;
+      <span class="tell">A direct audit of the second half of the line. Two of the four need qualifying and getting there first is worth a lot.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Gemini extensively, across every CloudSufi system, including a bake-off between its tiers on a fixed evidence payload. Claude in the pipeline debugger's crews. GPT I would qualify: I built an OpenAI-compatible gateway, so I know the API contract deeply, but the model behind it was Gemini. Llama has no project behind it and I would take it off the line.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Where did you decide <em>not</em> to use an agent?&#8221;
+      <span class="tell">A senior question, and a gift. It is the one place where restraint is the whole answer.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>In the lineage agent, for the field mappings. Those come out of structured tables, so a parser is correct where a model would be plausible, and the mappings are extracted rather than generated. Also in the schematization pipeline's validation step, which is a subprocess rather than a judge model, because an oracle exists. The rule I use is that a model should only be asked questions with no deterministic answer.</p>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="recall">
+  <details>
+    <summary>Three systems on this r&#233;sum&#233; keep their sequence in one place. Name the mechanism in each, and the property all three are buying.</summary>
+    <p class="answer">Chapter 0001 has <code>pipeline.py</code> as the only orchestrator, with agents as plain functions. Chapter 0003 has an ADK <code>LoopAgent</code> sequencing ten sub-agents, with escalate as the exit. Chapter 0005 has a CrewAI <code>Flow</code> with decorated steps and explicit routers. All three buy the same property: the control flow is readable in one file, so you can answer why the system did something and there is a single place a deadline can live.</p>
+    <span class="from"><a href="0001-vendor-evaluation-platform.html">Chapter 0001 &#183; agents never call each other</a></span>
+  </details>
+  <details>
+    <summary>Two chapters describe a model being asked a question that had an oracle available. Which were they, and what was the rule that emerged?</summary>
+    <p class="answer">Chapter 0003's validation is a subprocess running the real processor, not a judge model, because an oracle exists. Chapter 0004 parses the mapping tables deterministically rather than asking a model to read them. The rule is that a model should only be asked questions with no deterministic answer. Chapter 0006 is where the rule is broken: the eval harness scores generated code by cosine similarity when it could run <code>EXPLAIN</code> on it.</p>
+    <span class="from"><a href="0004-hybrid-lineage-extraction.html">Chapter 0004 &#183; code where there is a right answer</a></span>
+  </details>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">The lessons behind this chapter</span>
+  <p>System Design School teaches these mechanisms from first principles and breaks them in a lab. This chapter defends what you did with them. An interviewer moves between those two registers without warning.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0025 &#183; Orchestration vs choreography &#8212; not yet built</span>
+      <span class="bridge-why">The one-orchestrator rule is this choice under another name, and this is where the vocabulary and the tradeoffs get built properly.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0038 &#183; Shipping a prompt safely &#8212; not yet built</span>
+      <span class="bridge-why">A prompt change is a deploy, and a tool description is dispatch logic. Both need a canary like any other release.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0042 &#183; Sensitive data boundaries &#8212; not yet built</span>
+      <span class="bridge-why">Function calling widens what a model can reach, which makes the tool list a data-boundary decision rather than a feature list.</span>
+    </li>
+  </ol>
+</div>
+
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0008-languages.html">&#8592; 0008 &#183; Languages: Python, SQL, C++</a></span>
+  <span><span class="dir">Next</span><a href="0010-model-optimization.html">0010 &#183; Model optimization &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

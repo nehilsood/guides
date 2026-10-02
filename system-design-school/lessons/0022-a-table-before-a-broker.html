@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>A Table Before a Broker</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0022">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">System Design School</a>
+    <span class="sep">/</span>
+    <span>Tier 2 &#183; Messaging</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Lesson 0022</span>
+    <span class="sep">/</span>
+    <span>Needs Postgres &#183; Redis</span>
+  </div>
+  <h1>A Table Before a Broker</h1>
+  <p class="standfirst">The platform has one Postgres and no queue, and the reflex is to add a broker. Measured, a broker's first cost is that every job is now a second write to a second system, and <strong>no order of those two writes survived</strong> either a broker hiccup or a killed producer. A table in the same transaction lost nothing. Then the three things that really do make you leave the table: an open transaction eats its headroom, a second reader cannot read a queue, and a log kept in a table <strong>silently skipped a sixth to a third of its events</strong>.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Give every eval run a scoring job, through a broker in both orders and through a table in the same transaction, and count the runs with no job and the jobs with no run. Hold one transaction open elsewhere and watch the table queue slow down with nothing erroring, then tip over when it runs out of headroom. Then need a second reader and a rerun, build a log in the table, lose events to commit order, and fix it with one line whose price turns out to be the one Kafka's transactional consumers pay.</p>
+</div>
+
+<div class="anchor-box">
+  <span class="callout-label">Why you, specifically</span>
+  <blockquote>&#8220;Python/FastAPI, async SQLAlchemy, <strong>PostgreSQL</strong>, <strong>GKE</strong>&#8221; &#8212; and the deployment claims spread across the experience bullets: Cloud Run with IAP, Helm, Terragrunt, Cloud Build.</blockquote>
+  <p>The chapter that defends this line is candid about what is missing, and it lists this first: <em>&#8220;No messaging, so post-interview scoring is in-process and lost if the pod dies.&#8221;</em> The follow-up in any design review is <em>&#8220;so what would you add?&#8221;</em>, and on GKE the answer everybody reaches for is Pub/Sub, or Kafka if they want to sound serious.</p>
+  <p>The stronger answer is a table in the Postgres that is already there, and the strongest is knowing exactly when to stop using it. This lesson measures both: what the table buys that no broker can, and the three break points &#8212; headroom, fan-out, and ordering &#8212; that would send you to Pub/Sub or Kafka, and which one each break point sends you to.</p>
+  <p>The line is defended in full in <a href="../../resume-mastery/lessons/0011-infrastructure.html">chapter 0011 of R&#233;sum&#233; Mastery</a>. The same shape &#8212; a hundred independent reconstruction runs behind a queue and a quality gate &#8212; sits under <a href="../../resume-mastery/lessons/0019-2d-to-3d-reconstruction.html">chapter 0019</a>.</p>
+</div>
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>A background job needs somewhere to wait. It can wait in a separate system built for waiting, a broker, or in a table in your own database. The broker scales further and does more. The table has one property the broker can never have: the job can be written in the <em>same transaction</em> as the thing that caused it, so either both exist or neither does.</p>
+  <p>That property is worth a lot, and it is not free for ever. A table queue lives with everything else in the database, so the database's housekeeping problems become its problems. And a queue forgets each job once it is done, which is fine until something else needs to read the same jobs, or read them again.</p>
+  <dl>
+    <dt>Broker</dt>
+    <dd>A separate service that holds messages between producers and consumers: Pub/Sub, Kafka, RabbitMQ. Redis stands in for one here.</dd>
+
+    <dt>Dual write</dt>
+    <dd>One logical change written to two systems in two steps. Something can always fail between them.</dd>
+
+    <dt>Transactional enqueue</dt>
+    <dd>The job inserted in the same transaction as the write that caused it. They commit together or not at all.</dd>
+
+    <dt>Horizon</dt>
+    <dd>From lesson 0019: the oldest snapshot any session still holds. Rows deleted after it cannot be cleaned up.</dd>
+
+    <dt>Headroom</dt>
+    <dd>How much faster consumers can work than jobs arrive. The margin that absorbs anything that makes each job slower.</dd>
+
+    <dt>Fan-out</dt>
+    <dd>Every message delivered to several independent readers, each getting all of them.</dd>
+
+    <dt>Replay</dt>
+    <dd>Reading messages again after they were processed: a rescore, a backfill, a bug fixed.</dd>
+
+    <dt>Log</dt>
+    <dd>An append-only sequence that readers never delete from. Each reader keeps its own position. Kafka's shape.</dd>
+
+    <dt>Commit order</dt>
+    <dd>The order in which rows become visible. Not the order their ids were handed out.</dd>
+  </dl>
+</div>
+
+<h2>The first cost of a broker is a second write</h2>
+
+<p>brandur, writing in 2015 about why anyone would put a job queue in Postgres, gives the reason in one sentence: <em>&#8220;storing jobs in a database allows a program to take advantage of its transactional consistency; when an operation fails and rolls back, an injected job rolls back with it.&#8221;</em> The same article is the classic account of how that queue dies, and this lesson measures both halves on Postgres 17, a decade and a <code>SKIP LOCKED</code> later.</p>
+
+<p>The first half is about the thing people do instead. With a broker, an eval run is written to Postgres and its scoring job is published somewhere else, and those are two writes to two systems with nothing coordinating them. Commit first and a failure before the publish leaves a run nobody will score. Publish first and a failure before the commit leaves a job for a run that does not exist. Both were produced on demand here.</p>
+
+<div class="note">
+  <span class="callout-label">The break point people quote first is the one that bites last</span>
+  <p>Ask when a Postgres queue stops being enough and the usual answer is throughput. Here it was not the first thing to go. Four consumers on a laptop claimed <strong>1&#8239;100 jobs a second</strong>, and post-interview scoring creates one job per interview.</p>
+  <p>What went first, in order: one idle session elsewhere made every claim read <strong>hundreds to thousands of pages</strong> from a queue that was nearly empty; a second reader got <strong>none</strong> of the jobs; and a log kept in a table silently <strong>never delivered 324 to 709 of 2&#8239;000</strong> events. Throughput is the red herring. Headroom, fan-out and ordering are the boundary.</p>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 446" role="img" aria-labelledby="mech0022-t mech0022-d">
+    <title id="mech0022-t">A job written to a broker is a second write that can fail on its own; a job in a table is not, until you need a second reader</title>
+    <desc id="mech0022-d">At the top, an eval run in Postgres and its scoring job in a broker, joined by an arrow labelled two writes in either order. Committing first and then publishing left twenty to twenty-four runs with no job when the broker stalled for one and a half seconds, and five to eight when the producer was killed. Publishing first and then committing left two to six jobs for runs that never committed when the producer was killed. A band beneath shows the same transaction: the job is a row next to the run, with no runs missing a job and no jobs missing a run in either test. Below that, the horizon: one idle session elsewhere made each claim read more than sixteen hundred pages from a queue that was nearly empty, the median claim went from one point nine to four point eight milliseconds, and at eleven hundred jobs a second the consumers fell behind after forty to sixty seconds; closing the session recovered it at once. Then fan-out: a second reader of a queue saw none of a thousand jobs, while a log with an offset per reader gave each reader all thousand, and a rerun all thousand again. At the bottom, commit order: a reader that tails the log by id never read three hundred and twenty-four to seven hundred and nine of two thousand events, and a reader that only reads rows from transactions older than every running one read all of them, but waited more than two seconds while one writer sat idle.</desc>
+
+    <text x="20" y="24" class="strong">A table queue is one write. A broker is two, and a second reader needs a log.</text>
+
+    <!-- MARK 1 &#183; the run, in Postgres. -->
+    <rect x="20" y="48" width="200" height="34" class="box"/>
+    <text x="34" y="70" class="lbl">Postgres &#183; the eval run</text>
+
+    <!-- MARK 2 &#183; the job, in the broker. -->
+    <rect x="620" y="48" width="200" height="34" class="box"/>
+    <text x="634" y="70" class="lbl">broker &#183; the scoring job</text>
+
+    <!-- MARK 3 &#183; two writes, in either order. -->
+    <path d="M220,65 L620,65" class="flow-bad"/>
+    <text x="300" y="58" class="lbl-dim">two writes, either order, nothing between</text>
+
+    <!-- MARK 4 &#183; commit first. -->
+    <text x="20" y="110" class="lbl ink-bad">commit, then publish &#183; runs with no job: 20&#8211;24 on a 1.5&#8239;s stall, 5&#8211;8 on kills</text>
+
+    <!-- MARK 5 &#183; publish first. -->
+    <text x="20" y="134" class="lbl ink-bad">publish, then commit &#183; jobs for runs that never committed: 2&#8211;6 on kills</text>
+
+    <!-- MARK 6 &#183; the table, in the same transaction. -->
+    <rect x="20" y="150" width="800" height="28" class="good"/>
+    <text x="34" y="169" class="lbl ink-good">same transaction &#183; the job is a row next to the run &#183; 0 and 0, stall and kills</text>
+
+    <!-- MARK 7 &#183; the horizon eats the headroom. -->
+    <rect x="20" y="206" width="800" height="28" class="warn"/>
+    <text x="34" y="225" class="lbl ink-warn">one idle session elsewhere &#183; a near-empty queue, 1&#8239;600+ pages per claim, p50 1.9 &#8594; 4.8&#8239;ms</text>
+
+    <!-- MARK 8 &#183; and tips over only when there is none left. -->
+    <text x="20" y="258" class="lbl">at 1&#8239;100 jobs/s it falls behind 40&#8211;60&#8239;s into the hold &#183; <tspan class="ink-good">close the session: back at once</tspan></text>
+
+    <!-- MARK 9 &#183; a queue cannot be read twice. -->
+    <text x="20" y="306" class="lbl ink-bad">fan-out &#183; a second reader of the queue saw 0 of 1&#8239;000</text>
+
+    <!-- MARK 10 &#183; a log with an offset per reader can. -->
+    <text x="20" y="330" class="lbl ink-good">a log, an offset per reader &#183; 1&#8239;000 each, and a rerun 1&#8239;000 again</text>
+
+    <!-- MARK 11 &#183; an id is not a position. -->
+    <text x="20" y="378" class="lbl ink-bad">tail the log by id &#183; 324&#8211;709 of 2&#8239;000 never read, nothing errors</text>
+
+    <!-- MARK 12 &#183; read only what no running transaction can add to. -->
+    <rect x="20" y="394" width="800" height="28" class="good"/>
+    <text x="34" y="413" class="lbl ink-good">read below the oldest running transaction &#183; 0 missed &#183; waits for the slowest writer</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">Say this while you draw it</span>
+    <ol class="narrate">
+      <li>Two boxes, <b>the run in Postgres, the job in a broker</b>, and an arrow between them that is two writes.</li>
+      <li>Commit first: <b>runs with no job</b>. Publish first: <b>jobs with no run</b>. The same transaction: <b>zero of either</b>.</li>
+      <li>The table's own failure: an idle session makes a <b>near-empty queue</b> read hundreds of pages per claim. It tips over only when headroom runs out.</li>
+      <li>A second reader of a queue gets <b>nothing</b>. A log with an offset per reader gives everyone everything, and a rerun.</li>
+      <li>But tail a table log <b>by id</b> and events that committed late are never read.</li>
+      <li>Read only <b>below the oldest running transaction</b>: nothing missed, and every reader waits for the slowest writer.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. Twelve marks. It is four stacked findings, and each one is a reason to change shape, so draw them in the order they would force you to.</p>
+  <ul>
+    <li>Two boxes and <b>one arrow that is two writes</b>, with <b>runs with no job</b> and <b>jobs with no run</b> under it.</li>
+    <li>The band that fixes it: <b>the job is a row in the same transaction</b>.</li>
+    <li>The horizon line: <b>a near-empty queue reading pages</b>, and <b>tipping over only without headroom</b>.</li>
+    <li>Queue <b>0 of 1&#8239;000</b> to a second reader, log <b>1&#8239;000 each</b>, and then <b>by id misses, by transaction does not</b>.</li>
+  </ul>
+  <span class="timer">Draw the arrow between the two boxes as one line with nothing on it. The temptation is to draw a transaction around both, and the whole point is that there is none.</span>
+</div>
+
+<h2>Lab &#8212; a broker, a table, and a log that loses events</h2>
+
+<div class="lab">
+  <header>
+    <span class="kicker">Lab 0022</span>
+    <span class="est">~30 minutes</span>
+    <h3>Two writes in two systems, one idle session, and an id that is not a position</h3>
+  </header>
+  <div class="body">
+    <div class="prereq">
+      <span>Needs:</span>
+      <span class="chip">anchor/vendor-eval-gateway</span>
+      <span class="chip">Docker &#183; Postgres + Redis</span>
+      <span class="chip">~30 min</span>
+    </div>
+
+    <div class="caution">
+      <span class="callout-label">Redis may still be full from lesson 0004, and some counts wobble</span>
+      <p>Step 1 writes to Redis. If lesson 0004's fill is still in it, every write is refused and the bench stops and says so, with the command to empty it: <code>docker compose exec redis redis-cli FLUSHALL</code>. Nothing else uses what is in there. Across runs, the dual-write kill counts moved by one or two, the horizon timings by a fraction of a millisecond, and the id reader's missed events between 324 and 709 of 2&#8239;000. The zeros never moved. Steps 2 and 3 take 80 and 100 seconds.</p>
+    </div>
+
+    <ol class="steps">
+      <li>
+        <p class="what">Give 2&#8239;000 eval runs a scoring job each, three ways: commit the run and then push the job to a broker, push first and then commit, or insert the job in the same transaction. Once with the broker pausing for 1.5&#8239;s partway through, and once with the producer process killed twelve times.</p>
+        <pre class="cmd"><span class="prompt">$ </span>cd anchor/vendor-eval-gateway
+<span class="prompt">$ </span>docker compose up -d --wait postgres redis
+<span class="prompt">$ </span>uv run python -m bench.tablequeue --experiment dualwrite</pre>
+        <pre class="out">Every eval run needs a scoring job. 2000 runs, 4 producers.
+
+The broker stops answering for 1.5 s after 600 runs; a producer gives up on it after 250 ms
+                          runs  jobs  run, no job  job, no run
+commit, then publish      2000  1976           24            0
+publish, then commit      1976  1976            0            0
+same transaction          2000  2000            0            0
+
+The producer process is killed 12 times instead (SIGKILL, every 0.15-0.45 s)
+                          runs  jobs  run, no job  job, no run
+commit, then publish     16821 16816            5            0
+publish, then commit     14816 14821            0            5
+same transaction         13525 13525            0            0</pre>
+        <div class="expect broken">
+          <span class="label">Each order has its own failure, and the table has neither</span>
+          <p>When the broker stalled, committing first left <strong>24 eval runs that will never be scored</strong>: the run is in Postgres and the publish timed out after it. Publishing first survived the stall &#8212; a failed publish rolled the run back &#8212; which makes it look like the right order. The kills show why it is not. A producer killed after its publish and before its commit left <strong>5 jobs for runs that do not exist</strong>, and committing first lost 5 more runs the same way.</p>
+          <p>The same transaction had <strong>zero of either, in both tests</strong>, in every run. There is no order to get wrong when there is one write. Across four runs the stall orphaned 20 to 24, the kills 5 to 8 committing first and 2 to 6 publishing first.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Now the table's own failure. Feed the queue 400 jobs a second with four consumers claiming them, then open one idle transaction elsewhere &#8212; lesson 0019's forgotten session &#8212; for 40 seconds, then close it.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.tablequeue --experiment horizon</pre>
+        <pre class="out">400 jobs/s in, 4 consumers; the claim is lesson 0021's DELETE ... SKIP LOCKED
+
+                      t  claimed/s  claim p50      p99  backlog   buffers  claim plan
+nothing held         10        400     1.67ms    3.0ms        0         1  Index Scan
+                     20        398     1.54ms    3.0ms        0         3  Index Scan
+one idle session     30        399     1.77ms    3.9ms        3       225  Index Scan
+                     40        398     1.71ms    4.3ms        0       442  Index Scan
+                     50        398     1.71ms    4.8ms        0       665  Index Scan
+                     60        400     1.72ms    3.4ms        0       884  Index Scan
+session closed       70        398     1.76ms    3.9ms        0        47  Index Scan
+                     80        399     1.66ms    4.2ms        2         6  Index Scan</pre>
+        <div class="expect broken">
+          <span class="label">The queue is empty, and every claim reads hundreds of pages to find that out</span>
+          <p>The backlog column is zero almost throughout. The queue is keeping up. And the buffers column went from <strong>1 page per claim to 884</strong> in forty seconds of one idle session, because every job deleted since that session's snapshot is still in the index, and a claim walks past all of them to reach the first live one. At 400 jobs a second that is 400 more dead entries every second, with nothing allowed to remove them.</p>
+          <p>And nobody would notice. <strong>The median claim went from 1.5 to 1.7&#8239;ms</strong>, throughput did not move, and nothing errored. Closing the session took the buffers back to 47 within ten seconds and to 6 in twenty. This run had headroom: four consumers can claim roughly three times as fast as 400 a second, so a slower claim cost nothing anyone could see.</p>
+          <p>This is also the step most likely to look different when you run it. In two of three runs at this rate the planner switched to a <strong>sequential scan</strong> partway through the hold, after which every claim reads the whole table &#8212; 90 to 160 pages &#8212; instead of an index walk that keeps growing. The plan the planner picks under a held horizon is itself unstable. The median claim did not move in any of the three.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Take the headroom away. The same experiment at 1&#8239;100 jobs a second, close to what four consumers can do, with the session held for 60 seconds.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.tablequeue --experiment horizon --rate 1100 --hold 60</pre>
+        <pre class="out">1100 jobs/s in, 4 consumers; the claim is lesson 0021's DELETE ... SKIP LOCKED
+
+                      t  claimed/s  claim p50      p99  backlog   buffers  claim plan
+nothing held         10       1096     1.81ms    4.7ms       28         7  Index Scan
+                     20       1097     1.91ms    4.7ms        0         1  Index Scan
+one idle session     30       1098     1.95ms    4.4ms       54       291  Index Scan
+                     40       1096     2.49ms    5.7ms       82       583  Index Scan
+                     50       1101     2.92ms    6.7ms        6       873  Index Scan
+                     60       1079     3.37ms    7.5ms      205      1162  Index Scan
+                     70       1040     3.57ms    7.8ms      794      1452  Index Scan
+                     80        733     4.82ms   14.2ms     4400      1647  Index Scan
+session closed       90       1535     1.76ms    3.4ms       39       197  Index Scan
+                    100       1099     1.85ms    5.0ms       17       197  Index Scan</pre>
+        <div class="ba">
+          <span class="label">Before / after &#183; the same idle session, and the only difference is the margin</span>
+          <p>The claim got slower steadily &#8212; <strong>1.9&#8239;ms to 4.8&#8239;ms at the median</strong>, the buffers climbing by about 290 every ten seconds &#8212; and forty seconds into the hold the consumers <strong>could no longer keep up</strong>. Twenty seconds later they were claiming 733 a second against 1&#8239;100 arriving, with <strong>4&#8239;400 jobs behind</strong>. It compounds, because every job that waits is one more to claim through the same dead entries. That is brandur's death spiral, starting on Postgres 17 with <code>SKIP LOCKED</code>. This is the worst of three runs: in all three the consumers began to fall behind between 40 and 60 seconds into the hold, and by 60 seconds the backlog was 339, 587 and 4&#8239;400.</p>
+          <p>Then the part the 2015 article does not show: <strong>closing the session fixed it within ten seconds</strong>. The median went straight back to 1.8&#8239;ms, the buffers to 197, and the consumers cleared the backlog at 1&#8239;535 a second. Nothing was tuned. The queue did not need a bigger machine; it needed the one idle transaction to end, which lesson 0019's <code>idle_in_transaction_session_timeout</code> does automatically.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">A second consumer arrives: the audit trail needs every scored run as well as the scorer. Then the rubric changes and everything must be rescored. A queue, a queue with a copy per reader, and a log with an offset per reader.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.tablequeue --experiment fanout</pre>
+        <pre class="out">1000 scored runs. Two consumers need every one of them: the scorer's follow-up and the audit trail. Then the rubric changes and everything is rescored.
+
+shape                      rows written  rows deleted  scorer saw  audit saw  rerun saw
+queue                              1000          1000        1000          0          0
+queue, a copy per reader           2000          2000        1000       1000          0
+log, an offset per reader          1000             0        1000       1000       1000</pre>
+        <div class="expect">
+          <span class="label">A queue is read once, by one reader; a log is read by everyone, as often as they like</span>
+          <p>The queue gave the audit trail <strong>none of the 1&#8239;000</strong>, because the scorer deleted each one as it finished &#8212; which is what acknowledging means. A copy per reader works, at double the writes and double the deletes, and every new reader means changing every producer. Neither can do a rerun: the rows are gone.</p>
+          <p>The log wrote each event once, deleted nothing, and gave each reader all 1&#8239;000 by keeping a position per reader in <code>consumer_offsets</code>. A new reader starting from zero is a rerun, for free. This is the first break point that sends you to a broker, and it tells you which: <b>fan-out alone is Pub/Sub&#8217;s shape</b>, a subscription per reader; <b>fan-out plus replay is Kafka&#8217;s</b>.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Build that log in the table and tail it the obvious way, <code>WHERE id &gt; :last</code>, while eight producers insert and commit. Beside it, a reader that only reads rows from transactions older than every running one. Then again, with one unrelated writer left idle for three seconds.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.tablequeue --experiment log</pre>
+        <pre class="out">8 producers x 250 events, each in its own transaction, holding it 0-4 ms after the insert before commit. Two readers tail the log as it grows.
+
+                         reader              events  read  never read   lag p50      p99
+nothing else running     by id                 2000  1417         583     5.2ms      9ms
+                         by committed txid     2000  2000           0     6.5ms     11ms
+one writer idle for 3 s  by id                 2000  1427         573     5.2ms      9ms
+                         by committed txid     2000  2000           0  2319.2ms   2794ms</pre>
+        <div class="expect broken">
+          <span class="label">The id reader lost more than a quarter of the log, and nothing anywhere said so</span>
+          <p><strong>583 of 2&#8239;000 events were never read</strong>, and in nine runs the count was between 324 and 709. Each one is a row whose id was handed out before a neighbour's and whose transaction committed after it. The reader saw the neighbour, moved its position past both, and the late row became visible behind it. No error, no gap anybody checks for. It is the most dangerous result on this page, because it looks exactly like a working consumer.</p>
+          <p>The second reader missed nothing in any run, with about a millisecond more lag. The second pair of rows is its price: one unrelated transaction left open for three seconds held <strong>every event behind it for over two seconds</strong> at the median, because nothing newer than the oldest running writer is safe to read. Correct costs you the slowest writer in the database.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Finally the tests. The out-of-order commit is built by hand in them, with two connections, because it is the whole failure.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run pytest tests/test_eventlog.py -q 2&gt;&amp;1 | tail -1</pre>
+        <pre class="out">6 passed in 0.31s</pre>
+        <div class="expect">
+          <span class="label">The skip, in eleven lines, and a guard against the first fix anyone tries</span>
+          <p><code>test_the_id_reader_never_sees_a_row_that_committed_late</code> inserts row 1 and leaves it uncommitted, commits row 2, reads, commits row 1, and asserts the next read returns nothing although two rows exist. It is the step 5 result with the concurrency taken out.</p>
+          <p>Delete the <code>txid &lt;</code> condition from <code>read_committed_after</code> and two tests fail, which was checked. And <code>test_a_job_enqueued_in_a_rolled_back_transaction_never_existed</code> is step 1 in one assertion: the reason the queue is a table at all.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+</div>
+
+<div class="evidence" data-evidence-for="0022">
+  <header>
+    <span class="callout-label">Your numbers, not mine</span>
+    <span class="hint">saved in this browser as you type</span>
+  </header>
+  <div class="body">
+    <p>The zeros should match mine exactly. The other counts move a little between runs. The last row is about your system.</p>
+
+    <div class="rows">
+      <div class="row">
+        <span class="ran">Step 1, <strong>the dual write</strong>: runs with no job, and jobs with no run</span>
+        <span class="field"><label for="e22-orphan">run, no job</label><input type="text" id="e22-orphan" data-field="orphan" placeholder="e.g. 24 on the stall, 5 on kills"></span>
+        <span class="field"><label for="e22-phantom">job, no run</label><input type="text" id="e22-phantom" data-field="phantom" placeholder="e.g. 5 on kills"></span>
+        <span class="why-row"><label for="e22-order">Why is there no safe order for the two writes?</label><textarea id="e22-order" data-field="order" placeholder="Because each order leaves a window after its first write, and the failure in that window leaves the systems disagreeing. Commit first and the job is missing; publish first and the job points at nothing. Only one write, in one transaction, has no window."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Steps 2 and 3, <strong>the horizon</strong>: pages per claim at the end of the hold, and when it fell behind</span>
+        <span class="field"><label for="e22-pages">pages per claim</label><input type="text" id="e22-pages" data-field="pages" placeholder="e.g. 884 at 400/s, 1647 at 1100/s"></span>
+        <span class="field"><label for="e22-tip">fell behind</label><input type="text" id="e22-tip" data-field="tip" placeholder="e.g. 40 s in, at 1100/s only"></span>
+        <span class="why-row"><label for="e22-headroom">Why did the same session hurt one run and not the other?</label><textarea id="e22-headroom" data-field="headroom" placeholder="Every claim got slower in both, in proportion to rows deleted since the session's snapshot. At 400 a second the consumers had three times the capacity needed, so the slower claim was absorbed. At 1100 they had almost none, so once the claim passed about 3.5 ms they fell behind and the backlog began to compound."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 4, <strong>fan-out</strong>: what the second reader of the queue saw, and of the log</span>
+        <span class="field"><label for="e22-q">queue</label><input type="text" id="e22-q" data-field="q" placeholder="e.g. 0 of 1000"></span>
+        <span class="field"><label for="e22-l">log</label><input type="text" id="e22-l" data-field="l" placeholder="e.g. 1000, rerun 1000"></span>
+        <span class="why-row"><label for="e22-which">Which broker does each need point you to, and why?</label><textarea id="e22-which" data-field="which" placeholder="Fan-out alone is a Pub/Sub topic with a subscription per reader. Fan-out plus replay, or ordered processing per key, is Kafka: a retained log with a position per consumer group. A copy per reader in a table works but couples every producer to every reader."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 5, <strong>the log in a table</strong>: events never read by id, and the safe reader's lag with a writer idle</span>
+        <span class="field"><label for="e22-lost">never read by id</label><input type="text" id="e22-lost" data-field="lost" placeholder="e.g. 583 of 2000"></span>
+        <span class="field"><label for="e22-lag">safe reader lag</label><input type="text" id="e22-lag" data-field="lag" placeholder="e.g. 2.3 s p50, idle writer"></span>
+        <span class="why-row"><label for="e22-id">Why is an id not a position, and what does the fix cost?</label><textarea id="e22-id" data-field="id" placeholder="An id is handed out at insert and a row becomes visible at commit, so a row with a lower id can appear after the reader has passed it. Reading only rows from transactions older than the oldest running one closes that, and makes every reader wait for the slowest open writer in the whole database."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">The decision: <strong>your first asynchronous boundary &#8212; table, Pub/Sub or Kafka &#8212; and the break point that would move you</strong></span>
+        <span class="field"><label for="e22-choice">choice</label><input type="text" id="e22-choice" data-field="choice" placeholder="e.g. table, for post-interview scoring"></span>
+        <span class="field"><label for="e22-move">would move at</label><input type="text" id="e22-move" data-field="move" placeholder="e.g. a second reader"></span>
+        <span class="why-row"><label for="e22-defend">Defend it against the other two</label><textarea id="e22-defend" data-field="defend" placeholder="A jobs table, enqueued in the transaction that writes the interview, so a run never exists without its scoring job. It has the headroom by orders of magnitude, and the idle-in-transaction timeout from 0019 covers its real failure. I would move to Pub/Sub the day a second service needs the same events, and to Kafka if it also needs replay."></textarea></span>
+      </div>
+    </div>
+
+    <div class="earned">
+      <span class="callout-label">The bullet this lesson earns</span>
+      <p>&#8220;Chose a transactional Postgres job queue over a broker for post-interview scoring after measuring the dual write it avoids: committing then publishing orphaned <span data-fill="orphan" class="placeholder">[run step 1]</span>, publishing then committing created <span data-fill="phantom" class="placeholder">[run step 1]</span>, and the same-transaction enqueue neither. Identified the break points that would move it to a log &#8212; fan-out, replay, and commit order, where an id-ordered reader never read <span data-fill="lost" class="placeholder">[run step 5]</span>.&#8221;</p>
+      <p class="caveat">Choosing <em>not</em> to add a broker is only a senior signal if you can name exactly what would change your mind. Have the three break points ready, and which product each one points to.</p>
+    </div>
+  </div>
+</div>
+
+<h2 id="underneath-0022">Underneath</h2>
+
+<div class="underneath">
+  <span class="callout-label">One layer down &#183; what a queue, a broker and a log each promise</span>
+
+  <p>Four things. The first is why two writes cannot be ordered safely, the second is why a queue slows down when it is empty, the third is the difference between a queue and a log, and the fourth is why a log in a table needs a rule that a log in Kafka does not.</p>
+
+  <h3>Two systems, two writes, and no order that survives both failures</h3>
+
+  <p>A write to Postgres and a write to a broker share nothing: no transaction, no lock, no common clock. Each order leaves a window after the first write, and each of the two failures measured here &#8212; the broker stalling, the producer dying &#8212; lands in one of the windows. Retrying the second write narrows its window and adds a new one, because the retry loop can die too.</p>
+
+  <div class="derive">
+    <p>Each order against each failure, measured across four runs:</p>
+    <span class="eq">order                  broker stalls 1.5 s        producer killed 12 times
+commit, then publish   20-24 runs with no job     5-8 runs with no job
+publish, then commit   0: failed publish rolls    2-6 jobs whose run never
+                       the run back               committed
+same transaction       0 and 0                    0 and 0</span>
+    <p>Publishing first looks safe until something other than the broker fails, which is why it is the order people defend. <b>The only row with no bad cell is the one with one write.</b> When a broker is unavoidable, the fix is to make it one write again &#8212; write the event to a table in the same transaction and have something relay the table to the broker. That is the outbox, and lesson 0027 builds it.</p>
+  </div>
+
+  <h3>A queue can be empty and still read a thousand pages per job</h3>
+
+  <p>brandur's 2015 diagnosis was that dead jobs pile up in the index while a long transaction is open: <em>&#8220;As dead tuples continue to accumulate in the index, Postgres enters a hot loop as it searches the B-tree, comes up with an invisible tuple, and repeats the process again and again,&#8221;</em> and <em>&#8220;every time a job is successfully worked a new dead tuple is left in the index, making the next job that much harder to lock.&#8221;</em> That article predates <code>SKIP LOCKED</code> by a release. The mechanism survives it, because <code>SKIP LOCKED</code> skips rows other sessions have locked, not rows that are dead.</p>
+
+  <div class="derive">
+    <p>The work per claim tracks rows deleted since the session's snapshot, not the backlog:</p>
+    <span class="eq">rate      held for   rows deleted since   pages per claim   claim p50       fell behind?
+400/s     40 s       about 16 000         884, or 90-160    1.5 -&gt; 1.7 ms   no
+                                           on a seq scan
+1100/s    40 s       about 44 000         1 162             1.9 -&gt; 3.4 ms   starting: 205 behind
+1100/s    60 s       about 66 000         1 647             1.9 -&gt; 4.8 ms   yes: 733/s, 4 400 behind
+either    closed     -                    6-197             back at once    -</span>
+    <p>The backlog in all of these was near zero. <b>The cost is paid per claim, grows with rate times time held, and only becomes visible when it exceeds your headroom.</b> Which means a queue with plenty of headroom hides the problem until traffic grows, and then fails on a day nothing changed except load. The fix is not a tuning knob on the queue: it is lesson 0019's timeout on every connection that can hold a transaction open.</p>
+  </div>
+
+  <h3>A queue is read once; a log is read by everyone, as often as they like</h3>
+
+  <p>Acknowledging a job deletes it, so a queue has exactly one reader per job and no history. The brokers are defined by which of those two they relax. Pub/Sub's documentation describes fan-out as a topic with several subscriptions, where <em>&#8220;each of the subscriber applications gets the same set of published messages from the topic,&#8221;</em> and it can replay, but only if you planned for it: <em>&#8220;to seek to a time in the past and replay previously-acknowledged messages, you must configure message retention on the topic, or configure the subscription to retain acknowledged messages.&#8221;</em> Kafka makes the log itself the thing: <em>&#8220;The consumer controls its position in this log,&#8221;</em> so fan-out and replay are the default rather than options.</p>
+
+  <div class="table-wrap">
+  <table>
+    <caption>The same three needs, and where each one is cheap. Choose on these, not on throughput.</caption>
+    <thead>
+      <tr><th></th><th>Job atomic with the write</th><th>Second reader</th><th>Rerun last week</th><th>New system to run</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><strong>Table queue</strong></td><td>Yes, same transaction</td><td>No: a copy per reader</td><td>No: rows deleted</td><td>None</td></tr>
+      <tr><td><strong>Pub/Sub</strong></td><td>No: needs an outbox</td><td>Yes: a subscription each</td><td>Only if retention was set first</td><td>Managed on GCP</td></tr>
+      <tr><td><strong>Kafka</strong></td><td>No: needs an outbox</td><td>Yes: a consumer group each</td><td>Yes: reset an offset</td><td>Brokers, partitions, operations</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>An id is handed out at insert and seen at commit</h3>
+
+  <p>A <code>bigserial</code> comes from a sequence, and the documentation is explicit that sequence changes are <em>&#8220;immediately visible to other transactions, and are not undone if the calling transaction rolls back.&#8221;</em> The row itself is visible only when its transaction commits. So ids are assigned in one order and become readable in another, and a reader that treats the highest id it has seen as a position will step over every row that was slower to commit than its neighbour. A plain Kafka producer does not have this problem, because the broker assigns the offset when it appends the record. A <em>transactional</em> one brings it straight back, and Kafka's answer is this lesson's: a <code>read_committed</code> consumer only reads up to the <em>&#8220;last stable offset (LSO), which is the one less than the offset of the first open transaction,&#8221;</em> so it <em>&#8220;will not be able to read up to the high watermark when there are in flight transactions.&#8221;</em></p>
+
+  <div class="derive">
+    <p>Two producers, and what each reader does with them:</p>
+    <span class="eq">time   producer A          producer B          by id                by committed txid
+t1     insert, gets id 1   -                   -                    -
+t2     -                   insert, gets id 2   -                    -
+t3     -                   commit              reads 2, at = 2      A still running: waits
+t4     commit              -                   id &gt; 2: nothing      reads 1, then 2
+                                               row 1 is never read</span>
+    <p>The fix uses the snapshot's <code>xmin</code>, which the documentation defines as the <em>&#8220;lowest transaction ID that was still active. All transaction IDs less than xmin are either committed and visible, or rolled back and dead.&#8221;</em> Read only rows written below it, in writer order, and nothing can later appear behind the reader. <b>The price is that one open writer anywhere in the database holds every reader</b> &#8212; over two seconds at the median in step 5 &#8212; and a lesson 0021 worker holding a lock through a model call is exactly such a writer. Kafka pays the same price per partition; a table log pays it for the whole database.</p>
+  </div>
+
+  <p class="lands">Which lands on the sentence worth keeping: <b>start with a table, because one write cannot disagree with itself; leave it when a second reader, a rerun, or ordered history is the requirement, and know which broker each of those points to.</b> Throughput is the reason people give, and it is the last one that arrives.</p>
+</div>
+
+<h2>Check yourself</h2>
+
+<div class="quiz" data-quiz-id="0022-q1">
+  <p class="q">During a 1.5&#8239;s broker stall, publishing the job first and committing the run second lost nothing, while committing first lost 20 to 24 runs. Why is publishing first still not safe?</p>
+  <ol class="options">
+    <li data-correct="true">A producer dying between publish and commit leaves orphan jobs</li>
+    <li>The broker delivers the job after its stall has ended</li>
+    <li>The run's transaction holds a lock the consumer waits on</li>
+    <li>Publishing first doubles the load on the whole database server</li>
+  </ol>
+  <div class="why">
+    <p>Each order has a window after its first write. Publishing first survives a broker failure because a failed publish can roll the run back, but a producer killed after its publish and before its commit leaves a job for a run that never existed: 2 to 6 of them in twelve kills across four runs. Swapping the order moves the window; it does not remove it.</p>
+    <p>The distractors describe things that did not happen: in this lab the paused broker never executed the abandoned pushes, nothing waited on the run's lock, and the order of two writes does not change how many there are. Only one write in one transaction has no window at all.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0022-q2">
+  <p class="q">A reader tails a log table with <code>WHERE id &gt; :last ORDER BY id</code> while several producers commit concurrently. It raises no errors and never read <strong>583 of 2&#8239;000</strong> events. What happened to them?</p>
+  <ol class="options">
+    <li data-correct="true">They committed after rows with higher ids were already read</li>
+    <li>They were rolled back and their ids were then reused</li>
+    <li>They were removed by vacuum before the reader ever arrived</li>
+    <li>They exceeded the batch size limit and were quietly dropped</li>
+  </ol>
+  <div class="why">
+    <p>An id is taken from the sequence when the row is inserted, and the row becomes visible when its transaction commits. A producer that inserted first and committed second leaves its row behind a higher id the reader has already passed, and <code>id &gt; :last</code> will never look back. The rows are all there, committed, and unread.</p>
+    <p>Sequence values are never reused, vacuum does not remove live rows, and a batch limit only defers rows to the next read. The fix is to read only rows written by transactions older than every running one, ordered by writer &#8212; at the cost of waiting for the slowest writer in the database.</p>
+  </div>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">A spoken answer to <em>&#8220;your background scoring is lost if the pod dies. What would you add?&#8221;</em> Read it aloud, then say it again with the page covered.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">Scoring runs in-process, so a pod restart loses it. It needs a durable queue, and we already run Postgres.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">A broker makes every job a second write to a second system. Commit first and a failure loses the job; publish first and a failure leaves a job for nothing.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">I measured both. Committing first orphaned <b>20 to 24 runs</b> on one short broker stall, and publishing first left jobs for runs that never committed.</p>
+      <p class="line">A jobs table in the same transaction had <b>zero of either</b>. So I would start there, with an idle-transaction timeout, because one open session made every claim read over a thousand pages.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">A queue has one reader and no history. The day a second service needs the events, that is Pub/Sub; if it needs replay too, Kafka.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;Postgres isn&#8217;t a queue, so we&#8217;d put Pub/Sub in front of the scoring.&#8221;</span> The follow-up is <em>&#8220;how does the job get into Pub/Sub if the interview write fails?&#8221;</em>, and the honest answer is that it does, or does not, depending on which write happened first. You have added a system and a consistency problem to solve a durability problem. The version that holds: <span class="quoted">&#8220;a jobs table in the same transaction, until a second reader or replay needs a log.&#8221;</span></p>
+  <p>The second trap is building the log yourself and tailing it by id. It works in every test with one producer, and with eight it skipped more than a quarter of the events. If you propose a table log, say how the reader avoids commit-order gaps before anybody asks.</p>
+</div>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;Why not just use Pub/Sub? You&#8217;re on GCP already.&#8221;
+      <span class="tell">The opener. It tests whether you can argue against the default on something other than cost.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Because the job would stop being atomic with the write that causes it. I measured the dual write: committing the interview and then publishing orphaned <strong>20 to 24 runs</strong> during one 1.5-second broker stall, and publishing first left jobs for runs that never committed when the producer was killed. A jobs table in the same transaction had zero of either in every run.</p>
+        <p>Pub/Sub is the right answer the day a second service needs the same events &#8212; that is a subscription each, and a table queue cannot do it. Until then it adds a system and a consistency problem to solve a durability problem.</p>
+        <span class="invites">Invites &#183; <b>&#8220;And when you do need Pub/Sub?&#8221; &#8212; write to a table in the transaction and relay it: the outbox, lesson 0027.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Doesn&#8217;t a Postgres queue fall over under load?&#8221;
+      <span class="tell">The folklore question. The strong answer names the actual failure, which is not load.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Not from throughput first &#8212; four consumers claimed 1&#8239;100 a second on a laptop. What kills it is an open transaction elsewhere. Every job deleted after that transaction's snapshot stays in the index, so each claim walks past them: one idle session took claims from <strong>a few pages to over 1&#8239;600</strong> on a queue that was nearly empty.</p>
+        <p>With headroom that is invisible. At 1&#8239;100 a second the median claim went from 1.9 to 4.8&#8239;ms and the consumers fell up to 4&#8239;400 jobs behind; closing the session fixed it within ten seconds. So the defence is an idle-in-transaction timeout on every pool, plus an alert on the oldest transaction's age, not a bigger database.</p>
+        <span class="invites">Invites &#183; <b>&#8220;How did you find the idle session?&#8221; &#8212; lesson 0019's pg_stat_activity query.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Could you use the same table for the audit service as well?&#8221;
+      <span class="tell">A fan-out question in disguise. The test is whether you know a queue has one reader.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Not as a queue: the scorer deletes each job as it finishes, and the audit reader got <strong>0 of 1&#8239;000</strong>. A copy per reader works, doubling writes and deletes and coupling every producer to every reader.</p>
+        <p>What it needs is a log: append-only, never deleted, with a position per reader, which gave both 1&#8239;000 and made a rerun free. I can build that in a table, but it needs a careful reader, and this is the point where I would seriously consider Pub/Sub &#8212; or Kafka if replay matters.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What is careful about the reader?&#8221; &#8212; ids are not commit order.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;You have an events table with a serial id. Why can&#8217;t consumers just remember the last id they read?&#8221;
+      <span class="tell">Sounds trivial. It is the question that separates having built one of these from having read about it.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Because an id is handed out at insert and the row becomes visible at commit. A producer that inserts first and commits second leaves its row behind a higher id the reader has already passed, and it is never read. With eight producers, <strong>324 to 709 of 2&#8239;000</strong> events were skipped, silently, across nine runs.</p>
+        <p>The fix is to read only rows written by transactions older than the snapshot's <code>xmin</code>, ordered by transaction id then row id, because nothing can be added below that. It missed nothing, and its cost is that one open writer anywhere holds every reader &#8212; over two seconds in the lab.</p>
+        <span class="invites">Invites &#183; <b>&#8220;How does Kafka avoid it?&#8221; &#8212; the broker assigns the offset at append, in order.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;So when would you move to Kafka?&#8221;
+      <span class="tell">The closing question. A list of features loses; three conditions, each tied to something you measured, wins.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>When I need a log rather than a queue and the table version&#8217;s costs start to bite. Replay: rescoring every stored interview against a changed rubric. Several independent readers, each at its own pace. Ordered history per key.</p>
+        <p>And the price of the table log is what pushes it: its safe reader waits for the slowest writer in the database, so a single slow transaction stalls every consumer. Kafka gives those three without that coupling, and costs brokers, partitions and operations I do not run today. For fan-out alone, Pub/Sub is enough.</p>
+        <span class="invites">Invites &#183; <b>&#8220;And the job still has to get into Kafka atomically?&#8221; &#8212; yes: an outbox table, lesson 0027.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="primary-source">
+  <span class="callout-label">Read this next &#8212; one source, not ten</span>
+  <span class="title"><a href="https://brandur.org/postgres-queues" target="_blank" rel="noopener">brandur &#8212; Postgres Job Queues &amp; Failure By MVCC (2015)</a></span>
+  <p>The best account of both halves of this lesson, by someone who ran a Postgres queue in production and watched it die. Read <em>Why put a job queue in Postgres?</em> for the transactional argument in its original form, then <em>Dead tuples</em> and <em>Descending the B-tree</em> for the mechanism steps 2 and 3 reproduce. It was written before <code>SKIP LOCKED</code> existed; the measurement here says the mechanism survived it, and that closing the session recovers the queue almost at once.</p>
+  <p class="cite">Read it against the Postgres documentation's <a href="https://www.postgresql.org/docs/17/functions-info.html" target="_blank" rel="noopener">snapshot functions</a>, where <code>xmin</code> is defined, and Google's <a href="https://cloud.google.com/pubsub/docs/pubsub-basics" target="_blank" rel="noopener">Pub/Sub overview</a> for fan-out. The commit-order skip in step 5 is measured here; the reader that avoids it is this lesson's, and the principle it rests on is the documentation's definition of <code>xmin</code>.</p>
+</div>
+
+<h2>Recall &#8212; from lessons 0019, 0020 and 0021</h2>
+
+<div class="recall">
+  <details>
+    <summary>0019 measured one idle session stopping vacuum on a table of updates. Why is a queue table the worst possible table for that to happen to?</summary>
+    <p class="answer">Because it churns faster than anything else and is read in a way that walks straight through the garbage. Every job is inserted and deleted within seconds, so at 1&#8239;100 jobs a second one idle session accumulates 66&#8239;000 dead rows a minute that nothing may remove. And the claim is an index scan from the lowest id, which is exactly where the dead entries are, so every claim pays for all of them: a few pages became over 1&#8239;600 on a queue that was nearly empty. In 0019 the same mechanism made a table larger and one query read more buffers. Here it makes the thing that drains the queue slower in proportion to how busy the queue is, which is a feedback loop, and it tipped the consumers over within a minute. The remedy is 0019's, unchanged: <code>idle_in_transaction_session_timeout</code> on every pool, and an alert on the age of the oldest transaction.</p>
+    <span class="from">lesson 0019 &#183; the snapshot nobody closed</span>
+  </details>
+  <details>
+    <summary>0020 found that an idle test of a replica passed only because the client was slow. What was this lesson's version of a test that passes for the wrong reason?</summary>
+    <p class="answer">The id-ordered log reader. With one producer, or producers that commit instantly, every row commits in id order and <code>WHERE id &gt; :last</code> is correct &#8212; the test passes, and it passes because the concurrency that causes the skip is absent, not because the reader is right. With eight producers holding their transactions for a few milliseconds it never read 324 to 709 of 2&#8239;000. The shape is 0020's exactly: a race between two things, where the test environment happens to make one of them always win. The tests in this lesson build the losing order by hand, with two connections, for that reason: a test that waits for concurrency to produce the bug passes whenever it does not.</p>
+    <span class="from">lesson 0020 &#183; the read that beat its own write</span>
+  </details>
+  <details>
+    <summary>0021's <code>same-tx</code> strategy was the only one besides a keyed receiver with zero duplicates. What does this lesson add to why?</summary>
+    <p class="answer">That it is the consumer-side half of the same property this lesson is built on. In 0021 the effect and the acknowledgement committed together, so a crash could not separate them. Here the job and the write that caused it commit together, so a crash cannot separate those either &#8212; zero runs without a job, zero jobs without a run, across both failures. Both are one write in one transaction, and both disappear the moment the other side is a different system: an external effect in 0021 needs a receiver's key, and a broker here needs an outbox. The general rule is Kafka's own, quoted in 0021: store the position <em>&#8220;in the same place as its output.&#8221;</em> A table queue is the case where the input, the output and the position can all be in one place, which is the entire argument for starting with one.</p>
+    <span class="from">lesson 0021 &#183; stuck or twice</span>
+  </details>
+</div>
+
+<div class="ask">
+  <p><strong>The result I would most like checked is step 3.</strong> It says a Postgres queue fails from lost headroom rather than from load, and recovers as soon as the idle session ends. That is one laptop, one queue table and four consumers. If you have a production Postgres with any long-running transactions &#8212; a report, a migration, a forgotten console &#8212; look at how many rows your busiest table deletes per second while they are open.</p>
+  <p>Ask me anything that was unclear, especially the <code>xmin</code> rule in step 5: it is short enough to write on a whiteboard, and why it is correct takes one sentence from the documentation, but the sentence is worth understanding rather than memorising.</p>
+  <p>The redraw experiment from lesson 0014 is still open. This diagram is at twelve marks.</p>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">Where this lands on the r&#233;sum&#233;</span>
+  <p>This lesson teaches the mechanism from first principles and breaks it in a lab. The chapters opposite defend the stack line with no messaging layer, and the batch pipeline that is a queue in all but name.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../resume-mastery/lessons/0011-infrastructure.html">RM 0011 &#183; Infrastructure</a>
+      <span class="bridge-why">&#8220;No messaging&#8221; is the first gap that chapter volunteers, and on GKE Pub/Sub is the default a table has to beat.</span>
+    </li>
+    <li class="bridge-row">
+      <a href="../../resume-mastery/lessons/0019-2d-to-3d-reconstruction.html">RM 0019 &#183; 2D to 3D reconstruction</a>
+      <span class="bridge-why">A hundred objects is a hundred independent runs behind a queue, a retry and a quality gate.</span>
+    </li>
+  </ol>
+</div>
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0021-stuck-or-twice.html">&#8592; 0021 &#183; Stuck or twice</a></span>
+  <span><span class="dir">Index</span><a href="index.html">All lessons &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

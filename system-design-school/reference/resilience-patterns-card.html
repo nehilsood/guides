@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>Resilience Patterns Card</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <script src="../assets/theme.js"></script>
+</head>
+<body>
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="../lessons/index.html">System Design School</a>
+    <span class="sep">/</span>
+    <span>Reference</span>
+    <span class="sep">/</span>
+    <span>from lessons 0010&#8211;0014</span>
+  </div>
+  <h1>Resilience Patterns Card</h1>
+  <p class="standfirst">Six controls, what each one actually bounds, and the threshold you have to be able to defend for it. Every number here was measured in a lesson; nothing on this sheet is introduced here.</p>
+</header>
+
+<h2>Which lever?</h2>
+
+<p>The question an interviewer is really asking is never &#8220;do you know what a circuit breaker is&#8221;. It is <em>whose problem does this solve, and what does it cost the people it does not help</em>. Six rows, and the last column is the one most answers leave out.</p>
+
+<div class="table-wrap">
+<table class="verdict">
+  <thead><tr><th>Control</th><th>Protects</th><th>Bounds</th><th>Costs you</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Retry budget</strong></td><td>The upstream</td><td>Total retry count</td><td>Retries you wanted, during a real blip</td></tr>
+    <tr><td><strong>Circuit breaker</strong></td><td>You</td><td>Latency spent on a dead dependency</td><td>Calls that would have worked</td></tr>
+    <tr><td><strong>Deadline</strong></td><td>The request</td><td>Total wall clock, composably</td><td>Late answers, converted into failures</td></tr>
+    <tr><td><strong>Bulkhead</strong></td><td>Your other work</td><td>Concurrent calls &#8212; never duration</td><td>Queueing that your timeouts cannot see</td></tr>
+    <tr><td><strong>Admission control</strong></td><td>You</td><td>Your own queue, and so your p99</td><td>Requests you refuse, and must rank</td></tr>
+    <tr><td><strong>Idempotency key</strong></td><td>Correctness</td><td>How many times a retry applies</td><td>A write before every write, and a row to keep</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>The division that unlocks the rest:</strong> a breaker and a retry budget protect the <em>upstream</em> from you. Admission control and shedding protect <em>you</em> from your callers. A deadline protects the <em>request</em> from all of them. Answers that blur these sound fluent and fall apart on the second question.</p>
+
+<h2>Retry arithmetic</h2>
+
+<p>Three shapes, and only one of them is the famous number. <strong>Serial stages add; nested layers multiply.</strong> The exponent is the nesting depth of retry logic, not the number of stages.</p>
+
+<pre class="code" style="max-width:66ch;font-family:var(--mono);font-size:12.5px;padding:12px 15px;border:1px solid var(--rule);background:var(--surface-2);overflow-x:auto">shape                        predicted   measured
+serial, halts on failure             3          3
+serial, every stage flaky           15         15
+nested, retry at each layer        243        243
+                                   ^^^
+      3**5 — five layers deep, not five stages wide.
+      The nesting you did not write is the SDK's: provider
+      SDK inside your wrapper inside your own loop is 27x.</pre>
+
+<ul>
+  <li><strong>Attempt count is set by the tail, and at the tail it is one.</strong> <code>nT + (n&#8722;1)&#183;base &#8804; slice</code>. For a 1 600&#8239;ms slice at 200&#8239;ms base: three attempts need <code>T &#8804; 433&#8239;ms</code>, two need <code>T &#8804; 750&#8239;ms</code>. Measured stage latency was p50 387, p90 670, p99 1 042 &#8212; so three attempts fit at the median, two at p90, <strong>one at p99</strong>. The requests slow enough to want a retry are the ones with no room for it. Those get a hedge or a fallback.</li>
+  <li><strong>The retry window is the quantity nobody writes down:</strong> the total wall clock the attempts span. Full jitter averages <code>backoff/2</code>, so it halves the window &#8212; which against a fixed-duration outage means giving up early. Measured against a 4&#8239;s outage: no jitter completed 49 of 49 with a 5 000&#8239;ms window; full jitter completed <strong>3 of 49</strong> with 2 507&#8239;ms. Jitter decides arrival shape; the window decides outage survival.</li>
+  <li><strong>Only a budget bounds the count.</strong> A token bucket at ~10&#8239;% of request rate, per dependency and shared across call sites &#8212; not per call site, because the amplification comes from the number of call sites.</li>
+</ul>
+
+<h2>Thresholds you have to defend</h2>
+
+<p>For each of these the interview question is <em>&#8220;where did that number come from?&#8221;</em> and &#8220;it is the default&#8221; is a losing answer. One line each, saying what it is derived from.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Threshold</th><th>Derived from</th><th>What it looks like when wrong</th></tr></thead>
+  <tbody>
+    <tr><td>Breaker open threshold</td><td>The error budget. 99.9&#8239;% over 30 days is 43.2 min; a 10-min outage is 23.1&#8239;% of it.</td><td>Opens on normal noise, or never opens at all.</td></tr>
+    <tr><td>Minimum-sample gate</td><td>The smallest window where a rate means anything. Over one sample it is 0&#8239;% or 100&#8239;%.</td><td>One failure at process start refused <strong>100 healthy requests</strong>. Never reproduces in a load test.</td></tr>
+    <tr><td>Half-open probes</td><td>Exactly one. It is an experiment, not a recovery.</td><td>Every caller tests recovery at once and re-creates the outage.</td></tr>
+    <tr><td>Retry attempts</td><td><code>nT + (n&#8722;1)&#183;base &#8804; slice</code>, evaluated at p99 rather than p50.</td><td>The third attempt starts with no room and returns after anyone cared.</td></tr>
+    <tr><td>Queue depth</td><td>Little's law. <code>L = &#955;W</code>, so <code>W = L / served-per-second</code>.</td><td>16 &#247; 21 = 762&#8239;ms of waiting. Depth 256 is twelve seconds against an eight-second budget.</td></tr>
+    <tr><td>Key lifetime</td><td>The longest retry window <em>any</em> client can produce &#8212; usually a human, not a service.</td><td>Pruned inside the window, the duplicate applies twice with the unique index working perfectly.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>A breaker is a failure detector, not a latency detector</strong>, unless timeouts are recorded as failures. Measured: a dependency that answered every call correctly and late held the failure rate at 0&#8239;%, the breaker never moved, and 100 requests blew the stage budget. Counting the timeout as a failure turned that into 25 over-budget and 99 refused. And the estimator is the component that matters, not the three states: on identical traffic, a sliding window opened after 25 failures and an EWMA at &#945;=0.1 after <strong>7</strong>.</p>
+
+<h2>What to shed first</h2>
+
+<p><strong>Ordering does not change how many you serve &#8212; capacity already decided that. It changes only which ones.</strong> Four policies at the same offered load served 247, 234, 246 and 247 of 576. Under FIFO, interactive requests got 132 of 311; under a priority floor, <strong>230 of 311</strong>, with retries dropping from 67 to 3 of 161.</p>
+
+<ol>
+  <li><strong>Health checks, always.</strong> Fail these and the load balancer removes you, which in a brownout is the last thing you want.</li>
+  <li><strong>Whatever lets work already begun finish.</strong> <code>end()</code> before <code>start()</code>, page four before page one &#8212; otherwise clients cannot complete what they started and you get a brownout anyway.</li>
+  <li><strong>Interactive before batch.</strong> A late token in a live session is worthless; a batch job does not care.</li>
+  <li><strong>Retries last.</strong> That one is an argument rather than a citation: a retry is the only request whose caller has already been told to come back and has a budget for doing so. The weakness is that the signal is self-reported, which is why this classification belongs at the edge.</li>
+</ol>
+
+<p><strong>Price admission in tokens, not requests.</strong> Measured: one tenant sending 17&#8239;% of requests consumed <strong>65&#8239;% of the capacity</strong>, because prefill is roughly linear in prompt length. Per-tenant buckets took the quiet tenant from 395 to <strong>480 of 480 served</strong> and her p50 from 498&#8239;ms to 88. Sizing trap: <em>the burst must exceed your largest single request</em>, or that request is refused forever rather than throttled.</p>
+
+<p><strong>And check the right thing on dequeue.</strong> &#8220;Has the deadline passed?&#8221; discarded <strong>0 of 576</strong> &#8212; a request with 166&#8239;ms left is not expired and still cannot finish a 380&#8239;ms call. <code>fits(estimate)</code> discarded 92 and served 30 more.</p>
+
+<h2>Idempotency checklist</h2>
+
+<p>Exactly-once does not exist: a sender cannot tell a lost request from a lost response, so it retries, so the receiver must deduplicate. Effectively-once is dedupe plus a repeatable apply.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Decision</th><th>The answer</th><th>Why it is not the obvious one</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Key</strong></td><td>Client-minted UUID, before the first attempt</td><td>Not a payload hash &#8212; two identical charges are two charges.</td></tr>
+    <tr><td><strong>Scope</strong></td><td>Tenant + operation, never global</td><td>A key minted for <code>cancel</code> must not satisfy <code>confirm</code>.</td></tr>
+    <tr><td><strong>Fingerprint</strong></td><td>Hash of the request, stored beside the key; sort the fields first</td><td>Same key, different body is a client bug &#8212; reject it, never replay.</td></tr>
+    <tr><td><strong>Lifetime</strong></td><td>Longer than any client's retry window</td><td>A correctness parameter. No index catches a key that is already gone.</td></tr>
+    <tr><td><strong>Order</strong></td><td>Insert first, catch the violation</td><td>Read-then-write leaves a window. The database is the only atomic check.</td></tr>
+    <tr><td><strong>States</strong></td><td>absent / <code>in_progress</code> / <code>succeeded</code></td><td>Without the middle one the loser cannot tell &#8220;done&#8221; from &#8220;being done&#8221;.</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p><strong>The measurement to remember:</strong> sixteen concurrent duplicates through read-then-write with no constraint applied <strong>16 of 16</strong>, with zero errors raised. Adding the unique index made it correct and returned <strong>15 user-visible 500s</strong> on legal retries. Inverting the two statements gave <strong>1 apply and 0 errors</strong> &#8212; same index, same fifteen collisions, different code expecting them. It breaks from <strong>two</strong> concurrent duplicates, not &#8220;under load&#8221;.</p>
+
+<h2>The order to reach for them</h2>
+
+<ol>
+  <li><strong>Deadline first.</strong> Nothing else composes, and every other control needs to know how much time is left.</li>
+  <li><strong>Then a retry budget</strong> rather than a breaker, unless you specifically need to fail at 0&#8239;ms so a fallback gets the remaining deadline, or to cover first attempts rather than only retries. The Builders' Library recommends the bucket <em>instead of</em> a breaker, and being able to say why is worth more than having built one.</li>
+  <li><strong>Then admission control</strong>, sized from Little's law rather than by feel. It will not raise your goodput &#8212; measured 44&#8239;% &#8594; 43 &#8212; and it cut p99 from 7 998&#8239;ms to 1 711.</li>
+  <li><strong>Then idempotency</strong>, because everything above increases the number of duplicate and partially-completed requests in flight. A deadline that cuts a turn off mid-pipeline manufactures partial failures at a known rate: 26 turns in 200.</li>
+</ol>
+
+<div class="ask">
+  <p>Companion sheets: <a href="latency-numbers.html">Latency Reference Card</a>, <a href="interview-probes.html">Interview Probes</a>. Lessons: <a href="../lessons/0010-backoff-with-jitter.html">0010</a>, <a href="../lessons/0011-the-breaker-you-have-to-defend.html">0011</a>, <a href="../lessons/0012-timeout-budgets-and-deadline-propagation.html">0012</a>, <a href="../lessons/0013-admit-queue-or-shed.html">0013</a>, <a href="../lessons/0014-idempotency-is-a-key-and-a-clock.html">0014</a>.</p>
+</div>
+
+</div>
+</body>
+</html>

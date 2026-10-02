@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>p50 Is a Lie</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0002">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">System Design School</a>
+    <span class="sep">/</span>
+    <span>Tier 1 · Caching &amp; latency</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Lesson 0002</span>
+    <span class="sep">/</span>
+    <span>no Docker needed</span>
+  </div>
+  <h1>p50 Is a Lie</h1>
+  <p class="standfirst">Your own prep notes already flag this one: <em>“median with a stated hard budget invites the p95/p99 question immediately.”</em> This lesson goes further than answering that question. You are going to freeze your gateway for two seconds and watch a standard load generator report that nothing happened.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>You will cause a measurable 2-second outage, measure it two different ways on the same server, and see one of the measurements miss it by 13×. After this you will never quote a percentile without saying how it was gathered.</p>
+</div>
+
+<div class="anchor-box">
+  <span class="callout-label">Why you, specifically</span>
+  <blockquote>“<strong>2.1 s median TTFW</strong> — median with a stated hard budget invites the p95/p99 question immediately.”<br><span class="cite">— your own <code>interview-prep.md</code>, soft spot #3</span></blockquote>
+  <p>You already know the question is coming. What that note does not yet say is the harder half: even if you <em>have</em> a p99, it is probably wrong, and wrong in the flattering direction. The tool that produced it almost certainly stopped taking samples exactly when your service was at its worst.</p>
+  <p>That sentence is defended in full in <a href="../../resume-mastery/lessons/0002-llm-gateway-and-streaming.html">chapter 0002 of R&#233;sum&#233; Mastery</a> &#8212; this lesson is where the mechanism underneath it gets built and broken.</p>
+</div>
+
+<div class="primer">
+  <span class="callout-label">Start here — the plain version</span>
+  <p>Time a thousand requests, then sort the timings from fastest to slowest. The one in the
+  middle is the <b>median</b>, also called <b>p50</b>. The one 99% of the way along is <b>p99</b> —
+  only one request in a hundred was slower than that. These are <b>percentiles</b>, and they are
+  how latency is reported, because a single average hides everything interesting.</p>
+  <p>Then the twist, which is the actual lesson. The tool you use to produce those numbers is
+  probably lying to you, and lying in the flattering direction. Most load generators wait for a
+  reply before sending the next request — so when your server freezes, the generator stops asking,
+  records nothing during the freeze, and reports that nothing happened. The freeze is real and
+  your users felt it. Your graph is clean.</p>
+  <dl>
+    <dt>Percentile</dt>
+    <dd>Sort every timing, then pick a position. <b>p95 = 400 ms</b> means 95% of requests
+    finished in under 400 ms.</dd>
+
+    <dt>Median (p50)</dt>
+    <dd>The middle timing. Describes the typical request — which is the one nobody ever
+    complains about.</dd>
+
+    <dt>Tail</dt>
+    <dd>The slowest few percent. Where all the complaints, timeouts and breached budgets live.</dd>
+
+    <dt>Long tail</dt>
+    <dd>Latency is lopsided, not a bell curve: a firm floor, a dense middle, and a few requests
+    far slower than the rest. So the p99 can sit several times above the median.</dd>
+
+    <dt>Coordinated omission</dt>
+    <dd>The measurement bug in this lesson. Your load generator pauses while the server is
+    stalled, so the stall's slow requests are never recorded and the percentiles come out far too
+    good. Named by Gil Tene.</dd>
+
+    <dt>Closed-loop</dt>
+    <dd>A load generator that sends the next request only after the last one comes back. It
+    throttles itself exactly when the server is struggling — which is what causes the bug above.</dd>
+
+    <dt>Open-loop</dt>
+    <dd>A load generator that sends at a fixed rate regardless of whether replies arrive. It keeps
+    demanding while the server is stalled, so the stall shows up.</dd>
+
+    <dt>Nearest-rank</dt>
+    <dd>Reporting a percentile by picking a real measured value, rather than averaging between two
+    of them. Averaging invents a number nobody observed, precisely in the region you care about.</dd>
+  </dl>
+</div>
+<h2>Why the median is the wrong statistic</h2>
+
+<p>A median tells you about the typical request. Nobody complains about the typical request. In a system with a hard ceiling, the only interesting question is <em>how often do we breach</em>, and the median is the one statistic mathematically guaranteed to tell you nothing about that — it discards the entire upper half of the distribution by construction.</p>
+
+<p>Worse, request latency is not symmetric. It is roughly lognormal: a firm floor set by real work, a dense middle, and a long right tail. In a distribution shaped like that the mean sits above the median and the p99 can sit multiples above both. Google's SRE book puts it plainly — <em>“a typical request is served in about 50 ms, 5% of requests are 20 times slower.”</em></p>
+
+<div class="note">
+  <span class="callout-label">The arithmetic that surprises people</span>
+  <p>If one turn needs five sequential calls and each has a p99 of 200 ms, the turn's p99 is <strong>not</strong> 200 ms. Roughly speaking, the chance that all five avoid their own tail is <code>0.99⁵ ≈ 0.951</code> — so about <span class="num">5%</span> of turns hit at least one slow hop. Your five-stage pipeline turns a rare event into a common one. Tail latency compounds along the critical path, and that is the single most useful thing on this page.</p>
+</div>
+
+<h3>Nearest-rank, not interpolated</h3>
+
+<p>A small but load-bearing detail. There are several definitions of “percentile”, and some interpolate between adjacent samples. With a fat tail, interpolating between your top two observations produces a figure <em>nobody measured</em> — an invented number describing the only part of the distribution anyone is arguing about. The load generator in the anchor repo uses nearest-rank, <code>ceil(q/100 × N) − 1</code>, and there is a test asserting it never returns an unobserved value.</p>
+
+<div class="aside">
+  <span class="callout-label">A bug found while building this lesson</span>
+  <p>The first version of that function used Python's <code>round()</code>. Python rounds half to even, so <code>round(99.5)</code> is <code>100</code>, and for any run of exactly 100 samples the tool reported the <em>maximum</em> as p99. The test in <code>tests/test_load_math.py</code> caught it. Measurement code needs tests exactly as much as the code being measured.</p>
+</div>
+
+
+
+<h2>Coordinated omission</h2>
+
+<p>Here is the failure that matters, and it is a property of the <em>measuring tool</em>, not the system under test.</p>
+
+<p>Almost every load generator works in a <strong>closed loop</strong>: spin up N workers, each in a tight cycle of <em>send a request, wait for the response, send the next one</em>. It is the obvious design. It is also the reason your percentiles are wrong.</p>
+
+<p>Consider a server that freezes for 2 seconds. In a closed loop with 6 workers, all 6 are blocked inside a request when the freeze begins. They record 6 slow samples. Then they resume. During the freeze the generator <strong>issued no new requests at all</strong> — it was waiting, politely, in lockstep with the outage. The 2-second stall contributes exactly 6 data points, no matter how long it lasted.</p>
+
+<p>A real user population does not wait politely. Requests keep arriving throughout the freeze, and every one of them experiences it. The correct model is an <strong>open loop</strong>: schedule requests at a fixed arrival rate, fire them whether or not earlier ones have returned, and measure each from the moment it was <em>due</em> — not from when a worker happened to be free.</p>
+
+<p>Gil Tene named this <em>coordinated omission</em>: the measurement omits exactly the samples that mattered, and it does so in coordination with the system's own bad behaviour.</p>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 412" role="img" aria-labelledby="mech0002-t mech0002-d">
+    <title id="mech0002-t">Why a closed-loop load generator cannot see a two-second freeze</title>
+    <desc id="mech0002-d">During an identical two-second freeze, six closed-loop workers each contribute exactly one slow sample, so six of twelve hundred samples are bad and p99 stays clean at 149 milliseconds. An open-loop generator keeps issuing at eighty requests per second, so about 160 samples are affected and p99 reports 1934 milliseconds.</desc>
+    <defs>
+      <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+    </defs>
+
+    <!-- MARK 1 · the freeze. Two bands rather than one full-height block, so
+         nothing the reader has to read sits underneath a tinted rectangle. -->
+    <text x="300" y="24" class="mono ink-bad">the server is frozen &#183; 2 s &#183; the identical freeze in both runs below</text>
+    <rect x="300" y="64" width="240" height="76" class="bad"/>
+    <rect x="300" y="272" width="240" height="46" class="bad"/>
+
+    <!-- MARK 2 · closed loop: workers stall WITH the server -->
+    <text x="20" y="54" class="strong">closed loop &#8212; 6 workers, each sends again only when the last one returns</text>
+    <path d="M20,80 L300,80" class="flow"/>
+    <path d="M300,80 L540,80" class="flow-bad"/>
+    <path d="M540,80 L806,80" class="flow" marker-end="url(#a2)"/>
+    <path d="M20,102 L300,102" class="flow"/>
+    <path d="M300,102 L540,102" class="flow-bad"/>
+    <path d="M540,102 L806,102" class="flow" marker-end="url(#a2)"/>
+    <path d="M20,124 L300,124" class="flow"/>
+    <path d="M300,124 L540,124" class="flow-bad"/>
+    <path d="M540,124 L806,124" class="flow" marker-end="url(#a2)"/>
+    <text x="20" y="162" class="lbl-dim">&#215; 6 workers &#8212; all six lines identical</text>
+    <text x="20" y="184" class="lbl ink-bad">Each worker's in-flight request stretches across the whole freeze, then it sends again. So each worker contributes <tspan class="strong">exactly one</tspan> slow sample &#8212;</text>
+    <text x="20" y="202" class="lbl ink-bad">and for those two seconds <tspan class="strong">nothing new is ever asked</tspan>.</text>
+    <text x="20" y="226" class="num ink-bad">6 bad samples of 1200 = 0.5 %</text>
+    <text x="240" y="226" class="lbl-dim">so it cannot show below p99.5 &#183; p99 reads 149 ms, and only p99.9 sees it at 2058</text>
+
+    <!-- MARK 3 · open loop: arrivals do not care that the server is stuck -->
+    <text x="20" y="262" class="strong">open loop &#8212; 80 requests/second, issued on schedule regardless</text>
+    <path d="M20,278 L806,278" class="flow-dim"/>
+    <path d="M20,288 L20,308" class="flow"/>
+    <path d="M80,288 L80,308" class="flow"/>
+    <path d="M140,288 L140,308" class="flow"/>
+    <path d="M200,288 L200,308" class="flow"/>
+    <path d="M260,288 L260,308" class="flow"/>
+    <path d="M320,288 L320,308" class="flow-bad"/>
+    <path d="M380,288 L380,308" class="flow-bad"/>
+    <path d="M440,288 L440,308" class="flow-bad"/>
+    <path d="M500,288 L500,308" class="flow-bad"/>
+    <path d="M560,288 L560,308" class="flow"/>
+    <path d="M620,288 L620,308" class="flow"/>
+    <path d="M680,288 L680,308" class="flow"/>
+    <path d="M740,288 L740,308" class="flow"/>
+    <text x="20" y="340" class="num ink-good">~160 affected of 1200 = 13 %</text>
+    <text x="240" y="340" class="lbl-dim">2 s &#215; 80/s, so it shows as early as p90 &#183; p99 reads 1934 ms</text>
+    <text x="20" y="360" class="lbl">Arrivals keep landing, and each one's latency is measured from when it was <tspan class="strong">due</tspan> &#8212; not from when a free worker got to it.</text>
+
+    <!-- MARK 4 · the gap -->
+    <path d="M20,378 L806,378" class="rule"/>
+    <text x="20" y="400" class="lbl">Same server, same freeze, same 1200 requests. <tspan class="strong ink-bad">closed-loop p99 = 149 ms</tspan> against <tspan class="strong ink-good">open-loop p99 = 1934 ms</tspan> &#8212; under-reported <tspan class="strong">13&#215;</tspan>.</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">Say this while you draw it</span>
+    <ol class="narrate">
+      <li>Draw the <b>freeze</b> as a tall band down the middle. Both runs hit exactly this, which is what makes the comparison fair.</li>
+      <li>Top: a few worker lines whose <b>in-flight request stretches all the way across the band</b>. A closed-loop worker sends again only when the previous one returns — so while the server is stuck, <b>nothing new is ever asked</b>.</li>
+      <li>Say the arithmetic, because it is the mechanism: <b>each worker contributes exactly one slow sample</b>. Six workers, six bad samples, out of 1200. <b>0.5 %</b> — so it cannot appear until p99.5, and p99 reads a clean 149 ms.</li>
+      <li>Bottom: <b>tick marks at a fixed arrival rate</b> that march straight through the band. Nothing about a schedule cares that the server is stuck.</li>
+      <li>Two seconds at 80 a second is <b>160 affected requests</b> — 13 % — so it shows up as early as p90.</li>
+      <li>Land it: <b>149 against 1934, a 13&#215; under-report</b>. The bad number was not a measurement error. It is what happens when the tool's sample rate depends on the thing it is measuring.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. This is the most valuable diagram in Tier 1 to have in your hands, because &#8220;how did you measure that?&#8221; follows every latency number you will ever quote.</p>
+  <ul>
+    <li>The <b>freeze band</b>, identical for both, so nobody can argue the runs differed.</li>
+    <li>Worker lines that <b>stop</b> — and the sentence &#8220;one bad sample per worker&#8221;, which is the entire mechanism in six words.</li>
+    <li><b>Both fractions</b>: 6/1200 against 160/1200. The percentages are what make it obvious rather than surprising.</li>
+    <li>Arrival ticks that <b>keep going through</b> the band, and the words <b>measured from when it was due</b>.</li>
+  </ul>
+  <span class="timer">If you can say &#8220;one bad sample per worker&#8221; you can derive the rest of this diagram from nothing.</span>
+</div>
+
+<h2>Lab — the same freeze, measured twice</h2>
+
+<div class="lab">
+  <header>
+    <span class="kicker">Lab 0002</span>
+    <span class="est">~5 minutes, mostly waiting</span>
+    <h3>Freeze the gateway and watch a tool miss it</h3>
+  </header>
+  <div class="body">
+    <div class="prereq">
+      <span>Needs:</span>
+      <span class="chip">uv</span>
+      <span class="chip">lesson 0001 done</span>
+      <span class="chip">no Docker</span>
+    </div>
+
+    <ol class="steps">
+      <li>
+        <p class="what">Run the comparison. It drives the gateway 1200 times under each scheduling model and injects an identical 2-second freeze 2 seconds into each run.</p>
+        <pre class="cmd"><span class="prompt">$ </span>cd anchor/vendor-eval-gateway
+<span class="prompt">$ </span>uv run python bench/selftest.py</pre>
+      </li>
+
+      <li>
+        <p class="what">Read the closed-loop table first. This is the shape of the number almost everyone quotes.</p>
+        <pre class="out">=== closed loop — 6 workers (coordinated omission) ===
+requests   1200   errors 0
+            TTFW ms    TOTAL ms
+    p50        75.0        75.1
+    p90       103.4       103.4
+    p95       115.3       115.3
+    p99       <span class="hi">149.7</span>       149.8
+  p99.9      2043.8      2043.8
+    max      2081.2      2081.2</pre>
+        <div class="expect">
+          <span class="label">You should see</span>
+          <p>A pristine table. p99 of about <code>150 ms</code>. The 2-second outage is invisible until <code>p99.9</code>, and it only surfaces there by luck — 6 bad samples out of 1200 is 0.5%, which sits just inside the top 0.1% by a hair. Run it with 3 workers and even p99.9 goes clean.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Now the open-loop table. Same server, same freeze, same total requests.</p>
+        <pre class="out">=== open loop — 80 req/s (corrected) ===
+requests   1200   errors 0
+            TTFW ms    TOTAL ms
+    p50        <span class="hi">79.1</span>        79.2
+    p90       584.3       584.3
+    p95      1326.6      1326.6
+    p99      <span class="hi">1932.6</span>      1932.6
+  p99.9      2059.4      2059.4
+    max      2091.6      2091.6</pre>
+        <div class="expect broken">
+          <span class="label">The thing to actually notice</span>
+          <p>The <strong>p50 is identical</strong> — 75 ms versus 79 ms. Both tools agree completely about the typical request. But p99 is <code>150 ms</code> versus <code>1933 ms</code>: the closed-loop tool under-reported the tail by <strong>13×</strong>. Your numbers will differ from these; the shape will not.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Prove the mechanism rather than taking it on faith. Vary the worker count and watch the number of bad samples track it exactly.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run uvicorn app.main:app <span class="comment"># terminal 1</span>
+
+<span class="comment"># terminal 2 — closed loop, 3 workers, then 40</span>
+<span class="prompt">$ </span>uv run python bench/load.py --mode closed --concurrency 3 \
+    --requests 1200 --stall-after 2 --stall-ms 2000
+<span class="prompt">$ </span>uv run python bench/load.py --mode closed --concurrency 40 \
+    --requests 1200 --stall-after 2 --stall-ms 2000</pre>
+        <div class="expect">
+          <span class="label">You should see</span>
+          <p>With 3 workers the freeze produces 3 slow samples and vanishes entirely. With 40 workers it produces 40, which is 3.3% of the run, so it starts appearing at p95. <strong>The reported tail is a function of your worker count, not of your service.</strong> That is the sentence to remember.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Watch the open-loop generator admit it is behind. This diagnostic does not exist in closed-loop tools, because they cannot fall behind by construction.</p>
+        <pre class="out">generator fell behind on 1 request(s); worst lateness 6 ms</pre>
+        <div class="expect">
+          <span class="label">You should see</span>
+          <p>A small number here on a healthy run. Push <code>--rate</code> past what the gateway can serve and this line grows — that is your saturation point, measured rather than guessed.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+</div>
+
+<h3>So what is your real number?</h3>
+
+<p>You cannot know from here. But you can now ask the right question about your own platform, and it is a short one: <em>was the 2.1 s figure gathered from a fixed-rate arrival process, or from workers that waited for each response?</em> If it was the latter — and it usually is — then the honest version of your résumé bullet is not a different number. It is the same number plus a sentence about how it was measured.</p>
+
+<div class="caution">
+  <span class="callout-label">Do not over-correct</span>
+  <p>Open-loop measurement is not automatically “the real number” either. Drive an open loop far past capacity and you build an unbounded queue that no real client would ever tolerate — every latency figure then describes your generator's backlog rather than your service. Real clients time out, retry, and give up. The right rate to measure at is the one you actually expect to serve, plus a defined margin.</p>
+</div>
+
+<div class="evidence" data-evidence-for="0002">
+  <header>
+    <span class="callout-label">Your numbers, not mine</span>
+    <span class="hint">saved in this browser as you type</span>
+  </header>
+  <div class="body">
+    <p>Your figures will be close to these — the self-test fixes the seed and the upstream profile deliberately, so the run is reproducible. What matters is that the numbers below are ones you have seen on your own screen, because the whole lesson is about not quoting numbers you did not gather.</p>
+
+    <div class="rows">
+      <div class="row">
+        <span class="ran"><strong>Closed loop</strong>, 6 workers: the table almost every tool would have shown you</span>
+        <span class="field"><label for="e2-cp50">P50</label><input type="text" id="e2-cp50" data-field="c_p50" placeholder="e.g. 74.7 ms"></span>
+        <span class="field"><label for="e2-cp99">P99</label><input type="text" id="e2-cp99" data-field="c_p99" placeholder="e.g. 149.1 ms"></span>
+        <span class="why-row"><label for="e2-cp999">And p99.9 &#8212; then say how many samples that figure rests on, because with 1200 requests it is a single one</label><textarea id="e2-cp999" data-field="c_p999" placeholder="e.g. 2058 ms, which is the 1199th of 1200 sorted values — one request. Directionally true, not something to promise on."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran"><strong>Open loop</strong>, 80 req/s: same server, same freeze, same 1200 requests</span>
+        <span class="field"><label for="e2-op90">P90</label><input type="text" id="e2-op90" data-field="o_p90" placeholder="e.g. 586.6 ms"></span>
+        <span class="field"><label for="e2-op99">P99</label><input type="text" id="e2-op99" data-field="o_p99" placeholder="e.g. 1934.1 ms"></span>
+        <span class="why-row"><label for="e2-ratio">The ratio between the two p99s &#8212; this is the number to be able to say cold, because it is the size of the lie</label><textarea id="e2-ratio" data-field="ratio" placeholder="e.g. 1934 / 149 = 13x under-reported."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 4, the <strong>proof</strong>: run closed loop at 3 workers and again at 40, and count the bad samples each time</span>
+        <span class="field"><label for="e2-w3">3 workers</label><input type="text" id="e2-w3" data-field="w3" placeholder="bad samples"></span>
+        <span class="field"><label for="e2-w40">40 workers</label><input type="text" id="e2-w40" data-field="w40" placeholder="bad samples"></span>
+        <span class="why-row"><label for="e2-wwhy">Did the count track the worker count exactly? And so what is the best percentile your run could <em>possibly</em> have revealed? (1 &#8722; workers/requests)</label><textarea id="e2-wwhy" data-field="w_why" placeholder="6 workers of 1200 requests = 0.5%, so nothing below p99.5 could ever have shown the freeze. Quoting p99 from that run quotes a number structurally unable to contain the problem."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">The r&#233;sum&#233; line: what is your <strong>2.1 s median</strong> actually a median <em>of</em>, and how was it gathered?</span>
+        <span class="field"><label for="e2-what">TTFW or total</label><input type="text" id="e2-what" data-field="which" placeholder="which one"></span>
+        <span class="field"><label for="e2-how">How measured</label><input type="text" id="e2-how" data-field="how" placeholder="closed / open / server-side"></span>
+        <span class="why-row"><label for="e2-honest">Write the honest one-sentence version you would say out loud, including the footnote about how it was gathered &#8212; this is the sentence that fixes soft spot #3 in your prep notes</label><textarea id="e2-honest" data-field="honest" placeholder="If it came from server-side spans it excludes queueing at the edge; if it came from a load test with fixed workers it is a service time, not a response time."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">The tail arithmetic for <strong>your</strong> pipeline: how many serial stages, and what fraction of turns hit at least one stage's p99?</span>
+        <span class="field"><label for="e2-stages">Stages</label><input type="text" id="e2-stages" data-field="stages" placeholder="e.g. 5"></span>
+        <span class="field"><label for="e2-amp">1 &#8722; 0.99^n</label><input type="text" id="e2-amp" data-field="amp" placeholder="e.g. 4.9%"></span>
+        <span class="why-row"><label for="e2-ampwhy">So which pipeline percentile corresponds to a single stage's p99 &#8212; and is that the number you have an SLO on?</label><textarea id="e2-ampwhy" data-field="amp_why" placeholder="Five stages each fine at p99 compose into a pipeline that is not fine at p95. Tail amplification is why the whole feels worse than the parts look."></textarea></span>
+      </div>
+    </div>
+
+    <div class="earned">
+      <span class="callout-label">The bullet this lesson earns</span>
+      <p>&#8220;Identified coordinated omission in our own latency reporting: an identical 2-second server freeze read as <span data-fill="c_p99" class="placeholder">[run the self-test]</span> at p99 under fixed-worker load and <span data-fill="o_p99" class="placeholder">[run the self-test]</span> under open-loop arrival &#8212; <span data-fill="ratio" class="placeholder">[compute it]</span> &#8212; and moved our benchmarks to rate-scheduled arrival with latency measured from request-due time.&#8221;</p>
+      <p class="caveat">This is the bullet that closes soft spot #3 in your interview prep. The reason it works is that it is not a claim about being fast &#8212; it is a claim about having caught yourself measuring wrong, which is a much rarer thing to be able to say.</p>
+    </div>
+  </div>
+</div>
+
+<h2 id="underneath-0002">Underneath</h2>
+
+<div class="underneath">
+  <span class="callout-label">One layer down &#183; why the correction is what it is, and the arithmetic that forbids averaging</span>
+
+  <p>&#8220;Use an open-loop generator&#8221; is the right conclusion and not yet an explanation. The explanation is that a closed-loop tool's <em>sample rate depends on the thing it is measuring</em>, which is a specific and predictable bias, not noise &#8212; and once you can predict it you can compute exactly how blind your tool is before you run it.</p>
+
+  <h3>You can predict the blindness in advance</h3>
+
+  <div class="derive">
+    <p>A closed-loop worker is blocked for the whole stall and emits <strong>one</strong> slow sample when it unblocks. So:</p>
+    <span class="eq">bad samples (closed) = <b>number of workers</b>          &#8212; independent of stall length
+bad samples (open)   = <b>arrival rate &#215; stall length</b>
+
+  6 workers                &#8594; 6 / 1200    = 0.5 %  &#8594; needs p99.5 to see it
+  80 req/s &#215; 2 s           &#8594; 160 / 1200  = 13 %   &#8594; visible from p90</span>
+    <p>Read the first line again: <strong>the closed-loop count does not depend on how long the stall was.</strong> A two-second freeze and a two-minute freeze both produce exactly six bad samples. Your tool's sensitivity to an outage is set by a concurrency flag you chose for unrelated reasons.</p>
+    <p>Which gives you a rule you can apply without running anything: a closed-loop run with <em>W</em> workers and <em>N</em> requests cannot show a stall below the <code>1 &#8722; W/N</code> percentile. Six workers and 1200 requests means <strong>nothing</strong> below p99.5 &#8212; so quoting p99 from that run is quoting a number that was structurally incapable of containing the problem.</p>
+  </div>
+
+  <p>This is also why the lab asks you to vary the worker count. Three workers gives three bad samples; forty gives forty. The bad-sample count tracks the flag exactly, which is the difference between believing the mechanism and having watched it.</p>
+
+  <h3>Nearest-rank, and why interpolation is dishonest here</h3>
+
+  <p>With 1200 samples, p99 is the 1188th value in sorted order &#8212; an actual request that actually happened. An interpolating percentile would instead blend the values around that rank and report a number <em>no request ever experienced</em>. For a latency SLO that is the wrong choice, because the claim you want to make is &#8220;99&#8239;% of real turns finished within X&#8221;, and X has to be a real turn.</p>
+
+  <div class="derive">
+    <p>It also decides your minimum sample count, which people get wrong constantly:</p>
+    <span class="eq">to have any p99.9 at all you need   n &#8805; 1000
+1200 samples &#8594; p99.9 is the 1198.8th &#8594; the <b>1199th</b> value
+                &#8594; a single request decides the whole figure</span>
+    <p>So the p99.9 of 2058&#8239;ms in the closed-loop table rests on <em>one</em> sample. It is directionally true and it is not a number to make a promise on. Anything past p99 needs an order of magnitude more requests before it means what it looks like it means.</p>
+  </div>
+
+  <h3>Why you cannot average percentiles, ever</h3>
+
+  <p>This is the single most common quiet error in latency reporting: five services each report p99, someone averages them, and the resulting figure has no interpretation at all. A percentile is a <em>rank</em> statistic, and ranks do not add. The mean of two p99s is not the p99 of the combined population, and it is not an upper or lower bound on it either.</p>
+
+  <div class="derive">
+    <p>The direction the error runs in matters, and it runs against you. If five serial stages each independently meet p99, the chance a turn escapes <em>all five</em> tails is:</p>
+    <span class="eq">P(no stage in its tail) = 0.99&#8309; = 0.951
+&#8594; <b>4.9 %</b> of turns hit at least one stage's p99 tail
+
+so the pipeline's 95th percentile is roughly a stage's 99th</span>
+    <p>Five stages that are each &#8220;fine at p99&#8221; compose into a pipeline that is <em>not</em> fine at p95. That is tail amplification, it is why a five-stage pipeline feels worse than its components look, and it is the correct answer to the second probe below.</p>
+    <p>To actually combine tails you need the underlying distributions, not their percentiles &#8212; which is why <a href="https://github.com/HdrHistogram/HdrHistogram" target="_blank" rel="noopener">HdrHistogram</a> exists and why every serious latency tool ships histograms rather than summary rows.</p>
+  </div>
+
+  <h3>Service time and response time are different quantities</h3>
+
+  <p>Service time is how long the work took once it started. Response time is how long the caller waited, which includes sitting in a queue. A closed-loop tool measures something much closer to service time, because a worker cannot queue behind itself &#8212; it is not allowed to be waiting for two things at once. That is the deeper reason the two tables differ: they are not two measurements of one quantity, they are <strong>measurements of two different quantities</strong>, and only one of them is what a user feels.</p>
+
+  <p>The open-loop generator's <code>generator fell behind on 1 request(s); worst lateness 8 ms</code> line exists to make that visible. It is admitting that its own scheduler slipped, and it is a diagnostic a closed-loop tool cannot emit even in principle &#8212; falling behind is not a state it can be in.</p>
+
+  <p class="lands"><b>The bias is computable, so it is not an excuse.</b> <code>1 &#8722; W/N</code> tells you the best percentile your run could possibly reveal; the arrival rate times the stall tells you what an honest run would have shown. And whatever you do, do not average percentiles &#8212; 0.99&#8309; is the number that explains your pipeline.</p>
+</div>
+
+<h2>Check yourself</h2>
+
+<div class="quiz" data-quiz-id="0002-q1">
+  <p class="q">A closed-loop generator with 8 workers hits a 30-second server freeze. How many slow samples does it record?</p>
+  <ol class="options">
+    <li data-correct="true">Eight, one for each worker blocked inside a request</li>
+    <li>Hundreds, since the freeze lasted a full thirty seconds</li>
+    <li>None at all, because a frozen server records nothing</li>
+    <li>Eight thousand, matching the requests a user would send</li>
+  </ol>
+  <div class="why">
+    <p>Exactly one per worker. The workers are each blocked inside a single in-flight request, and while frozen the generator issues nothing new — so a 30-second outage and a 3-second outage contribute the identical <em>number</em> of samples, differing only in magnitude. Eight samples will not move p99 in any run of meaningful length.</p>
+    <p>This is why the reported tail scales with your worker count. It is a property of the harness, and it is why the fix is a different scheduling model rather than a bigger run.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0002-q2">
+  <p class="q">One turn makes five sequential calls, each with a p99 of 200 ms. What is the turn's p99, roughly?</p>
+  <ol class="options">
+    <li data-correct="true">Roughly 200 ms, but reached by 5% of turns</li>
+    <li>Exactly 200 ms, whatever the total stage count is</li>
+    <li>About 1000 ms, because the five values add up</li>
+    <li>Around 40 ms, as the delay splits across calls</li>
+  </ol>
+  <div class="why">
+    <p>The <em>magnitude</em> of a single slow hop stays around 200 ms — one call went slow, not all five. What compounds is the <em>probability</em>: <code>0.99⁵ ≈ 0.951</code>, so roughly 5% of turns now contain at least one tail event. A once-in-a-hundred problem has become a one-in-twenty problem purely by adding stages.</p>
+    <p>“The p99 values add up” is the seductive wrong answer. It would be right for the <em>worst case</em>, but percentiles are not additive, and treating them as such over-provisions badly. The correct instinct is that adding stages to a pipeline degrades the tail even when every stage is individually fine — which is precisely the risk profile of a five-stage schematization pipeline.</p>
+  </div>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">A spoken answer to <em>&#8220;you said 2.1 seconds median &#8212; what is p99, and how did you measure it?&#8221;</em> This is the follow-up your r&#233;sum&#233; invites, so it is the one worth being able to give cold.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">I had a median of 2.1 seconds against a hard 8-second per-turn budget, and I was quoting the median because it was the number the tool printed.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">The problem is that most load generators are closed loop: a fixed set of workers, each sending again only when the last response comes back. So when the server stalls, the workers stall with it and simply <b>stop asking</b>.</p>
+      <p class="line">That means each worker contributes exactly <b>one</b> slow sample no matter how long the stall lasted. The tool's sample rate depends on the thing it is measuring. That is coordinated omission.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">I injected an identical two-second freeze into two runs of the same server. Closed loop with six workers reported a p99 of <b>149 milliseconds</b> &#8212; clean. Open loop, at 80 requests a second, reported <b>1934</b>. Same freeze, <b>13&#215; apart</b>.</p>
+      <p class="line">And I can show why in advance: six workers over 1200 requests is 0.5&#8239;%, so nothing below p99.5 could ever have contained it. The p99 I would have quoted was structurally incapable of seeing the outage.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">Rate-scheduled load is harder to run. The generator can fall behind and become the bottleneck, so it has to report its own lateness. Mine did: one request, eight milliseconds late.</p>
+      <p class="line">The honest limit is that I now have two numbers instead of one, and they measure different things. Closed loop is roughly a service time; open loop is a response time and includes queueing. Only the second one is what a candidate in an interview actually feels.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;Our p99 is 150 milliseconds.&#8221;</span> Stated without how it was gathered, this is the number that gets picked up and pulled on, and there is a good chance it came from a fixed-worker run that could not have seen your worst two seconds. Always attach the method &#8212; <em>&#8220;p99 of 1.9 seconds under open-loop arrival at 80 a second&#8221;</em> is a smaller-sounding claim and a much harder one to knock down.</p>
+  <p>The other one to never say: <span class="quoted">&#8220;each stage is fine at p99, so the pipeline is fine at p99.&#8221;</span> Percentiles do not add. Five serial stages each meeting p99 leaves <b>4.9&#8239;%</b> of turns hitting at least one tail, so a stage's p99 is roughly the <em>pipeline's p95</em>. Averaging percentiles across services is the same error wearing a suit.</p>
+</div>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      “You said 2.1 s median. What is p95, p99, and how did you measure them?”
+      <span class="tell">The third clause is the real question. Answering the first two without it is the trap — a confident wrong p99 is worse than “I know our tooling is closed-loop, so treat that figure as a floor.”</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The &#8220;how&#8221; is the important half, so I would lead with it: it depends entirely on the load model, and most tools give you a number that cannot see your worst minutes. I ran the same server through an identical two-second freeze twice &#8212; fixed workers reported p99 at 149&#8239;ms, rate-scheduled arrival reported 1934&#8239;ms. Thirteen times apart.</p>
+        <p>And I can show it is structural rather than bad luck: six workers over 1200 requests is 0.5&#8239;% of samples, so nothing below p99.5 could have contained the freeze at all.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So what is your real p99?&#8221; &#8212; the open-loop one, and it is the number I would put an SLO on because it includes queueing, which is what the user feels.</b></span>
+      </details>
+    </li>
+    <li>
+      “Your pipeline has five stages. If each is fast at p99, why is the whole thing slow at p99?”
+      <span class="tell">They are testing whether you know tails compound in probability along the critical path. Have the <code>0.99ⁿ</code> arithmetic ready.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Because percentiles do not compose by addition. If each of five serial stages independently meets its p99, the chance a turn misses <em>every</em> tail is 0.99&#8309;, which is 0.951 &#8212; so <strong>4.9&#8239;% of turns hit at least one stage's tail</strong>.</p>
+        <p>Which means a stage's p99 is roughly the pipeline's <em>p95</em>. The parts each look fine and the whole is not, and no stage owner is wrong. It is also why averaging p99s across services produces a figure with no interpretation &#8212; to combine tails you need the distributions, which is what histograms are for.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So how do you fix it?&#8221; &#8212; either shorten the critical path so there are fewer tails to hit, or bound each stage with a propagated deadline, which is lesson 0012.</b></span>
+      </details>
+    </li>
+    <li>
+      “How would you know if your gateway froze for two seconds last Tuesday?”
+      <span class="tell">A dashboard of medians would not show it. This is the bridge to lesson 0032 — you need percentile histograms and traces, not averages.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Honestly? Right now, probably not &#8212; and that is the uncomfortable half of this lesson. A two-second freeze inside an 8-second budget breaches nothing, so no alert fires, and if the dashboard is a median or even a p99 from a fixed-worker probe, six samples out of thousands will not move it.</p>
+        <p>What would catch it is a histogram rather than pre-aggregated percentiles, so the tail is still reconstructable after the fact, plus an alert on the <em>rate of change</em> of the tail rather than on a threshold. A synthetic prober at a fixed arrival rate would also see it, because it cannot stop asking.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What would you alert on, concretely?&#8221; &#8212; and the honest answer is that I have the measurement discipline now and not yet the alerting, which is lesson 0033.</b></span>
+      </details>
+    </li>
+    <li>
+      “Would you rather have a p50 of 2 s or a p50 of 3 s with a much tighter p99?”
+      <span class="tell">Usually the second, and the SRE book says why: people tolerate a slightly slower system far better than a highly variable one. Saying that unprompted signals you have thought about users, not just graphs.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The 3-second one, without much hesitation, because I have a <em>budget</em> rather than a target. Nothing rewards me for finishing a turn in two seconds instead of three &#8212; the conversation is human-paced. What hurts is a turn that breaches 8 seconds, because at that point the candidate is sitting in silence wondering if it broke.</p>
+        <p>So the second option is strictly better: it converts headroom I was not using into variance I no longer have. The general form is that a hard ceiling makes the tail the thing you optimise, and the median mostly a comfort.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Is that always true?&#8221; &#8212; no. If the median sat close to the ceiling, or if cost scaled with time, I would be trading real money for variance and would want the numbers first.</b></span>
+      </details>
+    </li>
+    <li>
+      “What is the difference between service time and response time here?”
+      <span class="tell">Service time is how long the work took; response time includes the queueing before it started. A closed loop measures something closer to the former and calls it the latter.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Service time is how long the work took once it started. Response time is how long the caller waited, which includes queueing before it started. For one turn that is the difference between &#8220;the model took 880&#8239;ms&#8221; and &#8220;the candidate waited 2.9 seconds&#8221;.</p>
+        <p>And it is exactly what the two tables measure. A closed-loop worker cannot queue behind itself &#8212; it is never waiting for two things at once &#8212; so it reports something close to service time. Open loop lets requests pile up and measures from when each was <em>due</em>, which is a response time. They are not two measurements of one quantity.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Which one does your dashboard show?&#8221; &#8212; server-side spans are service time, and if that is all you have you are blind to queueing at the edge by construction.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="primary-source">
+  <span class="callout-label">Read this next — one source, not ten</span>
+  <span class="title"><a href="https://www.infoq.com/presentations/latency-response-time" target="_blank" rel="noopener">Gil Tene — “How NOT to Measure Latency”</a></span>
+  <p>Roughly 45 minutes and worth every one of them. Tene is CTO of Azul Systems; this is the talk that named coordinated omission and it is still the definitive treatment. He calls it <em>“a conspiracy we're all a part of”</em> because essentially every benchmarking tool has the flaw. Watch to the end — the section on multi-modal latency and platform discontinuities is the part most summaries drop.</p>
+  <p class="cite">If you want the short written version first: <a href="https://bravenewgeek.com/everything-you-know-about-latency-is-wrong/" target="_blank" rel="noopener">Everything You Know About Latency Is Wrong</a> — Tyler Treat, about ten minutes.</p>
+</div>
+
+<h2>Recall — from lesson 0001</h2>
+
+<p>Answer these from memory before revealing. Effortful retrieval is what makes it stick; recognising the answer when you see it does nothing.</p>
+
+<div class="recall">
+  <details>
+    <summary>Two hops in your turn budget were marked “not yours to tune”. Which, and why?</summary>
+    <p class="answer"><strong>VAD end-of-speech</strong> (250 ms) and <strong>network to client</strong> (55 ms). The silence window is a product constraint — shorten it and the detector cuts candidates off mid-sentence, trading a latency number for a defect. The network hop is physics plus routing. Knowing which hops are floors stops you spending a week on the 12 ms one.</p>
+    <span class="from">lesson 0001 · budget table</span>
+  </details>
+  <details>
+    <summary>Retrieval takes 165 ms and ASR finalisation takes 300 ms. Run concurrently, what do they cost?</summary>
+    <p class="answer"><strong>300 ms</strong> — the maximum, not the 465 ms sum. Serial hops add; parallel hops take the larger. And retrieval does not truly need the <em>final</em> transcript, so this overlap is available in your real system.</p>
+    <span class="from">lesson 0001 · serial vs parallel</span>
+  </details>
+  <details>
+    <summary>Which hop owned the largest share of the turn, and roughly what percentage?</summary>
+    <p class="answer"><strong>LLM time-to-first-token</strong>, 880 ms of a 2102 ms turn — about <span class="num">42%</span>. Nothing else came close, which is why nothing else deserved attention first. Now combine that with this lesson: it is also the hop with the fattest tail, so it dominates both the median and the p99.</p>
+    <span class="from">lesson 0001 · budget table</span>
+  </details>
+</div>
+
+<div class="ask">
+  <p><strong>This is the highest-value lesson in Tier 1.</strong> If any part of the coordinated-omission mechanism is still fuzzy, ask now rather than moving on — everything in lessons 0003 to 0006 is measured with this tool, and the measurements only mean something if you trust them. If you want to bring me your real production percentiles, I will help you work out whether they are closed-loop figures.</p>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">Where this lands on the r&#233;sum&#233;</span>
+  <p>This lesson teaches the mechanism from first principles and breaks it in a lab. The chapter opposite defends what you actually did with it, including the number on the r&#233;sum&#233;. An interviewer crosses between those two registers without warning.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../resume-mastery/lessons/0002-llm-gateway-and-streaming.html">RM 0002 &#183; The gateway and the move to streaming</a>
+      <span class="bridge-why">You quote a p50 and a p90. The chapter carries the p95, the p99, and the size of the sample all four came from.</span>
+    </li>
+    <li class="bridge-row">
+      <a href="../../resume-mastery/lessons/0001-vendor-evaluation-platform.html">RM 0001 &#183; Owning a vendor-evaluation platform</a>
+      <span class="bridge-why">Scoring runs with nobody waiting for it, which is exactly the shape where a healthy median hides a bad tail.</span>
+    </li>
+  </ol>
+</div>
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0001-latency-budget-arithmetic.html">← 0001 · Latency budget arithmetic</a></span>
+  <span><span class="dir">Next</span><a href="0003-cache-aside-and-friends.html">0003 · Cache-aside and friends →</a></span>
+</div>
+
+</div>
+</body>
+</html>

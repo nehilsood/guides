@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>The Snapshot Nobody Closed</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0019">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">System Design School</a>
+    <span class="sep">/</span>
+    <span>Tier 1 &#183; Postgres</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Lesson 0019</span>
+    <span class="sep">/</span>
+    <span>Needs Postgres</span>
+  </div>
+  <h1>The Snapshot Nobody Closed</h1>
+  <p class="standfirst">One session, holding no lock and running no query, stopped vacuum from removing <strong>any of 499&#8239;900 dead rows</strong> and let a 143-page table grow to 7&#8239;213. Under asyncpg &#8212; the driver this whole stack runs on &#8212; a plain READ COMMITTED transaction that has read anything at all is enough. And the query plan never changed: <strong>only the buffers line showed it</strong>.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Leave one transaction open and watch <code>VACUUM</code> report every dead row as <em>not yet removable</em>. Find that the same <code>SELECT</code> holds vacuum back under asyncpg and not under psql, and prove why with one extra statement. Watch a query keep its plan while its buffers grow elevenfold. Close the session and find that the table does not get smaller. Then set the timeout that fixes it, and see which transaction pays.</p>
+</div>
+
+<div class="anchor-box">
+  <span class="callout-label">Why you, specifically</span>
+  <blockquote>&#8220;<strong>RAG &amp; Evaluation:</strong> embeddings, hybrid search, re-ranking, on-device RAG, <strong>MLflow</strong>, LLM-as-a-judge, <strong>A/B testing</strong>, guardrail design&#8221;</blockquote>
+  <p>Evaluation is the half of that line with real work behind it: a 368-scenario harness, an A/B at eight runs an arm, a bake-off replaying one payload through the real code path. Every one of those produces rows, and the tables they land in only ever grow. A run is inserted as <em>running</em> and updated when it finishes, so every run leaves one dead row version behind. Nobody deletes anything.</p>
+  <p>That is the table shape where vacuum is the only thing standing between you and unbounded growth. It is also the shape that attracts long-lived sessions: a notebook left open on the results, a judge loop that reads a rubric and then awaits a model, a report that runs for an hour. Any one of them is enough, and none of them shows up where people look.</p>
+  <p>The claim is defended in full in <a href="../../resume-mastery/lessons/0012-rag-and-evaluation.html">chapter 0012 of R&#233;sum&#233; Mastery</a>. This lesson is what happens to the tables underneath it.</p>
+</div>
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>An <code>UPDATE</code> in Postgres does not overwrite a row. It writes a new version and leaves the old one where it was, because somebody might still be reading it. Lesson 0016 showed both versions sitting on disk. Something has to come back later and remove the old ones, and that is vacuum.</p>
+  <p>Vacuum is only allowed to remove a version that <em>no open transaction anywhere could still need</em>. So the oldest open snapshot in the database draws a line, and nothing newer than that line gets removed from any table, however long ago it died. One forgotten session is enough to stop the whole mechanism, and it is not waiting on anything, so nothing that watches for waiting reports it.</p>
+  <dl>
+    <dt>Dead row version</dt>
+    <dd>The old copy an <code>UPDATE</code> or <code>DELETE</code> leaves behind. Still on disk, still read by scans, invisible to new transactions.</dd>
+
+    <dt>Vacuum</dt>
+    <dd>The process that removes dead versions and marks their space reusable. <em>Autovacuum</em> runs it for you when enough rows have changed.</dd>
+
+    <dt>Snapshot</dt>
+    <dd>The list of which transactions a statement is allowed to see. Held for a statement in READ COMMITTED, for the whole transaction in REPEATABLE READ.</dd>
+
+    <dt>The horizon</dt>
+    <dd>The oldest snapshot still open anywhere. Vacuum may not remove anything newer. <code>VACUUM VERBOSE</code> prints it as the <em>removable cutoff</em>.</dd>
+
+    <dt><code>backend_xmin</code></dt>
+    <dd>The column in <code>pg_stat_activity</code> showing the snapshot one session is holding. If it is set, that session is part of the horizon.</dd>
+
+    <dt>Idle in transaction</dt>
+    <dd>A session that has begun a transaction and is sending nothing. Not waiting, not running. Just open.</dd>
+
+    <dt>Portal</dt>
+    <dd>The server's handle on a statement being executed. The extended protocol, which asyncpg always uses, leaves one open after the statement finishes.</dd>
+
+    <dt>Bloat</dt>
+    <dd>Space a table occupies beyond what its live rows need. Every scan reads it anyway, and plain vacuum does not give it back.</dd>
+
+    <dt>Visibility map</dt>
+    <dd>One bit per table page saying every row on it is visible to everyone. Set only by vacuum, and the reason an index-only scan can skip the table.</dd>
+
+    <dt><code>EXPLAIN (ANALYZE, BUFFERS)</code></dt>
+    <dd>Run the query and report the plan, the time, and how many 8&#8239;kB pages it touched. The last number is the one bloat moves.</dd>
+  </dl>
+</div>
+
+<h2>One session, and nothing that watches will see it</h2>
+
+<p>Start with what the session is not doing. It holds no row lock, so no lock monitor lists it. It runs no query, so no slow-query log records it. Its <code>state</code> is <code>idle in transaction</code>, which looks like the least interesting thing on the server. It is the most expensive thing on the server, and the cost lands on every other table.</p>
+
+<p>The surprise in this lesson is how little it takes. The received version is that you need a long <code>REPEATABLE READ</code> transaction or a write to hold vacuum back, and that a READ COMMITTED session releases its snapshot after every statement. That is true under psql. Under asyncpg, which is what async SQLAlchemy runs on, <strong>it is not</strong>, and the reason is one sentence of the wire protocol.</p>
+
+<div class="note">
+  <span class="callout-label">Why the plan will not warn you</span>
+  <p>The original plan for this lesson assumed bloat would flip the planner to the wrong plan. Measured, it did not: the latest-runs query kept exactly the same plan on a bloated table as on a clean one, and returned exactly the same twenty rows.</p>
+  <p>That is the worse outcome, not the better one. <strong>A plan that changes is a plan somebody notices.</strong> A plan that stays the same while doing eleven times the work is one only <code>BUFFERS</code> can show you, and most people never add it.</p>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 430" role="img" aria-labelledby="mech0019-t mech0019-d">
+    <title id="mech0019-t">One idle session sets the line vacuum may not cross, for every table in the database</title>
+    <desc id="mech0019-d">A horizontal axis of transaction ids runs from oldest on the left to newest on the right. A vertical line marks the removable cutoff, which is the snapshot of one idle session that began a transaction, ran one select, and is now sending nothing. Dead row versions to the left of the line are removed by vacuum; dead versions to the right, four hundred and ninety-nine thousand nine hundred of them after a hundred rounds of updates, may not be touched. Below, three measured consequences: the table grew from 143 pages to 7213, and stayed at 7213 after the session closed until VACUUM FULL rewrote it to 72 under an exclusive lock; the latest-runs query kept the same plan, an index-only scan, while heap fetches rose from zero to forty and buffers from four to forty-four. At the bottom, the reason it takes so little: under psql the same begin and select holds nothing, while under asyncpg it holds the line.</desc>
+
+    <text x="20" y="24" class="strong">Vacuum may remove only what no open snapshot can still see. One idle session draws that line.</text>
+
+    <!-- MARK 1 &#183; the axis: every row version has a place on it. -->
+    <path d="M40,214 L800,214" class="rule"/>
+    <text x="40" y="234" class="lbl-dim">transaction ids, oldest to newest &#8594;</text>
+
+    <!-- MARK 2 &#183; the line, and whose snapshot it is. -->
+    <path d="M300,56 L300,214" class="flow-bad"/>
+    <text x="310" y="70" class="lbl ink-bad">removable cutoff</text>
+    <text x="310" y="86" class="lbl-dim">= the oldest open snapshot</text>
+
+    <!-- MARK 3 &#183; the session that owns it, doing nothing at all. -->
+    <rect x="300" y="100" width="500" height="26" class="warn"/>
+    <text x="312" y="118" class="lbl ink-warn">one session: BEGIN; SELECT &#8230; then idle. No lock, no query.</text>
+
+    <!-- MARK 4 &#183; older than the line: vacuum removes it. -->
+    <rect x="40" y="160" width="240" height="34" class="good"/>
+    <text x="52" y="182" class="lbl ink-good">dead before the line: removed</text>
+
+    <!-- MARK 5 &#183; newer than the line: vacuum may not touch it. -->
+    <rect x="320" y="160" width="480" height="34" class="box-2"/>
+    <text x="332" y="182" class="lbl ink-bad">dead after it: 499&#8239;900 rows, not yet removable</text>
+
+    <!-- MARK 6 &#183; what that costs on disk. -->
+    <text x="40" y="276" class="lbl-dim">the table, 100 rounds of updates</text>
+    <text x="40" y="298" class="strong">143 &#8594; 7&#8239;213 pages</text>
+
+    <!-- MARK 7 &#183; and the part that surprises: closing it gives nothing back. -->
+    <text x="40" y="322" class="lbl">session closed: 0 dead, <tspan class="strong ink-bad">still 7&#8239;213</tspan></text>
+
+    <!-- MARK 8 &#183; the only way back, and its price. -->
+    <text x="40" y="344" class="lbl-dim">VACUUM FULL: 72 pages, under ACCESS EXCLUSIVE</text>
+
+    <!-- MARK 9 &#183; the plan, which does not change. -->
+    <text x="450" y="276" class="lbl-dim">the latest-runs query</text>
+    <text x="450" y="298" class="lbl">plan: Index Only Scan, <tspan class="strong">both times</tspan></text>
+
+    <!-- MARK 10 &#183; the counters, which do. -->
+    <text x="450" y="322" class="lbl ink-bad">heap fetches 0 &#8594; 40 &#183; buffers 4 &#8594; 44</text>
+
+    <!-- MARK 11 &#183; why it takes so little: psql. -->
+    <rect x="40" y="376" width="360" height="30" class="box"/>
+    <text x="54" y="396" class="lbl">psql &#183; BEGIN; SELECT &#8594; holds nothing</text>
+
+    <!-- MARK 12 &#183; asyncpg, the driver under async SQLAlchemy. -->
+    <rect x="440" y="376" width="360" height="30" class="warn"/>
+    <text x="454" y="396" class="lbl ink-warn">asyncpg &#183; BEGIN; SELECT &#8594; holds the line</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">Say this while you draw it</span>
+    <ol class="narrate">
+      <li>An axis of transaction ids, oldest on the left. Every row version, live or dead, has a place on it.</li>
+      <li>A vertical line: the <b>removable cutoff</b>, which is the oldest snapshot still open anywhere in the database.</li>
+      <li>The session that owns it. BEGIN, one SELECT, then nothing. <b>No lock and no query</b>, so nothing that watches for either sees it.</li>
+      <li>Dead versions left of the line are removed. Right of it, <b>499&#8239;900 are not</b>, however long ago they died.</li>
+      <li>What that costs: <b>143 pages to 7&#8239;213</b>, and they stay after the session closes. The plan never changes; <b>heap fetches go from 0 to 40</b>.</li>
+      <li>Then why it takes so little: the same SELECT holds nothing under psql and <b>holds the line under asyncpg</b>.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. Twelve marks, the standing ceiling. The top half is one line and two boxes; everything below it is a number you will be asked for.</p>
+  <ul>
+    <li>An axis and <b>one vertical line</b>, labelled with whose snapshot it is.</li>
+    <li>The session bar starting at the line, with <b>no lock and no query</b> written on it.</li>
+    <li>Three numbers: <b>7&#8239;213 pages that stay</b>, heap fetches <b>0 to 40</b> on an unchanged plan, and <b>499&#8239;900</b> rows held.</li>
+    <li>The two boxes at the bottom: <b>psql holds nothing, asyncpg holds the line</b>.</li>
+  </ul>
+  <span class="timer">Draw the vertical line before the session bar. If you draw the session first you will start it anywhere, and the whole diagram is the claim that the line <em>is</em> the session.</span>
+</div>
+
+<h2>Lab &#8212; hold one session open, then try to clean up after it</h2>
+
+<div class="lab">
+  <header>
+    <span class="kicker">Lab 0019</span>
+    <span class="est">~20 minutes</span>
+    <h3>Six open transactions, one protocol message, and a table that does not shrink</h3>
+  </header>
+  <div class="body">
+    <div class="prereq">
+      <span>Needs:</span>
+      <span class="chip">anchor/vendor-eval-gateway</span>
+      <span class="chip">Docker &#183; Postgres</span>
+      <span class="chip">~20 min</span>
+    </div>
+
+    <div class="caution">
+      <span class="callout-label">Counts are exact; ids and milliseconds are not</span>
+      <p>Every row count and every page count below has repeated on every run: they are decided by what was written, not by timing. The transaction ids in steps 1 and 2 are different every time, because every transaction on the server takes the next one. The <code>ms</code> columns wobble. Where an argument rests on a count, it is safe; where it rests on a duration, the step says so.</p>
+    </div>
+
+    <ol class="steps">
+      <li>
+        <p class="what">Start Postgres, then leave a transaction open six different ways and ask vacuum what it could remove behind each one.</p>
+        <pre class="cmd"><span class="prompt">$ </span>cd anchor/vendor-eval-gateway
+<span class="prompt">$ </span>docker compose up -d postgres
+<span class="prompt">$ </span>uv run python -m bench.vacuum --experiment horizon</pre>
+        <pre class="out">transaction left open                 xid       xmin      vacuum could not remove
+begin-only                            -         -              0 of 4999
+simple-select                         -         -              0 of 4999
+extended-select                       -         154182      4999 of 4999
+select-for-update                     154187    154187      4999 of 4999
+update                                154193    -           4999 of 4999
+repeatable-read                       -         154199      4999 of 4999
+sqlalchemy session, one select        -         154204      4999 of 4999
+
+what pg_stat_activity shows while it is open:
+  idle in transaction  50 xids behind  open 1.0 s  last query: SELECT score FROM vac_hot WHERE id = 1</pre>
+        <div class="expect broken">
+          <span class="label">Rows two and three are the same SELECT, and only one of them stops vacuum</span>
+          <p>The first two rows hold nothing, and that is what the received wisdom predicts: a READ COMMITTED transaction takes a fresh snapshot for each statement and drops it afterwards. <strong>Row three is the same statement, through asyncpg</strong>, and vacuum can remove none of the 4&#8239;999 dead rows behind it.</p>
+          <p>The last row is the one that matters for this codebase. An ordinary async SQLAlchemy session, one read, then an await on something else &#8212; lesson 0017's shape, exactly &#8212; <strong>holds the horizon for as long as it stays open</strong>. It is not a long query or a REPEATABLE READ transaction. It is the default.</p>
+          <p>Look at the last line too. <code>idle in transaction</code>, fifty transactions behind after one second, last query a <em>finished</em> SELECT. That is what the culprit looks like in <code>pg_stat_activity</code>, and the column worth sorting by is how far behind it is rather than how long it has been open.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Find out why the driver matters, by sending the two kinds of message down one connection in turn.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.vacuum --experiment portal</pre>
+        <pre class="out">one connection, one READ COMMITTED transaction, left open between statements:
+  after fetch("SELECT 1")   extended: Parse, Bind, Execute   backend_xmin   154206   holds the horizon
+  after execute("SELECT 1") simple: one Query message        backend_xmin        -   holds nothing
+  after fetch("SELECT 1")   extended again                   backend_xmin   154206   holds the horizon</pre>
+        <div class="expect">
+          <span class="label">Held, released, held again, by the same statement</span>
+          <p>The protocol documentation explains it in one paragraph: <em>&#8220;An unnamed portal is destroyed at the end of the transaction, or as soon as the next Bind statement specifying the unnamed portal as destination is issued. (Note that a simple Query message also destroys the unnamed portal.)&#8221;</em> A portal keeps the snapshot it ran under, so while it survives, the snapshot does.</p>
+          <p>The parenthesis is the testable part, and this step tests it. A simple query destroys the portal and the pin disappears; the next extended one creates a portal and the pin comes back. psql only ever sends simple queries. <strong>asyncpg only ever sends extended ones</strong>, which is also why it is fast: the same mechanism that caches your statements keeps your snapshot.</p>
+          <p>The xmin is the same number twice because nothing else committed in between. On a busy server the second one would be newer.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Now let it cost something. Update every row a hundred times, vacuuming after every round as autovacuum would, first with nothing held and then with one idle session open.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.vacuum --experiment bloat</pre>
+        <pre class="out">NOTHING HELD   (5000 rows, 72 pages to start)
+  round   pages   dead, not removable   scan buffers   scan ms
+      1     143                     0            143      0.45
+     10     143                     0            143      0.35
+     25     143                     0            143      0.33
+     50     143                     0            143      0.35
+    100     143                     0            143      0.34
+
+ONE IDLE SESSION OPEN   (5000 rows, 72 pages to start)
+  round   pages   dead, not removable   scan buffers   scan ms
+      1     143                  4999            143      0.43
+     10     786                 49990            786      0.62
+     25    1857                124975           1857      1.26
+     50    3643                249950           3643      2.24
+    100    7213                499900           7213      3.21
+  closed   7213                     0           7213      2.07   &lt;- the session is gone, the pages are not
+  FULL       72                     0             72      0.46   &lt;- rewrote the table in 31 ms, under an ACCESS EXCLUSIVE lock</pre>
+        <div class="expect broken">
+          <span class="label">Flat at 143 with vacuum allowed to work; 7&#8239;213 with one session open</span>
+          <p>The first table is the healthy case and it is worth noticing how healthy: <strong>143 pages after one round and 143 after a hundred</strong>. Every round's dead versions are removed and their space reused by the next round. That is vacuum doing its job, and it is why most tables never need thinking about.</p>
+          <p>The second table is the same work with one idle session. The dead column grows by exactly 4&#8239;999 a round and never falls, and the table grows <strong>fifty times over</strong>. Every sequential scan reads every one of those pages, which is why the scan column rises with it.</p>
+          <p>Then the line that surprises people. Close the session, vacuum again, and every dead row is removed &#8212; <strong>and the table is still 7&#8239;213 pages</strong>. The scan still reads all 7&#8239;213 of them, fifty times the healthy table's 143, because empty pages are still pages. The milliseconds wobble between runs; that buffer count does not. The bloat outlives its cause. Only <code>VACUUM FULL</code> gets the space back, and it does that by rewriting the whole table under a lock that blocks every reader.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Now the query people actually run against a results table: the latest twenty runs for one vendor. Read its plan with and without an index, and then with the horizon held.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.vacuum --experiment plan</pre>
+        <pre class="out">                                   scan             rows   buffers  heap fetches        ms
+no index                           Seq Scan           20      1667                   8.174
+(vendor_id, started_at) index      Index Scan         20        23                   0.045
+covering index, vacuumed           Index Only Scan    20         4             0     0.034
+after 5 batches, nothing held      Index Only Scan    20         4             0     0.022
+after 5 batches, horizon held      Index Only Scan    20        44            40     0.048
+  ... session closed, vacuumed     Index Only Scan    20         4             0     0.026</pre>
+        <div class="ba">
+          <span class="label">Before / after &#183; the plan is identical, the work is eleven times larger</span>
+          <p>The first three rows are the ordinary story. Without an index the query reads <strong>all 1&#8239;667 pages</strong> to return twenty rows, and on a table that only grows, that number only grows. An index on <code>(vendor_id, started_at)</code> takes it to 23. A <em>covering</em> index, one that also carries the columns the query returns, takes it to <strong>4</strong> and never touches the table at all.</p>
+          <p>Rows five and six are this lesson. The same query, the same plan &#8212; <code>Index Only Scan</code>, twenty rows &#8212; <strong>and forty heap fetches</strong>. The plan's name says it does not read the table. The counter says it read it forty times: once for each of the twenty live rows and once for each of their twenty dead predecessors, because vacuum could not mark those pages all-visible.</p>
+          <p>Close the session, vacuum, and it is back to 4. Nothing about the query was wrong. <strong>Only <code>BUFFERS</code> could have told you anything was happening.</strong></p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Fix it with the setting the documentation names for exactly this, applied through the application's own pool, and then find out what the application is told.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.vacuum --experiment timeout
+<span class="prompt">$ </span>docker compose logs postgres 2&gt;&amp;1 | grep -o 'FATAL: .*idle-in-transaction timeout' | tail -1</pre>
+        <pre class="out">idle_in_transaction_session_timeout = off (Postgres default)
+  vacuum during the call: 0 removed, 4999 not yet removable
+  the turn that held it: committed
+idle_in_transaction_session_timeout = 2000 ms
+  vacuum during the call: 4999 removed, 0 not yet removable
+  the turn that held it: failed: InterfaceError: connection is closed (sqlstate None)
+FATAL:  terminating connection due to idle-in-transaction timeout</pre>
+        <div class="expect">
+          <span class="label">Vacuum proceeds, and the transaction that held the line is the one that pays</span>
+          <p>The turn is lesson 0017's bug: read, then a 3.6&#8239;s model call with the transaction still open. With the timeout off, vacuum removes nothing during the call and the turn commits normally, so nobody would ever connect the two. With it at two seconds, <strong>vacuum removes all 4&#8239;999</strong>, and the turn fails.</p>
+          <p>Read what it fails with. <strong><code>connection is closed</code>, with no SQLSTATE and no mention of a timeout.</strong> The reason exists only in the server log, the second command&#8217;s output. An on-call engineer looking at the application's error rate sees connections dropping and starts suspecting the network.</p>
+          <p>The setting is in <code>app/db/pool.py</code> as <code>PoolSpec.idle_in_tx_timeout_ms</code> and in <code>Settings</code> as <code>DB_IDLE_IN_TX_TIMEOUT_MS</code>. It defaults to 0 so no earlier lesson changes. The value has to be longer than the longest await you <em>intend</em> to hold a transaction across, which is a reason to have none.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Finally run the tests, one of which checks the documentation's parenthesis rather than trusting it.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run pytest tests/test_horizon.py -q 2&gt;&amp;1 | tail -1</pre>
+        <pre class="out">14 passed in 0.45s</pre>
+        <div class="expect">
+          <span class="label">Six of the fourteen are one test, and two of those six must hold nothing</span>
+          <p><code>test_which_open_transactions_hold_the_horizon</code> runs step 1's table as six parametrised cases. Two of them assert that the transaction holds <em>nothing</em>, which is what makes the other four worth believing: a check that only ever expects a pin would pass against a probe that reported one for everything.</p>
+          <p><code>test_a_simple_query_releases_the_snapshot_an_extended_one_took</code> is step 2 as an assertion. If the portal were not what holds the snapshot, its middle assertion would fail. And <code>test_the_heap_line_is_read_not_the_toast_line</code> exists because <code>VACUUM VERBOSE</code> reports the table and then its TOAST table, and reading the wrong line reports a healthy vacuum off an empty relation.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+</div>
+
+<div class="evidence" data-evidence-for="0019">
+  <header>
+    <span class="callout-label">Your numbers, not mine</span>
+    <span class="hint">saved in this browser as you type</span>
+  </header>
+  <div class="body">
+    <p>Every count here repeats exactly. The transaction ids and milliseconds do not. The last row is about your system.</p>
+
+    <div class="rows">
+      <div class="row">
+        <span class="ran">Step 1, <strong>the six open transactions</strong>: which ones held the horizon, and which did not</span>
+        <span class="field"><label for="e19-held">held it</label><input type="text" id="e19-held" data-field="held" placeholder="e.g. extended select, for update, update, RR"></span>
+        <span class="field"><label for="e19-free">did not</label><input type="text" id="e19-free" data-field="free" placeholder="e.g. begin only, simple select"></span>
+        <span class="why-row"><label for="e19-why">Why does the same SELECT behave differently under psql and asyncpg?</label><textarea id="e19-why" data-field="why" placeholder="asyncpg uses the extended protocol, which leaves an unnamed portal open until the next Bind or the end of the transaction, and the portal keeps its snapshot. psql sends simple queries, which destroy the portal. So under asyncpg any read in an open transaction pins the horizon."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 3, <strong>the bloat</strong>: pages after 100 rounds with nothing held and with one session open</span>
+        <span class="field"><label for="e19-free-pages">nothing held</label><input type="text" id="e19-free-pages" data-field="freepages" placeholder="e.g. 143 pages"></span>
+        <span class="field"><label for="e19-held-pages">session open</label><input type="text" id="e19-held-pages" data-field="heldpages" placeholder="e.g. 7 213 pages, 499 900 dead"></span>
+        <span class="why-row"><label for="e19-stay">Why did the pages stay after the session closed and vacuum removed every dead row?</label><textarea id="e19-stay" data-field="stay" placeholder="Plain vacuum marks the space reusable inside the table and does not return it to the operating system, except for empty pages at the very end. Getting it back needs VACUUM FULL or a rewrite, which takes an ACCESS EXCLUSIVE lock for the duration."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 4, <strong>the plan that did not change</strong>: buffers and heap fetches with the horizon held and without</span>
+        <span class="field"><label for="e19-clean">nothing held</label><input type="text" id="e19-clean" data-field="clean" placeholder="e.g. 4 buffers, 0 heap fetches"></span>
+        <span class="field"><label for="e19-dirty">horizon held</label><input type="text" id="e19-dirty" data-field="dirty" placeholder="e.g. 44 buffers, 40 heap fetches"></span>
+        <span class="why-row"><label for="e19-ios">An index-only scan read the table forty times. Explain how</label><textarea id="e19-ios" data-field="ios" placeholder="It may skip the table only for pages the visibility map marks all-visible, and only vacuum sets that bit. With the horizon held, vacuum could not, so every index entry, live and dead, needed a heap visit to check visibility."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 5, <strong>the timeout</strong>: what vacuum removed with it on, and what the held turn was told</span>
+        <span class="field"><label for="e19-removed">removed</label><input type="text" id="e19-removed" data-field="removed" placeholder="e.g. 4999 of 4999"></span>
+        <span class="field"><label for="e19-told">client saw</label><input type="text" id="e19-told" data-field="told" placeholder="e.g. InterfaceError: connection is closed"></span>
+        <span class="why-row"><label for="e19-pay">Who pays for the timeout, and why is that the right party?</label><textarea id="e19-pay" data-field="pay" placeholder="The transaction that was holding the line. It is the right party because the alternative is every table in the database growing to pay for one session, but it means the error has to be recognisable, and the client only sees a closed connection."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">The decision: <strong>what is the longest a transaction stays open in your system, and what would you set the timeout to?</strong></span>
+        <span class="field"><label for="e19-longest">longest</label><input type="text" id="e19-longest" data-field="longest" placeholder="e.g. a judge loop holding one across a model call"></span>
+        <span class="field"><label for="e19-set">timeout</label><input type="text" id="e19-set" data-field="set" placeholder="e.g. 10 s, after moving the call out"></span>
+        <span class="why-row"><label for="e19-defend">Defend the number, including what it kills that is currently working</label><textarea id="e19-defend" data-field="defend" placeholder="Ten seconds is above any await we mean to hold a transaction across, which after 0017 is none, and far below the hours a forgotten notebook stays open. It will kill any turn that still holds a transaction across a model call, and that is the point: those turns were already costing every table in the database."></textarea></span>
+      </div>
+    </div>
+
+    <div class="earned">
+      <span class="callout-label">The bullet this lesson earns</span>
+      <p>&#8220;Found that under asyncpg a read-only transaction left idle pins the vacuum horizon for the whole database: one session kept <span data-fill="heldpages" class="placeholder">[run step 3]</span> unremovable and a hot table from <span data-fill="freepages" class="placeholder">[run step 3]</span>, while the query plan never changed and only EXPLAIN BUFFERS showed it (<span data-fill="dirty" class="placeholder">[run step 4]</span>). Set an idle-in-transaction timeout on the application pool, which let vacuum reclaim <span data-fill="removed" class="placeholder">[run step 5]</span>.&#8221;</p>
+      <p class="caveat">The first clause is the one to be ready for, because it contradicts what most people believe about READ COMMITTED. Say that it is the extended protocol's portal that holds the snapshot, and that you checked it with one simple query. That is the difference between knowing it and having read it.</p>
+    </div>
+  </div>
+</div>
+
+<h2 id="underneath-0019">Underneath</h2>
+
+<div class="underneath">
+  <span class="callout-label">One layer down &#183; what vacuum is allowed to remove</span>
+
+  <p>Four things. The first is the rule vacuum follows, the second is what actually holds it back, the third is how to see it in a plan, and the fourth is why fixing it does not give the space back.</p>
+
+  <h3>Vacuum follows one rule, and one session sets it for everyone</h3>
+
+  <p>The vacuuming chapter states the rule in a clause: <em>&#8220;the row version must not be deleted while it is still potentially visible to other transactions.&#8221;</em> Potentially is the word doing the work. Postgres does not track which session could see which version; it tracks the oldest snapshot still open, and treats everything newer than that as potentially visible to it.</p>
+
+  <p>That makes the horizon a single number for the whole cluster, not per table. A session reading the <code>vendors</code> table holds back vacuum on <code>eval_runs</code>, because a snapshot is a view of every table at once. The <code>idle_in_transaction_session_timeout</code> entry says so directly: <em>&#8220;Even when no significant locks are held, an open transaction prevents vacuuming away recently-dead tuples that may be visible only to this transaction; so remaining idle for a long time can contribute to table bloat.&#8221;</em></p>
+
+  <div class="derive">
+    <p>The growth is arithmetic, so the table size is predictable before you measure it:</p>
+    <span class="eq">rows 5 000, rows per page       5 000 / 72 pages     = about 69
+each round leaves dead           4 999 rows / 69      = about 72 pages
+with the horizon held            143 + 99 rounds x 72 = about 7 270 pages
+measured                                                    7 213 pages
+with vacuum allowed              steady at 2 x 72     =       143 pages</span>
+    <p>Within one per cent, and the shape is the useful part: <b>held, the table grows linearly with your write rate multiplied by how long the session stays open</b>. At a thousand updates a second, an hour-old notebook is 3.6 million dead rows. The healthy case settles at about twice the live size, because each round reuses the space the previous round's dead versions freed.</p>
+  </div>
+
+  <h3>What holds the horizon is the snapshot, not the transaction id</h3>
+
+  <p>Two separate things can pin it, and <code>pg_stat_activity</code> has a column for each. <code>backend_xid</code> is a transaction id, assigned only when a transaction writes or locks a row. <code>backend_xmin</code> is the snapshot it is still using. Either one is enough, and a read-only transaction that never gets an id can still hold a snapshot &#8212; which is the case people miss, because &#8220;read-only&#8221; sounds free.</p>
+
+  <p>The protocol is what decides whether a finished statement's snapshot is still held. The extended protocol runs a statement through a <em>portal</em>, and the documentation is precise about how long one lives: <em>&#8220;An unnamed portal is destroyed at the end of the transaction, or as soon as the next Bind statement specifying the unnamed portal as destination is issued. (Note that a simple Query message also destroys the unnamed portal.)&#8221;</em></p>
+
+  <div class="derive">
+    <p>Six ways to leave a transaction open, measured in step 1:</p>
+    <span class="eq">transaction left open              xid    xmin   stops vacuum
+BEGIN, nothing                       -      -       no
+BEGIN; SELECT        (psql)          -      -       no
+BEGIN; SELECT        (asyncpg)       -     set      yes   the portal keeps it
+BEGIN; SELECT ... FOR UPDATE        set    set      yes
+BEGIN; UPDATE        (simple)       set     -       yes   the id alone is enough
+BEGIN REPEATABLE READ; SELECT        -     set      yes   by definition</span>
+    <p>Rows two and three are one statement and differ only in the message that carried it. The practical consequence: <b>under async SQLAlchemy, every transaction that has read anything holds the horizon until it ends</b>. The rule that follows is lesson 0017's, arriving for a third reason &#8212; a transaction held across an await costs a pooled connection, every row lock it took, and vacuum for the whole database.</p>
+  </div>
+
+  <h3>A plan tells you what it did; BUFFERS tells you what it cost</h3>
+
+  <p>The query in step 4 kept one plan throughout, and the reason an index-only scan can read the table is stated in the index chapter: <em>&#8220;If it's set, the row is known visible and so the data can be returned with no further work. If it's not set, the heap entry must be visited to find out whether it's visible, so no performance advantage is gained over a standard index scan.&#8221;</em> The bit is the visibility map's, and only vacuum sets it.</p>
+
+  <p>So a held horizon does two separate things to one query. It leaves dead versions for the index to step over, and it stops vacuum marking pages all-visible, which silently turns an index-only scan back into an ordinary one. Neither changes the plan's name. The documentation's own advice for this, <em>&#8220;The numbers provided by BUFFERS help to identify which parts of the query are the most I/O-intensive&#8221;</em>, is the whole diagnostic.</p>
+
+  <div class="derive">
+    <p>The same twenty rows, four ways, from step 4:</p>
+    <span class="eq">state                          plan               buffers   heap fetches
+no index                       Seq Scan              1 667           -
+covering index, vacuumed       Index Only Scan           4           0
+horizon held, 5 batches        Index Only Scan          44          40
+closed, then vacuumed          Index Only Scan           4           0</span>
+    <p>Forty is exactly two per row returned: each live row and its dead predecessor. <b>The name of the plan is a promise about what it can skip, and the counters are what it actually skipped.</b> Read the second, and add <code>BUFFERS</code> to every <code>EXPLAIN ANALYZE</code> you run, because without it this row and the one below it look identical.</p>
+  </div>
+
+  <h3>Vacuum reclaims space; it does not return it</h3>
+
+  <p>This is the part people get wrong after they have fixed the cause. The vacuuming chapter is explicit that plain vacuum <em>&#8220;will not return the space to the operating system, except in the special case where one or more pages at the end of a table become entirely free and an exclusive table lock can be easily obtained.&#8221;</em> The space is reused by future rows in the same table, which is fine for a table that will grow back into it and useless for one that will not.</p>
+
+  <p>Getting it back means rewriting the table, and the chapter prices that too: <em>&#8220;VACUUM FULL requires an ACCESS EXCLUSIVE lock on the table it is working on, and therefore cannot be done in parallel with other use of the table,&#8221;</em> and it needs extra disk <em>&#8220;approximately equal to the size of the table&#8221;</em> while it runs. Thirty milliseconds on 7&#8239;213 pages here; on a production results table, an outage. For a table that only grows and is never pruned, the structural answer is to partition it by time, and the partitioning chapter names this exact benefit: dropping a partition <em>&#8220;is far faster than a bulk operation. These commands also entirely avoid the VACUUM overhead caused by a bulk DELETE.&#8221;</em></p>
+
+  <p class="lands">Which lands on the sentence worth keeping: <b>vacuum can only clean up to the oldest open snapshot, and under your driver any read in an open transaction is one.</b> Keep transactions short, bound the idle ones, and watch how far behind the oldest session is rather than how long it has been open.</p>
+</div>
+
+<h2>Check yourself</h2>
+
+<div class="quiz" data-quiz-id="0019-q1">
+  <p class="q">A worker using async SQLAlchemy begins a READ COMMITTED transaction, runs one <code>SELECT</code>, then awaits a model call for an hour. What stops vacuum from removing dead rows in <em>other</em> tables?</p>
+  <ol class="options">
+    <li data-correct="true">The snapshot its unclosed portal keeps</li>
+    <li>A shared lock its SELECT holds</li>
+    <li>The transaction id it got first</li>
+    <li>Autovacuum skips any table being read</li>
+  </ol>
+  <div class="why">
+    <p>The snapshot. asyncpg sends every statement through the extended protocol, which leaves an unnamed portal open until the next Bind or the end of the transaction, and a portal keeps the snapshot it ran under. So <code>backend_xmin</code> stays set for the whole hour, and the horizon is one number for the whole database, so every table is held back, not just the one it read.</p>
+    <p>The distractors are each a real mechanism that is not the one at work. A plain SELECT takes no row lock. A read-only transaction is never given an id at all &#8212; which is exactly why people assume it is harmless. Autovacuum does run; step 3 showed it running and removing nothing.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0019-q2">
+  <p class="q">The idle session is closed and <code>VACUUM</code> runs again. It removes every dead row, and the table is still <strong>7&#8239;213 pages</strong> instead of 143. Why?</p>
+  <ol class="options">
+    <li data-correct="true">Plain vacuum marks space reusable and keeps the file</li>
+    <li>Autovacuum has not yet visited the table since then</li>
+    <li>The index still points into pages that held them</li>
+    <li>Statistics stay stale until the next ANALYZE has run</li>
+  </ol>
+  <div class="why">
+    <p>Plain vacuum reclaims space <em>inside</em> the table for future rows; it does not shrink the file, except for empty pages at the very end when it can take a lock easily. After the session closed, the scan in step 3 still read all 7&#8239;213 pages against the healthy table's 143, because empty pages are still pages.</p>
+    <p>Getting the pages back takes <code>VACUUM FULL</code> or another rewrite, under an <code>ACCESS EXCLUSIVE</code> lock that blocks reads for the duration. That is why the fix for a table that only grows is structural &#8212; partitions you drop &#8212; rather than a better vacuum schedule.</p>
+  </div>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">A spoken answer to <em>&#8220;your results table keeps growing even though autovacuum is on &#8212; what do you look at?&#8221;</em> Read it aloud, then say it again with the page covered.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">Every eval run is a row inserted as running and updated when it finishes, and nothing is ever deleted. So every run leaves one dead version for vacuum.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">Vacuum may only remove a version no open snapshot could still see. So the oldest open snapshot anywhere is a line nothing newer crosses, in any table.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">I held one idle session under our driver, asyncpg. One plain SELECT in READ COMMITTED was enough, because the extended protocol keeps its portal and the portal keeps the snapshot.</p>
+      <p class="line">Vacuum removed none of <b>499&#8239;900</b> dead rows and the table went from <b>143 pages to 7&#8239;213</b>. The plan never changed. Only the BUFFERS line showed it.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">The fix is an idle-in-transaction timeout, and it kills the transaction that held the line. The client just sees a closed connection.</p>
+      <p class="line">And the pages stay afterwards. Getting them back means a full rewrite under an exclusive lock, so the real fix is partitioning the table by time.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;It's a read-only transaction, so it can't be holding anything back.&#8221;</span> The received answer, and it is half true: a read-only transaction never gets a transaction id. What vacuum respects is the <em>snapshot</em>, and under asyncpg a finished SELECT keeps one for as long as the transaction stays open. The follow-up is <em>&#8220;what does <code>backend_xmin</code> say for that session?&#8221;</em>, and if you have not looked, the position is a guess. The version that holds: <span class="quoted">&#8220;any open transaction that has read anything, under the extended protocol, holds the horizon until it ends.&#8221;</span></p>
+  <p>The second trap is <span class="quoted">&#8220;once we closed the session, vacuum cleaned it up.&#8221;</span> It removed the rows and kept the pages. If the interviewer asks what the table's size did afterwards, the answer is <em>nothing</em>, and saying so is the part that sounds like you have seen it happen.</p>
+</div>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;Autovacuum is on and the table still grows. Why?&#8221;
+      <span class="tell">The opening question, and the weak answer tunes autovacuum. The strong one asks what vacuum is not being allowed to remove.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The first thing I would check is not autovacuum's settings but whether it is <em>allowed</em> to remove anything. <code>VACUUM VERBOSE</code> prints a line saying how many rows are <em>&#8220;dead but not yet removable&#8221;</em> and how old the removable cutoff is. If that number is large, autovacuum is running fine and being held back by an open snapshot somewhere.</p>
+        <p>In the lab, one idle session was enough to keep <strong>499&#8239;900 dead rows</strong> unremovable and grow a table from 143 pages to 7&#8239;213, with autovacuum's work being done after every round. Tuning its thresholds would have made it run more often and remove exactly as little.</p>
+        <span class="invites">Invites &#183; <b>&#8220;How do you find the session?&#8221; &#8212; <code>pg_stat_activity</code>, sorted by how far behind <code>backend_xmin</code> is.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;It's only a SELECT. How can it block vacuum?&#8221;
+      <span class="tell">Stated as disbelief, and the expected answer is &#8220;REPEATABLE READ&#8221;. The better one names the protocol, because it applies to READ COMMITTED too.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Because what vacuum respects is the snapshot, not locks and not transaction ids. Under READ COMMITTED people expect the snapshot to be dropped when the statement ends, and under psql it is. Under asyncpg it is not: the extended protocol runs the statement through a portal, and the documentation says an unnamed portal lives until <em>&#8220;the end of the transaction, or as soon as the next Bind&#8221;</em>. The portal keeps its snapshot.</p>
+        <p>I checked that rather than inferring it. The same parenthesis says a simple query destroys the portal, so I sent one down the same connection: <strong>the pin disappeared, and came back with the next extended statement</strong>. So under async SQLAlchemy, any transaction that has read anything holds the horizon until it commits.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So what do you change?&#8221; &#8212; shorter transactions first; a timeout second, as the backstop.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;How would you find the session that is doing it?&#8221;
+      <span class="tell">Practical, and the trap is sorting by duration. A long-running query that took its snapshot a second ago is not the problem.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p><code>pg_stat_activity</code>, filtered to sessions where <code>backend_xmin</code> or <code>backend_xid</code> is set, and sorted by <code>age()</code> of those rather than by <code>xact_start</code>. Age counts the transactions committed since the snapshot was taken, which is what predicts the bloat. A report that has been running for an hour but refreshed its snapshot a second ago is less harmful than a notebook idle since lunch.</p>
+        <p>The one to recognise is <code>idle in transaction</code> with a last query that is a finished SELECT. That is exactly what it looked like in the lab: fifty transactions behind after one second. And the same view is not the only place: a replica with <code>hot_standby_feedback</code> on pins the primary's horizon from another machine, and shows up in <code>pg_stat_replication</code> instead.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What else pins it?&#8221; &#8212; replicas with feedback on, and replication slots. Lesson 0020 measures the first.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Would you set <code>idle_in_transaction_session_timeout</code>? To what?&#8221;
+      <span class="tell">A yes is expected. What is being tested is whether you know what it kills and what the application sees when it does.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Yes, on the application's own connections rather than server-wide, and above the longest await we intend to hold a transaction across &#8212; which, after moving model calls out of transactions, is none. So something like ten seconds: far above a legitimate gap between statements and far below a forgotten session.</p>
+        <p>The part worth saying is what it costs. In the lab the timeout let vacuum remove all 4&#8239;999 rows, and the held turn failed with <strong><code>connection is closed</code> and no SQLSTATE</strong>. The reason is only in the server log. So it has to ship with the application recognising that failure, or it looks like a network problem to whoever is on call.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What about a long report query?&#8221; &#8212; that is <code>statement_timeout</code> or <code>transaction_timeout</code>; this one only fires while idle.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;The table is already bloated. How do you get the space back?&#8221;
+      <span class="tell">The trap is &#8220;run VACUUM&#8221;. The follow-up after that is always &#8220;and did the table get smaller?&#8221;</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Plain vacuum will not do it. It removes the dead rows and marks the space reusable inside the table, and the documentation is explicit that it <em>&#8220;will not return the space to the operating system&#8221;</em> except for empty pages at the very end. In the lab, after the session closed and vacuum ran, the table was <strong>still 7&#8239;213 pages</strong> with zero dead rows.</p>
+        <p>Getting it back means rewriting the table: <code>VACUUM FULL</code>, which takes an <code>ACCESS EXCLUSIVE</code> lock and roughly the table's size again in disk while it runs, or an online rewrite tool. For a results table that only grows, I would not want to be doing either on a schedule. I would partition it by time, so retention is dropping a partition &#8212; which removes a file and leaves nothing to vacuum.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Why not just DELETE old runs?&#8221; &#8212; because a DELETE is more dead rows, and vacuum is what just failed.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="primary-source">
+  <span class="callout-label">Read this next &#8212; one source, not ten</span>
+  <span class="title"><a href="https://www.postgresql.org/docs/17/routine-vacuuming.html" target="_blank" rel="noopener">PostgreSQL &#8212; Routine Vacuuming</a></span>
+  <p>Read section 24.1.2, <em>Recovering Disk Space</em>. It is where the rule comes from &#8212; <em>&#8220;the row version must not be deleted while it is still potentially visible to other transactions&#8221;</em> &#8212; and where the chapter says plainly that the space is kept rather than returned, and what <code>VACUUM FULL</code> costs to get it back. Everything in this lesson's lab is one of those sentences made visible.</p>
+  <p class="cite">Read it against <a href="https://www.postgresql.org/docs/17/protocol-flow.html" target="_blank" rel="noopener">the protocol's message flow</a> for the portal lifetime, and <a href="https://www.postgresql.org/docs/17/indexes-index-only-scans.html" target="_blank" rel="noopener">index-only scans</a> for the visibility map. The claim that an asyncpg SELECT in READ COMMITTED holds the horizon is measured here rather than found stated anywhere: the documentation gives the portal's lifetime, and this lesson checked what that implies.</p>
+</div>
+
+<h2>Recall &#8212; from lessons 0016&#8211;0018</h2>
+
+<div class="recall">
+  <details>
+    <summary>0016 showed an UPDATE leaving two row versions on disk, one visible. Which transaction decides when the invisible one can go?</summary>
+    <p class="answer">None of the ones involved in the update. The old version stays until <em>no open snapshot anywhere</em> could still see it, so the transaction that decides it is whichever one is oldest in the whole database, reading any table at all. That is the step from 0016 to this lesson: 0016 established that an update is an insert plus a tombstone, and this one shows that the tombstone's lifetime is set by a stranger. It also explains why 0016's readers could be so relaxed about writers &#8212; <em>&#8220;reading never blocks writing&#8221;</em> is true, and the bill for it is paid here, in versions that have to be kept for as long as any reader might want them. A long REPEATABLE READ transaction in 0016 was a correctness tool; left open, it is a vacuum problem for every table.</p>
+    <span class="from">lesson 0016 &#183; an UPDATE is an insert plus a tombstone</span>
+  </details>
+  <details>
+    <summary>0017's transaction across an await cost two things. This lesson found a third. What are all three?</summary>
+    <p class="answer">A pooled connection, held for the length of the call, which is what dropped throughput from 5.5 turns a second to 4.0 even with a row per worker; every row lock the transaction had taken, which is what dropped it to 0.9 on a shared row; and now the vacuum horizon for the entire database, because under asyncpg the SELECT that began the transaction left a portal holding its snapshot. The third is the worst of the three because it is invisible where the other two are not: a held connection shows up as pool wait, a held lock shows up as lock wait, and a held snapshot shows up as a table getting slowly bigger weeks later, in a table the transaction never touched. The fix is the same for all three &#8212; move the call out of the transaction &#8212; which is a good argument for doing it even where the first two costs look affordable.</p>
+    <span class="from">lesson 0017 &#183; the await inside the transaction</span>
+  </details>
+  <details>
+    <summary>0018's atomic <code>SET score = score + 1</code> was twelve times faster than the lock. Does it produce less for vacuum to clean up?</summary>
+    <p class="answer">No, and it is worth being exact about why. Every UPDATE writes a new row version and leaves the old one dead, whether it read first or not, so the atomic write leaves exactly as many dead versions as the read-modify-write did. What it changes is how long the transaction is open: one statement, a few milliseconds, then gone. So it does not reduce the garbage, it lets the horizon move past the garbage sooner, which is what makes it collectable. The strategy that genuinely produces more work for vacuum is optimistic locking under contention, because every one of the 120 conflicting attempts was a transaction that started, and every one that got as far as writing left something behind. The general point: vacuum's load is the write rate, and its ability to keep up is the oldest open transaction, and those are two different numbers to watch.</p>
+    <span class="from">lesson 0018 &#183; the write that never reads</span>
+  </details>
+</div>
+
+<div class="ask">
+  <p><strong>The finding in step 2 contradicts something most people believe about READ COMMITTED, so I would like it checked on your own stack.</strong> If you have access to a real service using async SQLAlchemy, open a transaction, run one read, and look at that session's <code>backend_xmin</code> in <code>pg_stat_activity</code> before committing. If it is set, the lesson holds for you. If it is empty, tell me which driver and version you are on, because that would be a genuinely useful exception.</p>
+  <p>Ask me anything here that was unclear, particularly the portal: it is the one step where the lesson leans on a mechanism the documentation implies rather than states.</p>
+  <p>The redraw experiment from lesson 0014 is still open &#8212; 0013's diagram at twelve marks against 0014's at eight. This diagram is at twelve, and the top half is only five of them.</p>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">Where this lands on the r&#233;sum&#233;</span>
+  <p>This lesson teaches the mechanism from first principles and breaks it in a lab. The chapter opposite defends the evaluation work whose results fill tables that only ever grow.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../resume-mastery/lessons/0012-rag-and-evaluation.html">RM 0012 &#183; RAG and evaluation</a>
+      <span class="bridge-why">A 368-scenario harness and eight runs an arm are rows inserted and updated forever, and an evaluation loop that reads, then awaits a judge model, is exactly the transaction that holds vacuum back.</span>
+    </li>
+  </ol>
+</div>
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0018-lock-retry-or-dont-read.html">&#8592; 0018 &#183; Lock, retry, or don't read</a></span>
+  <span><span class="dir">Next</span><a href="0020-the-read-that-beat-its-own-write.html">0020 &#183; The read that beat its own write &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>Five-Stage Multi-Agent Schematization</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0003">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">R&#233;sum&#233; Mastery</a>
+    <span class="sep">/</span>
+    <span>Batch A &#183; CloudSufi</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Chapter 0003</span>
+  </div>
+  <h1>Five-stage multi-agent schematization</h1>
+  <p class="standfirst">This is the bullet where a model writes something and a <em>program</em> decides whether it is right. That split is the whole design, and it is what separates this from a prompt with a retry in it. The chapter also carries the honest benchmark, which is stronger material than the headline.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Explain a ten-agent retry loop without it sounding like a pile of prompts &#8212; and answer <em>&#8220;how do you know the output is correct?&#8221;</em> with a subprocess exit code rather than a feeling.</p>
+</div>
+
+<div class="claim-line">
+  <span class="callout-label">The line being defended</span>
+  <blockquote>&#8220;Architected a 5-stage <strong>multi-agent schematization pipeline</strong> (Gemini, Google ADK) with deterministic validation and LLM-feedback retry loops &#8212; delivering each PV map pre-built with the data insights behind it, so engineers refine rather than author, cutting a dataset from <strong>~3 hours</strong> of hand-mapping to a <strong>~30-minute</strong> review pass.&#8221;</blockquote>
+  <span class="whose">CloudSufi &#183; bullet 3 of 4</span>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">A spoken answer to <em>&#8220;walk me through the schematization pipeline.&#8221;</em> The trap here is the word &#8220;agents.&#8221; Lead with the split between the writer and the judge, and the ten sub-agents become a detail instead of the headline.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">Public statistics arrive as spreadsheets, and every publisher formats them differently. Before anything can be compared, an engineer has to say what each column means in a shared vocabulary.</p>
+      <p class="line">That was hand work, one column at a time, against documentation.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">Five stages. Sample the data, pick the vocabulary, write the mapping, check it, score it. The middle two sit inside a loop.</p>
+      <p class="line">The part I would defend hardest is that <b>the checker is a program, not a model</b>. We run the mapping through the real processor as a subprocess and ask whether data rows came out.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">The loop feeds that program's actual error text back into the next prompt. The model is correcting a named failure, not guessing again.</p>
+      <p class="line">And it stops three ways, not one. Acceptable, <b>stagnant</b>, or out of attempts. Stopping when the score stops moving is what keeps one hopeless dataset from costing as much as forty good ones.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">Two things I would say before being asked. The three-hours-to-thirty-minutes figure is a field estimate, not something I instrumented.</p>
+      <p class="line">And the accuracy is uneven. Census datasets average <b>39.3%</b> and crime datasets <b>2.6%</b>. I ran the analysis, and the driver is vocabulary coverage, not anything about the files.</p>
+      <p class="line">I also found our answer key was broken. Only <b>28 of 49</b> hand-written maps validate. I reported that rather than quoting the flattering number.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;We used a multi-agent system with self-correcting retry loops.&#8221;</span> It is true and it is the weakest version of this story. It invites <em>&#8220;so what decides that a correction is an improvement?&#8221;</em> and the honest answer is the interesting one you skipped: a subprocess. Lead with the oracle, not the agent count.</p>
+  <p>The other trap is <span class="quoted">&#8220;100% success rate.&#8221;</span> It is in the README and it means the pipeline completed, on four datasets. Said without that qualifier next to a PV accuracy of 26.8%, it reads as a contradiction and the interviewer will find it.</p>
+</div>
+
+
+
+<div class="trace">
+  <span class="callout-label">Walk them through it &#183; one dataset, end to end</span>
+  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One spreadsheet, followed from the moment it lands to the draft an engineer opens. The dataset is a stand-in. The numbers and the failures are measured.</p>
+  <p class="tr-case"><b>The picture.</b> Translating a form into a language whose dictionary is fixed and published. You cannot coin a word. And there is one way to know your translation works. You hand it to the machine that reads that language and see whether anything comes out.</p>
+  <p class="tr-case"><b>The case.</b> A state statistics office publishes a crime table. Eleven columns, names like <code>TOT_IPC_2019</code>, and no documentation. Before anyone can compare it with another state, each column has to be said in a shared vocabulary.</p>
+  <ol>
+    <li class="tr-step">
+      <span class="tr-k">The spreadsheet</span>
+      <p><b>What happens.</b> The file arrives with no explanation. An engineer would open it, read the column names, and start looking things up in documentation.</p>
+      <p><b>Concretely.</b> That hand work runs about three hours for one dataset. It is one column at a time, against a vocabulary nobody has memorised.</p>
+      <p><b>If they ask why.</b> I should flag that the three-hour figure is a field estimate rather than something I instrumented. It is the kind of number an interviewer is right to push on.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Sample it</span>
+      <p><b>What happens.</b> Stage one reads a sample of the actual rows rather than just the header.</p>
+      <p><b>Concretely.</b> A column called <code>TOT_IPC_2019</code> means very little. The values under it mean a lot more.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Pick the vocabulary</span>
+      <p><b>What happens.</b> Stage two chooses which part of the shared vocabulary this dataset belongs to, out of seven categories.</p>
+      <p><b>Concretely.</b> That vocabulary is Data Commons, a public knowledge graph with a fixed set of properties. You can only map a column to a property that already exists in it.</p>
+      <p><b>If they ask why.</b> Get this stage wrong and every stage after it is wasted. The mapping will be internally consistent and pointed at the wrong half of the graph.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Write the map</span>
+      <p><b>What happens.</b> Stage three writes the actual file, which says this column means this property with these values.</p>
+      <p><b>Concretely.</b> That file is the PVMAP, a property-value map. It is the artefact the whole pipeline exists to produce.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Run it</span>
+      <p><b>What happens.</b> Stage four does not read the mapping and form an opinion about it. It runs the mapping.</p>
+      <p><b>Concretely.</b> <code>stat_var_processor.py</code> is launched as a subprocess against the real data. Its exit code is the verdict, and the question is whether data rows came out.</p>
+      <p><b>If they ask why.</b> This is the part I would defend hardest. A model asked whether its own output looks right will say yes. A program that runs it either produces rows or does not.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The feedback</span>
+      <p><b>What happens.</b> If the run failed, the real error text goes back into the next prompt.</p>
+      <p><b>Concretely.</b> The model is not asked to try again. It is handed the named failure and asked to fix that.</p>
+      <p><b>If they ask why.</b> Stages three and four sit inside a loop for this reason. Writing a map and checking it is the part you do repeatedly, so it is the part that gets a loop around it.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Three exits</span>
+      <p><b>What happens.</b> The loop stops three ways. The answer is acceptable, the score has stopped improving, or the attempts have run out.</p>
+      <p><b>Concretely.</b> Ten sub-agents run in order inside that loop, and three of them can raise the stop signal, for three different reasons.</p>
+      <p><b>If they ask why.</b> Stopping when the score stops moving is what keeps one hopeless dataset from costing as much as forty good ones. Succeeding is the least interesting of the three exits.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The handover</span>
+      <p><b>What happens.</b> Stage five scores the result, and the engineer opens a draft rather than a blank file.</p>
+      <p><b>Concretely.</b> The review pass runs about thirty minutes against the three hours it replaced. They refine rather than author, and the evidence for each mapping is attached.</p>
+      <p><b>If they ask why.</b> Knowing which exit fired is what tells them whether they are reviewing a solved dataset or an abandoned one.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Where it fails</span>
+      <p><b>What happens.</b> Accuracy is very uneven between domains, and I would rather say so than be asked.</p>
+      <p><b>Concretely.</b> Census datasets average 39.3 per cent. Crime datasets average 2.6. That is the same pipeline on both.</p>
+      <p><b>If they ask why.</b> The team assumed wide or messy tables were the cause, so the proposed fix was prompt work. I pulled all 49 benchmark datasets and tested seven structural features. Every structural hypothesis failed.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The answer key</span>
+      <p><b>What happens.</b> The real driver turned out to be vocabulary coverage in the target schema, which no amount of prompting moves.</p>
+      <p><b>Concretely.</b> While checking that, I ran the hand-written answer key through the same processor. Only 28 of 49 produced valid output.</p>
+      <p><b>If they ask why.</b> We were partly measuring against broken answers. I reported that in the same memo as our results, which made them harder to present and made the roadmap correct.</p>
+    </li>
+  </ol>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 330" role="img" aria-labelledby="mech0003-t mech0003-d">
+    <defs>
+      <marker id="ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+      <marker id="ar3w" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head" style="fill:var(--warn)"/>
+      </marker>
+    </defs>
+    <title id="mech0003-t">Five stages, with generation and validation inside one retry loop</title>
+    <desc id="mech0003-d">A source CSV with metadata is sampled, then a schema category is selected from seven. Those feed a retry loop built on an ADK LoopAgent. Inside the loop, a generator writes a PVMAP and a validation step runs stat var processor as a subprocess to decide whether it works. Failures return to the generator as real error text. The loop exits when quality is acceptable, when quality has stopped improving, or when the attempt budget is gone. The result is then evaluated against a hand-written ground truth mapping, which is itself only valid for twenty-eight of forty-nine datasets.</desc>
+
+    <rect class="box" x="8" y="16" width="150" height="50" rx="3"/>
+    <text class="lbl strong" x="83" y="38" text-anchor="middle">Source CSV</text>
+    <text class="lbl-dim" x="83" y="55" text-anchor="middle">+ metadata</text>
+
+    <path class="flow" marker-end="url(#ar3)" d="M 162 41 H 200"/>
+
+    <rect class="box" x="204" y="16" width="150" height="50" rx="3"/>
+    <text class="lbl strong" x="279" y="38" text-anchor="middle">Sampling</text>
+    <text class="lbl-dim" x="279" y="55" text-anchor="middle">representative slice</text>
+
+    <path class="flow" marker-end="url(#ar3)" d="M 358 41 H 396"/>
+
+    <rect class="box" x="400" y="16" width="170" height="50" rx="3"/>
+    <text class="lbl strong" x="485" y="38" text-anchor="middle">Schema selection</text>
+    <text class="lbl-dim" x="485" y="55" text-anchor="middle">1 of 7 categories</text>
+
+    <path class="flow" marker-end="url(#ar3)" d="M 485 70 V 96"/>
+
+    <rect class="accent" x="8" y="100" width="600" height="150" rx="3"/>
+    <text class="lbl strong ink-accent" x="24" y="122">ADK LoopAgent &#8212; 10 sub-agents, 3 ways out</text>
+
+    <rect class="box" x="24" y="138" width="250" height="96" rx="3"/>
+    <text class="lbl strong" x="149" y="160" text-anchor="middle">PVMAP generator</text>
+    <text class="lbl-dim" x="149" y="178" text-anchor="middle">Gemini, structured output</text>
+    <text class="lbl-dim" x="149" y="196" text-anchor="middle">+ metadata generation</text>
+    <text class="lbl-dim" x="149" y="220" text-anchor="middle">prompt carries last errors</text>
+
+    <path class="flow" marker-end="url(#ar3)" d="M 278 172 H 316"/>
+
+    <rect class="box" x="320" y="138" width="268" height="96" rx="3"/>
+    <text class="lbl strong" x="454" y="160" text-anchor="middle">Validation</text>
+    <text class="num ink-good" x="454" y="182" text-anchor="middle">stat_var_processor.py, subprocess</text>
+    <text class="lbl-dim" x="454" y="200" text-anchor="middle">did real rows come out?</text>
+    <text class="lbl-dim" x="454" y="220" text-anchor="middle">exit code is the verdict</text>
+
+    <path class="flow-dim" marker-end="url(#ar3w)" d="M 454 234 V 244 H 149 V 234" style="stroke-dasharray:4 3"/>
+
+    <path class="flow" marker-end="url(#ar3)" d="M 612 175 H 650"/>
+
+    <rect class="box-2" x="654" y="100" width="178" height="150" rx="3"/>
+    <text class="lbl strong" x="743" y="126" text-anchor="middle">Evaluation</text>
+    <text class="lbl-dim" x="743" y="146" text-anchor="middle">vs hand-written map</text>
+    <text class="num ink-warn" x="743" y="172" text-anchor="middle">28 of 49 gold files</text>
+    <text class="lbl-dim" x="743" y="190" text-anchor="middle">actually validate</text>
+    <text class="num" x="743" y="216" text-anchor="middle">39.3% census</text>
+    <text class="num ink-bad" x="743" y="234" text-anchor="middle">2.6% crime</text>
+
+    <text class="lbl-dim" x="8" y="278">Exits: quality acceptable &#183; quality stagnant &#183; attempt budget gone</text>
+    <text class="lbl-dim" x="8" y="298">Retry policy: 7 attempts, 5&#8239;s to 60&#8239;s exponential with jitter, on 408/429/5xx</text>
+    <text class="lbl-dim" x="8" y="318">Cloud Run + IAP &#183; 2 vCPU &#183; 4&#8239;GB &#183; 3600&#8239;s timeout &#183; concurrency 80</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">What you say while drawing it</span>
+    <ol class="narrate">
+      <li>A source CSV and its metadata arrive.</li>
+      <li>Sampling takes a representative slice, so the model sees data and not just headers.</li>
+      <li>Schema selection picks one of seven categories. Get this wrong and every later stage is wasted.</li>
+      <li>Everything inside the frame is one ADK LoopAgent with ten sub-agents.</li>
+      <li>The generator writes the PVMAP, and its prompt carries the previous iteration's errors.</li>
+      <li>Validation is the important box. It runs the real processor as a subprocess.</li>
+      <li>The dashed line back is the feedback: real error text, not a critique.</li>
+      <li>Three ways out, written along the bottom. Stagnant is the one people forget.</li>
+      <li>Evaluation scores the result against a hand-written map.</li>
+      <li>And that answer key is only valid for 28 of the 49 datasets, which is worth saying out loud.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. The shape is a line with a cycle in the middle of it, and one box on the right that undercuts its own answer key.</p>
+  <ul>
+    <li>The <b>five stages left to right</b>. If you only get this, you can still answer the opening question.</li>
+    <li>The <b>loop frame</b> around generation and validation. It is a cycle, not two steps.</li>
+    <li><b>Validation is a subprocess.</b> The one mark to keep if you lose the others.</li>
+    <li>The <b>three exits</b> along the bottom, and <b>28 of 49</b> on the right.</li>
+  </ul>
+  <span class="timer">Say &#8220;write it, run it, read the errors, write it again&#8221; as you draw the cycle. Four phrases and the loop is explained.</span>
+</div>
+
+<div class="star">
+  <span class="callout-label">Behavioural &#183; the story for this bullet</span>
+  <p class="frame">For <em>&#8220;tell me about a time your own results were worse than they looked&#8221;</em> or <em>&#8220;a time you disagreed with a metric.&#8221;</em></p>
+  <ol class="rungs">
+    <li class="rung"><span class="rung-k">Decision</span><p>Whether to report a benchmark number I had stopped believing, or to go and check the thing it was measured against.</p></li>
+    <li class="rung"><span class="rung-k">Situation</span><p>PV accuracy varied enormously between datasets and nobody could say why. The assumption on the team was that wide or messy tables were the problem, so the proposed fix was prompt work.</p></li>
+    <li class="rung"><span class="rung-k">Action</span><p>I pulled all 49 benchmark datasets and extracted seven structural features, then ran Spearman correlations against accuracy. Every structural hypothesis failed. The strongest was r=0.20 at p=0.16, which is not significant.</p><p>Then I did the thing nobody had: I ran the hand-written ground-truth maps through the same processor. Only 28 of 49 produced valid output.</p></li>
+    <li class="rung"><span class="rung-k">Result</span><p>The real driver turned out to be vocabulary coverage in the target schema. That is a 39.3% against 2.6% gap by domain, and prompting does not fix it. The roadmap changed from prompt tuning to schema coverage and ground-truth cleanup.</p></li>
+    <li class="rung"><span class="rung-k">What it cost</span><p>It made our numbers harder to present. I had to say our benchmark was noisy in the same memo that reported our results. I would do it again, because the alternative was a quarter of prompt engineering against a ceiling that was never going to move.</p></li>
+  </ol>
+</div>
+
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>Public statistics arrive as spreadsheets. Every government publishes them differently. Before anyone can compare two of them, somebody has to say what each column <em>means</em> in a shared vocabulary. That translation is done by hand, by an engineer, one column at a time.</p>
+  <p>This pipeline writes the first draft of that translation. It reads a sample of the data. It picks the right part of the shared vocabulary and writes the mapping. Then it <b>runs a real program to check whether that mapping actually works</b>. If it does not, the errors go back to the model as feedback and it tries again. The engineer arrives to a draft with the evidence attached, rather than a blank file.</p>
+  <dl>
+    <dt>PVMAP</dt>
+    <dd>Property-Value map. The file that says &#8220;this column means this property, with these values&#8221; in the target vocabulary. It is the artefact the whole pipeline exists to produce.</dd>
+
+    <dt>Data Commons</dt>
+    <dd>The shared vocabulary being mapped into. A public knowledge graph of statistics, with a fixed set of properties. You can only map a column to a property that already exists in it.</dd>
+
+    <dt>Schema selection</dt>
+    <dd>Choosing which part of that vocabulary a dataset belongs to, out of seven categories, before writing any mapping. Getting this wrong wastes every stage after it.</dd>
+
+    <dt>Deterministic validation</dt>
+    <dd>Checking the output by running it, not by asking a model whether it looks right. Here it is <code>stat_var_processor.py</code> in a subprocess, and its exit code is the verdict.</dd>
+
+    <dt>ADK</dt>
+    <dd>Google's Agent Development Kit. It supplies the agent types and the loop, so the retry mechanism is framework behaviour rather than a <code>while</code> loop somebody wrote.</dd>
+
+    <dt>LoopAgent</dt>
+    <dd>An ADK agent that runs a list of sub-agents in order, over and over, until one of them says stop. The stopping signal is called <b>escalate</b>.</dd>
+
+    <dt>Escalate</dt>
+    <dd>A flag a sub-agent raises to break the loop. Three different sub-agents can raise it here, for three different reasons, and knowing which is which is most of the design.</dd>
+
+    <dt>LLM feedback</dt>
+    <dd>Taking the validator's real error output and putting it back into the next prompt. The model is not guessing what went wrong. It is being told.</dd>
+
+    <dt>Ground truth</dt>
+    <dd>The hand-written mapping an automated one is scored against. Worth remembering that it is also written by a person and can also be wrong.</dd>
+
+    <dt>PV accuracy</dt>
+    <dd>The benchmark number. How many of the property-value pairs the pipeline produced match the hand-written ones for the same dataset.</dd>
+  </dl>
+</div>
+
+<div class="primer stack">
+  <span class="callout-label">The technology &#8212; what each named thing is</span>
+  <p>The primer above names the parts of the mapping problem. This one names the framework and the runtime, starting from the ground. Both are in the bullet, so both are fair game.</p>
+  <p>Every entry answers four things. What it actually is, in plain words. Where this system uses it. What it buys, meaning what goes wrong without it. And the follow-up an interviewer asks once you have said the name.</p>
+  <dl>
+    <dt>Google ADK</dt>
+    <dd><i>Agent Development Kit</i>Google's open-source Python framework for building systems where a model does work in several steps. On its own a model call is one question and one answer. A framework is what turns that into a pipeline: it supplies an agent type, a way to hang ordinary Python functions off it as tools, a shared place to leave results, and a runner that drives the whole loop and records what happened. <b>In the app.</b> Five stages with a retry loop around the middle of them. <b>What it buys.</b> The plumbing you would otherwise write and debug yourself &#8212; ordering, state passing, tool dispatch, retry, and an event trace you can read afterwards. That last one matters most, because an agent failure with no trace is unfixable. <b>The follow-up.</b> It is not a model. Gemini does the thinking. ADK decides what runs, in what order, and what each step is allowed to see. Being crisp about that line is what separates someone who used a framework from someone who understands one.</dd>
+
+    <dt>Workflow agents</dt>
+    <dd><i><code>SequentialAgent</code>, <code>ParallelAgent</code>, <code>LoopAgent</code></i>Agents whose control flow is written in code rather than decided by a model. Sequential runs its children in a fixed order. Parallel runs them at the same time. Loop repeats its child until that child escalates or <code>max_iterations</code> is hit. No model is asked what to do next. <b>In the app.</b> The five stages are a known order, wrapped in a loop for the validate-and-repair cycle. <b>What it buys.</b> Determinism where you do not need judgement, which is most places. The order is readable in the source, testable without a model, and free. It also cannot drift: a pipeline that asks a model what to run next can answer differently tomorrow for reasons nobody can reconstruct. <b>The follow-up.</b> Why not one clever agent with tools and a goal. Because every stage handed to the model is a stage that can choose differently on the next run, and you have traded an audit trail for flexibility you were not using.</dd>
+
+    <dt>Session state</dt>
+    <dd><i>how stages hand things on</i>A dictionary the runner carries from one step to the next for the length of a run. An agent reads the keys it needs and writes its result back under an output key it declares. That is the whole mechanism. <b>In the app.</b> The validator writes its failures into state, and the feedback agent reads them from there. <b>What it buys.</b> Stages that do not know about each other. Neither of those two imports the other or takes the other as an argument, so a stage can be reordered, tested alone, or swapped without touching its neighbours. <b>The follow-up.</b> State keys are an interface, and an unusually fragile one. Renaming a key raises no error and fails no test. The next stage simply finds nothing and proceeds on empty input, which is why the keys are worth writing down somewhere a person will read.</dd>
+
+    <dt>Escalate</dt>
+    <dd><i>the loop's exit</i>A flag a child agent raises to end the loop that contains it. In ADK it is <code>escalate</code> on the event's actions. The loop is otherwise a counting loop that runs until it runs out. <b>In the app.</b> A validation pass sets it, which stops the retry cycle immediately. <b>What it buys.</b> An early exit, so a map that validates on the second attempt does not sit through three more model calls. That is latency and cost saved on every good run, which is most runs. <b>The follow-up.</b> The two ways out, and telling them apart. Escalation means it worked. Hitting the iteration cap means it gave up. A run that finishes without recording which of those happened is a run nobody can act on, and that distinction has to reach the logs and the caller.</dd>
+
+    <dt>Tool</dt>
+    <dd><i>function calling</i>A plain Python function the model is allowed to ask for. The model never sees your code and never runs anything. It sees the function's name, its docstring and its parameter types rendered as a schema, and it replies with a name and a set of arguments. The framework then calls the real function and hands the return value back into the conversation. <b>In the app.</b> It is how a stage reaches the validator and the dataset at all. <b>What it buys.</b> It moves everything that must be exact out of the model. Arithmetic, lookups, file reads and validation happen in Python, where they are correct and testable, and the model is left doing the part it is good at, which is choosing. <b>The follow-up.</b> The docstring is a prompt, not documentation. A vague one is a real bug, and it does not fail loudly. It fails as the wrong tool being chosen, or as a plausible argument that is quietly wrong.</dd>
+
+    <dt>Structured output</dt>
+    <dd><i>response schema</i>Handing the API a schema up front and having generation constrained so the reply must fit it. This is not a prompt asking politely for JSON and it is not a parse-and-retry loop. The decoder is restricted so that tokens breaking the shape are never produced. <b>In the app.</b> A PV map is a data structure, and a stage that returned prose could not be checked by a program. <b>What it buys.</b> The parsing failure mode disappears. No stray prose before the brace, no trailing comma, no markdown fence around the JSON, and therefore no retry logic for any of it. <b>The follow-up.</b> Shape is not truth. A field can be required, present, correctly typed and completely wrong. That gap is the entire reason a deterministic validation stage exists downstream, and saying it out loud pre-empts the question of why you validate output that was already schema-constrained.</dd>
+
+    <dt>Gemini</dt>
+    <dd><i>Google's model family</i>The large language model doing the actual reading here: looking at an unfamiliar dataset's columns and values and proposing what each one means in the target vocabulary, then reading validation failures and proposing a repair. Reached through the Google GenAI SDK, in tiers that trade cost and speed against capability. <b>In the app.</b> Two of the five stages, not all five. <b>What it buys.</b> Judgement on data nobody has seen before. A new dataset arrives with column names invented by whoever made it, and no rule-based mapper can be written in advance for names it has never met. <b>The follow-up.</b> Which tier, and what it cost. A pipeline with a retry loop multiplies its model calls, so cost per dataset is a fair question and a number you should have.</dd>
+
+    <dt>Data Commons</dt>
+    <dd><i>and <code>stat_var_processor.py</code></i>Google's public repository of statistical data from many sources, harmonised into one vocabulary so that a figure from one agency can sit beside a figure from another. That vocabulary is what a PV map has to land in. It also ships an importer that reads your map and your dataset and either loads the data or refuses with an error. <b>In the app.</b> That importer is the oracle the loop is validating against. <b>What it buys.</b> Ground truth that is not ours. Correctness here is an external program with an exit code, not a team opinion, which is the strongest possible position to validate from. <b>The follow-up.</b> Whose schema wins. The vocabulary belongs to Data Commons, so &#8220;correct&#8221; is defined outside this codebase and cannot be negotiated when it is inconvenient.</dd>
+
+    <dt>Cloud Run</dt>
+    <dd><i>where this one runs</i>Google's serverless way to run container images. There is no cluster to create, size or patch. You hand it an image, it starts copies as requests arrive and stops them all when traffic stops, so idle costs nothing. Two settings define its capacity model: concurrency, the number of requests one instance handles at once, and the request timeout, which goes up to sixty minutes. <b>In the app.</b> A dataset takes roughly 45 seconds and each run is independent of every other. <b>What it buys.</b> No infrastructure to own for a workload that is genuinely request-shaped, and no bill between runs. <b>The follow-up.</b> Why not GKE, given the other service is on GKE. Because there is no long-lived session to keep alive and no migration to sequence before traffic shifts. A cluster here would be cost and operational load with nothing bought.</dd>
+
+    <dt>IAP</dt>
+    <dd><i>Identity-Aware Proxy</i>A Google-run checkpoint that sits in front of the service. Every request goes through it first. It signs the user in, checks them against an access policy, and only then forwards the request, with a verified identity attached. Your code never sees an unauthenticated caller. <b>In the app.</b> The users are internal, so this is the whole authentication story. <b>What it buys.</b> Three subsystems you do not build: a login page, a session store, and auth middleware. It also means the service cannot be reached at all without passing the policy, rather than relying on every route remembering to check. <b>The follow-up.</b> What is left to you. IAP answers who, never what. Deciding which datasets a known user may load is still the application's job, and conflating authentication with authorisation is the standard mistake here.</dd>
+
+    <dt>MCP</dt>
+    <dd><i>Model Context Protocol</i>An open standard for offering tools, data and prompt templates to a model through one uniform interface. A client and a server exchange JSON-RPC messages, over stdio when local and HTTP when remote. The point is that any MCP-speaking client can use any MCP server without either knowing about the other. <b>In the app.</b> It is the alternative shape for the tool layer, worth being able to place rather than something this pipeline needs. <b>What it buys.</b> Tools that outlive the application that first needed them. Write the validator once as a server and an IDE, a chat client and this pipeline can all call it. <b>The follow-up.</b> When it earns its keep. MCP pays when several clients want the same tool. A single pipeline calling its own Python functions gains a protocol boundary, a serialisation step and a process to supervise, and nothing else.</dd>
+  </dl>
+</div>
+
+
+
+<h2>The shape: five stages, and a loop inside two of them</h2>
+
+<p class="breath">Five stages run in order. Sample the data, pick the vocabulary, write the map, check it, score it. The third and fourth stages sit inside a loop, because writing a map and checking it is the part you do repeatedly.</p>
+
+<p>The pipeline is stated as a single line in <code>README.md</code>: <b>Input CSV + metadata &#8594; Auto-Sampling &#8594; Schema Selection &#8594; PVMAP Generation &#8594; Validation &#8594; Evaluation &#8594; StatVarObservations.</b> Say it in that order. It is the fastest way to give an interviewer the shape before any detail.</p>
+
+<p>The interesting part is that generation and validation are not two steps in a line. They are two steps in a cycle, and <code>src/agents/pvmap_retry_loop.py</code> is where that cycle lives.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Write a draft, run it, read the errors, write a better draft. The same thing a person does, except the loop is written down and it stops on purpose.</p>
+
+<h2>The loop, and the ten things in it</h2>
+
+<p class="breath">Ten sub-agents run in order inside one loop. Only one of them decides whether the answer is correct, and it is not a model. It is a program that runs the output and reports what broke.</p>
+
+<p>The docstring at the top of <code>pvmap_retry_loop.py</code> lists them in order, which is a gift in an interview because it is the order you should say them in. State preparation. StatVar discovery. PVMAP generation. Metadata generation. Spot check. <b>Validation.</b> Error resolution. Quality evaluation. Conditional feedback. Max-retries check.</p>
+
+<p>Three of those are conditional on MCP being enabled, and three of them can end the loop. Everything else is plumbing between the generator and the judge.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Ten steps, but only three of them matter to the outcome. One writes the answer, one checks it, and one decides whether to stop trying.</p>
+
+<h2>Why the validator is a subprocess</h2>
+
+<p class="breath">The validator does not read the mapping and form an opinion. It runs the mapping against the real processor and reports what broke. That is the difference between a demo and a pipeline.</p>
+
+<p><code>ValidationAgent</code> converts the generated PVMAP to the format <code>stat_var_processor.py</code> expects and runs it as a subprocess. If the processor produces rows, the mapping works. If it throws, the error text is real error text, not a critique.</p>
+
+<p>This matters more than it sounds. A model asked to grade its own output will tell you it looks correct, because it wrote it. A subprocess has no opinion. It either produced data rows or it did not, and that is a fact the next prompt can be built from.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>We do not ask the model whether its homework is right. We run the homework and see what happens.</p>
+
+<h2>Three ways the loop stops</h2>
+
+<p class="breath">Succeeding is only one of the three exits, and it is the least interesting one. The loop also stops when it stops improving, and when it runs out of attempts. Knowing which exit fired is how you tell a solved dataset from an abandoned one.</p>
+
+<p>The three, in the order they appear in the docstring: <b>QualityEvaluationAgent escalates</b> when quality is acceptable <em>or stagnant</em>. <b>MaxRetriesCheckAgent escalates</b> when the attempt budget is gone. And <code>max_iterations</code> is a fallback in case neither fired.</p>
+
+<p>The word doing the work is <b>stagnant</b>. A loop that only stops on success burns its whole budget on a dataset it was never going to solve. Detecting that the score stopped moving, and stopping there, is what keeps a bad dataset from costing as much as forty good ones.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Stop when you are done, stop when you are no longer getting better, and stop when you are out of tries. Two of those are giving up, and that is fine.</p>
+
+<h2>The benchmark, which is the best material here</h2>
+
+<p class="breath">The headline says the pipeline works. The analysis says where it works and where it does not, and why. Volunteering the second one is worth more in an interview than defending the first.</p>
+
+<p>Forty-nine datasets were pulled from the evaluation benchmark and seven structural features extracted from each. Column count, row count, numeric versus categorical breakdown, cardinality. Then Spearman rank correlations against PV accuracy.</p>
+
+<p><b>None of the structural features mattered.</b> The strongest was numeric-to-categorical ratio at r=0.20, and that was not significant at p=0.16. Column count came out at r=-0.10, row count at r=-0.05. What actually predicted accuracy was domain: Census and demographics averaged <b>39.3%</b>, Crime and Safety averaged <b>2.6%</b>.</p>
+
+<p>The explanation is schema vocabulary coverage. The model can only map a column to a property that exists in Data Commons. Where the vocabulary is thin, no amount of prompt engineering helps.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>It is not about wide tables or big files. It is about whether the shared dictionary has a word for the thing your column is about.</p>
+
+<h2>The part most people would have left out</h2>
+
+<p class="breath">The hand-written mappings being used as the answer key were themselves run through the processor. Only twenty-eight of forty-nine produced valid output. The benchmark was partly measuring against broken answers, and that got reported rather than buried.</p>
+
+<p>Of the 49 ground-truth PVMAPs, <b>28 validate</b>. The rest fail on keys that do not match their input CSV headers, or on API timeouts. Human-written PVMAPs pass at about 20%.</p>
+
+<p>That cuts both ways and both ways are worth saying. It means the automated accuracy numbers understate the pipeline on some datasets. It also means the benchmark is noisy, so no single percentage from it should be quoted as if it were settled.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>We checked the answer key, and a lot of it was wrong. Saying so is more useful than a better-looking score.</p>
+
+
+
+<section class="qset" id="toolbox">
+  <h2>Toolbox</h2>
+  <p class="qset-note">Every noun in the bullet, defined out loud, from the ground up. &#8220;Multi-agent&#8221; and &#8220;ADK&#8221; are the two words most likely to be probed, because both are recent enough that plenty of people say them without being able to define them. Each answer says what the thing is, what it does here, and what you would lose without it.</p>
+  <ul class="qa-index">
+    <li><a href="#c03-t1">What ADK is</a></li>
+    <li><a href="#c03-t2">LLM agent against workflow agent</a></li>
+    <li><a href="#c03-t3">How stages pass data</a></li>
+    <li><a href="#c03-t4">What a tool is</a></li>
+    <li><a href="#c03-t5">What enforces structured output</a></li>
+    <li><a href="#c03-t6">Cloud Run's two numbers</a></li>
+    <li><a href="#c03-t7">What IAP replaces</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c03-t1">
+      <p class="qa-q">What is Google ADK?</p>
+      <p class="qa-a">On its own a model call is one question and one answer. A framework is what turns that into a pipeline. ADK is Google's open-source Python one. It gives you an agent type and a way to hang ordinary Python functions off it as tools. It also gives you a shared dictionary to leave results in, and a runner that drives the loop and records every event. What it buys is the plumbing you would otherwise write and debug yourself. Ordering, state passing, tool dispatch, retry, and a trace you can read afterwards. The trace matters most, because an agent failure with no trace is unfixable. It is not a model. Gemini does the thinking. ADK decides what runs and what each step can see.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Talking about ADK as though it were the intelligence. It is the wiring. Saying so is what shows you know where the boundary is.</p>
+    </li>
+    <li class="qa-item" id="c03-t2">
+      <p class="qa-q">What is the difference between an LLM agent and a workflow agent?</p>
+      <p class="qa-a">An LLM agent decides what to do next by asking the model. A workflow agent asks nothing, because the order is written in code. SequentialAgent runs its children in a fixed order. ParallelAgent runs them at once. LoopAgent repeats until a child escalates or the iteration cap is hit. What that buys is determinism wherever you do not actually need judgement, which is most places. The order is readable in the source and testable without a model, so it costs nothing to verify. It also cannot drift. A pipeline that asks a model what to run next can answer differently tomorrow for reasons nobody can reconstruct.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling all five stages agents in the autonomous sense. Four of them are functions in a fixed order, and claiming otherwise oversells the system.</p>
+    </li>
+    <li class="qa-item" id="c03-t3">
+      <p class="qa-q">How do two ADK agents pass anything to each other?</p>
+      <p class="qa-a">Through session state, not by calling each other. Session state is a dictionary the runner carries from one step to the next for the length of a run. Each agent reads the keys it needs and writes its result back under an output key it declares. That is the whole mechanism. What it buys is stages that do not know about each other. The validator leaves its failures where the feedback agent will look, and neither one imports the other or takes it as an argument. So a stage can be reordered, tested alone or swapped without touching its neighbours. The cost is that state keys are a fragile interface. Renaming one raises no error and fails no test. The next stage just finds nothing.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing agents as calling each other. That is the architecture this one deliberately does not have, and the distinction is the good half of the answer.</p>
+    </li>
+    <li class="qa-item" id="c03-t4">
+      <p class="qa-q">What is a tool, and what does the model actually see of it?</p>
+      <p class="qa-a">A tool is a normal Python function the model is allowed to ask for. It never sees your code and never runs anything. It sees the name, the docstring and the parameter types, turned into a schema. It replies with a name and a set of arguments. The framework then calls the real function and hands the return value back into the conversation. What this buys is that everything which must be exact leaves the model. Arithmetic, lookups, file reads and validation happen in Python, where they are correct and testable. The model is left doing the part it is good at, which is choosing. So the docstring is a prompt, not documentation, and a vague one is a real bug.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;It calls the function.&#8221; It cannot. It emits a request to call one, and something in your process decides whether to honour it.</p>
+    </li>
+    <li class="qa-item" id="c03-t5">
+      <p class="qa-q">What is structured output, and what actually enforces it?</p>
+      <p class="qa-a">You give the API a schema up front and generation is constrained to fit it. It is not a prompt asking nicely for JSON, and it is not a parse-and-retry loop. The decoder is restricted so tokens that would break the shape are never produced. What that buys is the disappearance of a whole family of failures. No stray prose before the brace, no trailing comma, no markdown fence around the JSON, and none of the code that used to handle them. What it does not buy is truth. A field can be required, present, correctly typed and completely wrong. That gap is exactly why the deterministic validator runs downstream of the model.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Offering schema-constrained output as the correctness story. It buys you a parse, and a parse is not a check.</p>
+    </li>
+    <li class="qa-item" id="c03-t6">
+      <p class="qa-q">What is Cloud Run, and what do concurrency and timeout mean on it?</p>
+      <p class="qa-a">Cloud Run is the serverless way to run container images. There is no cluster to create, size or patch. You hand it an image, it starts copies as requests arrive, and it stops them all when traffic stops, so idle costs nothing. Two settings define its capacity model. Concurrency is how many requests one instance handles at once, and ours is eighty. Timeout is how long one request may run, with a ceiling of sixty minutes. Requests divided by concurrency gives you instances, and the timeout decides what is allowed to be a request at all. What it buys here is no infrastructure to own for work that is genuinely request-shaped, and no bill between runs.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying &#8220;it autoscales&#8221; without the two settings. They are the whole configuration surface, and an interviewer asks for them by name.</p>
+    </li>
+    <li class="qa-item" id="c03-t7">
+      <p class="qa-q">What is IAP, and what does it save you writing?</p>
+      <p class="qa-a">Identity-Aware Proxy is a Google-run checkpoint in front of the service. Every request goes through it first. It signs the user in, checks them against an access policy, and only then forwards the request with a verified identity attached. Your code never sees an unauthenticated caller. What it buys is three subsystems you do not build. A login page, a session store, and auth middleware. It also means the service cannot be reached at all without passing the policy, rather than depending on every route remembering to check. The service is left deciding what a known user may do, never who they are.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating IAP as the whole of authorisation. It answers who. What they may do is still yours, and forgetting that is how internal tools leak.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="fundamentals">
+  <h2>Fundamentals</h2>
+  <p class="qset-note">The warm-up. Every one of these should land in under a minute, and the first three decide whether the interviewer keeps going.</p>
+  <ul class="qa-index">
+    <li><a href="#c03-f1">What the pipeline does</a></li>
+    <li><a href="#c03-f2">What a PVMAP is</a></li>
+    <li><a href="#c03-f3">The five stages</a></li>
+    <li><a href="#c03-f4">What makes validation deterministic</a></li>
+    <li><a href="#c03-f5">What the loop retries</a></li>
+    <li><a href="#c03-f6">Why ADK at all</a></li>
+    <li><a href="#c03-f7">What ends the loop</a></li>
+    <li><a href="#c03-f8">Where it runs</a></li>
+    <li><a href="#c03-f9">What &#8220;100% success&#8221; means</a></li>
+    <li><a href="#c03-f10">The riskiest claim</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c03-f1">
+      <p class="qa-q">In two sentences, what does this pipeline do?</p>
+      <p class="qa-a">It turns a public statistics spreadsheet into a mapping. The mapping says what each column means in a shared vocabulary. A model writes it. A real program then checks it by running it. The errors go back as feedback until it works or stops improving.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Leading with &#8220;multi-agent.&#8221; It tells the interviewer nothing and invites the question you least want first, which is what makes it agents rather than functions.</p>
+    </li>
+    <li class="qa-item" id="c03-f2">
+      <p class="qa-q">What is a PVMAP, for someone who has never seen one?</p>
+      <p class="qa-a">A file that translates a spreadsheet into a shared vocabulary. For each column it says which property that column represents and what its values mean. Without it, two countries' unemployment tables cannot be compared, because nothing says the two columns are the same thing.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Defining it as &#8220;a config file.&#8221; True and useless. Name what becomes possible once it exists.</p>
+    </li>
+    <li class="qa-item" id="c03-f3">
+      <p class="qa-q">Name the five stages.</p>
+      <p class="qa-a">Sampling, schema selection, PVMAP generation, validation, evaluation. Sampling makes a representative slice so the model sees data rather than headers. Schema selection picks one of seven categories. Generation writes the map, validation runs it, and evaluation scores it against a hand-written one.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Getting the order wrong, or merging validation and evaluation. They are different questions: did it run, and was it right.</p>
+    </li>
+    <li class="qa-item" id="c03-f4">
+      <p class="qa-q">You said &#8220;deterministic validation.&#8221; What makes it deterministic?</p>
+      <p class="qa-a">It is a subprocess, not a model call. The generated map is converted and run through <code>stat_var_processor.py</code>, and the result is whether real data rows came out. Same input, same verdict, every time. A second model grading the first would give you neither of those properties.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying an LLM checks the output. That is the single most common way this kind of pipeline is built, and it is the thing the question is testing for.</p>
+    </li>
+    <li class="qa-item" id="c03-f5">
+      <p class="qa-q">What exactly is the loop retrying?</p>
+      <p class="qa-a">Generation, with the validator's real errors added to the prompt. It is not a blind retry of the same call. Each iteration gets the previous iteration's error text, so the model is correcting a named failure rather than rolling the dice again.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing it as retry-on-failure. That is a network policy. This is a correction loop, and the difference is the feedback.</p>
+    </li>
+    <li class="qa-item" id="c03-f6">
+      <p class="qa-q">Why Google ADK rather than writing the loop yourself?</p>
+      <p class="qa-a">The loop, the sub-agent sequencing and the early-exit signal come from the framework. <code>LoopAgent</code> runs the sub-agents in order and any of them can raise escalate to break out. Session state carries data between iterations. Writing that by hand is a week of work that is not the interesting part.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;It was the standard.&#8221; Name what the framework gave you, or admit it was a constraint rather than a choice.</p>
+    </li>
+    <li class="qa-item" id="c03-f7">
+      <p class="qa-q">What ends the loop?</p>
+      <p class="qa-a">Three things. Quality evaluation escalates when the result is acceptable or has stopped improving. The max-retries check escalates when the attempt budget is gone. And <code>max_iterations</code> is a backstop if neither fires. The stagnation exit is the one worth mentioning, because it stops a hopeless dataset eating the whole budget.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Naming only success and max retries. Every loop has those. Stagnation detection is the part that shows you thought about cost.</p>
+    </li>
+    <li class="qa-item" id="c03-f8">
+      <p class="qa-q">Where does this run?</p>
+      <p class="qa-a">Cloud Run behind IAP, with two CPUs and 4&#8239;GB. The request timeout is 3600 seconds and concurrency is 80. Not GKE. A dataset takes about 45 seconds and the work is stateless per request. There is nothing here that needs a cluster.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying GKE because the other CloudSufi service is on GKE. Two services, two deployment targets, and you should be able to say why each one is right.</p>
+    </li>
+    <li class="qa-item" id="c03-f9">
+      <p class="qa-q">The README says 100% success rate. Success at what?</p>
+      <p class="qa-a">At completing. It means the pipeline ran end to end on four test datasets without falling over. It does not mean the mappings were correct. Correctness is the PV accuracy number, and that is a completely different figure. I would separate those two before anyone asks.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Letting 100% stand as an accuracy claim. It is a reliability claim, and conflating them is the kind of thing that ends an interview quietly.</p>
+    </li>
+    <li class="qa-item" id="c03-f10">
+      <p class="qa-q">What is the riskiest claim in this bullet?</p>
+      <p class="qa-a">The three hours to thirty minutes. It is a time-saving claim, and the repository has no before-and-after study in it. The measured artefacts are PV accuracy and processing time per dataset. I would present the time figure as a field estimate. The accuracy numbers are the measured ones.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Defending the number as if it were instrumented. Volunteering that it is an estimate costs nothing. Being caught costs the room.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="deep-dive">
+  <h2>Deep dive</h2>
+  <p class="qset-note">Where the interview actually happens. Several of these are about measurement rather than architecture, which is the level this bullet gets interviewed at.</p>
+  <ul class="qa-index">
+    <li><a href="#c03-d1">The ten sub-agents</a></li>
+    <li><a href="#c03-d2">Why a subprocess, not a model</a></li>
+    <li><a href="#c03-d3">What stagnant means</a></li>
+    <li><a href="#c03-d4">Keeping the prompt from overflowing</a></li>
+    <li><a href="#c03-d5">The retry policy</a></li>
+    <li><a href="#c03-d6">What the benchmark measured</a></li>
+    <li><a href="#c03-d7">The statistical analysis</a></li>
+    <li><a href="#c03-d8">A broken answer key</a></li>
+    <li><a href="#c03-d9">What MCP is doing here</a></li>
+    <li><a href="#c03-d10">Cloud Run, not GKE</a></li>
+    <li><a href="#c03-d11">Progress on a long run</a></li>
+    <li><a href="#c03-d12">Refine rather than author</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c03-d1">
+      <p class="qa-q">Walk me through the ten sub-agents.</p>
+      <p class="qa-a">State preparation sets up the iteration. StatVar discovery looks up candidates. The generator writes the PVMAP. Metadata generation builds the processor config. A spot check pre-validates cheaply. Validation runs the real thing. Error resolution tries to fix known failures. Quality evaluation decides whether to stop. Conditional feedback writes the next prompt. The max-retries check is the backstop.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Listing ten names with no grouping. Say which three can end the loop and which three are conditional, or it sounds like a directory listing.</p>
+    </li>
+    <li class="qa-item" id="c03-d2">
+      <p class="qa-q">Why not have a second model check the first model's work?</p>
+      <p class="qa-a">Because the question has an oracle. There is a real processor that either turns this mapping into data rows or does not. When an oracle exists, using a model instead is a choice to be less correct for no benefit. A judge model is for questions with no ground truth, and this is not one of them.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying LLM-as-a-judge is bad. It is the right tool where nothing can be executed. The point is knowing which situation you are in.</p>
+    </li>
+    <li class="qa-item" id="c03-d3">
+      <p class="qa-q">You mentioned the loop stops on &#8220;stagnant&#8221; quality. Define it and defend it.</p>
+      <p class="qa-a">Quality stopped improving between iterations, so another attempt is not expected to help. It matters because retries are not free. A dataset from a domain the vocabulary barely covers will fail the same way seven times. Detecting no movement and exiting turns a hopeless dataset from seven model calls into two or three.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating it as an optimisation. It is a cost control, and on a 49-dataset run it is the difference between a batch that finishes and one that does not.</p>
+    </li>
+    <li class="qa-item" id="c03-d4">
+      <p class="qa-q">Each retry adds error text to the prompt. How do you stop it overflowing?</p>
+      <p class="qa-a">Compaction, and it is section-aware rather than a blind truncate. The skeleton is split on its numbered headers. Some sections are dropped entirely from feedback because they are generation-only content, and others are compacted to a lower level of detail. That keeps the errors, which are the useful part, and sheds the instructions the model has already followed.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;We truncate.&#8221; Blind truncation cuts the newest errors first, which are exactly the ones the retry exists to address.</p>
+    </li>
+    <li class="qa-item" id="c03-d5">
+      <p class="qa-q">What is the retry policy on the model calls themselves, and why those numbers?</p>
+      <p class="qa-a">Seven attempts, starting at five seconds, doubling to a sixty-second cap, with jitter, on 408, 429 and the 5xx family. Those are transient-failure codes, so retrying is the correct response. Jitter is there because 49 datasets running together would otherwise retry in lockstep and rebuild the spike that caused the failure.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Forgetting jitter. Exponential backoff without it synchronises every client, and that is the classic retry-storm answer an interviewer is listening for.</p>
+    </li>
+    <li class="qa-item" id="c03-d6">
+      <p class="qa-q">What did the benchmark actually measure?</p>
+      <p class="qa-a">PV accuracy. How many property-value pairs the generated mapping got right against a hand-written one for the same dataset, across 49 datasets. The README also reports a comparison against raw Gemini, at 26.8% versus 8.1%. That is a relative claim and it is the more defensible one, because both arms were measured the same way.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Quoting the absolute accuracy without the comparison. The absolute number sounds bad alone and the relative one is what the work actually earned.</p>
+    </li>
+    <li class="qa-item" id="c03-d7">
+      <p class="qa-q">You ran a statistical analysis on the results. What did it find?</p>
+      <p class="qa-a">That structure does not predict accuracy and domain does. Seven structural features were tested with Spearman correlations. The strongest was numeric-to-categorical ratio at r=0.20, p=0.16, which is not significant. Column count came out at r=-0.10 and row count at r=-0.05. Domain averages were 39.3% against 2.6%, a gap nothing structural explains.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Reporting r=0.20 as a finding. Quoting the p-value unprompted is the whole difference between analysis and decoration.</p>
+    </li>
+    <li class="qa-item" id="c03-d8">
+      <p class="qa-q">You found the ground truth was partly broken. What did you do?</p>
+      <p class="qa-a">Ran the hand-written PVMAPs through the same processor, and only 28 of 49 produced valid output. The rest fail on keys not matching their CSV headers, or on API timeouts. Human-written maps pass at about 20%. I reported it, because it changes how every other number should be read.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Presenting it only as an excuse for low scores. It also means the benchmark is noisy in both directions, and saying that is what makes the first half credible.</p>
+    </li>
+    <li class="qa-item" id="c03-d9">
+      <p class="qa-q">What is MCP doing in this pipeline?</p>
+      <p class="qa-a">Giving the agents live access to the target knowledge graph instead of a snapshot. Three sub-agents use it: StatVar discovery, the spot check, and error resolution. All three are conditional, so the pipeline still runs with MCP off. The spot check is the useful one, because it catches a bad mapping before the expensive subprocess runs.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Explaining MCP as a protocol. Say what it buys here, which is a cheap pre-check against live vocabulary.</p>
+    </li>
+    <li class="qa-item" id="c03-d10">
+      <p class="qa-q">Your other service is on GKE. Why is this one on Cloud Run?</p>
+      <p class="qa-a">Different shape of work. This is a stateless request that runs for about 45 seconds and then ends. No long-lived connections, no session state, nothing that needs a migration job to land before the new version serves. Cloud Run with IAP in front gives us auth and scale-to-zero without owning a cluster.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Answering with a preference. Name the property of the workload that decided it, which here is that nothing is stateful.</p>
+    </li>
+    <li class="qa-item" id="c03-d11">
+      <p class="qa-q">A run takes around 45 seconds. What does the user see?</p>
+      <p class="qa-a">Progress over a WebSocket. There is a dedicated progress channel in the API layer. Stages report as they complete, rather than the client polling a job row. It matters because a 45-second wait with no output reads as a hang. A batch of datasets reads as a much longer one.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying it does not matter because it is a batch tool. The person running it is watching, and perceived progress is the difference between a tool people use and one they suspect.</p>
+    </li>
+    <li class="qa-item" id="c03-d12">
+      <p class="qa-q">The bullet says engineers refine rather than author. What actually changed for them?</p>
+      <p class="qa-a">They start from a draft that has already been run. The mapping arrives with the processor output beside it, so they can see which columns produced rows and which did not. The work shifts from writing a file against documentation to correcting a file against evidence. That is a different and much faster task.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Claiming it removes the engineer. It does not, and the claim invites a question about accuracy that the 2.6% domain answers badly.</p>
+    </li>
+  </ol>
+</section>
+
+<div class="quiz" data-quiz-id="0003-q1">
+  <p class="q">The validator fails on iteration three, and the quality score is identical to iteration two. What does the loop do?</p>
+  <ol class="options">
+    <li data-correct="true">It escalates and stops here, because quality stopped improving</li>
+    <li>It continues until the entire attempt budget is exhausted</li>
+    <li>It restarts everything from the original sampling stage again</li>
+    <li>It switches the generator to a substantially larger model</li>
+  </ol>
+  <div class="why">
+    <p>It stops. Quality evaluation escalates on <em>acceptable or stagnant</em>, and stagnant is exactly this case: another attempt is not expected to move the number, so spending one is waste.</p>
+    <p>Running to the full budget is what a loop without stagnation detection does, and on a 49-dataset batch it is the difference between finishing and not. Restarting from sampling would throw away the accumulated error feedback, which is the only thing making each iteration better than the last.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0003-q2">
+  <p class="q">Census datasets average 39.3% PV accuracy and Crime datasets 2.6%. What best explains the gap?</p>
+  <ol class="options">
+    <li data-correct="true">Coverage of that domain in the target schema vocabulary</li>
+    <li>Column count and the overall width of input tables</li>
+    <li>Row volume and the sampling rate for a dataset</li>
+    <li>Model temperature and the size of the retry budget</li>
+  </ol>
+  <div class="why">
+    <p>Vocabulary coverage. A column can only be mapped to a property that exists in Data Commons, so a domain the graph barely models cannot be mapped well no matter how good the prompt is.</p>
+    <p>The structural explanations were tested and rejected: column count came out at r=-0.10 with p=0.50, and row count at r=-0.05. One dataset with 56 columns reaches 89% accuracy, which kills the width theory on its own.</p>
+  </div>
+</div>
+
+<section class="qset" id="edges">
+  <h2>Edges and exceptions</h2>
+  <p class="qset-note">Where this bullet is actually pressed. Three of these are about honesty rather than engineering, and those are the ones that decide the round.</p>
+  <ul class="qa-index">
+    <li><a href="#c03-e1">Forty-nine datasets, one provider</a></li>
+    <li><a href="#c03-e2">Valid but wrong</a></li>
+    <li><a href="#c03-e3">Out of retries</a></li>
+    <li><a href="#c03-e4">Shipping 2.6%</a></li>
+    <li><a href="#c03-e5">Re-running a partial run</a></li>
+    <li><a href="#c03-e6">Defending the time saving</a></li>
+    <li><a href="#c03-e7">When the oracle is wrong</a></li>
+    <li><a href="#c03-e8">What you would build next</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c03-e1">
+      <p class="qa-q">You run all 49 datasets at once, each with up to seven retries. What happens?</p>
+      <p class="qa-a">You build your own spike. The retry policy has jitter, which stops the attempts landing in lockstep. But jitter only spreads a storm. It does not cap one. Nothing limits how many datasets are in flight, so concurrency control belongs at the batch level. It is not there today.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying backoff handles it. Backoff is what each client does after being refused. It is not admission control, and the difference is the question.</p>
+    </li>
+    <li class="qa-item" id="c03-e2">
+      <p class="qa-q">The mapping validates and produces rows, but the rows are wrong. How would you know?</p>
+      <p class="qa-a">Not from validation. It only proves the mapping is well-formed enough to execute, which is a syntax-level guarantee. Semantic correctness is what the evaluation stage is for, and it needs a hand-written map to compare against. That is why both stages exist, and why a dataset with no ground truth can only ever be checked for the weaker property.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating a passing validator as a correctness guarantee. It answers &#8220;did it run,&#8221; and the interviewer is asking &#8220;was it right.&#8221;</p>
+    </li>
+    <li class="qa-item" id="c03-e3">
+      <p class="qa-q">The loop exhausts its retries. What does the engineer get?</p>
+      <p class="qa-a">The best attempt so far, plus the validator output that says why it failed. That is deliberately more useful than nothing. A failing map with real error text still tells the engineer which columns are the problem. The review pass starts from evidence rather than a blank file.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying it returns an error. Returning the partial artefact is the product decision, and it is the one that keeps the bullet's claim true on hard datasets.</p>
+    </li>
+    <li class="qa-item" id="c03-e4">
+      <p class="qa-q">One domain scores 2.6%. Would you ship that?</p>
+      <p class="qa-a">Yes, with the number attached. At 2.6% the draft is still a starting point, with the validator output beside it. The engineer was going to write that file from scratch anyway. What you must not do is ship it silently. The pipeline should say which domain tier a dataset is in, so nobody is surprised.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Either &#8220;no, it is not ready&#8221; or &#8220;yes, it is fine.&#8221; The answer is that it ships with its own accuracy expectation visible.</p>
+    </li>
+    <li class="qa-item" id="c03-e5">
+      <p class="qa-q">A run dies after the generation stage. Is it safe to re-run?</p>
+      <p class="qa-a">For this pipeline, yes, because nothing outside it has been touched. Every stage writes its own artefacts and the run is re-driven from the start. That holds only while the stages have no external side effects. The moment one of them writes to the knowledge graph, the stages need to be genuinely repeatable rather than accidentally so.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Claiming idempotency as a design property. Here it is a consequence of the pipeline being read-only outside itself, and saying so is the more accurate answer.</p>
+    </li>
+    <li class="qa-item" id="c03-e6">
+      <p class="qa-q">Defend the three hours to thirty minutes.</p>
+      <p class="qa-a">I would present it as a field estimate, not an instrumented measurement. And I would say so before being asked. What is measured in the repository is per-dataset processing time of about 45 seconds. Also PV accuracy against ground truth, and a comparison against raw Gemini. The time saving comes from the team who did the hand-mapping before.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Improvising a methodology for it. If you describe a study that was not run, one follow-up question finds out.</p>
+    </li>
+    <li class="qa-item" id="c03-e7">
+      <p class="qa-q">What is the failure mode of deterministic validation?</p>
+      <p class="qa-a">It is only as good as the processor it runs. If the processor accepts something it should reject, the loop happily exits on a bad mapping. That is the same class of problem as the broken ground truth, and it is why the evaluation stage matters. Two independent checks fail independently, which is the point of having both.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying deterministic means correct. It means repeatable. A repeatably wrong answer is still wrong, and naming that is the senior version of this answer.</p>
+    </li>
+    <li class="qa-item" id="c03-e8">
+      <p class="qa-q">What would you build next?</p>
+      <p class="qa-a">Two things, in order. Clean the ground truth, because 21 broken answer keys make every accuracy number unreliable and that is cheap to fix. Then add domain tiering to the pipeline, so a dataset from a thinly covered domain is routed differently or flagged rather than silently scoring 2.6%. Prompt work is third, and the analysis says it will not help much.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Reaching for a bigger model or better prompts first. The analysis already says the ceiling is vocabulary coverage, so that answer contradicts your own data.</p>
+    </li>
+  </ol>
+</section>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;How do you know the generated mapping is correct?&#8221;
+      <span class="tell">The question this whole bullet exists to answer, and the one most candidates answer with a confidence score. The interviewer is listening for whether an oracle exists and whether you used it.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Two different checks, because they answer different questions. Validation runs the mapping through the real processor as a subprocess and asks whether data rows came out. That is a well-formedness guarantee and it is deterministic. Evaluation compares the result against a hand-written mapping and gives PV accuracy, which is the semantic check. A dataset with no hand-written mapping can only ever get the first one.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Why is it agents rather than five functions?&#8221;
+      <span class="tell">The standard challenge to any multi-agent claim. A candidate who cannot answer it has usually adopted a framework rather than chosen one.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The five stages genuinely are a sequence and could be functions. The loop is where the agent framework earns itself. Ten sub-agents run in order, any of them can raise escalate to break out, and session state carries the feedback between iterations. I would be honest that the outer pipeline is orchestration and the framework matters most inside the loop.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Your accuracy on some domains is under three percent. Is this working?&#8221;
+      <span class="tell">Designed to see whether you defend, deflect, or explain. The analysis makes explaining available, which is rare and worth using.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>On those domains it is producing a weak draft rather than a good one, and I know why. I tested seven structural hypotheses and all of them failed. The driver is coverage of that domain in the target vocabulary, which is a 39.3% against 2.6% gap. No prompt fixes a missing property. The fix is schema coverage, and until then the pipeline should flag the tier rather than hand over a draft silently.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Where did three hours to thirty minutes come from?&#8221;
+      <span class="tell">The number in the bullet, so it will be asked. The only losing move is to invent a methodology on the spot.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It is the team's estimate of the hand-mapping work it replaces, not a study I ran. What I measured is about 45 seconds of processing per dataset, PV accuracy against ground truth, and a comparison against raw Gemini at 26.8% versus 8.1%. I would rather give you the measured numbers and be clear which one is an estimate.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;You said the ground truth was broken. Does that not invalidate your benchmark?&#8221;
+      <span class="tell">A good interviewer will push on this, because it is the strongest thing you said and they want to see whether you overclaim from it.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It weakens it in both directions, and I would not use it only as an excuse. Twenty-eight of 49 answer keys validate, and human-written maps pass at about 20%. That means our accuracy understates the pipeline on some datasets, and it also means no single percentage from this benchmark is settled. The right next step is cleaning the keys, which is cheap, before doing anything else with the numbers.</p>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="recall">
+  <details>
+    <summary>Forty-nine datasets, each with a seven-attempt ladder starting at five seconds and capped at sixty. Which lesson gives you the vocabulary for what that ladder costs, and what number should you be able to produce?</summary>
+    <p class="answer">Lesson 0001, latency budget arithmetic. The worst case of a retry ladder is the sum of its attempts plus the waits between them, and here that is minutes rather than seconds. The generalisable rule is that a ladder with nothing above it enforcing a ceiling <em>is</em> the deadline. If you have not written the sum down, you do not have a budget.</p>
+    <span class="from"><a href="../../system-design-school/lessons/0001-latency-budget-arithmetic.html">SDS 0001 &#183; Latency budget arithmetic</a></span>
+  </details>
+  <details>
+    <summary>The README quotes about 45 seconds per dataset. Which lesson exists because of what that number hides, and what would you ask for instead?</summary>
+    <p class="answer">Lesson 0002. An average per-dataset time tells you nothing about the dataset that ran the loop seven times, and that is the one that decides whether a 49-dataset batch finishes inside its window. The useful figures are the distribution and the fraction of runs that exit on stagnation or exhaustion rather than on success.</p>
+    <span class="from"><a href="../../system-design-school/lessons/0002-p50-is-a-lie.html">SDS 0002 &#183; p50 is a lie</a></span>
+  </details>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">The lessons behind this chapter</span>
+  <p>System Design School teaches these mechanisms from first principles and breaks them in a lab. This chapter defends what you did with them. An interviewer moves between those two registers without warning.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0001-latency-budget-arithmetic.html">SDS 0001 &#183; Latency budget arithmetic</a>
+      <span class="bridge-why">Seven attempts with a sixty-second cap is a budget whether or not anyone wrote it down. This is the lesson that makes you write it down.</span>
+    </li>
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0002-p50-is-a-lie.html">SDS 0002 &#183; p50 is a lie</a>
+      <span class="bridge-why">A mean processing time across 49 datasets hides the ones that looped seven times, and those are the ones that decide the batch window.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0010 &#183; Backoff with jitter &#8212; not yet built</span>
+      <span class="bridge-why">Forty-nine datasets firing at one provider with seven attempts each is the retry-storm lab, using your own numbers.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0014 &#183; Idempotency keys &#8212; not yet built</span>
+      <span class="bridge-why">Five-stage runs get re-driven after a partial failure, so the stages have to be safely repeatable rather than accidentally so.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0025 &#183; Orchestration vs choreography &#8212; not yet built</span>
+      <span class="bridge-why">This pipeline is orchestrated rather than choreographed, and you should be able to say why that was right here.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0034 &#183; Tracing a five-stage pipeline &#8212; not yet built</span>
+      <span class="bridge-why">One trace across all five stages is what turns the per-dataset timing claim from an average into a measurement.</span>
+    </li>
+  </ol>
+</div>
+
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0002-llm-gateway-and-streaming.html">&#8592; 0002 &#183; The gateway and the move to streaming</a></span>
+  <span><span class="dir">Next</span><a href="0004-hybrid-lineage-extraction.html">0004 &#183; Hybrid deterministic-LLM lineage extraction &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>Owning a Vendor-Evaluation Platform</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0001">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">R&#233;sum&#233; Mastery</a>
+    <span class="sep">/</span>
+    <span>Batch A &#183; CloudSufi</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Chapter 0001</span>
+  </div>
+  <h1>Owning a vendor-evaluation platform</h1>
+  <p class="standfirst">The word on the r&#233;sum&#233; is <em>owned</em>, and that is the word the interview will test. Not &#8220;what did you build&#8221; &#8212; <em>where are the seams, who decides what, and what happens when the research fails?</em> This chapter is the whole system, in the order you should say it.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Answer &#8220;tell me about this platform&#8221; in ninety seconds with a shape rather than a tour &#8212; and survive the follow-up that decides the interview: <em>who does the arithmetic, the model or your code?</em></p>
+</div>
+
+<div class="claim-line">
+  <span class="callout-label">The line being defended</span>
+  <blockquote>&#8220;Owned an <strong>AI vendor-evaluation platform</strong> end-to-end (Python/FastAPI, async SQLAlchemy, PostgreSQL, GKE) &#8212; live avatar interviews scored against a weighted rubric, with a two-pass <strong>Scout/Evaluator pipeline</strong> (Gemini, Tavily) grounding every vendor claim in a cited source.&#8221;</blockquote>
+  <span class="whose">CloudSufi &#183; bullet 1 of 4</span>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">A spoken answer to <em>&#8220;tell me about the vendor-evaluation platform you owned.&#8221;</em> This is the opening of most loops where this bullet appears, and the failure mode is a tour. Read it aloud, then say it again with the page covered.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">Companies choosing a software vendor have to interview them. Those interviews were slow, inconsistent between interviewers, and took the vendor’s claims on trust.</p>
+      <p class="line">Checking those claims properly meant an afternoon of searching that nobody had.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">So the platform runs the interview through an avatar, and then does the part people skip. Afterwards, one orchestrator sequences three agents.</p>
+      <p class="line">A <b>Scout</b> researches the vendor twice. Once blind, so they cannot steer what gets looked up. Once targeted at what they actually claimed.</p>
+      <p class="line">An <b>Evaluator</b> scores every question against that question’s own written anchor. A <b>Coordinator</b> recommends the follow-up.</p>
+      <p class="line">The rule I would defend hardest is that <b>agents never call each other</b>. Exactly one file composes them.</p>
+      <p class="line">That is the only reason there is one place to put a deadline, and one place to read the control flow.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">Two decisions I would make again. First, <b>the model proposes and the code decides</b>. It picks a band and a number.</p>
+      <p class="line">My code then clamps it into the band it chose, drops unasked questions, and computes every total. A score a vendor argues with has to be arithmetic you can show them.</p>
+      <p class="line">Second, <b>grounding is a schema property, not a prompt instruction</b>. A claim cannot be emitted without a sources array, because the output format has no shape for one.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">Two things, and I would rather say them than be asked. The Scout <b>soft-fails</b>, because research failing must never cost an interview its scorecard.</p>
+      <p class="line">The price is that a total search outage is <b>indistinguishable from a vendor with no public footprint</b>. The report comes back confident and empty.</p>
+      <p class="line">And the claims report is <b>not reproducible</b>. About one claim in five gets a different verdict on identical evidence. Pinning temperature to zero did not fix it.</p>
+      <p class="line">Almost every flip is on the no-data-versus-partial line. So it is a prompt-definition problem, not a sampling one. That one is still open.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;We used a multi-agent pipeline to evaluate vendors.&#8221;</span> Every candidate says a version of this, and it invites the one question it cannot survive: <em>&#8220;what makes it multi-agent rather than three function calls?&#8221;</em> The honest and much stronger answer is that it <em>is</em> three function calls with one composer, on purpose &#8212; and that agents-calling-agents was rejected because it destroys the single place a deadline can live. Lead with the constraint, not the label.</p>
+  <p>The other trap is <span class="quoted">&#8220;every claim is grounded in a cited source.&#8221;</span> Said flatly, it claims hallucination is impossible, and the follow-up &#8212; <em>&#8220;what stops it citing a URL that wasn't in the evidence?&#8221;</em> &#8212; has no good improvised answer. The version that holds names the mechanism and its limit in one breath: the schema forbids an <em>uncited</em> claim, and citation fidelity is measured separately as a fabrication rate.</p>
+</div>
+
+
+<div class="trace">
+  <span class="callout-label">Walk them through it &#183; one vendor, end to end</span>
+  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One vendor, followed from the first minute of the call to the number on the scorecard. The vendor is invented. Everything the system does to them is not.</p>
+  <p class="tr-case"><b>The picture.</b> A job interview where the panel also runs a background check. One person asks the questions. A second looks the candidate up, both before the interview and after it. A third grades the answers against a written marking scheme. Nobody grades while the candidate is still talking.</p>
+  <p class="tr-case"><b>The case.</b> Northwind Analytics is being evaluated for a security-heavy purchase. Security is thirty per cent of this rubric. During the call they say they are SOC 2 certified. Follow that one sentence all the way to the score it produces.</p>
+  <ol>
+    <li class="tr-step">
+      <span class="tr-k">The call</span>
+      <p><b>What happens.</b> An on-screen avatar runs the interview. It asks a fixed list of questions, and that list comes from the rubric rather than from the interviewer. Nothing is scored while the vendor is speaking.</p>
+      <p><b>Concretely.</b> Northwind gets the security topic's four questions. On the third one they say they are SOC 2 Type II certified.</p>
+      <p><b>If they ask why.</b> Live scoring sounds better and is worse. A grade handed out in minute one cannot use what gets said in minute forty.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The handoff</span>
+      <p><b>What happens.</b> The call ends and the transcript is saved. Only then does the scoring pipeline start, as a background task.</p>
+      <p><b>Concretely.</b> The web request that finalised the interview has already returned its response. The pipeline is still running after it.</p>
+      <p><b>If they ask why.</b> That is the reason the pipeline opens its own database session. The request's session is closed the moment the response is sent, and the work outlives the response.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Blind pass</span>
+      <p><b>What happens.</b> The Scout researches Northwind before it has read a word of the transcript. It finds the company website, runs industry-neutral searches, looks for the person who attended, and checks whether we have dealt with them before.</p>
+      <p><b>Concretely.</b> One of those searches is <code>Northwind Analytics controversies</code>. It survived a cull that deleted three other queries, because it is the one that finds what nobody volunteered.</p>
+      <p><b>If they ask why.</b> If the only research is aimed at what the vendor said, the vendor picks the entire evidence base. What they never mention is never checked. The blind pass is the half that cannot be steered.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Targeted pass</span>
+      <p><b>What happens.</b> Now the Scout reads the transcript. It pulls out the factual claims and fires one search per claim.</p>
+      <p><b>Concretely.</b> &#8220;We are SOC 2 Type II certified&#8221; becomes one search. The claims are capped at ten, and all ten searches go out at once inside a single gather.</p>
+      <p><b>If they ask why.</b> Run one after another, those searches would blow the deadline on their own. The concurrency here is load-bearing rather than a tidy-up.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">In parallel</span>
+      <p><b>What happens.</b> Three separate model calls then run over the same gathered sources. A written summary, a structured claims report, and a check on the representative who attended.</p>
+      <p><b>Concretely.</b> None of the three needs another one's output, so all three run concurrently and each carries the same retry ladder.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The record</span>
+      <p><b>What happens.</b> The claims report is not free text. Every claim comes back as a fixed record. A status, the claim itself, a note, and an array of sources with name, URL and quoted text.</p>
+      <p><b>Concretely.</b> Northwind's SOC 2 claim returns as <code>PARTIAL</code>. The evidence is an audit page dated 2019 and nothing after it. The other three statuses are verified, contradicted and no data.</p>
+      <p><b>If they ask why.</b> The model is never asked to cite its sources. The output format has no shape for a claim without them. That is the whole difference between grounding as advice and grounding as a rule.</p>
+      <p><b>The limit, said first.</b> A schema constrains shape and never string values. Nothing stops a URL appearing in that array that was not in the evidence. The failure has a name here and a measured rate, and it is called a bad cite.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The scoring</span>
+      <p><b>What happens.</b> The Evaluator reads the transcript and the Scout's verdicts together. It scores each question against that question's own written anchor.</p>
+      <p><b>Concretely.</b> The security question has three anchors written out as prose, for low, medium and high. Northwind's answer plus a partial verdict matches the medium anchor, which describes a vendor claiming a certification it cannot currently evidence.</p>
+      <p><b>If they ask why.</b> The model makes exactly one judgment. Which of these three paragraphs does this answer look like. That is a reading task, and reading is the thing these models are actually good at.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The arithmetic</span>
+      <p><b>What happens.</b> The model proposes a band and a number. My code decides what the number is.</p>
+      <p><b>Concretely.</b> The code clamps the number into the band the model itself picked. It drops questions that were never asked. It excludes an unanswered question rather than scoring it zero. Then it computes every total in Python.</p>
+      <p><b>If they ask why.</b> A vendor can lose a contract over this page. A score somebody argues with has to be arithmetic you can put in front of them.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The weights</span>
+      <p><b>What happens.</b> Question scores average into their topic. Topics are then weighted into the total.</p>
+      <p><b>Concretely.</b> Security is thirty per cent. That number lives on the topic row inside one specific rubric version. The buyer set it, we never invent one, and the model never sees it.</p>
+      <p><b>If they ask why.</b> An earlier design kept a single weight row shared across every domain. Change security's weighting for a healthcare buyer and you changed it for the retail one too.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Soft-fail</span>
+      <p><b>What happens.</b> The Scout sits inside a deadline and a catch-all. If search is slow or down, the scorecard is still produced.</p>
+      <p><b>Concretely.</b> The price is that a total search outage looks exactly like a vendor with no public footprint. The report comes back confident and empty.</p>
+      <p><b>If they ask why.</b> Losing an interview's scorecard because a third-party search API had a bad afternoon is the worse failure. Saying the cost out loud is what makes it a decision rather than a discovery.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The argument</span>
+      <p><b>What happens.</b> A Coordinator turns all of it into a recommended follow-up, and the buyer reads the scorecard.</p>
+      <p><b>Concretely.</b> Northwind can be shown that its security score came from one question, one written anchor, and one audit page dated 2019.</p>
+      <p><b>If they ask why.</b> A disagreement is now about one question's anchor prose. That is a conversation two people can actually have, instead of an argument about the system as a whole.</p>
+    </li>
+  </ol>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 350" role="img" aria-labelledby="mech0001-t mech0001-d">
+    <defs>
+      <marker id="ar1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+      <marker id="ar1d" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head" style="fill:var(--ink-3)"/>
+      </marker>
+    </defs>
+    <title id="mech0001-t">The interview, then one orchestrator sequencing three agents</title>
+    <desc id="mech0001-d">An interview produces a transcript. One orchestrator module then runs three agents in sequence: the Scout, which itself has a blind pass and a targeted pass feeding three concurrent model calls; the Evaluator, which scores each question; and the Coordinator, which recommends a follow-up. The Scout is wrapped in a nine hundred second deadline and a catch-all, so research failing never costs the interview its scorecard. Scoring arithmetic happens in code, not in the model.</desc>
+
+    <rect class="box" x="8" y="16" width="150" height="52" rx="3"/>
+    <text class="lbl strong" x="83" y="38" text-anchor="middle">Interview</text>
+    <text class="lbl-dim" x="83" y="55" text-anchor="middle">avatar + gateway</text>
+
+    <path class="flow" marker-end="url(#ar1)" d="M 162 42 H 214"/>
+
+    <rect class="box-2" x="218" y="16" width="160" height="52" rx="3"/>
+    <text class="lbl strong" x="298" y="38" text-anchor="middle">Transcript</text>
+    <text class="lbl-dim" x="298" y="55" text-anchor="middle">+ vendor intake</text>
+
+    <path class="flow" marker-end="url(#ar1)" d="M 298 72 V 104"/>
+
+    <rect class="accent" x="8" y="108" width="824" height="180" rx="3"/>
+    <text class="lbl strong ink-accent" x="24" y="130">pipeline.py &#8212; THE ONLY orchestrator. Agents never call each other.</text>
+
+    <rect class="box" x="24" y="146" width="230" height="124" rx="3"/>
+    <text class="lbl strong" x="139" y="168" text-anchor="middle">Scout</text>
+    <text class="lbl-dim" x="139" y="186" text-anchor="middle">Pass A blind &#183; Pass B targeted</text>
+    <text class="lbl-dim" x="139" y="204" text-anchor="middle">3 Gemini calls concurrent</text>
+    <text class="lbl-dim" x="139" y="222" text-anchor="middle">Tavily + page fetch</text>
+    <text class="num ink-warn" x="139" y="246" text-anchor="middle">900s deadline + catch-all</text>
+    <text class="lbl-dim" x="139" y="262" text-anchor="middle">soft-fails, never blocks the score</text>
+
+    <path class="flow" marker-end="url(#ar1)" d="M 258 208 H 300"/>
+
+    <rect class="box" x="304" y="146" width="230" height="124" rx="3"/>
+    <text class="lbl strong" x="419" y="168" text-anchor="middle">Evaluator</text>
+    <text class="lbl-dim" x="419" y="186" text-anchor="middle">1 pro-tier call, band then integer</text>
+    <text class="lbl-dim" x="419" y="204" text-anchor="middle">reads Scout verdicts</text>
+    <text class="num ink-good" x="419" y="228" text-anchor="middle">arithmetic in CODE, not the model</text>
+    <text class="lbl-dim" x="419" y="248" text-anchor="middle">clamp to band &#183; drop unasked</text>
+    <text class="lbl-dim" x="419" y="264" text-anchor="middle">two totals: earned + answered</text>
+
+    <path class="flow" marker-end="url(#ar1)" d="M 538 208 H 580"/>
+
+    <rect class="box" x="584" y="146" width="232" height="124" rx="3"/>
+    <text class="lbl strong" x="700" y="168" text-anchor="middle">Coordinator</text>
+    <text class="lbl-dim" x="700" y="186" text-anchor="middle">follow-up recommendation</text>
+    <text class="lbl-dim" x="700" y="216" text-anchor="middle">then _persist opens its OWN</text>
+    <text class="lbl-dim" x="700" y="234" text-anchor="middle">AsyncSession &#8212; the request's</text>
+    <text class="lbl-dim" x="700" y="252" text-anchor="middle">is already closed</text>
+
+    <path class="flow-dim" marker-end="url(#ar1d)" d="M 700 292 V 330"/>
+    <text class="lbl-dim" x="8" y="318">background asyncio task &#8212; nothing waits on it; budgeted for completion, not pace</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">What you say while you draw it</span>
+    <ol class="narrate">
+      <li>&#8220;An interview happens &#8212; avatar on one side, our gateway behind it.&#8221; Box, left.</li>
+      <li>&#8220;It produces a transcript plus what the vendor typed at intake.&#8221; Second box.</li>
+      <li>&#8220;Everything after this is post-interview. One module orchestrates it, and this is the rule that matters &#8212; <b>agents never call each other</b>.&#8221; Draw the big frame and write that sentence inside it. This is the mark that makes it an architecture rather than a flowchart.</li>
+      <li>&#8220;First the Scout. Two passes &#8212; blind, then targeted at their claims.&#8221;</li>
+      <li>&#8220;Its three model calls run concurrently, and that is load-bearing: sequentially they blow the deadline.&#8221;</li>
+      <li>&#8220;It is wrapped in a deadline and a catch-all, because <b>research failing must never cost the interview its scorecard</b>.&#8221; Write the 900.</li>
+      <li>&#8220;Then the Evaluator scores every question &#8212; band first, then a number inside it.&#8221;</li>
+      <li>&#8220;And this is the line I would defend hardest: <b>the model proposes, the code does the arithmetic</b>.&#8221; Write it. If you only get one mark across, make it this one.</li>
+      <li>&#8220;Two totals fall out &#8212; earned out of 100, and weighted over only what was asked.&#8221;</li>
+      <li>&#8220;Then the Coordinator recommends a follow-up.&#8221;</li>
+      <li>&#8220;Persistence opens its own database session, because this whole thing outlives the request that started it.&#8221;</li>
+      <li>&#8220;And nothing waits on any of it &#8212; it is a background task, budgeted for completion rather than speed.&#8221; Arrow down, and stop.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. Twelve marks. If you can produce this from memory you can answer &#8220;tell me about the platform&#8221; without a tour, which is the single highest-value ninety seconds in the whole loop.</p>
+  <ul>
+    <li>The three agents <b>in a frame</b>, with &#8220;agents never call each other&#8221; written inside it.</li>
+    <li>The Scout's <b>two passes</b> and its deadline. Without the deadline it is a diagram of a happy path.</li>
+    <li><b>Arithmetic in code, not the model.</b> The one mark to keep if you lose the others.</li>
+    <li>The <b>two totals</b>, and the background-task arrow at the bottom.</li>
+  </ul>
+  <span class="timer">Say &#8220;blind, targeted, three concurrent&#8221; out loud as you draw the Scout. Three phrases, and they are the whole of pass structure.</span>
+</div>
+
+<div class="star">
+  <span class="callout-label">Behavioural &#183; the story for this bullet</span>
+  <p class="frame">For <em>&#8220;tell me about a technical decision you made that was unpopular or non-obvious&#8221;</em> &#8212; and equally for <em>&#8220;how do you keep an AI system accountable?&#8221;</em></p>
+  <ol class="rungs">
+    <li class="rung"><span class="rung-k">Decision</span><p>Whether the language model or my code should own the final score. The obvious path is one prompt and a day's work: ask the model for a number out of a hundred. I took the slower one.</p></li>
+    <li class="rung"><span class="rung-k">Situation</span><p>The output is a scorecard a vendor may lose a contract over. They will ask why they scored what they scored, and somebody has to answer in a room.</p></li>
+    <li class="rung"><span class="rung-k">Action</span><p>I constrained the model to the one judgment a reader has to make: which written anchor does this answer match. Every derived number moved into code. Clamp to the chosen band, drop unasked questions, exclude rather than zero an unanswered one, and compute both totals in Python.</p></li>
+    <li class="rung"><span class="rung-k">Result</span><p>Every number on the scorecard traces to a question, a band, and a piece of prose in a specific rubric version. A disagreement is now about one question's anchor. That is a conversation you can actually have, rather than an argument about the system as a whole.</p></li>
+    <li class="rung"><span class="rung-k">What it cost</span><p>Real complexity. Roughly the hardest code on the scoring path is arithmetic, not AI, and it has the edge cases to match. And it does not fix the layer beneath. The Scout's verdicts still move between runs. Determinism in my half did not buy determinism overall. I would say that before someone else found it.</p></li>
+  </ol>
+</div>
+
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>A company wants to buy software. Before they buy, somebody has to interview the vendors and work out which one is telling the truth. That job is slow. Different people do it differently. And the vendor's own claims mostly go unchecked, because checking them means an afternoon of searching.</p>
+  <p>This platform does that job. An on-screen avatar runs the interview, asking a set list of questions. Then three things happen. A researcher checks the vendor's claims against the public web. A scorer grades every answer against a written rubric. A third step turns all of that into a recommendation. <b>The vendor never sees a score move while they talk.</b> Everything is judged afterwards, with the whole conversation in view.</p>
+  <dl>
+    <dt>Rubric</dt>
+    <dd>The written standard the vendor is graded against. Topics, each with a <b>weight</b> in percent, each holding questions, each question with Low/Medium/High prose describing what those answers look like. It is a document before it is a data model.</dd>
+
+    <dt>KPI</dt>
+    <dd>A scored category on the rubric. A vendor's score is built per question, averaged into KPIs, then weighted into a total.</dd>
+
+    <dt>Weighted score</dt>
+    <dd>Not every topic matters equally. Security might be 30% of the decision and onboarding 5%. The weights are part of the rubric and are set by the buyer, not by us.</dd>
+
+    <dt>The Scout</dt>
+    <dd>The research step. Searches the public web for evidence about the vendor and labels each claim they made as <b>verified, partial, contradicted, or no data</b>, with sources.</dd>
+
+    <dt>The Evaluator</dt>
+    <dd>The scoring step. Reads the transcript plus the Scout's verdicts and produces a number per question, against that question's own anchor prose.</dd>
+
+    <dt>Two-pass</dt>
+    <dd>The Scout runs twice over different inputs: once <b>blind</b>, before looking at what the vendor said, and once <b>targeted</b> at the specific claims they made. The blind pass exists so the vendor cannot steer what gets researched.</dd>
+
+    <dt>Grounding</dt>
+    <dd>Requiring that a statement point at a source that actually says it. Here it is enforced by the output <b>schema</b> &#8212; a claim cannot be emitted without a sources array &#8212; not by asking the model nicely.</dd>
+
+    <dt>Soft-fail</dt>
+    <dd>A step that is allowed to fail without taking the request down. Research failing must never cost an interview its scorecard, so the Scout is wrapped in a deadline and a catch-all.</dd>
+
+    <dt>Async session</dt>
+    <dd>A database connection that does not block the whole server while it waits. One per HTTP request &#8212; except for work that outlives the request, which must open its own.</dd>
+  </dl>
+</div>
+
+<div class="primer stack">
+  <span class="callout-label">The technology &#8212; what each named thing is</span>
+  <p>The primer above names the parts of the problem. This one names the tools, starting from the ground. No entry assumes you already know the word above it.</p>
+  <p>Every entry answers four things. What it actually is, in plain words. Where this system uses it. What it buys, meaning what goes wrong without it. And the follow-up an interviewer asks once you have said the name.</p>
+  <dl>
+    <dt>Container</dt>
+    <dd><i>and the image it starts from</i>Code alone does not run. It needs a Python version, a list of libraries, system packages, environment variables and files on disk. A container is all of that boxed up with the code, so the box behaves the same on a laptop and on a server. The <b>image</b> is the frozen box, built from a recipe file. The <b>container</b> is one running copy of it. <b>In the app.</b> <code>Dockerfile:2</code> pins the base image. Every service here ships as an image and nothing is installed on a machine by hand. <b>What it buys.</b> It kills the class of bug where something works for you and fails in production because a version differs. It also makes a copy disposable, which is what lets the scheduler below restart and move things freely. <b>The follow-up.</b> A container is not a virtual machine. It shares the host's kernel and is fenced off with namespaces and cgroups, which is why it starts in milliseconds instead of a minute, and why a kernel-level escape is the thing security people worry about.</dd>
+
+    <dt>Kubernetes</dt>
+    <dd><i>k8s</i>Once you have twenty containers and four machines, somebody has to decide which container runs where, restart the ones that die, and move them off a machine that fails. Kubernetes is that somebody, written as software. You do not give it commands. You give it a description of the end state &#8212; five copies of this image, reachable at this address &#8212; and a control loop keeps reality matching the description. <b>In the app.</b> It runs the API service, the background pipeline work, and the schema migration that has to finish before a new version takes traffic. <b>What it buys.</b> A machine can die at three in the morning and the system is still up, with no human in the loop. It also gives you one vocabulary for deploying, scaling and rolling back, instead of a folder of shell scripts. <b>The follow-up.</b> The unit it schedules is the <b>pod</b>, not the container. A pod is one or more containers that share a network address and can share a disk, and it is always the pod that gets created, moved or killed.</dd>
+
+    <dt>GKE</dt>
+    <dd><i>Google Kubernetes Engine</i>Kubernetes is software you could install and run yourself, and running it yourself is a full-time job. GKE is Google running it for you. Google owns the <b>control plane</b>, the part that stores what the cluster should look like and decides what goes where, and keeps it patched and available. You still own what runs on top. <b>In the app.</b> This platform lives on GKE rather than on serverless, for two specific reasons. An interview holds one connection open for its whole length, and the database migration has to land before the new version serves anybody. <b>What it buys.</b> You get the scheduling and self-healing without staffing a team to keep the cluster itself alive. You also get the Google-side integrations for free, which is how the pods reach Cloud SQL and Secret Manager without a password in the chart. <b>The follow-up.</b> Autopilot or Standard. Autopilot is now the default for new clusters and Google manages the worker machines too, so you pay per pod and cannot tune the node. Standard leaves node pools and machine types to you. Know which one you are on, because the answer changes what you can say about cost and about tuning.</dd>
+
+    <dt>Cloud Run</dt>
+    <dd><i>the option this was moved off</i>Google's serverless way to run the same container images. There is no cluster to size or patch. You hand it an image, it starts copies when requests arrive, and it scales to zero when they stop, so an idle service costs nothing. <b>In the app.</b> The earlier proof of concept ran here. The platform moved to GKE as the work grew past what a request-shaped runtime fits. <b>What it buys.</b> For most services it is the cheaper and simpler answer, and saying so is what proves the GKE choice was a decision rather than a habit. <b>The follow-up.</b> Do not claim it cannot stream, because that is the trap. WebSockets, HTTP/2 and gRPC streaming are all generally available and the request timeout now goes to sixty minutes. The real limits are narrower. Every connection is still a request running against that clock, and a migration that must finish before traffic shifts is not a request at all.</dd>
+
+    <dt>Helm</dt>
+    <dd><i>and the chart in <code>charts/</code></i>A Kubernetes deployment is not one file. It is a deployment, a service, an ingress, an autoscaler, a secret and a job, each a separate YAML document, most of which differ between dev and production by a handful of values. Helm turns that pile into one templated package. The package is a <b>chart</b>, and installing it produces one <b>release</b> that you upgrade or roll back as a single unit. <b>In the app.</b> <code>charts/</code> holds the chart. The deployment, the autoscaler, the ingress, the external secrets and the migrate job ship together. <b>What it buys.</b> One command deploys a version and one command puts the previous one back, which is the difference between a rollback taking seconds and taking an outage. It also stops dev and production drifting apart, because they are the same templates with different values. <b>The follow-up.</b> Ordering. Plain <code>kubectl apply</code> has no opinion about what happens first. Helm <b>hooks</b> are what make the migrate job run and finish before the new pods take traffic, and a hook that fails is what should stop the release rather than let it half-land.</dd>
+
+    <dt>Terraform</dt>
+    <dd><i>and Terragrunt on top</i>Everything underneath Kubernetes also has to exist. The cluster itself, the database instance, the network, the service accounts, the DNS. Clicking those into being in a web console leaves no record of what you did. Terraform is the opposite: you write the infrastructure down in files, it compares the files to what the cloud account actually has, and it makes the account match. Terragrunt is a thin wrapper that stops you copying the same module into every environment folder. <b>In the app.</b> <code>Resonance-infra/gcp_infra/terragrunt/dev/</code> is the per-environment layer over shared modules. <b>What it buys.</b> A new environment is a directory of values rather than a week of clicking, and every change to production arrives as a reviewable diff. It also means the answer to &#8220;how is this set up&#8221; is a file rather than a memory. <b>The follow-up.</b> State. Terraform keeps a file recording what it believes it created, and that file is the whole game. Where it is stored, whether it is locked so two people cannot apply at once, and what you do when reality and state disagree.</dd>
+
+    <dt>Cloud SQL</dt>
+    <dd><i>managed PostgreSQL</i>Postgres is software that has to run on a machine somebody maintains: disks, backups, failover, version upgrades, point-in-time recovery. Cloud SQL is Google doing all of that. What you receive is a connection string, not a server. <b>In the app.</b> It holds the durable half of the system &#8212; rubric versions, topics, questions, transcripts and scorecards. <b>What it buys.</b> Backups and failover exist on day one instead of being a task nobody gets to. The real value is the thing you never do, which is restore a database at 2am having never practised it. <b>The follow-up.</b> How the cluster reaches it. Private IP, or the Cloud SQL Auth Proxy, or Workload Identity so the pod authenticates as itself instead of carrying a password. And the connection limit, because a managed instance has a hard cap and the connection pool in the app has to respect it.</dd>
+
+    <dt>HPA</dt>
+    <dd><i>Horizontal Pod Autoscaler</i>Horizontal means more copies, as opposed to vertical, which means a bigger machine. The HPA is the controller that changes the number of copies for you. It reads one metric, compares it against a target you set, and moves the replica count up or down. <b>In the app.</b> Interview traffic is bursty and the heavy pipeline work &#8212; research, scoring, synthesis &#8212; lands after the calls rather than during them. <b>What it buys.</b> You size for the busy hour without paying for the busy hour all night. It also turns a traffic spike into a slower response instead of a dead service. <b>The follow-up.</b> Which metric, and why not CPU. CPU is the default and it is the wrong signal here, because this service spends its time waiting on Gemini and a waiting process looks idle. The answer worth giving names a custom metric such as in-flight sessions or queue depth.</dd>
+
+    <dt>External secrets</dt>
+    <dd><i>the External Secrets Operator</i>API keys have to reach the running pods, and the two obvious routes are both wrong. In the chart means the key is in git forever. Typed in by hand means nobody knows where it came from. A secret store such as Google Secret Manager is the right home, and the External Secrets Operator is the piece that bridges the two: it watches the store and keeps a matching Kubernetes Secret in sync. <b>In the app.</b> The Gemini and Tavily keys travel this way. <b>What it buys.</b> One place to rotate a key, and rotation actually reaches the cluster instead of being a ticket. Nothing sensitive ever enters the repository, so a leaked clone is not a leaked key. <b>The follow-up.</b> A Kubernetes Secret is base64, which is encoding, not encryption. What makes it safe is encryption at rest on etcd plus RBAC deciding who may read it. The operator is what means the real value only ever lives in one system.</dd>
+
+    <dt>FastAPI</dt>
+    <dd><i>and ASGI under it</i>A Python web framework. You declare what a request and a response look like as Python types, and it does the rest: rejecting bad input with a useful error, converting JSON to objects and back, and generating the OpenAPI documentation from the same declaration. ASGI is the server interface beneath it, the async successor to WSGI, and it is what allows a request handler to be a coroutine rather than a blocking function. <b>In the app.</b> It is the HTTP layer over the interview and scoring endpoints. <b>What it buys.</b> Validation stops being code you write and forget to update, because the type is the validation. And the same Pydantic models that describe the API also describe the structure the model must return, so one definition holds both edges honest. <b>The follow-up.</b> Where the blocking call is. The framework is async, but one synchronous line inside a coroutine &#8212; a CPU-bound loop, or a library that does its own I/O &#8212; freezes every other request sharing that worker.</dd>
+
+    <dt>asyncio</dt>
+    <dd><i>the event loop</i>Most of what this program does is wait: for Gemini, for Tavily, for Postgres. A thread that waits is a thread doing nothing while holding memory. asyncio is Python's answer. One thread runs an <b>event loop</b> holding many coroutines, and each coroutine hands control back at an <code>await</code> whenever it is waiting on something outside the process, so the loop can run another. <b>In the app.</b> The handlers, the database calls and the outbound model and search calls are all awaited. <b>What it buys.</b> Hundreds of interviews can be in flight on one small machine, because waiting costs almost nothing. The alternative, a thread per request, runs out of memory long before it runs out of work. <b>The follow-up.</b> Concurrency is not parallelism. This gets many things in flight on one core. It never gets two Python computations running at the same instant, because the GIL still holds, so genuinely CPU-heavy work needs a process, not a coroutine.</dd>
+
+    <dt>SQLAlchemy</dt>
+    <dd><i>async SQLAlchemy</i>The Python library that sits between objects and tables. It builds SQL for you, maps rows to Python classes, and tracks which objects changed so it knows what to write. In async mode the driver underneath is asyncpg rather than psycopg2, and every query is awaited so it fits the event loop above. <b>In the app.</b> The rubric model &#8212; versions, topics, questions, scores &#8212; is relational and is mapped properly rather than being hand-written SQL. <b>What it buys.</b> Schema changes happen in one place rather than in thirty query strings, and relationships are traversable in Python. The async driver is what stops the database from being the thing that blocks the loop. <b>The follow-up.</b> Two things break here that do not break in the synchronous version. Lazy loading, because reading an attribute cannot await, so relationships must be loaded up front. And session sharing, because a session belongs to one task at a time, which is why background work that outlives the request opens its own.</dd>
+
+    <dt>PostgreSQL</dt>
+    <dd><i>Postgres</i>The relational database. Data lives in tables of rows and columns, relationships are declared as foreign keys, a transaction makes several writes land together or not at all, and constraints are rules the engine refuses to break whether or not the application remembers them. <b>In the app.</b> Rubric versions, topics, questions, transcripts and scorecards, with two of the sharpest rules expressed as partial unique indexes. <b>What it buys.</b> Correctness you cannot forget to enforce. A rule in the database holds for every writer, including a migration, a script and a future service, whereas a rule in a service method holds only for callers who go through that method. <b>The follow-up.</b> What a <b>partial unique index</b> is. It is a uniqueness rule that applies only to rows matching a condition &#8212; one live version per rubric, one draft per rubric &#8212; enforced by the engine rather than by a check-then-insert that two requests can both pass.</dd>
+
+    <dt>Gemini</dt>
+    <dd><i>Google's model family</i>The large language model doing the reading and writing here: summarising transcripts, pulling claims out of what a vendor said, and scoring answers against the rubric prose. It is reached over an API through the Google GenAI SDK, in tiers that trade cost and speed against capability. <b>In the app.</b> Three different jobs use it, and they are not the same job. Extraction, research synthesis, and scoring against anchor prose. <b>What it buys.</b> A long transcript becomes structured data without a human reading it, which is the entire premise of the product. <b>The follow-up.</b> The feature that matters is structured output, not the model name. The API accepts a response schema and constrains generation to match it, which is how <code>ScoutClaimModel</code> makes a claim impossible to emit without its <code>sources[]</code> array. That is grounding enforced by the type system rather than requested in a prompt.</dd>
+
+    <dt>Tavily</dt>
+    <dd><i>a search API for agents</i>A search service built to be called by a program rather than read by a person. A normal search API hands back a ranked list of links, and you still have to fetch each page, strip the navigation and adverts, and hope the site allows it. Tavily returns the extracted text of the pages. <b>In the app.</b> The Scout uses it for both passes &#8212; the blind one before seeing the vendor's claims, and the targeted one afterwards. <b>What it buys.</b> It removes an entire subsystem. No fetcher, no scraper, no per-site parsing, no fight with rate limits and robots rules. The claim goes in and quotable text comes back. <b>The follow-up.</b> What happens when it is slow or down. That is exactly what the deadline and the soft-fail in the primer above exist for, and saying so is the difference between having designed for it and having discovered it.</dd>
+  </dl>
+</div>
+
+
+
+<h2>The shape: one orchestrator, three agents, and a hard rule</h2>
+
+<p class="breath">One file decides what runs and in what order. The three agents never call each other &#8212; they are just functions. That rule is why the whole flow reads in one place, the deadline sits in one place, and a stage can be tested alone.</p>
+
+<p>The single most useful sentence about this system is in the source, at the top of <code>app/avatar/services/pipeline.py</code>: <strong>this module is the only orchestrator &#8212; agents never call each other.</strong> Scout, Evaluator and Coordinator are three functions that take inputs and return values. They do not know about one another. Composition happens in exactly one file.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>There is one conductor and three musicians, and the musicians never take cues from each other &#8212; only from the conductor.</p>
+
+<p>That constraint is worth a lot more than it looks. A multi-agent system where agents call agents has no single place to read the control flow, no single place to put a deadline, and no way to test one stage without standing up the others. Here every one of those is a one-file answer.</p>
+
+<p>The pipeline runs as a background <code>asyncio</code> task kicked off after the interview finalizes, which produces the system's first genuinely non-obvious property: <strong>it cannot reuse the request's database session.</strong> The session middleware closes that session the moment the HTTP response is sent, and the pipeline outlives the response. So it opens its own. There are nine such places in the codebase and every one of them is work that outlives its request.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>The work carries on after the page has finished loading. So it cannot borrow the page's database connection. That one has already been put away.</p>
+
+<h2>Grounding is a schema property, not a prompt property</h2>
+
+<p class="breath">Asking the model to cite its sources is advice it can ignore. Giving it an output form with a required &#8220;where did you read this&#8221; field is a rule it cannot. This section is about that difference, and where the rule still stops short.</p>
+
+<p>Every claim the Scout emits is shaped by <code>ScoutClaimModel</code>: a status of <code>CONTRADICTED</code>, <code>PARTIAL</code>, <code>VERIFIED</code> or <code>NO_DATA</code>, the claim itself, a note, and a <code>sources[]</code> array of name/url/text. The model is not asked to cite; the output format does not admit a claim without the field.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>The form has a box for &#8220;where did you read that,&#8221; and the form will not submit with the box empty.</p>
+
+<p>This is the difference between grounding as an instruction and grounding as a constraint, and it is the distinction a senior interviewer is listening for. An instruction is advice the model may ignore under pressure. A schema is enforced by the decoder. But notice the honest limit, and say it before you are asked: <strong>a JSON schema constrains shape, never string values.</strong> Nothing in the schema stops the model putting a URL in <code>sources[]</code> that was not in the evidence it was given. That failure has a name in this codebase &#8212; <code>bad-cite</code>, the fabrication rate &#8212; and it is measured by a bake-off script rather than assumed to be zero.</p>
+
+<h2>The two passes, and why blind comes first</h2>
+
+<p class="breath">We research the vendor twice. Once before they speak, so they cannot steer what we look for. Once after, to check the specific things they claimed. Doing it in that order is the design, not a detail.</p>
+
+<p>Pass A is blind. It derives the company's website, runs industry-neutral searches, looks for the representative, and checks for a prior relationship &#8212; all <em>without letting the transcript steer what gets searched for</em>. Pass B then extracts factual claims from what the vendor actually said and fires one targeted search per claim, capped at ten, concurrently in a single <code>gather</code>.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>First we look the company up the way anyone would, before hearing their pitch. Then we go back and check the specific things they told us.</p>
+
+<p>Order is the whole design. If the only research is targeted at claims, a vendor controls the entire evidence base by choosing what to claim &#8212; the things they never mention are never checked. Pass A is the half that finds what they did not bring up, and it is why <code>{name} controversies</code> survived a query-set cull that removed three other searches.</p>
+
+<p>Then three Gemini calls run <em>concurrently</em> over the same gathered sources: the Markdown synthesis, the structured claims report, and the representative verification. None depends on another's output. Say the reason out loud, because it is the good answer: <strong>the concurrency is load-bearing, not an optimisation.</strong> Each call carries the same retry ladder, and run sequentially they would blow the deadline outright.</p>
+
+
+
+<section class="qset" id="toolbox">
+  <h2>Toolbox</h2>
+  <p class="qset-note">The warm-up before the warm-up. Every noun in the bullet, defined out loud, from the ground up. An interviewer who hears you weigh GKE against Cloud Run will sometimes stop and ask what Cloud Run is, and that is the question you must not fumble. Each answer says what the thing is, what it does here, and what you would lose without it.</p>
+  <ul class="qa-index">
+    <li><a href="#c01-t1">Container and Kubernetes</a></li>
+    <li><a href="#c01-t2">What GKE manages</a></li>
+    <li><a href="#c01-t3">What Cloud Run is</a></li>
+    <li><a href="#c01-t4">What Helm adds</a></li>
+    <li><a href="#c01-t5">Terraform and Terragrunt</a></li>
+    <li><a href="#c01-t6">What an HPA scales on</a></li>
+    <li><a href="#c01-t7">FastAPI and async</a></li>
+    <li><a href="#c01-t8">What async SQLAlchemy changes</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c01-t1">
+      <p class="qa-q">What is a container, and what does Kubernetes add on top of one?</p>
+      <p class="qa-a">Code by itself does not run. It needs a Python version, libraries, system packages and files on disk. A container is all of that boxed up with the code. The box behaves the same on a laptop and on a server. That kills the entire class of bug where something works for you and fails in production. Kubernetes is the layer above. Once you have twenty containers and four machines, something has to decide what runs where. Kubernetes is that decision, written as software. It places copies, restarts what dies, moves work off a failed machine, and gives the set one stable address. The container is the unit. Kubernetes is the scheduler. Without it, that job is a person with a runbook at three in the morning.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;Kubernetes is like Docker but bigger.&#8221; They are different layers. One packages, the other places.</p>
+    </li>
+    <li class="qa-item" id="c01-t2">
+      <p class="qa-q">What is GKE, and what is Google actually running for you?</p>
+      <p class="qa-a">Kubernetes is software you could install yourself, and installing it yourself is a full-time job. GKE is Google doing that part. Google owns the control plane, which stores what the cluster should look like and decides placement. They keep it patched and available. You still own what runs on top. What it buys is scheduling and self-healing without a team to keep the cluster alive. It also buys the Google-side wiring, which is how pods reach Cloud SQL and Secret Manager with no password in the chart. Two modes exist. In Standard you own the node pools and machine types. In Autopilot Google owns the nodes too, and that is now the default for new clusters. Know which one you are on, because it changes what you can say about cost.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;It's managed Kubernetes,&#8221; then silence. Managed by whom, down to which layer, is the whole question.</p>
+    </li>
+    <li class="qa-item" id="c01-t3">
+      <p class="qa-q">What is Cloud Run, and why did this workload not stay on it?</p>
+      <p class="qa-a">Cloud Run is the serverless way to run the same container images. There is no cluster to create, size or patch. You hand it an image. It starts copies when requests arrive and scales to zero when they stop, so an idle service costs nothing. For most services that is cheaper and simpler than a cluster, and saying so is what proves the GKE choice was a decision. The honest limit is not that it cannot stream. It does WebSockets, and a request can run for sixty minutes. The limit is that every connection is still a request against that clock. And a migration that must land before traffic shifts is not a request at all.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying Cloud Run cannot hold a long connection. It can, for up to an hour, and an interviewer who knows that has just caught you.</p>
+    </li>
+    <li class="qa-item" id="c01-t4">
+      <p class="qa-q">What does Helm give you that plain <code>kubectl apply</code> does not?</p>
+      <p class="qa-a">A Kubernetes deployment is not one file. It is a deployment, a service, an ingress, an autoscaler, a secret and a job. Most of them differ between dev and production by a handful of values. Helm turns that pile into one templated package called a chart. Installing it produces one release. The deployment, the autoscaler, the ingress, the external secrets and the migrate job go in together and come back out together. That is the half that matters. One command ships a version and one command puts the previous one back. That is the difference between a rollback taking seconds and a rollback taking an outage. Templating also stops dev and production drifting, because they are the same files with different values. With raw kubectl you apply files one at a time and own the ordering yourself.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it a templating tool and stopping. The release boundary is the half that matters, because it is what rolls back.</p>
+    </li>
+    <li class="qa-item" id="c01-t5">
+      <p class="qa-q">What is Terraform, and what is Terragrunt for?</p>
+      <p class="qa-a">Everything underneath Kubernetes also has to exist. The cluster, the database, the network, the service accounts. Clicking those into being in a console leaves no record of what you did. Terraform is the opposite. You write the infrastructure down in files, it compares them to what the account actually has, and it makes the account match. What that buys is a new environment being a directory of values rather than a week of clicking. It also means every production change arrives as a reviewable diff. Terragrunt is a thin wrapper on top. The same module gets applied once per environment, and Terraform alone makes you copy the backend config and the inputs into each one. Terragrunt keeps one copy and passes the differences in.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Naming Terragrunt without naming the duplication it removes. If you cannot say what you would otherwise be copying, you did not need it.</p>
+    </li>
+    <li class="qa-item" id="c01-t6">
+      <p class="qa-q">What is an HPA, and what should it scale on here?</p>
+      <p class="qa-a">Horizontal means more copies. Vertical would mean a bigger machine. The Horizontal Pod Autoscaler is the controller that changes the number of copies for you. It reads one metric, compares it to a target you set, and moves the replica count. What it buys is sizing for the busy hour without paying for the busy hour all night. It also turns a traffic spike into a slower response rather than a dead service. CPU is the default metric and it is the wrong one for this workload. A box waiting on Gemini looks idle, not busy. So the answer worth giving names a custom metric, such as sessions in flight or queue depth.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;It scales on load.&#8221; Name the metric. CPU on a service that mostly waits scales the wrong thing.</p>
+    </li>
+    <li class="qa-item" id="c01-t7">
+      <p class="qa-q">What is FastAPI, and what does async actually buy you in it?</p>
+      <p class="qa-a">FastAPI is a Python web framework. You declare what a request and a response look like as Python types, and it does the rest. It rejects bad input with a useful error, converts JSON to objects and back, and generates the API documentation from the same declaration. Validation stops being code you write and forget to update, because the type is the validation. Underneath it runs on ASGI, the async server interface, which is what lets a request handler be a coroutine instead of a blocking function. Async buys concurrency, not speed. One worker can hold hundreds of open requests while each waits on Postgres or on Gemini. It makes no single call faster.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;Async makes it faster.&#8221; It makes it wait better. One blocking line in a coroutine stalls every other request on that worker.</p>
+    </li>
+    <li class="qa-item" id="c01-t8">
+      <p class="qa-q">What changes when SQLAlchemy is used in async mode?</p>
+      <p class="qa-a">SQLAlchemy sits between Python objects and database tables. It builds the SQL, maps rows onto classes, and tracks which objects changed so it knows what to write. In async mode the driver stops blocking the event loop while the database answers. The Postgres driver underneath becomes asyncpg rather than psycopg2, and every query is awaited. That is what stops the database being the thing that freezes the loop. Two things then break that do not break in the synchronous version. Lazy loading stops working, because an attribute access cannot await, so relationships load up front instead. And a session belongs to one task at a time, which is why background work opens its own.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;Same API with await in front.&#8221; Lazy loading is the difference that bites, and it bites in production rather than in tests.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="fundamentals">
+  <h2>Fundamentals</h2>
+  <p class="qset-note">The warm-up. These decide whether the interviewer keeps digging or moves on, and every one of them should be answerable in under a minute.</p>
+  <ul class="qa-index">
+    <li><a href="#c01-f1">What the platform does</a></li>
+    <li><a href="#c01-f2">What &#8220;owned&#8221; means</a></li>
+    <li><a href="#c01-f3">Why score after, not during</a></li>
+    <li><a href="#c01-f4">What the Scout is for</a></li>
+    <li><a href="#c01-f5">What the Evaluator is for</a></li>
+    <li><a href="#c01-f6">Where the weights live</a></li>
+    <li><a href="#c01-f7">Why async at all</a></li>
+    <li><a href="#c01-f8">Why Postgres</a></li>
+    <li><a href="#c01-f9">Why GKE</a></li>
+    <li><a href="#c01-f10">The riskiest part</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c01-f1">
+      <p class="qa-q">In two sentences, what does this platform do?</p>
+      <p class="qa-a">An avatar interviews a software vendor to a fixed script. Afterwards the system checks what they claimed against the public web, and scores the whole conversation against a weighted rubric the buyer wrote. The output is a scorecard. Every number on it traces back to one question, and every claim the vendor made carries a verdict with sources.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Opening with the technology. &#8220;It's a FastAPI service on GKE with Gemini&#8221; answers a question nobody asked and tells them nothing about what the thing is for.</p>
+    </li>
+    <li class="qa-item" id="c01-f2">
+      <p class="qa-q">You wrote &#8220;owned end-to-end.&#8221; What does that actually mean here?</p>
+      <p class="qa-a">The data model, the agent pipeline, the gateway the avatar talks to, the scoring arithmetic, and the deployment. Concretely: I chose the rubric versioning scheme. I wrote the orchestrator and the scoring code. I shipped it on GKE with Helm and Terragrunt. It does not mean I was the only engineer. It means no part of the path was handed to someone else to understand for me.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Letting &#8220;owned&#8221; stand as a synonym for &#8220;worked on.&#8221; If you cannot name the specific decisions you made, the word is doing work you did not do.</p>
+    </li>
+    <li class="qa-item" id="c01-f3">
+      <p class="qa-q">Why score the interview at the end rather than per answer?</p>
+      <p class="qa-a">Two reasons, one product and one technical. The vendor must never watch a score move while they talk. That changes their behaviour and turns the interview into a negotiation. And judging an answer with the whole conversation in view is simply more accurate. An answer that looked thin at minute three is often completed at minute twenty.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;For performance.&#8221; It is a correctness and product decision that happens to also be cheaper.</p>
+    </li>
+    <li class="qa-item" id="c01-f4">
+      <p class="qa-q">What problem does the Scout solve that the Evaluator cannot?</p>
+      <p class="qa-a">The Evaluator only sees the transcript. So it can grade how well a claim was <em>argued</em>, never whether it is <em>true</em>. The Scout brings in evidence from outside the conversation. Without it, a confident vendor and an accurate vendor score the same. That is the exact failure this product exists to prevent.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing the Scout as &#8220;RAG.&#8221; It is live web search and verification, not retrieval over a private corpus, and the follow-up will expose the difference.</p>
+    </li>
+    <li class="qa-item" id="c01-f5">
+      <p class="qa-q">What exactly does the Evaluator produce?</p>
+      <p class="qa-a">A score per question against that question's own Low/Medium/High anchor prose, with supporting evidence quotes. Those roll up to an unweighted mean per KPI, then to two totals. One Gemini call on the pro-tier model &#8212; latency does not matter once the interview is over, so we buy the better judgment.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying &#8220;it scores the interview&#8221; and stopping. The per-question granularity is the whole reason a scorecard is auditable.</p>
+    </li>
+    <li class="qa-item" id="c01-f6">
+      <p class="qa-q">Where do the rubric weights live, and who sets them?</p>
+      <p class="qa-a">The buyer sets the weights. We never invent one. They live on the topic row inside a specific rubric <em>version</em>, not on the rubric itself. An earlier design shared a single weight row across every domain. Change security's weighting for healthcare and you changed it for retail too. That is the bug the current shape exists to prevent.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Suggesting the model decides or influences the weights. It does not touch them, and saying otherwise undermines the entire scoring story.</p>
+    </li>
+    <li class="qa-item" id="c01-f7">
+      <p class="qa-q">Why async SQLAlchemy rather than the sync API?</p>
+      <p class="qa-a">Because this service spends most of its wall-clock waiting. It waits on Gemini, on Tavily, on page fetches. Under sync IO each of those holds a worker thread. The pipeline fires sixteen concurrent searches and three concurrent model calls in one gather. That shape is only cheap on an event loop.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;Async is faster.&#8221; It is not faster for CPU work at all. It is a concurrency model for IO-bound waiting, and saying which kind of work you have is the answer.</p>
+    </li>
+    <li class="qa-item" id="c01-f8">
+      <p class="qa-q">Why PostgreSQL for this, rather than a document store?</p>
+      <p class="qa-a">The core of the data is relational, and the invariants are worth enforcing in the database. A rubric version has topics, topics have questions, and scorecards cite a version. Two of the sharpest rules are partial unique indexes. At most one live version per rubric, and at most one draft. In Mongo you would write that check yourself, and it would be wrong sometimes.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;It's what we knew.&#8221; True of most choices and never the answer; name an invariant the database enforces for you.</p>
+    </li>
+    <li class="qa-item" id="c01-f9">
+      <p class="qa-q">Why GKE rather than Cloud Run or plain VMs?</p>
+      <p class="qa-a">Long-lived streaming connections during interviews, and a migration job that must finish before the new version serves. Helm gives us the deployment, the HPA, ingress, external secrets and that migrate job as one release. Terragrunt provisions the cluster and Cloud SQL beneath it. The predecessor POC ran on Cloud Run. Session lifetime is what moved it off.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Naming Kubernetes as a default. If your reason does not mention something about <em>this</em> workload, you did not choose it.</p>
+    </li>
+    <li class="qa-item" id="c01-f10">
+      <p class="qa-q">What is the riskiest part of this system?</p>
+      <p class="qa-a">The claims report, because a vendor's score partly depends on it and it is not reproducible. On identical evidence, roughly one claim in five gets a different verdict between runs. Pinning temperature to zero does not fix it. Nearly every flip sits on the NO_DATA versus PARTIAL boundary. That points at the prompt's definition of that line, not at sampling.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Naming a risk you have already solved. That is a humblebrag, and every interviewer has heard it. Name a live one.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="deep-dive">
+  <h2>Deep dive</h2>
+  <p class="qset-note">Senior depth. Each of these is a design decision with a defensible alternative &#8212; naming the alternative you rejected, and why, is most of the grade.</p>
+  <ul class="qa-index">
+    <li><a href="#c01-d1">One orchestrator</a></li>
+    <li><a href="#c01-d2">Model proposes, code decides</a></li>
+    <li><a href="#c01-d3">Band then integer</a></li>
+    <li><a href="#c01-d4">Two totals</a></li>
+    <li><a href="#c01-d5">Blind pass first</a></li>
+    <li><a href="#c01-d6">Schema-enforced citation</a></li>
+    <li><a href="#c01-d7">Who evaluates the evaluator</a></li>
+    <li><a href="#c01-d8">Rubric versioning</a></li>
+    <li><a href="#c01-d9">The session rule</a></li>
+    <li><a href="#c01-d10">Concurrency as correctness</a></li>
+    <li><a href="#c01-d11">Caps at the client</a></li>
+    <li><a href="#c01-d12">Removing a feature</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c01-d1">
+      <p class="qa-q">Why one orchestrator rather than letting agents delegate to each other?</p>
+      <p class="qa-a">Because delegation destroys the three things I need most. One readable control flow. One place to put a deadline. And the ability to test a stage on its own. With agents calling agents, a Scout timeout becomes an Evaluator problem, and you cannot tell from the code which stage owns the budget. The cost is that the orchestrator knows all three signatures. I would pay that again.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Framing it as a framework choice. It is an architectural constraint that a framework would happily let you violate.</p>
+    </li>
+    <li class="qa-item" id="c01-d2">
+      <p class="qa-q">Walk me through what the scoring model is and is not allowed to decide.</p>
+      <p class="qa-a">It proposes a band and a number per question, with evidence quotes. Everything after that is code. The number gets clamped into the band the model itself chose. Questions that were never asked are dropped. An asked question the model called unanswered is excluded from its KPI rather than scored one. Each KPI is the unweighted mean of its answered questions. The weighting and the totals are arithmetic I wrote.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Letting the model produce the final number. The moment it does, the score is unauditable and nobody can explain a disagreement to a vendor.</p>
+    </li>
+    <li class="qa-item" id="c01-d3">
+      <p class="qa-q">Why ask for a band first and then an integer, rather than a 1&#8211;5 score directly?</p>
+      <p class="qa-a">Because the rubric's own tables collapse the 1&#8211;2 pair and the 4&#8211;5 pair. Nothing in the document tells a 1 apart from a 2 in words. A bare 1-to-5 ask therefore piles up on the midpoints of prose that actually exists. Choosing from the anchors that are written, then refining inside that band, is more faithful to the document. It is also more reliable run to run.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it prompt engineering. It is a fix for a mismatch between the output space and the rubric's real granularity.</p>
+    </li>
+    <li class="qa-item" id="c01-d4">
+      <p class="qa-q">You report two totals. Why is one not enough?</p>
+      <p class="qa-a">They answer different questions. Earned-out-of-100 is the sum of the per-KPI point rows, so the headline can never disagree with the rows beneath it. The other is a weighted mean over only the KPIs that had data. Its weights are renormalised to sum to one. It says how well the part that was actually asked scored. The two are equal under full coverage and diverge when questions went unasked, which is exactly when a reader needs both.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Reporting only the renormalised figure. It flatters a short interview, and a vendor who ran out of time would out-score one who answered everything.</p>
+    </li>
+    <li class="qa-item" id="c01-d5">
+      <p class="qa-q">Defend running a blind research pass. Is it not wasted work when you have the transcript?</p>
+      <p class="qa-a">The opposite. It is the only pass the vendor cannot manipulate. If all research is targeted at claims, the evidence base is chosen by the person under examination. Anything they carefully never mention is never checked. The blind pass is what finds the controversy they did not raise. That is also why the controversies query survived a cull that merged or dropped three others.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Justifying it on latency or cache warming. The argument is adversarial, not performance.</p>
+    </li>
+    <li class="qa-item" id="c01-d6">
+      <p class="qa-q">How do you actually stop the Scout asserting something with no source?</p>
+      <p class="qa-a">The output schema has no shape for it. A claim carries a status and a sources array of name, url and text, and the decoder enforces that. But I would state the limit in the same breath. A schema constrains shape, never string values. So nothing structurally prevents a URL that was not in the evidence. We measure that as a fabrication rate rather than assuming it away.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Claiming the schema makes hallucination impossible. It makes <em>omission</em> impossible. Those are different, and the interviewer knows it.</p>
+    </li>
+    <li class="qa-item" id="c01-d7">
+      <p class="qa-q">The Scout judges claims and the Evaluator scores. Who checks them?</p>
+      <p class="qa-a">A bake-off script. It replays one real evidence payload through the actual report function, with only the model swapped. The evidence is fixed and the model is the single variable. It reports label-free metrics: citations naming a URL not in the evidence, verified claims lacking independent support, and verdict instability across an arm's own runs. It found the pro model is meaningfully more conservative than flash. Flash's error direction is the dangerous one, calling unverifiable things partially supported.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;We used LLM-as-a-judge.&#8221; The next question is always &#8220;your judge is also a model &#8212; how do you know it's right?&#8221; Have the metric that needs no labels ready first.</p>
+    </li>
+    <li class="qa-item" id="c01-d8">
+      <p class="qa-q">Why does everything hang off a rubric <em>version</em> rather than the rubric?</p>
+      <p class="qa-a">So that editing a draft never touches what the live version is scoring against. And so every scorecard records the exact version that produced it. A locked version is a permanent, citable snapshot. The database enforces at most one live and one draft per rubric, with partial unique indexes. Immutability of a locked version's children is a service-layer invariant, because this repo deliberately has no trigger-migration tooling.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Not being able to say what happens to old scorecards when the rubric changes. That is the question the versioning exists to answer.</p>
+    </li>
+    <li class="qa-item" id="c01-d9">
+      <p class="qa-q">You said the pipeline opens its own DB session. Why is that not just a code-style choice?</p>
+      <p class="qa-a">Because the session middleware opens one session per request. It commits or rolls back when the request ends. The pipeline is a background task, handed off before the response returns. By the time it writes, that session is closed. Using it is a use-after-free with a friendly error message. Nine places in the codebase do this, and all nine are work that outlives its request.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;We pass the session in.&#8221; That is the bug this rule exists to prevent, and it fails only under the timing where it matters.</p>
+    </li>
+    <li class="qa-item" id="c01-d10">
+      <p class="qa-q">Three Gemini calls in one gather. Why not just run them in order?</p>
+      <p class="qa-a">Because each carries the same retry ladder, and run one after another they blow the deadline outright. The worst case only fits because they overlap. None of them depends on another's output. All three judge the same gathered sources, which is why the payload is truncated once up front rather than three times. Adding a fourth call to that gather means redoing the budget arithmetic first.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it an optimisation. If it were, you could remove it and be slower. Remove this and you are <em>broken</em>, which is a different class of decision.</p>
+    </li>
+    <li class="qa-item" id="c01-d11">
+      <p class="qa-q">Where are outbound request limits enforced, and why there?</p>
+      <p class="qa-a">At the two clients, search and page fetch. Those are the only two places an outbound request is actually made. Everything above them is a gather over one of the two. Both caps sit deliberately above today's peak. They are guardrails against a future fan-out, not throttles on this one, and tests fail if a new source turns them into throttles.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Putting the limit at the fan-out. Then every new call site needs its own, and the one that forgets is the one that takes down the upstream.</p>
+    </li>
+    <li class="qa-item" id="c01-d12">
+      <p class="qa-q">Tell me about something you removed from this system.</p>
+      <p class="qa-a">The Scout used to read attached documents. I removed the data path, and I can say exactly what it cost. The document-contradiction check is effectively gone &#8212; catching a vendor whose spoken answer contradicted their own brochure. Nothing else in the pipeline looks for that inconsistency. The prompts kept the dead text for nine days deliberately, because editing them would also have changed two other surfaces. That debt was paid separately.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing a removal as pure cleanup. Every real removal cost something; naming the cost is what makes the story credible.</p>
+    </li>
+  </ol>
+</section>
+
+<div class="quiz" data-quiz-id="0001-q1">
+  <p class="q">The Evaluator returns a score of 4 for a question, having chosen the Medium band. What does the code do?</p>
+  <ol class="options">
+    <li data-correct="true">Clamps the number into the band it already chose</li>
+    <li>Accepts the number and discards the band it chose</li>
+    <li>Retries the call until the band matches the number</li>
+    <li>Drops the question entirely from its own scoring row</li>
+  </ol>
+  <div class="why">
+    <p>Clamped. The model proposes a band <em>and then</em> an integer inside it, and the arithmetic in code holds it to its own choice &#8212; the band came from prose that actually exists in the rubric, so it is the more trustworthy half of the answer.</p>
+    <p>Accepting the raw number is the tempting one, and it is how you get a score nobody can defend to a vendor: the anchor prose said Medium, the scorecard says High, and there is no artefact that explains the gap. Dropping the question is what happens to questions that were never <em>asked</em> &#8212; a different case entirely.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0001-q2">
+  <p class="q">Tavily's API key is missing in production. What does the Scout report look like?</p>
+  <ol class="options">
+    <li data-correct="true">Confident and empty, because search soft-fails to no results</li>
+    <li>Absent entirely, because the pipeline aborts on missing keys</li>
+    <li>Delayed but complete, because the fetcher retries every query</li>
+    <li>Partial and flagged, because missing keys raise a warning</li>
+  </ol>
+  <div class="why">
+    <p>Confident and empty. Search soft-fails to no results rather than erroring, so the Scout still returns success with a report that states nothing was found &#8212; having never looked. <strong>Nothing downstream can distinguish that from genuine absence.</strong> The key is a correctness dependency, not a quality one, and if reports look plausible but thin this is the first thing to check.</p>
+    <p>This is the most instructive failure in the system, because every layer behaves exactly as designed and the output is still wrong. Soft-failing protects the scorecard from a research outage, and the price is that a total research outage is indistinguishable from a vendor with no public footprint.</p>
+  </div>
+</div>
+
+<section class="qset" id="edges">
+  <h2>Edge and exception</h2>
+  <p class="qset-note">What breaks. A senior loop spends more time here than anywhere else, because this is where a candidate who ran the system separates from one who read about it.</p>
+  <ul class="qa-index">
+    <li><a href="#c01-e1">Scout times out</a></li>
+    <li><a href="#c01-e2">Search key missing</a></li>
+    <li><a href="#c01-e3">Non-reproducible verdicts</a></li>
+    <li><a href="#c01-e4">Interview ends early</a></li>
+    <li><a href="#c01-e5">Budget sized by guess</a></li>
+    <li><a href="#c01-e6">Semaphore per loop</a></li>
+    <li><a href="#c01-e7">A dead argument</a></li>
+    <li><a href="#c01-e8">Scale it 100&#215;</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c01-e1">
+      <p class="qa-q">The Scout hangs. What does the vendor see?</p>
+      <p class="qa-a">A scorecard, with no research section. The pipeline holds a hard deadline and a catch-all around the Scout. That is deliberate: research failing must never cost an interview its scorecard. The Evaluator falls back to the raw claim list when no report is available. The internal ladder is sized to fit inside that deadline with headroom, and a test pins that arithmetic rather than leaving it to a comment.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;It retries.&#8221; The interesting answer is what the user gets when retries are exhausted, and which component owns the budget.</p>
+    </li>
+    <li class="qa-item" id="c01-e2">
+      <p class="qa-q">How would you detect the empty-because-unsearched failure in production?</p>
+      <p class="qa-a">You cannot detect it from the report, which is the point. It has to be caught at the client. A search client returning zero results for <em>every</em> query in a run is a different event from a query with no hits. Only the client can tell those apart. Soft-fail should still soft-fail. But it should emit a distinguishable signal rather than an absence.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Proposing to make it hard-fail. That trades a rare silent-bad-report for a common lost-scorecard, which is the worse trade for this product.</p>
+    </li>
+    <li class="qa-item" id="c01-e3">
+      <p class="qa-q">You said verdicts are not reproducible. Why is that not disqualifying?</p>
+      <p class="qa-a">Because of where the instability sits. Roughly one claim in five flips between runs on identical evidence. Nearly every flip is on the NO_DATA versus PARTIAL boundary, not verified versus contradicted. That points at the prompt's definition of that line rather than at the sampler. It is also why pinning temperature did not fix it. It is open, it is visible, and a test guards the negative result from being quietly tidied away.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying temperature zero makes it deterministic. It was tried and measured, and it did not.</p>
+    </li>
+    <li class="qa-item" id="c01-e4">
+      <p class="qa-q">An interview runs out of time with a third of the questions unasked. What happens to the score?</p>
+      <p class="qa-a">Unasked questions are dropped rather than scored zero. The KPIs they belonged to lose data, and the two totals diverge. Earned-out-of-100 falls, because fewer points were available. The weighted mean over answered KPIs stays meaningful. Showing both is what stops a short interview reading as a bad vendor, or a good one.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Scoring an unasked question as the minimum. That punishes the vendor for our scheduling, and it is indefensible in front of them.</p>
+    </li>
+    <li class="qa-item" id="c01-e5">
+      <p class="qa-q">Tell me about a timeout you got wrong.</p>
+      <p class="qa-a">Several, in both directions, and the lesson generalises. Two retry ladders were sized by extrapolating from a probe of a <em>different</em> prompt. When the real calls were finally timed, one budget was about four times its true ceiling and another about eleven. Separately, a synthesis budget cut straight through the middle of the model's latency distribution, so some runs lost the report entirely. The trap is that <strong>sizing a budget from runs that budget already truncated is circular</strong>. You have to raise it out of the way before you measure.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Only telling the too-small story. A ladder that is too wide costs headroom silently, exactly as a narrow one costs evidence loudly, and noticing both is the senior version.</p>
+    </li>
+    <li class="qa-item" id="c01-e6">
+      <p class="qa-q">A module-level asyncio Semaphore &#8212; what is wrong with it?</p>
+      <p class="qa-a">It binds to an event loop on the first <em>wait</em>, not the first acquire. So the naive version works perfectly until two callers actually queue, and then raises from deep inside the HTTP client. That is a load-dependent failure in the one component whose entire job is to engage under load. Ours rebinds per event loop for exactly that reason.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Not knowing why it passes tests. Single-caller tests never queue, so the bug is invisible until production concurrency.</p>
+    </li>
+    <li class="qa-item" id="c01-e7">
+      <p class="qa-q">There is a parameter the Scout accepts and ignores. Why would you leave that?</p>
+      <p class="qa-a">Because the caller passes it positionally, and changing the signature was outside that change's scope. Removing it would have meant touching the orchestrator in a change about the Scout. It is documented as a trap in the function's own docstring. A test pins it, asserting documents are inert, including that a document containing a URL no longer produces a lookup. It is still debt: deliberate, bounded, and written down.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Defending it as fine. It is a trap; the defensible part is that it is a <em>labelled</em> trap with a test around it.</p>
+    </li>
+    <li class="qa-item" id="c01-e8">
+      <p class="qa-q">A hundred times the interviews. What breaks first?</p>
+      <p class="qa-a">Not the database and not the pods. The outbound research. Every interview fans out to search and page fetches against third-party APIs with their own rate limits. Our caps sit above current peak by design, so they do not throttle until they become the thing being hit. Past that, the searches queue instead of flying concurrently. That turns a payload-size cap into a wall-clock cost and eats the gather budget. The fix is admission control on the pipeline, not more replicas.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;Add replicas and a queue.&#8221; Replicas multiply the outbound fan-out, which is the actual constraint. Name the bottleneck before naming the remedy.</p>
+    </li>
+  </ol>
+</section>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;Who does the arithmetic &#8212; the model or your code?&#8221;
+      <span class="tell">The highest-signal question in this chapter, and it is asked of every AI-scoring system. A candidate who lets the model produce the final number has built something unauditable and usually has not noticed.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The model proposes a band and an integer with evidence quotes. Everything downstream is code: clamp into the model's own band, drop unasked questions, exclude rather than zero an unanswered one, unweighted mean per KPI, then two totals. The reason is that a vendor may lose a contract over this number and will ask why &#8212; so it has to decompose into a question, a band, and a line of prose in a named rubric version.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Why is the research pass blind? You have the transcript right there.&#8221;
+      <span class="tell">Tests whether you think adversarially about your own users. The performance-flavoured answer is wrong and reveals you have not.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Because if every search is derived from what they said, the vendor picks the evidence base by choosing what to claim, and anything they never mention is never checked. The blind pass is the half they cannot steer &#8212; it is what finds the controversy nobody raised.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;What happens if your search provider is down?&#8221;
+      <span class="tell">They are usually fishing for &#8220;we retry.&#8221; The real answer here is much more interesting and you should volunteer it.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The interview still gets its scorecard, because the Scout is deadline-wrapped and soft-fails &#8212; research failing must never cost a scorecard. The uncomfortable part is what the report looks like: confident and empty, because search soft-fails to no results, and nothing downstream can distinguish that from a vendor with no public footprint. It has to be caught at the client, because by the time it is a report the information is gone.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Your system has a model judging claims. How do you know the judge is right?&#8221;
+      <span class="tell">The question that follows &#8220;LLM-as-a-judge&#8221; every single time. Have a metric that needs no human labels ready, because that is what separates a measured system from a hopeful one.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Three label-free metrics from a replay harness that fixes the evidence and varies only the model: citations naming a URL not in the evidence, verified claims lacking independent support, and verdict instability across repeated runs of the same arm. That last one is how we found that roughly a fifth of verdicts flip on identical evidence &#8212; a result we would never have got from eyeballing outputs.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;How would you take this to a hundred times the volume?&#8221;
+      <span class="tell">Watch for the reflex answer. The bottleneck here is not compute, and naming the right one before proposing anything is most of the grade.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Outbound research breaks first, not the pods or the database &#8212; every interview fans out to third-party search and fetch with their own rate limits. More replicas multiply exactly the thing that is constrained. So: admission control on the pipeline, a shared budget across replicas rather than per-process caps, and probably an evidence cache keyed on the vendor, since the blind pass for one company is identical across interviews.</p>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="recall">
+  <details>
+    <summary>The Scout's three model calls run concurrently against a shared deadline. Which System Design School lesson gives you the vocabulary for what the deadline is doing, and what is the number you should be able to produce?</summary>
+    <p class="answer">Lesson 0001 &#8212; latency budget arithmetic. The Scout's budget is a worked example of it: a gather cap plus a retry ladder has to fit inside the outer deadline with headroom, and here it is pinned by a test rather than a comment. The generalisable rule from that lesson is the one that was violated twice in this codebase: every hop's worst case, summed, must be less than the ceiling &#8212; and if you have not written that sum down, you do not have a budget, you have a hope.</p>
+    <span class="from"><a href="../../system-design-school/lessons/0001-latency-budget-arithmetic.html">SDS 0001 &#183; Latency budget arithmetic</a></span>
+  </details>
+  <details>
+    <summary>You would cache the blind pass, because it is identical across interviews with the same vendor. Which two failure modes from the caching lessons apply immediately?</summary>
+    <p class="answer">Stampede and penetration. Stampede because many interviews for a hot vendor can arrive inside one miss window &#8212; and the miss here is a multi-second web-search fan-out, so the window is enormous; single-flight is the fix. Penetration because a vendor with genuinely no public footprint produces an empty result that never caches under a naive &#8220;cache non-empty results&#8221; rule, so every interview re-searches the one company guaranteed to return nothing.</p>
+    <span class="from"><a href="../../system-design-school/lessons/0005-stampede-penetration-avalanche.html">SDS 0005 &#183; Stampede, penetration, avalanche</a></span>
+  </details>
+  <details>
+    <summary>Scoring runs on the pro-tier model because &#8220;latency doesn't matter after the interview ends.&#8221; What does that sentence assume, and which lesson tells you how to check it?</summary>
+    <p class="answer">It assumes nothing downstream is waiting, which is true here &#8212; the pipeline is a background task handed off before the response returns, and it is budgeted for completion rather than pace. The check is lesson 0002's: a median that looks fine can hide a tail that does not, and a post-interview job with no reader still has a deadline it can blow. The relevant number is not the mean scoring time but the fraction of runs that hit the ceiling &#8212; which is exactly how the synthesis budget was found to be cutting through the middle of the distribution.</p>
+    <span class="from"><a href="../../system-design-school/lessons/0002-p50-is-a-lie.html">SDS 0002 &#183; p50 is a lie</a></span>
+  </details>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">The lessons behind this chapter</span>
+  <p>System Design School teaches these mechanisms from first principles and breaks them in a lab. This chapter defends what you did with them. When an interviewer moves from &#8220;how would you build it&#8221; to &#8220;what did yours cost,&#8221; they are crossing between these two lists.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0001-latency-budget-arithmetic.html">SDS 0001 &#183; Latency budget arithmetic</a>
+      <span class="bridge-why">The Scout's three concurrent calls share one deadline. This is where you learn to write the sum down instead of hoping.</span>
+    </li>
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0002-p50-is-a-lie.html">SDS 0002 &#183; p50 is a lie</a>
+      <span class="bridge-why">Scoring runs after the interview with nobody waiting, which is exactly the shape where a fine median hides a bad tail.</span>
+    </li>
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0005-stampede-penetration-avalanche.html">SDS 0005 &#183; Stampede, penetration, avalanche</a>
+      <span class="bridge-why">The moment you cache the blind pass, a hot vendor gives you a stampede and a vendor with no footprint gives you penetration.</span>
+    </li>
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0006-redis-is-not-magic.html">SDS 0006 &#183; Redis is not magic</a>
+      <span class="bridge-why">The blind pass is the obvious thing to cache here, and that lesson is the one that tells you what a cache costs you when it stalls.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0011 &#183; Circuit breaker &#8212; not yet built</span>
+      <span class="bridge-why">Gemini and Tavily are two third-party dependencies sitting inside a hard deadline, and neither has a breaker in front of it.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0041 &#183; Multi-tenant RBAC &#8212; not yet built</span>
+      <span class="bridge-why">A vendor-evaluation platform is multi-tenant by definition. Who is allowed to see which rubric score is a question you should have an answer to.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0042 &#183; Sensitive data boundaries &#8212; not yet built</span>
+      <span class="bridge-why">Vendor documents go into a third-party model and the traces persist. Name that boundary before someone else does.</span>
+    </li>
+  </ol>
+</div>
+
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="index.html">&#8592; Chapter index</a></span>
+  <span><span class="dir">Next</span><a href="0002-llm-gateway-and-streaming.html">0002 &#183; The gateway and the move to streaming &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

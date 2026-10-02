@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>The Read That Beat Its Own Write</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0020">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">System Design School</a>
+    <span class="sep">/</span>
+    <span>Tier 1 &#183; Postgres</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Lesson 0020</span>
+    <span class="sep">/</span>
+    <span>Needs Postgres &#183; a replica</span>
+  </div>
+  <h1>The Read That Beat Its Own Write</h1>
+  <p class="standfirst">A replica 0.2&#8239;ms behind returned the old value <strong>493 times in 500</strong> to a client that read straight after writing, and <strong>none</strong> to one that took a little longer about it. Same replica, same lag. What protects a read is not how far behind the replica is but how fast your own next statement is &#8212; and under write load, the slow client missed most of them too.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Add a streaming replica, send reads to it, and watch an idle test pass while a loaded one fails. Find that the ORM's own overhead was the only thing keeping the idle case correct. Then fix read-your-writes with a token taken after the commit, break it by taking the token one statement too early, and price the alternative that moves the wait onto every write &#8212; including what that write does when the replica is gone.</p>
+</div>
+
+<div class="anchor-box">
+  <span class="callout-label">Why you, specifically</span>
+  <blockquote>&#8220;Python/FastAPI, async SQLAlchemy, <strong>PostgreSQL</strong>, <strong>GKE</strong>&#8221; &#8212; and the deployment claims spread across the experience bullets: Cloud Run with IAP, Helm, Terragrunt, Cloud Build.</blockquote>
+  <p>One Postgres, one region, and a stack that scales horizontally everywhere except the database. When the question comes &#8212; <em>&#8220;what is the first thing you do when reads outgrow it?&#8221;</em> &#8212; the answer everybody gives is a read replica, and it is the right first rung. The follow-up is what separates having read about replicas from having run one: <em>&#8220;and what breaks?&#8221;</em></p>
+  <p>What breaks is the sentence the whole evaluation flow depends on. A vendor's score is written and the page that shows it is loaded a moment later. Send that read to a replica and, under load, most of the time it shows the score from before. Nothing errors. The page is simply wrong, and a refresh fixes it, which is exactly the kind of bug that gets closed as <em>cannot reproduce</em>.</p>
+  <p>The claim is defended in full in <a href="../../resume-mastery/lessons/0011-infrastructure.html">chapter 0011 of R&#233;sum&#233; Mastery</a>. This lesson is the first rung of the scaling ladder that chapter does not yet climb.</p>
+</div>
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>A replica is a second Postgres server that keeps a copy of the first by replaying its log of changes. You can read from it, which takes load off the original. You cannot write to it. By default the original does not wait for the copy: it tells your application &#8220;committed&#8221; the moment the change is safe on its own disk, and the copy catches up a little later.</p>
+  <p>&#8220;A little later&#8221; is the whole lesson. If your application writes something and immediately reads it back from the copy, the read can arrive before the change has. No error is raised and the old value comes back looking perfectly ordinary. The question is how often, and what you can do about it that does not throw away the reason you added the copy.</p>
+  <dl>
+    <dt>Primary</dt>
+    <dd>The server that accepts writes. There is one of them.</dd>
+
+    <dt>Replica</dt>
+    <dd>A read-only copy, kept up to date by <em>streaming replication</em>. Postgres calls it a hot standby.</dd>
+
+    <dt>WAL</dt>
+    <dd>The write-ahead log: every change, in order, before it is applied. The primary streams it to the replica.</dd>
+
+    <dt>Replay</dt>
+    <dd>The replica applying the WAL it has received. A change becomes visible there only when its commit record is replayed.</dd>
+
+    <dt>Replication lag</dt>
+    <dd>How far behind replay is. Reported as time and as bytes, and neither is a promise about the next read.</dd>
+
+    <dt>Read-your-writes</dt>
+    <dd>The guarantee that after you write something, your own reads show it. The one a replica silently removes.</dd>
+
+    <dt>LSN</dt>
+    <dd>Log sequence number: a position in the WAL, printed like <code>6/9C4E4A0</code>. Bigger is later.</dd>
+
+    <dt>Write token</dt>
+    <dd>The LSN recorded after a write commits, carried to the next read so the replica can be asked whether it has caught up with <em>that</em> write.</dd>
+
+    <dt><code>synchronous_commit</code></dt>
+    <dd>How much the primary waits for before saying &#8220;committed&#8221;. At <code>remote_apply</code> it waits for the replica to replay the change.</dd>
+
+    <dt><code>hot_standby_feedback</code></dt>
+    <dd>Whether the replica tells the primary which old rows its queries still need. Trades the replica's queries against the primary's vacuum.</dd>
+  </dl>
+</div>
+
+<h2>The replica is not slow; your next statement is fast</h2>
+
+<p>The usual way to think about replicas is through lag: if the replica is a few milliseconds behind, reads are a few milliseconds stale, and nobody cares about a few milliseconds. That framing is wrong in a specific way. Staleness is not spread evenly over reads; it lands entirely on the reads that come straight after a write, which in a request handler are exactly the ones that matter.</p>
+
+<p>So the number to measure is not the lag. It is the <strong>gap between your commit returning and your read arriving</strong>, and whether that gap is shorter than replay. On this machine the replica was 0.2&#8239;ms behind when idle, and a lean client's next statement was faster than that nearly every time.</p>
+
+<div class="note">
+  <span class="callout-label">Why an idle test will pass and tell you nothing</span>
+  <p>Through async SQLAlchemy, with a pool checkout per statement, the idle replica returned the new value <strong>500 times in 500</strong>. That looks like proof the replica keeps up. It is proof that SQLAlchemy is slow enough: the checkout, the commit and the reset on return add up to more than 0.2&#8239;ms.</p>
+  <p>Raw asyncpg on held connections, same replica, same moment: <strong>493 stale in 500</strong>. And under write load the SQLAlchemy client failed too, because the lag grew past its overhead. <strong>A correct result that depends on your client being slow is not a property you can keep.</strong></p>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 440" role="img" aria-labelledby="mech0020-t mech0020-d">
+    <title id="mech0020-t">A read sent to a replica before replay reaches the write sees the old value; a write token closes the window</title>
+    <desc id="mech0020-d">Two horizontal lanes, the primary above and the replica below, with time running left to right. On the primary, a commit returns. An arrow carries the write-ahead log down to the replica, where it is replayed some time later. Between the commit and the replay, a read arrives at the replica and returns the old value. The interval is labelled as the window, a fraction of a millisecond when idle and tens of milliseconds under load. Beneath, the measured counts: idle, zero stale reads in five hundred through SQLAlchemy and four hundred and ninety-three through raw asyncpg on the same replica; under load, between two hundred and eighty-seven and four hundred and eight in five hundred through either, across ten runs. Then three fixes. A token taken after commit, with the read waiting until replay passes it, gave no stale reads and a read wait of twenty-six to fifty-two milliseconds at the ninety-ninth percentile under load. The same token taken one statement earlier, inside the transaction, gave between five and fifty-four stale reads in five hundred under load and none when idle. And synchronous commit at remote apply gave no stale reads but moved the wait onto every write, and with the replica stopped the commit waited indefinitely.</desc>
+
+    <text x="20" y="24" class="strong">The primary says committed before the replica has it. A read that arrives in between sees the past.</text>
+
+    <!-- MARK 1 &#183; the primary's timeline. -->
+    <text x="20" y="80" class="lbl-dim">primary</text>
+    <path d="M100,76 L800,76" class="rule"/>
+
+    <!-- MARK 2 &#183; the replica's timeline. -->
+    <text x="20" y="170" class="lbl-dim">replica</text>
+    <path d="M100,166 L800,166" class="rule"/>
+
+    <!-- MARK 3 &#183; the commit returns to the application. -->
+    <rect x="150" y="60" width="130" height="30" class="good"/>
+    <text x="162" y="80" class="lbl ink-good">COMMIT returns</text>
+
+    <!-- MARK 4 &#183; the log travels, and is applied later. -->
+    <path d="M280,90 L480,150" class="flow"/>
+    <text x="360" y="104" class="lbl-dim">WAL, replayed later</text>
+
+    <!-- MARK 5 &#183; where the change becomes visible. -->
+    <rect x="480" y="150" width="110" height="30" class="box"/>
+    <text x="494" y="170" class="lbl">replayed</text>
+
+    <!-- MARK 6 &#183; the read that lands in between. -->
+    <rect x="290" y="150" width="150" height="30" class="warn"/>
+    <text x="302" y="170" class="lbl ink-warn">read: the old value</text>
+
+    <!-- MARK 7 &#183; the window, and how wide it is. -->
+    <path d="M280,200 L480,200" class="flow-bad"/>
+    <text x="280" y="220" class="lbl ink-bad">the window: 0.2&#8239;ms idle, tens of ms loaded</text>
+
+    <!-- MARK 8 &#183; idle: it depends entirely on the client. -->
+    <text x="20" y="262" class="lbl">idle &#183; <tspan class="strong">0</tspan> of 500 stale through SQLAlchemy, <tspan class="strong ink-bad">493</tspan> through raw asyncpg &#8212; same replica</text>
+
+    <!-- MARK 9 &#183; loaded: it fails either way. -->
+    <text x="20" y="286" class="lbl">loaded &#183; <tspan class="strong ink-bad">287&#8211;408</tspan> of 500 stale in ten runs, whichever client</text>
+
+    <!-- MARK 10 &#183; the fix: a token taken after the commit. -->
+    <rect x="20" y="318" width="800" height="28" class="good"/>
+    <text x="34" y="337" class="lbl ink-good">token after COMMIT &#8594; wait until replay passes it &#183; 0 stale &#183; read waits 26&#8211;52&#8239;ms p99 loaded</text>
+
+    <!-- MARK 11 &#183; the same fix, one statement too early. -->
+    <text x="34" y="372" class="lbl ink-bad">token read inside the transaction &#183; 0 stale idle, 5&#8211;54 of 500 loaded</text>
+
+    <!-- MARK 12 &#183; the alternative, which moves the wait onto the write. -->
+    <text x="34" y="400" class="lbl">remote_apply &#183; 0 stale, the write waits instead &#183; <tspan class="ink-bad">replica down: it waits forever</tspan></text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">Say this while you draw it</span>
+    <ol class="narrate">
+      <li>Two lanes: <b>primary</b> on top, <b>replica</b> below, time left to right.</li>
+      <li>The commit returns on the primary. The log travels down and is <b>replayed later</b>; that is when the replica can show it.</li>
+      <li>A read arrives in between and gets <b>the old value</b>. That interval is the window: 0.2&#8239;ms idle, tens of milliseconds loaded.</li>
+      <li>Idle, it depends on the client: <b>0 of 500 through SQLAlchemy, 493 through raw asyncpg</b>. Loaded, most reads miss either way.</li>
+      <li>The fix: a <b>token taken after the commit</b>, and the read waits until replay passes it. Zero stale.</li>
+      <li>Taken one statement early it fails only under load. <b>remote_apply</b> works too, and puts the wait on every write instead.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. Twelve marks, the standing ceiling. The top half is a timing diagram and the bottom half is three sentences, so draw the lanes first and the rest hangs off them.</p>
+  <ul>
+    <li>Two lanes, with <b>COMMIT returns</b> on the upper one before <b>replayed</b> on the lower.</li>
+    <li>The read box <b>between them on the replica lane</b>, and the window under it.</li>
+    <li>Two counts: <b>0 against 493 idle</b> by client, and <b>most of 500 loaded</b> by either.</li>
+    <li>The three fixes and the one thing wrong with each: <b>after commit, inside the transaction, remote_apply</b>.</li>
+  </ul>
+  <span class="timer">Put the read box to the left of the replay box, not below the commit. If it sits under the commit it looks simultaneous, and the whole point is that it is later than the commit and earlier than the replay.</span>
+</div>
+
+<h2>Lab &#8212; a replica, a read, and the three ways to wait for it</h2>
+
+<div class="lab">
+  <header>
+    <span class="kicker">Lab 0020</span>
+    <span class="est">~25 minutes</span>
+    <h3>An idle test that lies, a token that works, and a commit that waits for nobody</h3>
+  </header>
+  <div class="body">
+    <div class="prereq">
+      <span>Needs:</span>
+      <span class="chip">anchor/vendor-eval-gateway</span>
+      <span class="chip">Docker &#183; Postgres + replica</span>
+      <span class="chip">~25 min</span>
+    </div>
+
+    <div class="caution">
+      <span class="callout-label">Idle counts repeat; loaded counts wobble, and that is the finding</span>
+      <p>The idle rows have come out the same on every run: zero, or one, through SQLAlchemy. The loaded rows depend on how far behind the replica happens to be at that moment, and they moved between runs &#8212; 287 to 408 stale in 500 across ten runs for the plain replica read, 5 to 54 across five for the early token. The prose quotes those ranges; the output blocks are one run. <code>fixes</code>, <code>down</code> and <code>feedback</code> change server settings with <code>ALTER SYSTEM</code> and put them back when they finish; the bench's docstring has the reset commands if you interrupt one.</p>
+    </div>
+
+    <ol class="steps">
+      <li>
+        <p class="what">Start the primary and the replica, then write a row and read it straight back from the replica, idle and under write load, with and without a pause in between.</p>
+        <pre class="cmd"><span class="prompt">$ </span>cd anchor/vendor-eval-gateway
+<span class="prompt">$ </span>docker compose up -d --wait postgres postgres-replica
+<span class="prompt">$ </span>uv run python -m bench.replica --experiment stale</pre>
+        <pre class="out">          pause before the read   stale reads   replay_lag ms
+idle                       0 ms      1 of 500              0.18
+idle                       1 ms      0 of 500              0.44
+idle                       5 ms      0 of 500              0.24
+idle                      50 ms      0 of 100              0.80
+loaded                     0 ms    391 of 500              2.24
+loaded                     1 ms     42 of 500              3.43
+loaded                     5 ms    102 of 500             29.08
+loaded                    50 ms      0 of 100              0.58</pre>
+        <div class="expect broken">
+          <span class="label">Idle it looks solved; under load it is wrong most of the time</span>
+          <p>The idle rows are what a developer sees on a laptop: one stale read in two thousand, and a replica a fifth of a millisecond behind. Under write load the same code returned the old value <strong>391 times in 500</strong> when it read straight after the write. Across five runs that row has been between 324 and 408.</p>
+          <p>The pause column shows the shape rather than a threshold. A millisecond helps a lot, five helps less than you would think, and only at fifty does it reliably disappear &#8212; because lag under load is not a number, it is a distribution, and one run's <code>replay_lag</code> column went from 3&#8239;ms to 29 between adjacent rows. <strong>Any fixed sleep is a bet on the tail of that distribution.</strong></p>
+          <p>Note the replica itself was fine. <code>docker compose ps</code> shows it healthy, <code>pg_stat_replication</code> shows it streaming, and nothing anywhere reported an error.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Now explain the idle rows. Run the same idle read through two clients: the ORM with a pool checkout per statement, and raw asyncpg on connections it keeps open.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.replica --experiment client</pre>
+        <pre class="out">idle replica, read sent straight after the write:
+  sqlalchemy, pool checkout per statement   stale    0 of 500
+  raw asyncpg, connections held open        stale  493 of 500
+  replay lag at the end: 0.23 ms</pre>
+        <div class="expect broken">
+          <span class="label">The same replica, and the only variable is how long your code takes</span>
+          <p><strong>Zero against 493.</strong> The replica, its lag and the workload are identical. The difference is the gap between the commit returning and the read arriving: SQLAlchemy spends it checking a connection out, committing, resetting it on return and checking another out, and that happens to exceed 0.2&#8239;ms. asyncpg on a held connection sends the read almost immediately, and almost every time it beats the log.</p>
+          <p>So the idle result in step 1 was not evidence that the replica keeps up. It was evidence that the ORM is slow enough to hide it. Make the code faster &#8212; a leaner driver, a cached connection, a request that happens to reuse one &#8212; and the bug appears <strong>with no change to the database at all</strong>. Across five runs the raw client has missed 480 to 495 in 500.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Now the fixes, all five ways, idle and loaded: read the replica anyway, read the primary, a token read inside the transaction, a token read after commit, and <code>synchronous_commit = remote_apply</code>.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.replica --experiment fixes</pre>
+        <pre class="out">        reads go to           stale  write p50     p99  read wait p50     p99
+idle    replica            0 of 500     0.68 ms    1.64              -       -
+idle    primary            0 of 500     0.65 ms    0.89              -       -
+idle    token-inside       0 of 500     0.83 ms    1.45        0.43 ms    0.81
+idle    token              0 of 500     1.12 ms    3.03        0.43 ms    1.50
+idle    remote-apply       0 of 500     1.02 ms    1.37              -       -
+loaded  replica          387 of 500     1.80 ms    5.75              -       -
+loaded  primary            0 of 500     1.73 ms    3.73              -       -
+loaded  token-inside       5 of 500     2.04 ms   14.97        1.06 ms   25.81
+loaded  token              0 of 500     2.62 ms    9.08        2.27 ms   29.19
+loaded  remote-apply       0 of 500     2.75 ms   52.16              -       -</pre>
+        <div class="ba">
+          <span class="label">Before / after &#183; three correct answers, each paying in a different place</span>
+          <p>Every idle row is zero, so idle testing cannot tell any of these apart. Under load: <strong>the plain replica read is wrong 387 times in 500</strong>, and three of the fixes are right every time. Reading the primary is correct and removes the reason you added a replica. The token is correct and moves the cost onto the read: <strong>29&#8239;ms at p99 in this run</strong>, and between 26 and 52 across five. <code>remote_apply</code> is correct and moves it onto the write: 52&#8239;ms at p99 in this run, and between 29 and 54 across five.</p>
+          <p>Then the row that should worry you. <strong>A token read one statement too early</strong> &#8212; inside the transaction instead of after <code>COMMIT</code> &#8212; is correct in every idle run and returned stale data <strong>5 times in this run, and between 5 and 54 across five</strong>. It points at a position before the commit record, so the replica can replay up to it and still not show the row. That is a bug with the worst possible profile: it cannot be found on a quiet machine.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Price <code>remote_apply</code> properly: stop the replica, commit with it on and with it off, and give up after three seconds. The last line starts the replica again and waits until it is healthy &#8212; <code>start</code> alone returns before it accepts connections, and the next step fails.</p>
+        <pre class="cmd"><span class="prompt">$ </span>docker compose stop postgres-replica
+<span class="prompt">$ </span>uv run python -m bench.replica --experiment down
+<span class="prompt">$ </span>docker compose up -d --wait postgres-replica</pre>
+        <pre class="out">synchronous_commit = local         committed in 8.7 ms
+  wrote v = 1; another session on the primary now reads v = 1
+synchronous_commit = remote_apply  client gave up after 3 s
+  wrote v = 2; another session on the primary now reads v = 2
+  server said: canceling wait for synchronous replication due to user request
+  server said: The transaction has already committed locally, but might not have been replicated to the standby.</pre>
+        <div class="expect broken">
+          <span class="label">The commit waits for a server that is not there, and giving up does not undo it</span>
+          <p>With the replica stopped, an ordinary commit is unaffected and a <code>remote_apply</code> commit <strong>does not return</strong>. The documentation says so plainly: such commits <em>&#8220;may never be completed if any one of the synchronous standbys should crash.&#8221;</em> A replica added to take read load off the primary has become something that can stop the primary accepting writes.</p>
+          <p>The second line is the one to remember. The client gave up, and <strong>the write had already happened</strong>: another session reads <code>v = 2</code>, and the server's own detail message says so &#8212; <em>&#8220;The transaction has already committed locally, but might not have been replicated to the standby.&#8221;</em> The client got an error for a write that succeeded. That is lesson 0014's lost response, coming out of the database itself, and a retry here would apply it twice.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Last, the trade between a replica's queries and the primary's vacuum. Hold a long read on the replica while the primary vacuums, with <code>hot_standby_feedback</code> off and then on.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.replica --experiment feedback</pre>
+        <pre class="out">hot_standby_feedback = off
+  replica's snapshot, as the primary sees it: -
+  primary vacuum: 5000 removed, 0 dead but not yet removable
+  the replica's report was killed after 2.5 s (InterfaceError)
+hot_standby_feedback = on
+  replica's snapshot, as the primary sees it: 198028
+  primary vacuum: 0 removed, 5000 dead but not yet removable
+  the replica's report survived</pre>
+        <div class="expect">
+          <span class="label">One of the two always loses, and you choose which</span>
+          <p>Off, which is the default: the primary vacuums freely, and when the replica replays that cleanup it finds its own report still needs the rows. It pauses replay for <code>max_standby_streaming_delay</code> &#8212; two seconds here, thirty by default &#8212; and then <strong>kills the report</strong>.</p>
+          <p>On: the replica tells the primary what it still needs, the primary shows the replica's snapshot in <code>pg_stat_replication</code>, and <strong>vacuum on the primary removes nothing</strong>. That is lesson 0019's failure, caused from a second machine. The documentation states the trade in its own words: feedback <em>&#8220;will delay cleanup of dead rows on the primary, which may result in undesirable table bloat.&#8221;</em></p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Finally run the tests, one of which exists because an earlier version of the token wait blocked the replay it was waiting for.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run pytest tests/test_replica.py -q 2&gt;&amp;1 | tail -1</pre>
+        <pre class="out">8 passed in 0.42s</pre>
+        <div class="expect">
+          <span class="label">The flake that turned out to be the lesson</span>
+          <p><code>test_the_wait_does_not_block_the_replay_it_waits_for</code> was written after this file's own token test failed twice in fourteen runs, timing out after five seconds against a replica that, measured straight afterwards, was not behind at all. The first version of <code>wait_for_replay</code> polled inside one SQLAlchemy transaction, which under asyncpg holds a snapshot on the replica &#8212; lesson 0019's portal. When the primary vacuumed rows that snapshot might need, the replica <strong>paused replay rather than remove them</strong>, for thirty seconds, and the wait was waiting for itself.</p>
+          <p>The fix ends a transaction per poll. The test reproduces the conflict deliberately and asserts the wait still finishes; it was checked the other way too, against the old loop, where it fails after ten seconds. And <code>test_lsns_compare_as_numbers_not_strings</code> is there because as strings, <code>"9/0"</code> sorts after <code>"10/0"</code>.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+</div>
+
+<div class="evidence" data-evidence-for="0020">
+  <header>
+    <span class="callout-label">Your numbers, not mine</span>
+    <span class="hint">saved in this browser as you type</span>
+  </header>
+  <div class="body">
+    <p>The idle counts repeat. The loaded counts move between runs, so write down the range you saw rather than one number. The last row is about your system.</p>
+
+    <div class="rows">
+      <div class="row">
+        <span class="ran">Step 1, <strong>the stale reads</strong>: straight after the write, idle and under load</span>
+        <span class="field"><label for="e20-idle">idle</label><input type="text" id="e20-idle" data-field="idle" placeholder="e.g. 1 of 500"></span>
+        <span class="field"><label for="e20-loaded">loaded</label><input type="text" id="e20-loaded" data-field="loaded" placeholder="e.g. 324 to 408 of 500"></span>
+        <span class="why-row"><label for="e20-dist">Why does a fixed pause before the read not fix it?</label><textarea id="e20-dist" data-field="dist" placeholder="Because lag under load is a distribution, not a number. One run went from 3 ms to 29 ms between adjacent rows, so any sleep is a bet on the tail, and it costs every read the full pause whether or not it needed it."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 2, <strong>the client</strong>: idle stale reads through SQLAlchemy and through raw asyncpg</span>
+        <span class="field"><label for="e20-orm">SQLAlchemy</label><input type="text" id="e20-orm" data-field="orm" placeholder="e.g. 0 of 500"></span>
+        <span class="field"><label for="e20-raw">raw asyncpg</label><input type="text" id="e20-raw" data-field="raw" placeholder="e.g. 493 of 500"></span>
+        <span class="why-row"><label for="e20-gap">Same replica, same lag. What was different?</label><textarea id="e20-gap" data-field="gap" placeholder="The gap between the commit returning and the read arriving. The ORM's checkout, commit and reset took longer than replay, so it happened to be correct. A faster client, or a request that reuses a connection, shows the bug with no database change at all."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 3, <strong>the fixes under load</strong>: stale reads for the early token, and the p99 cost of the correct one</span>
+        <span class="field"><label for="e20-inside">token inside</label><input type="text" id="e20-inside" data-field="inside" placeholder="e.g. 5 to 54 of 500 stale"></span>
+        <span class="field"><label for="e20-token">token after</label><input type="text" id="e20-token" data-field="token" placeholder="e.g. 0 stale, 26-52 ms p99 wait"></span>
+        <span class="why-row"><label for="e20-early">Why is a token read inside the transaction wrong, and why only under load?</label><textarea id="e20-early" data-field="early" placeholder="It is a WAL position before the commit record, so the replica can replay up to it without having replayed the commit. Idle, the commit record follows so quickly that the first poll almost never lands between them; under load, the gap between the two records widens and it does."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 4, <strong>remote_apply with the replica down</strong>: what the client saw, and what the primary had</span>
+        <span class="field"><label for="e20-saw">client saw</label><input type="text" id="e20-saw" data-field="saw" placeholder="e.g. gave up after 3 s"></span>
+        <span class="field"><label for="e20-had">primary had</label><input type="text" id="e20-had" data-field="had" placeholder="e.g. v = 2, committed"></span>
+        <span class="why-row"><label for="e20-retry">The client got an error for a write that succeeded. What must it not do next, and why?</label><textarea id="e20-retry" data-field="retry" placeholder="It must not retry blindly, because the write is already committed locally and a retry would apply it twice. It needs the idempotency key from 0014, or a read of the current state, before it tries again."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">The decision: <strong>which read in your system happens straight after its own write, and how would you route it?</strong></span>
+        <span class="field"><label for="e20-which">the read</label><input type="text" id="e20-which" data-field="which" placeholder="e.g. the score page after scoring"></span>
+        <span class="field"><label for="e20-route">route</label><input type="text" id="e20-route" data-field="route" placeholder="e.g. token, primary on timeout"></span>
+        <span class="why-row"><label for="e20-defend">Defend it against the other two, including what it costs</label><textarea id="e20-defend" data-field="defend" placeholder="A token taken after commit, carried in the session, with a one-second wait and the primary as the fallback. It costs the read 26 to 52 ms at p99 under load and nothing on writes. remote_apply would put the wait on every write and stop writes when the replica is down; the primary for everything would make the replica pointless."></textarea></span>
+      </div>
+    </div>
+
+    <div class="earned">
+      <span class="callout-label">The bullet this lesson earns</span>
+      <p>&#8220;Added a streaming read replica and measured read-your-writes directly: reads sent straight after a write returned stale data <span data-fill="loaded" class="placeholder">[run step 1]</span> under load, and an idle test passed only because the ORM's overhead exceeded replay lag (<span data-fill="raw" class="placeholder">[run step 2]</span> through a leaner client). Fixed with a WAL position token taken after commit, <span data-fill="token" class="placeholder">[run step 3]</span>, after finding that the same token taken inside the transaction failed <span data-fill="inside" class="placeholder">[run step 3]</span>.&#8221;</p>
+      <p class="caveat">The middle clause is what gets remembered, because almost nobody has measured it. Be ready to say what the ORM was actually doing in that gap &#8212; a checkout, a commit, a reset on return &#8212; since that is what makes it an explanation rather than a coincidence.</p>
+    </div>
+  </div>
+</div>
+
+<h2 id="underneath-0020">Underneath</h2>
+
+<div class="underneath">
+  <span class="callout-label">One layer down &#183; what &#8220;committed&#8221; means with a replica</span>
+
+  <p>Four things. The first is what decides whether a read is stale, the second is what a token has to point at, the third is what making the commit wait actually buys, and the fourth is the trade every replica forces on the primary.</p>
+
+  <h3>A read is stale when it beats replay, and your client decides that</h3>
+
+  <p>The documentation describes the default precisely: <em>&#8220;Streaming replication is asynchronous by default, in which case there is a small delay between committing a transaction in the primary and the changes becoming visible in the standby. This delay is however much smaller than with file-based log shipping, typically under one second.&#8221;</em> Under one second is a reassuring phrase for a dashboard and an alarming one for a request handler, where the next statement arrives in well under a millisecond.</p>
+
+  <p>So staleness is a race between two intervals that have nothing to do with each other: how long replay takes, which the database decides, and how long your code takes between the commit and the read, which you decide without meaning to. Step 2 held the first constant and changed only the second, and the result went from none to nearly all.</p>
+
+  <div class="derive">
+    <p>A read straight after its own write is stale when <code>gap &lt; lag</code>. Measured:</p>
+    <span class="eq">client                          gap, commit to read    lag        stale of 500
+raw asyncpg, held connection    under 0.2 ms           0.2 ms     480 to 495
+sqlalchemy, checkout per stmt   over 0.2 ms            0.2 ms     0 or 1
+sqlalchemy, under write load    over 0.2 ms            3-29 ms    287 to 408
+any client, 50 ms pause         50 ms                  3-29 ms    0 or 1 of 100</span>
+    <p>Rows two and three are the same code, and the only thing that changed is the lag. <b>The right column is set by the ratio, not by either number</b>, which is why reasoning about lag alone predicts none of it &#8212; and why the only fix that does not depend on the ratio is one that waits for the specific write rather than for time to pass.</p>
+  </div>
+
+  <h3>A token has to point past the commit record, and the wait must not hold a snapshot</h3>
+
+  <p>The token is a WAL position, and a change becomes visible on a replica only when its <em>commit record</em> is replayed. <code>pg_last_wal_replay_lsn()</code> is documented as <em>&#8220;the last write-ahead log location that has been replayed during recovery&#8221;</em>, so the comparison is only meaningful if the token is at or beyond the commit record. Read inside the transaction, it is not.</p>
+
+  <div class="derive">
+    <p>The order of records in the log for one write, and where each token lands:</p>
+    <span class="eq">WAL, in order                          token read here     replica at the token shows
+UPDATE ryw_demo ... row change         -                   -
+                                       inside the txn  -&gt;  the old value, sometimes
+COMMIT record                          -                   -
+                                       after COMMIT    -&gt;  the new value, always</span>
+    <p>The early token is wrong only when the replica's first poll lands between the row change and the commit record. Idle, those two are written microseconds apart and the poll never fits between them. Loaded, the commit record queues behind other sessions' WAL and it does: <b>5 to 54 stale reads in 500 under load, none idle</b>. A bug whose failure rate rises with traffic is found by customers.</p>
+  </div>
+
+  <p>The wait has a trap of its own, found by this lesson's own flaky test. Under asyncpg, an open transaction that has read anything holds a snapshot &#8212; lesson 0019's portal &#8212; and a poll loop inside one transaction is exactly that. The hot-standby chapter says what a held snapshot does to replay: <em>&#8220;a long-running query could cause other sessions on the standby server to not see recent changes on the primary, if it delays application of WAL records.&#8221;</em> Measured with a vacuum on the primary during the wait: <strong>replay paused for 30.5&#8239;s</strong> and the session was killed. The wait was waiting for itself. <code>wait_for_replay</code> now ends a transaction per poll.</p>
+
+  <h3><code>remote_apply</code> moves the wait onto the write, and the wait is not a rollback</h3>
+
+  <p>The configuration chapter says what it buys: <em>&#8220;Setting synchronous_commit to remote_apply will cause each commit to wait until the current synchronous standbys report that they have replayed the transaction, making it visible to user queries. In simple cases, this allows for load balancing with causal consistency.&#8221;</em> That is read-your-writes for every reader at once, bought by making every write wait for the slowest synchronous replica.</p>
+
+  <p>Two costs follow, and both were measured. Under load the write's p99 went to between 29 and 54&#8239;ms across five runs, against 4 to 12 for the same writes without it. And with the replica gone the commit does not finish &#8212; <em>&#8220;Such transaction commits may never be completed if any one of the synchronous standbys should crash&#8221;</em> &#8212; while cancelling the wait does not undo it. The same chapter says waiting transactions <em>&#8220;will be marked fully committed once the primary database recovers.&#8221;</em> The write is durable; only the acknowledgement is missing.</p>
+
+  <div class="derive">
+    <p>Four ways to read your own write, and where each one pays:</p>
+    <span class="eq">route              stale, loaded   who waits        and what it costs
+replica, as-is     287-408 of 500  nobody           wrong answers, silently
+primary            0               nobody           the replica takes no reads
+token after commit 0               the one read     26-52 ms p99; primary on timeout
+remote_apply       0               every write      29-54 ms p99; stops if replica dies</span>
+    <p>The last two rows pay the same replay lag at the tail &#8212; roughly 26 to 54&#8239;ms at p99 either way &#8212; and differ only in who is charged. The token is the only row that charges the caller who needs the guarantee and nobody else. <b>Consistency is a cost somebody pays; the design question is who, and whether they asked for it.</b> Lesson 0029 gives read-your-writes its proper place among the other session guarantees.</p>
+  </div>
+
+  <h3>Every replica query is a claim on the primary's vacuum</h3>
+
+  <p>A replica replays everything, including the primary's vacuum removing dead rows. If a query on the replica still needs those rows, one of the two must lose, and the hot-standby chapter says which setting chooses: <code>hot_standby_feedback</code> <em>&#8220;prevents VACUUM from removing recently-dead rows and so cleanup conflicts do not occur. If you do this, you should note that this will delay cleanup of dead rows on the primary, which may result in undesirable table bloat.&#8221;</em> Off, the replica pauses replay and then cancels the query. On, the primary cannot vacuum.</p>
+
+  <p>So a replica added to take report queries off the primary either kills those reports or brings back lesson 0019's bloat on the primary, and with feedback off a single long query also freezes replay for every other reader of that replica for up to thirty seconds. That is where replicas sit on the scaling ladder: they multiply read capacity, they do nothing for writes, each one is another pool to size from lesson 0015's arithmetic, and each one is a new way for the primary's housekeeping to be held hostage. Lesson 0033 climbs the rest of the ladder.</p>
+
+  <p class="lands">Which lands on the sentence worth keeping: <b>a replica does not return stale data because it is slow; it returns it because your read is fast, and the only fix that does not depend on the race is waiting for your own write.</b> Take the token after the commit, and never wait inside a transaction.</p>
+</div>
+
+<h2>Check yourself</h2>
+
+<div class="quiz" data-quiz-id="0020-q1">
+  <p class="q">An idle replica 0.2&#8239;ms behind returned stale data <strong>0 times in 500</strong> through SQLAlchemy and <strong>493 times</strong> through raw asyncpg, reading straight after each write. What made the difference?</p>
+  <ol class="options">
+    <li data-correct="true">How long each client took between write and read</li>
+    <li>Raw asyncpg reading from a stale local result cache</li>
+    <li>SQLAlchemy quietly sending all its reads to the primary</li>
+    <li>The pool warming up the replica's buffer cache first</li>
+  </ol>
+  <div class="why">
+    <p>The gap. A read is stale when it arrives before replay reaches the write, so what matters is the ratio of your client's gap to the replica's lag. SQLAlchemy's checkout, commit and reset on return took longer than 0.2&#8239;ms, so it lost the race to the log almost never; asyncpg on a held connection sent the read at once and won the race almost every time.</p>
+    <p>None of the distractors happened: asyncpg has no result cache, both clients read from the replica, and buffer warmth changes how fast a read is served, not what it can see. The consequence is the lesson's warning &#8212; an idle test that passes through the ORM is evidence about the ORM, not about the replica.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0020-q2">
+  <p class="q">With <code>synchronous_commit = remote_apply</code> and the replica stopped, the client gives up on <code>COMMIT</code> after three seconds. What state is the write in?</p>
+  <ol class="options">
+    <li data-correct="true">Committed on the primary and visible to other sessions</li>
+    <li>Rolled back because the replica has not acknowledged it</li>
+    <li>Held in limbo until the replica has started again</li>
+    <li>Visible only to the session that attempted the commit</li>
+  </ol>
+  <div class="why">
+    <p>Committed. The commit is durable on the primary before the wait begins; the wait is only for the replica's acknowledgement. Cancelling it withdraws the client from waiting and nothing else, and the server says so in its own message: <em>&#8220;The transaction has already committed locally, but might not have been replicated to the standby.&#8221;</em> In the lab, another session read the new value immediately.</p>
+    <p>That makes it lesson 0014's problem exactly: the client received an error for a write that succeeded. A naive retry applies it twice, which is why a synchronous commit that can time out needs an idempotency key as much as any network call does.</p>
+  </div>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">A spoken answer to <em>&#8220;reads have outgrown your Postgres &#8212; you add a read replica. What breaks?&#8221;</em> Read it aloud, then say it again with the page covered.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">One Postgres, and read load growing. A streaming replica is the right first move, and sending reads to it is the part that breaks.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">Replication is asynchronous by default. The primary says committed before the replica has replayed it, so a read straight after a write can see the old value.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">I measured it. Idle, through our ORM, zero stale reads in 500. Through raw asyncpg on the same replica, <b>493</b>. The ORM's overhead was hiding it.</p>
+      <p class="line">Under write load the ORM missed most of them too. So each write carries a token: the log position after commit. The replica read waits until replay passes it. Zero stale, <b>25 to 50 milliseconds</b> at p99.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">The token has to be read after the commit. Inside the transaction it was wrong up to 54 times in 500, and only under load.</p>
+      <p class="line">The alternative, remote_apply, puts that wait on every write. With the replica down, writes stop.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;Replication lag is under a millisecond, so reading from the replica is fine.&#8221;</span> The lag was 0.2&#8239;ms and a client reading straight after its write missed it 493 times in 500. The follow-up is <em>&#8220;fine for which reads?&#8221;</em>, and the honest answer is: fine for reads nobody just wrote, which are not the ones users notice. The version that holds: <span class="quoted">&#8220;fine for reads that do not follow the caller's own write; those wait for a token or go to the primary.&#8221;</span></p>
+  <p>The second trap is offering synchronous replication as the easy fix. It is correct, and the interviewer's next question will be <em>&#8220;what happens to writes when the replica goes down?&#8221;</em> If the answer is not <em>&#8220;they stop, and a client that gives up gets an error for a write that committed&#8221;</em>, you have described the setting without having run it.</p>
+</div>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;Your replica is a fraction of a millisecond behind. Why would anybody see stale data?&#8221;
+      <span class="tell">A setup. The weak answer argues the lag is small; the strong one says staleness is a race and names the other runner.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Because staleness is not about the lag on its own. It is a race between replay and the caller's next statement, and a read straight after a write is usually faster than a fraction of a millisecond. I measured it: <strong>0.2&#8239;ms of lag, and a raw asyncpg client missed its own write 493 times in 500</strong>.</p>
+        <p>The same replica through our ORM missed none, because the pool checkout and reset took longer than replay. That is the dangerous part: the idle test passes for a reason unrelated to the replica. Under write load the ORM path failed most of the time as well.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So how do you fix it?&#8221; &#8212; wait for the specific write, not for time to pass.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;How do you give a user read-your-writes with a replica in the path?&#8221;
+      <span class="tell">The core question. Three answers are common; the one that scores says where each one charges the cost and picks deliberately.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>A write token. After the commit returns, read the primary's WAL position and carry it with the session. A read that follows goes to the replica and waits until <code>pg_last_wal_replay_lsn()</code> has passed the token, with a short timeout and the primary as the fallback. Under load that was <strong>zero stale reads at 26 to 52&#8239;ms p99</strong>, and it charges only the reads that need the guarantee.</p>
+        <p>The detail I would call out is <em>after</em> the commit. I also measured the token read one statement earlier, inside the transaction: it points before the commit record and returned stale data <strong>5 to 54 times in 500 under load, never when idle</strong>. And the wait itself has to run outside a transaction, or its own snapshot can pause the replay it is waiting for.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Why not just read the primary after a write?&#8221; &#8212; you can, for a window; it works and it gives back part of what the replica was for.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Why not use synchronous replication and make the problem go away?&#8221;
+      <span class="tell">Sounds like a simplification. It is a test of whether you know what synchronous commit does to availability.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p><code>remote_apply</code> does make it go away &#8212; every commit waits until the replica has replayed it, so every reader sees it. It costs every write that wait: under load the write p99 went to <strong>29 to 54&#8239;ms</strong>, against 4 to 12 without it. That is the price when things are healthy.</p>
+        <p>The price when they are not is worse. With the replica stopped, the commit does not return at all, and when the client gave up after three seconds <strong>the write had already committed on the primary</strong> &#8212; the server's own message says so. So a replica added for read capacity can halt writes, and a client timeout produces an error for a write that succeeded, which needs idempotency to retry safely.</p>
+        <span class="invites">Invites &#183; <b>&#8220;How would you make it survive a replica failure?&#8221; &#8212; more than one synchronous candidate, and accept that it is now an availability design.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Analysts want to run hour-long reports on the replica. Any problem?&#8221;
+      <span class="tell">Sounds like the textbook use of a replica. It is the question that connects replicas to vacuum, and the one-sided answer is the failure.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Yes, and it is a forced choice. The replica replays the primary's vacuum, and if a report still needs rows vacuum removed, one side loses. With <code>hot_standby_feedback</code> off, the default, the replica pauses replay and then cancels the report &#8212; after 2.5&#8239;s in my lab with the delay at two seconds. With it on, the primary is told what the report needs and <strong>vacuum there removed 0 of 5&#8239;000 dead rows</strong>.</p>
+        <p>And off has a second cost people miss: while replay is paused for that report, every other session on the replica is reading stale data, for up to thirty seconds by default. So for hour-long reports I would give them their own replica with feedback off and a long delay, and keep the replica that serves the application on short queries only.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Where have you seen that bloat before?&#8221; &#8212; lesson 0019: an open snapshot is an open snapshot, whichever machine it is on.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Where does a read replica sit on your scaling ladder, and what is the next rung?&#8221;
+      <span class="tell">A framing question. What is being tested is whether you know what a replica does <em>not</em> scale.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It is the first rung after the cheap ones &#8212; pool sizing, indexes, caching &#8212; and it scales exactly one thing: read capacity. Writes still go to one server, the WAL still comes from it, and every replica adds a sender on the primary and another pool each application instance has to hold, so lesson 0015's pool-times-replicas arithmetic now applies twice.</p>
+        <p>It also changes the semantics, which the earlier rungs did not: from here on some reads can be in the past, and every read path has to say whether it can tolerate that. The next rungs are partitioning the data so writes split, and then sharding across servers, and each costs more than the last in exactly this way &#8212; more guarantees that used to be free and now have to be designed.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What would you partition first?&#8221; &#8212; the results table from 0019, by time, because it only ever grows.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="primary-source">
+  <span class="callout-label">Read this next &#8212; one source, not ten</span>
+  <span class="title"><a href="https://www.postgresql.org/docs/17/warm-standby.html" target="_blank" rel="noopener">PostgreSQL &#8212; Log-Shipping Standby Servers</a></span>
+  <p>Read 26.2.5, <em>Streaming Replication</em>, and 26.2.8, <em>Synchronous Replication</em>. The first is where <em>&#8220;asynchronous by default&#8221;</em> and <em>&#8220;typically under one second&#8221;</em> come from; the second is where <code>remote_apply</code> is described as allowing <em>&#8220;load balancing with causal consistency&#8221;</em>, and where <em>Planning for High Availability</em> says the commits <em>&#8220;may never be completed&#8221;</em> if a synchronous standby crashes. The whole of step 4 is that one sentence, run.</p>
+  <p class="cite">Read it against <a href="https://www.postgresql.org/docs/17/hot-standby.html" target="_blank" rel="noopener">Hot Standby</a>, section 26.4.2, for query conflicts and <code>hot_standby_feedback</code>. The client result in step 2 &#8212; that an idle replica looks correct through an ORM and wrong through a leaner driver &#8212; is measured here rather than found stated anywhere; it is one machine and one local replica, and a replica in another zone would widen the window rather than close it.</p>
+</div>
+
+<h2>Recall &#8212; from lessons 0014, 0015 and 0019</h2>
+
+<div class="recall">
+  <details>
+    <summary>0019 found that an idle snapshot on the primary stops vacuum. What does the same kind of snapshot do when it is on the replica?</summary>
+    <p class="answer">It depends on one setting, and neither answer is free. With <code>hot_standby_feedback</code> on, the replica reports its oldest snapshot to the primary, which then treats it like one of its own, so the primary's vacuum stops exactly as it did in 0019 &#8212; zero of 5&#8239;000 dead rows removed in step 5. With it off, the primary vacuums freely and the conflict moves to the replica: replay pauses rather than remove rows the snapshot might need, for up to <code>max_standby_streaming_delay</code>, and then the query is cancelled. The pause is the part to remember, because it is not private: while replay is paused, every session on that replica sees the past. That is also how this lesson's first token wait broke itself &#8212; it polled inside one transaction, held a snapshot through the asyncpg portal from 0019, and paused the replay it was waiting for, for 30.5 seconds.</p>
+    <span class="from">lesson 0019 &#183; the snapshot nobody closed</span>
+  </details>
+  <details>
+    <summary>0014 said a sender cannot tell a lost request from a lost response. Where did that turn up in this lesson?</summary>
+    <p class="answer">In step 4, from inside the database. With <code>remote_apply</code> on and the replica down, the client gave up waiting for <code>COMMIT</code> after three seconds and received an error &#8212; and the write had already committed on the primary, where another session could read it. From the client's side that is indistinguishable from a commit that never happened, which is precisely 0014's ambiguity: the request arrived and the response was lost. So the same remedy applies. A client that retries a timed-out synchronous commit needs an idempotency key, or it will apply the write twice; and the error has to be treated as <em>unknown outcome</em> rather than <em>failure</em>, which most database client code does not do because it assumes a failed commit means nothing happened.</p>
+    <span class="from">lesson 0014 &#183; idempotency is a key and a clock</span>
+  </details>
+  <details>
+    <summary>0015 said the number Postgres has to satisfy is pool size times replica count. What does adding a read replica do to that arithmetic?</summary>
+    <p class="answer">It adds a second server with its own connection limit, and it doubles the pools each application instance holds, because every instance now needs one for the primary and one for the replica. So the replica relieves the primary of read connections, but the total number of connections in the system goes up rather than down, and the primary gains a WAL sender per replica. The bench makes it concrete: it builds two engines of four connections each, so eight connections per process where there were four. The useful way to say it in an interview is that a replica moves read load, not connection load, and that the pool sizing from 0015 has to be done twice with different inputs: the replica's pool sized for the reads you route there, and the primary's for writes plus every read that falls back to it on a token timeout.</p>
+    <span class="from">lesson 0015 &#183; the wait no timeout can see</span>
+  </details>
+</div>
+
+<div class="ask">
+  <p><strong>Tier 1 ends here, and the result I would most like checked is step 2.</strong> It says an idle replica looks correct through the ORM and wrong through a leaner client, which means the idle test most teams run proves nothing. That is one machine and one local replica. If you can point the bench at a replica in another zone, I would expect the idle SQLAlchemy row to go from zero to most of 500 &#8212; and I would rather know than assume.</p>
+  <p>Ask me anything here that was unclear, particularly why the early token fails only under load: it is the one step where the explanation is about the order of records in a log rather than anything you can see in a query.</p>
+  <p>The redraw experiment from lesson 0014 is also still open &#8212; 0013's diagram at twelve marks against 0014's at eight. Both diagrams in this batch are at twelve.</p>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">Where this lands on the r&#233;sum&#233;</span>
+  <p>This lesson teaches the mechanism from first principles and breaks it in a lab. The chapter opposite defends the stack line whose one Postgres is the rung this lesson climbs.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../resume-mastery/lessons/0011-infrastructure.html">RM 0011 &#183; Infrastructure</a>
+      <span class="bridge-why">&#8220;PostgreSQL, GKE&#8221; is a horizontally scaled application in front of one database, and a read replica is the first answer to what happens when that database is the bottleneck.</span>
+    </li>
+  </ol>
+</div>
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0019-the-snapshot-nobody-closed.html">&#8592; 0019 &#183; The snapshot nobody closed</a></span>
+  <span><span class="dir">Index</span><a href="index.html">All lessons &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

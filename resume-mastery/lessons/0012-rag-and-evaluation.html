@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>RAG and Evaluation</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0012">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">R&#233;sum&#233; Mastery</a>
+    <span class="sep">/</span>
+    <span>Batch B &#183; Technical Skills</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Chapter 0012</span>
+  </div>
+  <h1>RAG and evaluation</h1>
+  <p class="standfirst">Evaluation is the half of this line that is genuinely strong, and it is the half most candidates are weakest on. You have run a model bake-off, an A/B on context size, and a harness that found its own answer key was broken. Two of the retrieval items have nothing behind them.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Answer <em>&#8220;how do you evaluate an LLM system?&#8221;</em> with three real experiments you ran and what each one found &#8212; including the one where the ground truth turned out to be wrong.</p>
+</div>
+
+<div class="claim-line">
+  <span class="callout-label">The line being defended</span>
+  <blockquote>&#8220;<strong>RAG &amp; Evaluation:</strong> embeddings, hybrid search, re-ranking, on-device RAG, MLflow, LLM-as-a-judge, A/B testing, guardrail design&#8221;</blockquote>
+  <span class="whose">Technical Skills &#183; line 4 of 4</span>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">For <em>&#8220;how do you evaluate an LLM system?&#8221;</em> &#8212; the question this whole line exists for. Answer with experiments rather than methodology, because almost nobody does.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">My starting question is always the same. <b>Can something decide correctness by running the answer?</b></p>
+      <p class="line">If it can, use that and do not ask a model. If it cannot, then judgment and comparison, with their limits stated.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">Three of my systems have an oracle and use it. A subprocess running the real processor. A query planner asked to explain generated SQL. A parser reading tables rather than a model.</p>
+      <p class="line">One correctly does not. Scoring an interview answer against written anchor prose has no oracle, so that is a genuine judge.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">Three experiments I would point at. A <b>bake-off</b> replaying one fixed evidence payload through the real code path with only the model swapped, on label-free metrics.</p>
+      <p class="line">An <b>A/B</b> on transcript window size at 10, 20 and 40 entries, eight runs an arm.</p>
+      <p class="line">And a <b>ground-truth audit</b>, where I ran the hand-written answer keys through the same processor and found only 28 of 49 were valid.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">Two items on that line I would take off. <b>Hybrid search</b> and <b>re-ranking</b> do not appear in any system I built.</p>
+      <p class="line">And one place where I broke my own rule. Our 368-scenario harness scores generated code by embedding similarity, when the production path already has a validator that could just run it.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;We use LLM-as-a-judge to evaluate outputs.&#8221;</span> Said flat, it suggests a judge is your default, and the follow-up is &#8220;why not just run it?&#8221; Lead with the oracle question instead. Then &#8220;and where nothing can run it, a judge&#8221; lands as a considered choice rather than a habit.</p>
+  <p>The other trap is <span class="quoted">&#8220;every claim is grounded in a cited source.&#8221;</span> The schema guarantees a citation exists. It cannot guarantee the URL was in the evidence, that the source is reliable, or that the claim follows from it. Say the mechanism and its limit together, and measure the first gap as a fabrication rate.</p>
+</div>
+
+
+
+<div class="trace">
+  <span class="callout-label">Walk them through it &#183; one answer, and how we knew</span>
+  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One retrieval, then the harder half. How you find out whether the answer was any good, which is where this r&#233;sum&#233; is unusually strong.</p>
+  <p class="tr-case"><b>The picture.</b> Marking two exam papers. One is arithmetic, so you can do the sum yourself and the answer is simply the answer. The other is an essay, which you can only mark against a standard, and two markers will disagree. Nearly every evaluation mistake is marking an arithmetic paper like an essay.</p>
+  <p class="tr-case"><b>The case.</b> A question goes in, some documents come back, and a model answers from them. Follow the retrieval first. Then ask the only question that matters afterwards, which is whether anything can tell us it was right.</p>
+  <ol>
+    <li class="tr-step">
+      <span class="tr-k">The embedding</span>
+      <p><b>What happens.</b> The question is turned into a list of numbers arranged so that similar meanings sit close together.</p>
+      <p><b>Concretely.</b> Every document was turned into one of those lists already. Everything else in retrieval is built on that one idea.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The search</span>
+      <p><b>What happens.</b> We find the nearest stored vectors to the question's vector and take the top few.</p>
+      <p><b>Concretely.</b> It is fast and approximate, and it always returns the number you asked for. It has no way to tell you that none of them were relevant.</p>
+      <p><b>If they ask why.</b> That property surprises people. An empty result is not something vector search produces, so the emptiness check has to be yours.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">What is absent</span>
+      <p><b>What happens.</b> Two items on that r&#233;sum&#233; line belong to this step and are not implemented anywhere.</p>
+      <p><b>Concretely.</b> Hybrid search would add keyword matching alongside the vectors. An exact term like an error code then stops being lost in a space that does not care about spelling. Re-ranking would use a second, costlier model to reorder the candidates.</p>
+      <p><b>If they ask why.</b> They are also the two an interviewer is most likely to probe on a retrieval line. I would take them off rather than defend them.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The real question</span>
+      <p><b>What happens.</b> Now the half that matters. Every evaluation decision I make starts from one question.</p>
+      <p><b>Concretely.</b> Does something exist that can decide correctness without holding an opinion? A compiler, a query planner, a subprocess that either produces rows or does not.</p>
+      <p><b>If they ask why.</b> If one exists, use it and do not ask a model. If none exists, you are down to judgment and comparison, and those have failure modes worth naming out loud.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Where there is one</span>
+      <p><b>What happens.</b> Three of my systems have an oracle and use it.</p>
+      <p><b>Concretely.</b> A subprocess running the real statistics processor. A query planner asked to explain generated SQL. A parser reading mapping tables instead of a model reading them.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Where there is not</span>
+      <p><b>What happens.</b> One case correctly has no oracle, and that is where a model judging a model is the right tool.</p>
+      <p><b>Concretely.</b> Scoring an interview answer against written anchor prose. Nothing can run that and return a verdict, so a judge is honest rather than lazy.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Experiment one</span>
+      <p><b>What happens.</b> Most people answer a question about evaluation with a methodology. Answer it with experiments instead.</p>
+      <p><b>Concretely.</b> A model bake-off. One fixed evidence payload replayed through the real code path with only the model swapped, scored on label-free metrics.</p>
+      <p><b>If they ask why.</b> Holding the evidence fixed is the whole design. Otherwise you are comparing two models and two different sets of sources at the same time.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Experiment two</span>
+      <p><b>What happens.</b> An A/B on how much conversation history to give the model.</p>
+      <p><b>Concretely.</b> Transcript windows of ten, twenty and forty entries, with eight runs per arm.</p>
+      <p><b>If they ask why.</b> Say the run count before you are asked. Eight runs an arm is enough to see a large effect and not enough to claim a small one.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Experiment three</span>
+      <p><b>What happens.</b> The one worth leading with, because it is the uncomfortable one.</p>
+      <p><b>Concretely.</b> I ran the hand-written answer keys through the same processor they were the answer to. Only 28 of 49 produced valid output.</p>
+      <p><b>If they ask why.</b> We were optimising against a ruler nobody had checked. Reporting that in the same memo as our results made them harder to present and made the roadmap correct.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The number</span>
+      <p><b>What happens.</b> One more measurement I would volunteer, because it is the sort of thing people assume rather than check.</p>
+      <p><b>Concretely.</b> The claims report is not reproducible. About one claim in five gets a different verdict on identical evidence, and pinning temperature to zero did not fix it.</p>
+      <p><b>If they ask why.</b> Almost every flip sits on the no-data-versus-partial line. So it is a definition problem in the prompt rather than a sampling one.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">My own rule</span>
+      <p><b>What happens.</b> And one place where I broke the rule I just gave them.</p>
+      <p><b>Concretely.</b> Our 368-scenario harness scores generated code by embedding similarity, when the production path already has a validator that could run it.</p>
+      <p><b>If they ask why.</b> That is an arithmetic paper being marked like an essay. The oracle was already sitting there.</p>
+    </li>
+  </ol>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 300" role="img" aria-labelledby="mech0012-t mech0012-d">
+    <defs>
+      <marker id="ar12" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+    </defs>
+    <title id="mech0012-t">The oracle question, and which evaluation tool each answer leads to</title>
+    <desc id="mech0012-d">Every evaluation decision starts with one question: can something decide correctness by running the answer. If yes, use that oracle. Three systems do: a subprocess running the real processor, a query planner asked to explain generated SQL, and a parser reading tables rather than a model. If no oracle exists, the tools are a judging model, a controlled comparison, or a measured reproducibility rate. One place on this resume gets it wrong, scoring generated code by embedding similarity when a validator already exists on the production path.</desc>
+
+    <rect class="accent" x="250" y="14" width="340" height="46" rx="3"/>
+    <text class="lbl strong ink-accent" x="420" y="42" text-anchor="middle">Can something decide by running it?</text>
+
+    <path class="flow-good" marker-end="url(#ar12)" d="M 330 64 V 90 H 200 V 108"/>
+    <text class="num ink-good" x="210" y="82">yes &#8212; use the oracle</text>
+
+    <path class="flow-bad" marker-end="url(#ar12)" d="M 510 64 V 90 H 640 V 108"/>
+    <text class="num ink-bad" x="520" y="82">no &#8212; judgment and comparison</text>
+
+    <rect class="good" x="8" y="112" width="386" height="112" rx="3"/>
+    <text class="lbl strong ink-good" x="24" y="136">Oracles you already use</text>
+    <text class="lbl-dim" x="24" y="158">subprocess running stat_var_processor.py (0003)</text>
+    <text class="lbl-dim" x="24" y="176">EXPLAIN on Snowflake for generated SQL (0006)</text>
+    <text class="lbl-dim" x="24" y="194">a parser over mapping tables, not a model (0004)</text>
+    <text class="num ink-good" x="24" y="216">deterministic, repeatable, no opinion</text>
+
+    <rect class="warn" x="410" y="112" width="422" height="112" rx="3"/>
+    <text class="lbl strong ink-warn" x="426" y="136">When no oracle exists</text>
+    <text class="lbl-dim" x="426" y="158">LLM-as-a-judge &#8212; the Evaluator, against anchor prose (0001)</text>
+    <text class="lbl-dim" x="426" y="176">A/B &#8212; transcript window at 10, 20, 40 &#183; eight runs an arm (0002)</text>
+    <text class="lbl-dim" x="426" y="194">bake-off &#8212; one fixed payload, only the model swapped (0001)</text>
+    <text class="num ink-warn" x="426" y="216">reproducibility measured: 1 claim in 5 flips</text>
+
+    <rect class="bad" x="8" y="236" width="824" height="54" rx="3"/>
+    <text class="lbl strong ink-bad" x="24" y="258">Where the rule is broken, and it is worth being the one to say it</text>
+    <text class="lbl-dim" x="24" y="278">The 368-scenario harness scores generated code by embedding similarity &#8212; when EXPLAIN is already on the production path</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">What you say while drawing it</span>
+    <ol class="narrate">
+      <li>One question at the top, and every evaluation decision hangs off it.</li>
+      <li>Can something decide correctness by running the answer?</li>
+      <li>Left branch, yes. Three systems already do this, and none of them asks a model.</li>
+      <li>A subprocess, a query planner, and a parser. All deterministic.</li>
+      <li>Right branch, no. Now judgment and comparison, and each has a stated limit.</li>
+      <li>A judge against written anchors. An A/B with eight runs an arm. A bake-off with the payload fixed.</li>
+      <li>And the reproducibility number, because it was measured rather than assumed.</li>
+      <li>Then the red band, which is the same r&#233;sum&#233; getting its own rule wrong in one place.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. One question, two branches, one admission.</p>
+  <ul>
+    <li>The <b>question at the top</b>. The one mark to keep, because it organises the whole answer.</li>
+    <li><b>Three oracles</b> on the left, named by mechanism rather than by system.</li>
+    <li><b>Judge, A/B, bake-off</b> on the right, each with its sample size or limit.</li>
+    <li>The <b>red band</b>, where your own harness uses similarity instead of a validator you already have.</li>
+  </ul>
+  <span class="timer">Say &#8220;is there an oracle?&#8221; out loud as you draw the top box. Four words, and every evaluation question has a starting point.</span>
+</div>
+
+<div class="star">
+  <span class="callout-label">Behavioural &#183; the story for this bullet</span>
+  <p class="frame">For <em>&#8220;tell me about a time you questioned a measurement&#8221;</em> or <em>&#8220;a result that turned out to mean something different.&#8221;</em></p>
+  <ol class="rungs">
+    <li class="rung"><span class="rung-k">Decision</span><p>Whether to keep improving a system against a benchmark, or to stop and check whether the benchmark itself was sound.</p></li>
+    <li class="rung"><span class="rung-k">Situation</span><p>Accuracy varied enormously between datasets and nobody could explain it. The assumption was that wide or messy inputs were the problem, so the proposed fix was prompt engineering.</p></li>
+    <li class="rung"><span class="rung-k">Action</span><p>I tested the structural hypotheses properly, with rank correlations over seven features. All of them failed. The strongest was not statistically significant.</p><p>When every hypothesis about the system fails, the next candidate is the measurement. So I ran the hand-written answer keys through the same processor the pipeline is validated with. Only 28 of 49 produced valid output.</p></li>
+    <li class="rung"><span class="rung-k">Result</span><p>The real driver turned out to be schema vocabulary coverage by domain, which prompting cannot fix. The roadmap moved from prompt tuning to coverage and cleaning the reference files.</p></li>
+    <li class="rung"><span class="rung-k">What it cost</span><p>It made our own numbers harder to present. I had to report that the benchmark was noisy in the same memo that reported results from it. That is uncomfortable and it is better than spending a quarter optimising against a ruler nobody had checked.</p></li>
+  </ol>
+</div>
+
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>Retrieval is fetching the right things before asking the model. Evaluation is finding out whether the answer was any good. They are on one r&#233;sum&#233; line and they are separate disciplines, and the second one is where this r&#233;sum&#233; is unusually strong.</p>
+  <p>The thread running through every evaluation item here is one question: <b>does an oracle exist?</b> If something can run the answer and say whether it worked, use that. If nothing can, you are reduced to comparison and judgment, and those have failure modes worth naming.</p>
+  <dl>
+    <dt>Embedding</dt>
+    <dd>A list of numbers representing a piece of text, arranged so that similar meanings are close together. Everything else in retrieval is built on this.</dd>
+
+    <dt>Vector search</dt>
+    <dd>Finding the nearest embeddings to a query's embedding. Fast and approximate, and it always returns <em>k</em> results whether or not any of them are relevant.</dd>
+
+    <dt>Hybrid search</dt>
+    <dd>Combining vector search with keyword search, so exact terms like an error code are not lost in a similarity space that does not care about spelling.</dd>
+
+    <dt>Re-ranking</dt>
+    <dd>A second, more expensive model that reorders the retrieved candidates. Retrieval gets you twenty plausible things, and the re-ranker decides which five actually go in.</dd>
+
+    <dt>LLM-as-a-judge</dt>
+    <dd>Using a model to score another model's output. The right tool when there is no oracle, and a bad substitute when there is one.</dd>
+
+    <dt>Oracle</dt>
+    <dd>Something that can decide correctness without an opinion. A compiler, a query planner, a subprocess that either produces rows or does not.</dd>
+
+    <dt>A/B test</dt>
+    <dd>Running two configurations against the same workload and comparing. The value depends entirely on how many runs and how large the difference is.</dd>
+
+    <dt>MLflow</dt>
+    <dd>Experiment and model tracking. It records runs, parameters and artefacts so a result can be found again later.</dd>
+
+    <dt>Guardrail</dt>
+    <dd>A rule that stops bad output reaching anything. The strongest kind removes the shape entirely rather than filtering it afterwards.</dd>
+
+    <dt>Fabrication rate</dt>
+    <dd>How often a cited source is not actually in the evidence. A measured number, as opposed to the assumption that grounding makes citation correct.</dd>
+  </dl>
+</div>
+
+<div class="primer stack">
+  <span class="callout-label">The technology &#8212; what each named thing is</span>
+  <p>The primer above defines the ideas on this line. This one names the algorithms and the tools that implement them, starting from the ground. Retrieval is the area where a vague answer sounds most like a real one, so specific names matter here more than anywhere else.</p>
+  <p>Every entry answers four things. What it actually is, in plain words. Where it shows up in this work. What it buys, meaning what goes wrong without it. And the follow-up an interviewer asks once you have said the name.</p>
+  <dl>
+    <dt>BM25</dt>
+    <dd><i>the keyword half</i>The ranking function that classic search engines are built on. It scores a document against a query using three intuitions. A query word appearing more often is better, but with sharply diminishing returns so repetition stops helping. A word that is rare across the whole collection counts for much more than a common one. And a long document is penalised, so it cannot win simply by containing everything. <b>In the app.</b> It is the lexical half of a hybrid retriever. <b>What it buys.</b> Exact matching on the tokens that carry the meaning. An error code, a product SKU, a column name or a surname either appears or it does not, and BM25 is decisive about that where an embedding is fuzzy. <b>The follow-up.</b> Why keep it at all when you have embeddings. Because those exact tokens are precisely where vectors fail quietly, returning something topically similar and entirely useless.</dd>
+
+    <dt>ANN and HNSW</dt>
+    <dd><i>approximate nearest neighbour</i>Finding the closest vectors exactly means comparing the query against every single one, which does not scale past a few hundred thousand. Approximate search gives up a little correctness for an enormous speed gain. HNSW is the index almost everyone uses: a layered graph where the top layer has a few long-range links and each lower layer is denser. You enter at the top, greedily walk towards the query, drop a layer, and repeat. <b>In the app.</b> It is what a vector database is actually doing when you query it. <b>What it buys.</b> Millisecond search over millions of vectors, which is what makes vector retrieval usable in a request path at all. <b>The follow-up.</b> Approximate means you can miss. Recall is a tuning parameter here, set by how hard the search works, and buying more of it costs latency directly.</dd>
+
+    <dt>Bi-encoder and cross-encoder</dt>
+    <dd><i>why re-ranking exists</i>Two ways to score a query against a document. A bi-encoder encodes each separately into a vector, so every document can be embedded once in advance and search becomes a distance comparison. A cross-encoder feeds the query and the document through the model together, letting every word attend to every other word, and outputs a relevance score. The second is far more accurate and cannot be precomputed, because the score does not exist until the pair does. <b>In the app.</b> This is exactly the retrieve-then-rerank shape. <b>What it buys.</b> Accuracy where it counts and speed where it does not. <b>The follow-up.</b> The arithmetic. You cannot cross-encode a million documents per query. You retrieve fifty cheaply and re-rank those, which means the first stage's recall is a hard ceiling on everything the second stage can achieve.</dd>
+
+    <dt>Chunking</dt>
+    <dd><i>the unquantified decision</i>Documents are too long to retrieve whole, so they are split into pieces first. The split can be by a fixed number of tokens, by sentence or paragraph, or along the document's own structure such as headings and table boundaries. Overlap is usually added between neighbouring chunks so that an idea straddling the boundary survives in at least one of them. <b>In the app.</b> It is the step that decides what can ever be retrieved, because nothing smaller or larger than a chunk is reachable. <b>What it buys.</b> Precision. Retrieving a relevant paragraph beats retrieving the eighty-page document it lives in, for both accuracy and cost. <b>The follow-up.</b> It is the most under-measured choice in the whole of RAG. Too small and the context around the fact is lost. Too large and the embedding averages several topics into one point that matches nothing well.</dd>
+
+    <dt>Vector stores</dt>
+    <dd><i>pgvector, FAISS, Chroma</i>Three things people name in the same breath that are not the same kind of thing at all. pgvector is an extension that puts vectors into Postgres, in columns beside your ordinary rows. FAISS is a library, not a server: it does the index and the search, and persistence, updates and serving are all yours. Chroma is a small standalone store that is convenient to develop against. <b>In the app.</b> Choosing between them is a genuine design question rather than a preference. <b>What it buys.</b> The right one removes an entire operational component. <b>The follow-up.</b> Start with pgvector if the data is already in Postgres. One system to run, one backup, one transaction, and the ability to join vectors against the rows they describe, which a separate store cannot do at all.</dd>
+
+    <dt>Retrieval metrics</dt>
+    <dd><i>recall@k, MRR, nDCG</i>Three ways of scoring a ranked list. Recall at k asks the blunt question of whether the right document appears anywhere in the top k. MRR takes one over the rank of the first correct hit, so finding it second is worth half of finding it first. nDCG is the richest: it allows graded relevance rather than a yes or no, and discounts each hit by how far down it sits. <b>In the app.</b> They are how you claim retrieval improved without pointing at the generated answer. <b>What it buys.</b> A measurement of the retriever alone, computable from labelled pairs with no model call. <b>The follow-up.</b> Measure retrieval separately from generation, always. A bad answer produced from a good retrieval is a completely different bug from a bad answer produced from a bad one, and they have different fixes.</dd>
+
+    <dt>Reciprocal rank fusion</dt>
+    <dd><i>how hybrid is combined</i>You have two ranked lists from two retrievers and you need one. RRF ignores the scores entirely and works from positions: each document gets one divided by a small constant plus its rank in each list, and those are summed. A document ranked well by both rises to the top. <b>In the app.</b> It is what makes a hybrid retriever hybrid. <b>What it buys.</b> A combination that needs no tuning and no calibration data, and is almost impossible to get badly wrong. <b>The follow-up.</b> Why rank rather than score. BM25 scores and cosine distances are on incomparable scales and always will be. Normalising them needs a calibration set you do not have, and fusion by rank needs nothing at all.</dd>
+
+    <dt>MLflow</dt>
+    <dd><i>four things in one name</i>An open-source platform that people name as if it were one tool. Tracking records the parameters, metrics and artefacts of each run so experiments are comparable afterwards. The Model Registry holds versioned models with stages such as staging and production. Projects is a packaging format. And there is a serving component. <b>In the app.</b> It is the named tool on the r&#233;sum&#233; line, and naming it invites the question of which part. <b>What it buys.</b> Experiments that can be compared weeks later, instead of results living in a notebook and a memory. <b>The follow-up.</b> Say which component you used. Tracking alone is a perfectly good answer. The registry is the part that implies a deployment and promotion process, so claiming it invites questions about a process you may not have had.</dd>
+
+    <dt>LLM-as-a-judge</dt>
+    <dd><i>and the frameworks around it</i>Using one model to score another model's output against a written rubric. It exists because open-ended answers have no reference to compare against, so there is nothing to assert equality with. Libraries such as RAGAS package the standard retrieval and faithfulness metrics on top of the idea. <b>In the app.</b> It is how an open-ended answer gets a number at all. <b>What it buys.</b> Evaluation that runs on every change instead of waiting for a human labelling round, which is what makes iteration possible. <b>The follow-up.</b> The known biases, which are well documented. Judges prefer longer answers, prefer output from their own model family, and shift when the judge model is upgraded underneath you. So pin the judge version and calibrate it against human labels at least once.</dd>
+
+    <dt>Significance</dt>
+    <dd><i>what an A/B test needs</i>Having enough samples that the difference you observed is unlikely to be noise. The trap is that the number of samples required grows sharply as the effect you are trying to detect gets smaller, so small improvements need far more data than people expect. <b>In the app.</b> The line claims A/B testing, which is a statistical claim and will be read as one. <b>What it buys.</b> The right to say a change helped, rather than that it appeared to. <b>The follow-up.</b> How many runs per arm, and whether that number was decided before you looked. Eight runs an arm detects only a very large effect. And stopping the moment the result looks good is the failure that invalidates the entire test, however clean everything else was.</dd>
+  </dl>
+</div>
+
+
+
+
+<h2>The question underneath every evaluation decision</h2>
+
+<p class="breath">Does something exist that can decide correctness without an opinion? If yes, use it and do not ask a model. If no, then judgment and comparison, with their limits stated.</p>
+
+<p>Three systems on this r&#233;sum&#233; answer yes and use the oracle. The schematization pipeline validates by running <code>stat_var_processor.py</code> as a subprocess and reading its exit code. The debugger validates generated SQL by sending it to Snowflake as an <code>EXPLAIN</code>. The lineage agent parses mapping tables rather than asking a model to read them.</p>
+
+<p>One system answers no, correctly. Scoring an interview answer against written anchor prose has no oracle, so an LLM judge is the right tool. That is the Evaluator, and it is a genuine LLM-as-a-judge deployment rather than a buzzword.</p>
+
+<p>And one place gets it wrong, which is worth being the one to point out. The debugger's 368-scenario harness scores generated <em>code</em> by embedding similarity, when the production path already has a validator that could just run it.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>If you can check the answer by running it, run it. Only ask another model when nothing can actually check.</p>
+
+<h2>Three real experiments, which is the strongest material here</h2>
+
+<p class="breath">Most candidates answer &#8220;how do you evaluate?&#8221; with a methodology. You can answer it with three experiments you actually ran and what each one changed.</p>
+
+<p><b>A model bake-off.</b> One real evidence payload replayed through the actual report function with only the model swapped, so the evidence is fixed and the model is the single variable. It reported label-free metrics: citations naming a URL not in the evidence, verified claims lacking independent support, and verdict instability across an arm's own runs. It found the pro model meaningfully more conservative, and the cheaper model erring in the more dangerous direction.</p>
+
+<p><b>An A/B on context size.</b> The transcript window tested at 10, 20 and 40 entries against the live payload, with eight runs per arm. That is a real controlled experiment on a parameter people usually set by intuition.</p>
+
+<p><b>A ground-truth audit.</b> Running the hand-written answer keys through the same processor and finding only 28 of 49 produced valid output. That is the rarest of the three, because it questions the measuring instrument rather than the thing being measured.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Three times you actually measured something instead of assuming. One of those times you measured the ruler.</p>
+
+<h2>Reproducibility, measured rather than assumed</h2>
+
+<p class="breath">The claims report is not reproducible, and you know the number. About one claim in five gets a different verdict on identical evidence, and temperature zero did not fix it.</p>
+
+<p>This is the answer to give when someone asks about non-determinism, because it is specific and it was measured. The important second half is where the instability sits: nearly every flip is on the no-data versus partial boundary, not on verified versus contradicted.</p>
+
+<p>That location is the finding. It points at the prompt's definition of the boundary rather than at sampling, which is why pinning temperature did nothing. A sampling problem would scatter flips everywhere. A definition problem concentrates them on one line.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>The same evidence sometimes gets a different verdict. And the disagreements all sit on one specific line, which tells you it is a wording problem rather than a randomness problem.</p>
+
+<h2>What the retrieval half actually has</h2>
+
+<p class="breath">Embeddings and on-device retrieval are real. Hybrid search and re-ranking are the two items with nothing behind them. They are also the two an interviewer is most likely to probe on a RAG line.</p>
+
+<p><b>Embeddings</b> appear in three places. The ChromaDB incident store the debugger's screener retrieves from. The cosine scoring in its evaluation harness. And the type-distribution cosine inside the lineage agent's metric.</p>
+
+<p><b>On-device RAG</b> is the Samsung work, and it is a distinctive claim because the constraints are entirely different: a fixed memory ceiling, no batching, and a retrieval index that has to live on the device.</p>
+
+<p><b>Hybrid search</b> has no system behind it. The vendor platform does web search and vector retrieval, and those are two separate mechanisms in two separate systems rather than one hybrid retriever fusing keyword and vector scores.</p>
+
+<p><b>Re-ranking</b> has nothing. The screener retrieves five and uses them. There is no second-stage model reordering candidates anywhere.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>The retrieval you have done is real. Two of the fancier words on the line describe techniques that do not appear in any of your systems.</p>
+
+
+
+
+<section class="qset" id="toolbox">
+  <h2>Toolbox</h2>
+  <p class="qset-note">Every noun on the line, defined out loud, from the ground up. Retrieval is the area where hand-waving sounds most plausible, so this bank is mostly about naming the specific algorithm under each general word.</p>
+  <ul class="qa-index">
+    <li><a href="#c12-t1">Why keep BM25</a></li>
+    <li><a href="#c12-t2">What HNSW is</a></li>
+    <li><a href="#c12-t3">Why re-rank at all</a></li>
+    <li><a href="#c12-t4">How you chunk</a></li>
+    <li><a href="#c12-t5">Measuring retrieval alone</a></li>
+    <li><a href="#c12-t6">Which part of MLflow</a></li>
+    <li><a href="#c12-t7">Trusting a model judge</a></li>
+    <li><a href="#c12-t8">How many samples</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c12-t1">
+      <p class="qa-q">What is BM25, and why keep it once you have embeddings?</p>
+      <p class="qa-a">BM25 is the ranking function classic search engines are built on. It works from three intuitions. A query word appearing more often is better, with sharply diminishing returns so repetition stops helping. A word that is rare across the collection counts for much more than a common one. And a long document is penalised, so it cannot win by containing everything. What that buys is exact matching on the tokens that carry the meaning. Keep it because embeddings blur exactly those. An error code, a product identifier or a column name is where vector search quietly returns something that reads similar and is wrong. Hybrid means running both and merging the ranked lists.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating keyword search as the old way. It beats embeddings on exact identifiers, and that is a large share of real queries.</p>
+    </li>
+    <li class="qa-item" id="c12-t2">
+      <p class="qa-q">What does a vector database actually do when you query it?</p>
+      <p class="qa-a">Approximate nearest neighbour search. Finding the closest vectors exactly means comparing the query against every one, which does not scale past a few hundred thousand. Approximate search gives up a little correctness for an enormous speed gain. HNSW is the index almost everyone uses. It is a layered graph where the top layer has a few long-range links and each lower layer is denser. You enter at the top, walk greedily towards the query, drop a layer, and repeat. What it buys is millisecond search over millions of vectors, which is what makes this usable in a request path. Approximate means it can miss. Recall is a knob, and more of it costs latency.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Assuming the search is exact. It is not, by design, and knowing recall is tunable is the difference between using a vector store and understanding one.</p>
+    </li>
+    <li class="qa-item" id="c12-t3">
+      <p class="qa-q">If embeddings work, why re-rank at all?</p>
+      <p class="qa-a">Because the two models are different shapes. A bi-encoder encodes query and document separately into vectors. Every document can therefore be embedded once in advance, and search becomes a distance comparison. A cross-encoder feeds the query and document through together, letting every word attend to every other, and outputs a relevance score. That is far more accurate and cannot be precomputed, because the score does not exist until the pair does. What the two-stage shape buys is accuracy where it counts and speed where it does not. You cannot cross-encode a million documents per query. You retrieve fifty cheaply and re-rank those, so first-stage recall caps everything the second stage can do.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing re-ranking as polish. It is a second model doing a harder job, and the reason it is second is pure arithmetic.</p>
+    </li>
+    <li class="qa-item" id="c12-t4">
+      <p class="qa-q">How do you chunk documents, and what goes wrong?</p>
+      <p class="qa-a">Documents are too long to retrieve whole, so they are split into pieces first. The split can be by fixed token count, by sentence, or along the document's own structure such as headings and tables. Overlap is usually added so an idea straddling a boundary survives in one of them. By structure where the document has any, and by token count with overlap where it does not. What it buys is precision, because retrieving a relevant paragraph beats retrieving the eighty-page document around it. What goes wrong is at both ends. Too small and the piece loses the context that made it meaningful. Too large and the embedding averages several topics into one point matching nothing well.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Quoting a chunk size as though it were standard. The right size depends on the documents, and the honest answer says how you would find it.</p>
+    </li>
+    <li class="qa-item" id="c12-t5">
+      <p class="qa-q">How do you show retrieval got better, separately from the answer?</p>
+      <p class="qa-a">With retrieval metrics on a labelled set. Recall at k asks the blunt question of whether the right document appears in the top k at all. MRR takes one over the rank of the first correct hit, so finding it second is worth half of finding it first. nDCG allows graded relevance rather than yes or no, and discounts by position. What they buy is a measurement of the retriever alone, computable from labelled pairs with no model call. Measure these apart from generation, always. A bad answer from a good retrieval is a completely different bug from a bad answer from a bad one, and the fixes are different.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Only ever scoring the final answer. It conflates two systems, and you will spend weeks tuning the wrong one.</p>
+    </li>
+    <li class="qa-item" id="c12-t6">
+      <p class="qa-q">You list MLflow. Which part of it did you use?</p>
+      <p class="qa-a">MLflow is four things wearing one name. Tracking records the parameters, metrics and artefacts of each run so experiments stay comparable afterwards. The registry versions models and moves them through stages such as staging and production. Projects package code. Serving deploys. What tracking buys is experiments you can compare weeks later, instead of results living in a notebook and a memory. Tracking alone is a complete and honest answer. Naming the registry implies a deployment and promotion process, so only say it if there was one.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Letting the tool name stand for a practice. If nothing was built around it, that is a wording fix on the r&#233;sum&#233; rather than a story to construct.</p>
+    </li>
+    <li class="qa-item" id="c12-t7">
+      <p class="qa-q">How far do you trust a model judging another model?</p>
+      <p class="qa-a">As far as you have calibrated it. Using a model to score outputs against a rubric exists because open-ended answers have no reference to compare against. There is nothing to assert equality with. What it buys is evaluation running on every change, instead of waiting for a human labelling round, which is what makes iteration possible at all. The known biases are consistent and documented. Judges prefer longer answers, prefer their own family's style, and shift when the judge model is upgraded underneath you. So pin the judge version, and check it against human labels at least once on a sample. Then quote the agreement rate alongside the score.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Quoting a judge score with no human anchor. It is a number produced by the same class of system you are grading, and it needs one.</p>
+    </li>
+    <li class="qa-item" id="c12-t8">
+      <p class="qa-q">How many samples does an A/B test need?</p>
+      <p class="qa-a">Enough that the difference you saw is unlikely to be noise. The trap is that the number grows sharply as the effect you want to detect shrinks. Small improvements need far more data than people expect. What getting it right buys is the right to say a change helped, rather than that it appeared to. Decide the size before you look. A handful of runs per arm only detects a very large difference. The failure that voids a test is stopping the moment the result looks good. The threshold you crossed then no longer means what it claims, however clean everything else was.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Reporting a winner without the sample size. It is the first thing a careful interviewer asks, and a small number is better said by you.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="fundamentals">
+  <h2>Fundamentals</h2>
+  <p class="qset-note">Question one is the whole chapter. Get the oracle question right and most of the rest follows from it.</p>
+  <ul class="qa-index">
+    <li><a href="#c12-f1">When to use a judge</a></li>
+    <li><a href="#c12-f2">What an embedding is</a></li>
+    <li><a href="#c12-f3">Top-k always returns k</a></li>
+    <li><a href="#c12-f4">Hybrid search</a></li>
+    <li><a href="#c12-f5">Re-ranking</a></li>
+    <li><a href="#c12-f6">Grounding as a schema</a></li>
+    <li><a href="#c12-f7">Your A/B test</a></li>
+    <li><a href="#c12-f8">Your bake-off</a></li>
+    <li><a href="#c12-f9">Where MLflow sits</a></li>
+    <li><a href="#c12-f10">The riskiest claim</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c12-f1">
+      <p class="qa-q">When is LLM-as-a-judge the right tool?</p>
+      <p class="qa-a">Only when nothing can decide correctness by running the answer. Scoring an interview response against written anchor prose has no oracle, so a judge is right there. Validating generated SQL does have one, because the database can plan it. Using a judge where an oracle exists is choosing to be less correct for no benefit.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying judges are unreliable. They are the correct tool for subjective questions. The skill is knowing which kind of question you have.</p>
+    </li>
+    <li class="qa-item" id="c12-f2">
+      <p class="qa-q">What is an embedding, in one sentence?</p>
+      <p class="qa-a">A list of numbers representing a piece of text, arranged so similar meanings sit close together. Similarity is then a distance calculation. That is also the limitation: it measures closeness in meaning, which is not the same as being correct or being the right thing to retrieve.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing it as a compressed representation. The useful property is that distance means something, not that it is smaller.</p>
+    </li>
+    <li class="qa-item" id="c12-f3">
+      <p class="qa-q">What does top-k retrieval do when nothing is relevant?</p>
+      <p class="qa-a">Returns k things anyway. It returns the least dissimilar items, not the relevant ones. In the debugger that matters more than usual, because the retrieved incidents feed a routing decision. So an unfamiliar failure still gets a confident category built on five loose matches, and there is no similarity floor.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Assuming a relevance threshold exists by default. It does not, and this is the most common unexamined assumption in a RAG system.</p>
+    </li>
+    <li class="qa-item" id="c12-f4">
+      <p class="qa-q">What is hybrid search, and have you built one?</p>
+      <p class="qa-a">Fusing keyword and vector retrieval so exact tokens are not lost in a similarity space. It matters for things like error codes, where the literal string is the signal. I have not built one. My systems use web search in one place and vector retrieval in another, which is two mechanisms rather than a hybrid retriever.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Counting two separate retrieval mechanisms as hybrid search. Hybrid means fused scoring in one retriever, and an interviewer will mean that.</p>
+    </li>
+    <li class="qa-item" id="c12-f5">
+      <p class="qa-q">And re-ranking?</p>
+      <p class="qa-a">A second, more expensive model reordering the candidates retrieval returned. You fetch twenty cheaply and let the re-ranker choose the five that go in context. I have not shipped one. The screener retrieves five and uses all five, which is exactly the situation a re-ranker would improve.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Explaining it well and letting that imply you built one. The honest version plus naming where it would help is stronger.</p>
+    </li>
+    <li class="qa-item" id="c12-f6">
+      <p class="qa-q">How do you make a model cite its sources?</p>
+      <p class="qa-a">With the output schema, not the prompt. A claim carries a status and a sources array, and the decoder enforces that, so an uncited claim has no shape to arrive in. Asking nicely is advice a model can ignore. The limit is that a schema constrains shape and never string values, so citation fidelity is measured separately as a fabrication rate.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Stopping at the schema. Naming the limit in the same breath is what makes the claim survive a follow-up.</p>
+    </li>
+    <li class="qa-item" id="c12-f7">
+      <p class="qa-q">Tell me about an A/B test you ran.</p>
+      <p class="qa-a">Transcript window size in the gateway, tested at 10, 20 and 40 entries against the live payload, eight runs per arm. It is a parameter people usually set by intuition. The honest caveat is the sample. Eight runs per arm cannot separate a small effect from noise. So it settles a large difference and not a subtle one.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Quoting a result without the sample size. The design is the impressive part and the sample is the limit.</p>
+    </li>
+    <li class="qa-item" id="c12-f8">
+      <p class="qa-q">And the model bake-off?</p>
+      <p class="qa-a">One real evidence payload replayed through the actual report function, with only the model swapped. So the evidence is fixed and the model is the single variable. Label-free metrics: citations naming a URL not in the evidence, verified claims lacking independent support, and verdict instability within an arm. The cheaper model erred in the more dangerous direction.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing it as a benchmark comparison. Replaying a fixed payload through the real code path is much stronger, and the difference is worth stating.</p>
+    </li>
+    <li class="qa-item" id="c12-f9">
+      <p class="qa-q">Where does MLflow fit in what you built?</p>
+      <p class="qa-a">It is a tracking component in the pipeline debugger's architecture. It is not something I built a workflow around. I would describe it as experiment and model tracking that was present, not as a system I designed. That is a thinner claim than the rest of this line, and I would rather say so.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing an MLflow workflow you did not own. It is a named component and the honest version is short.</p>
+    </li>
+    <li class="qa-item" id="c12-f10">
+      <p class="qa-q">What is the riskiest claim on this line?</p>
+      <p class="qa-a">Hybrid search and re-ranking. They are the two an interviewer probes first on a RAG line, and neither appears in any system I built. MLflow is third, as a component rather than work. The evaluation half of this line is genuinely strong. The retrieval half is where it thins out.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Naming LLM-as-a-judge. The Evaluator is a real judge deployment with a real bake-off behind it, and undervaluing it wastes the best item on the line.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="deep-dive">
+  <h2>Deep dive</h2>
+  <p class="qset-note">The evaluation questions here are the strongest material on the whole r&#233;sum&#233;. Spend your preparation time on the first eight.</p>
+  <ul class="qa-index">
+    <li><a href="#c12-d1">Designing the bake-off</a></li>
+    <li><a href="#c12-d2">Label-free metrics</a></li>
+    <li><a href="#c12-d3">Eight runs an arm</a></li>
+    <li><a href="#c12-d4">Where instability sits</a></li>
+    <li><a href="#c12-d5">Judging the judge</a></li>
+    <li><a href="#c12-d6">Fabrication rate</a></li>
+    <li><a href="#c12-d7">A broken answer key</a></li>
+    <li><a href="#c12-d8">Cosine on code</a></li>
+    <li><a href="#c12-d9">Choosing k</a></li>
+    <li><a href="#c12-d10">Chunking</a></li>
+    <li><a href="#c12-d11">On-device retrieval</a></li>
+    <li><a href="#c12-d12">Guardrails that hold</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c12-d1">
+      <p class="qa-q">Walk me through how you designed the bake-off.</p>
+      <p class="qa-a">Fix everything except the variable. One real evidence payload, replayed through the actual report function, with only the model swapped. That matters because a benchmark run against synthetic inputs tells you about the benchmark. Replaying production code with production evidence tells you about your system.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing a benchmark suite. The strength here is that it is the real code path, not a proxy for it.</p>
+    </li>
+    <li class="qa-item" id="c12-d2">
+      <p class="qa-q">What is a label-free metric and why use one?</p>
+      <p class="qa-a">A measurement needing no ground-truth answer. Citations naming a URL not present in the evidence is checkable against the evidence itself. So is verdict instability across an arm's own repeated runs. They work where no labelled set exists, which is most real systems, and they are cheap to compute.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Assuming evaluation needs labels. The best metrics in that bake-off need none, and that is why it could be run at all.</p>
+    </li>
+    <li class="qa-item" id="c12-d3">
+      <p class="qa-q">Eight runs per arm. Is that enough?</p>
+      <p class="qa-a">For a large effect, yes. For a subtle one, no, and I would say so before the result. Eight samples against a noisy latency distribution can separate a big difference and cannot settle a few percent. The design was sound and the sample bounds what it can conclude, which is a different statement from the result being wrong.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Defending the sample. Naming what it can and cannot conclude is the answer, and it is the more confident position.</p>
+    </li>
+    <li class="qa-item" id="c12-d4">
+      <p class="qa-q">One claim in five flips between runs. What does that tell you?</p>
+      <p class="qa-a">Where it flips is the finding. Nearly every flip is on the no-data versus partial boundary, not between verified and contradicted. Random sampling would scatter disagreements everywhere. Concentration on one boundary points at the prompt's definition of that line, which is also why pinning temperature to zero did not fix it.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Reporting the rate without the location. The rate is a symptom and the location is the diagnosis.</p>
+    </li>
+    <li class="qa-item" id="c12-d5">
+      <p class="qa-q">How do you know your judge is any good?</p>
+      <p class="qa-a">Three ways, none of them complete. Agreement with a human on a sample. Self-consistency across repeated runs, which is the instability number. And whether its errors are biased in a direction that matters, which the bake-off found. The pro model was more conservative and the cheaper one erred towards over-claiming support.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Only naming human agreement. Direction of error matters more here, because over-claiming support is far worse than being cautious.</p>
+    </li>
+    <li class="qa-item" id="c12-d6">
+      <p class="qa-q">What is a fabrication rate and why measure it separately?</p>
+      <p class="qa-a">How often a cited URL is not actually in the evidence that was provided. It has to be separate because the schema forces a sources array to exist and cannot force its contents to be real. Structure guarantees a citation is present. Only measurement tells you it is genuine.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating enforced citations as proof of grounding. The schema removes the uncited shape, not the wrong value.</p>
+    </li>
+    <li class="qa-item" id="c12-d7">
+      <p class="qa-q">You checked your own ground truth. What made you do that?</p>
+      <p class="qa-a">Accuracy varied wildly by domain and the structural explanations all failed. When every hypothesis about the system fails, the next candidate is the measurement. So I ran the hand-written answer keys through the same processor. Only 28 of 49 produced valid output. Part of the benchmark was measuring against broken references.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Presenting it only as an excuse for low scores. It cuts both ways and saying so is what makes it credible.</p>
+    </li>
+    <li class="qa-item" id="c12-d8">
+      <p class="qa-q">Your debugger harness scores generated code by cosine similarity. Defend or fix.</p>
+      <p class="qa-a">Fix. For the prose fields, similarity is defensible because an investigation has no exact match. For the corrected-code field it is the weakest part, because the production path already validates SQL with <code>EXPLAIN</code> and Python with a parse. Scoring that field with the validator makes it deterministic and reuses code that exists.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Defending it for consistency. The chapter's own rule says use the oracle, and this is where the r&#233;sum&#233; breaks its own rule.</p>
+    </li>
+    <li class="qa-item" id="c12-d9">
+      <p class="qa-q">How would you choose k?</p>
+      <p class="qa-a">By measuring what k changes downstream, not by measuring retrieval quality in isolation. In the debugger, k feeds a routing decision, so the number that matters is how stable the category is as k varies. Too few and a known issue is missed. Too many and unrelated incidents dilute the context and pull the category around.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Citing recall at k. Recall is the intermediate metric, and the decision it feeds is what actually matters.</p>
+    </li>
+    <li class="qa-item" id="c12-d10">
+      <p class="qa-q">What makes chunking hard?</p>
+      <p class="qa-a">The chunk is both the retrieval unit and the context unit, and those want different sizes. Small chunks embed precisely and arrive without surrounding meaning. Large chunks carry context and blur the embedding. For an error log the natural boundary is the stack trace rather than a token count, and structure beats a fixed window whenever structure exists.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Recommending a token count. The useful answer is to chunk on the document's own structure where it has one.</p>
+    </li>
+    <li class="qa-item" id="c12-d11">
+      <p class="qa-q">What is different about retrieval on a device?</p>
+      <p class="qa-a">The index has to fit alongside the model in a fixed memory budget. There is no server to fall back to. So the corpus is small and curated rather than large and general. It also cannot be updated by redeploying a service. That makes the freshness story completely different from a server-side system.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing it as the same thing, smaller. The absence of a fallback and the update path are the real differences.</p>
+    </li>
+    <li class="qa-item" id="c12-d12">
+      <p class="qa-q">Rank your guardrails by how much they actually protect.</p>
+      <p class="qa-a">Strongest is removing the shape: a schema with no field for an uncited claim, or an allowlist permitting only <code>SELECT</code> and <code>EXPLAIN</code>. Then deterministic validation before an action. Then output filters like the SAP name denylist. Weakest is prompt wording, which lowers a rate and guarantees nothing.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Listing them without ordering. The ranking is the judgment, and prompt wording being last is the part that matters.</p>
+    </li>
+  </ol>
+</section>
+
+<div class="quiz" data-quiz-id="0012-q1">
+  <p class="q">When is LLM-as-a-judge the right tool for scoring an output?</p>
+  <ol class="options">
+    <li data-correct="true">Only when no deterministic oracle exists for the task</li>
+    <li>Whenever a second opinion would raise confidence in it</li>
+    <li>Whenever running the output would be slow or costly</li>
+    <li>Only when the first model was a cheaper variant</li>
+  </ol>
+  <div class="why">
+    <p>When nothing can decide by running the answer. Scoring an interview response against written anchor prose has no oracle, so a judge is correct there. Validating generated SQL does have one, because the planner can bind it.</p>
+    <p>Cost is not the deciding factor, which makes the third option tempting and wrong. A judge is cheaper than executing some things and it is still the weaker answer whenever execution is possible, because it trades a fact for an opinion.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0012-q2">
+  <p class="q">Your A/B on transcript window size used eight runs per arm. What is the main limitation?</p>
+  <ol class="options">
+    <li data-correct="true">Eight runs cannot separate a small effect from noise</li>
+    <li>Eight runs cost more than the experiment was worth</li>
+    <li>Eight runs bias the result towards the first arm</li>
+    <li>Eight runs require a fresh model version each time</li>
+  </ol>
+  <div class="why">
+    <p>Statistical power. Against a noisy latency distribution, eight samples per arm can settle a large difference and cannot settle a few percent. The design is sound and the sample bounds what it is allowed to conclude.</p>
+    <p>Saying that yourself is stronger than being asked. It converts &#8220;here is a result&#8221; into &#8220;here is a result and here is what it can support,&#8221; which is the difference between running an experiment and quoting one.</p>
+  </div>
+</div>
+
+<section class="qset" id="edges">
+  <h2>Edges and exceptions</h2>
+  <p class="qset-note">Retrieval fails quietly and evaluation fails flatteringly. Most of these are about noticing either one.</p>
+  <ul class="qa-index">
+    <li><a href="#c12-e1">Retrieval returning nothing useful</a></li>
+    <li><a href="#c12-e2">A poisoned store</a></li>
+    <li><a href="#c12-e3">An eval set that ages</a></li>
+    <li><a href="#c12-e4">The judge shares the bias</a></li>
+    <li><a href="#c12-e5">Asked about re-ranking</a></li>
+    <li><a href="#c12-e6">Grounded and still wrong</a></li>
+    <li><a href="#c12-e7">Evaluating without labels</a></li>
+    <li><a href="#c12-e8">What you would change</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c12-e1">
+      <p class="qa-q">Retrieval returns five things and none are relevant. What happens downstream?</p>
+      <p class="qa-a">The model answers anyway, using them. There is no similarity floor, so a genuinely novel input gets a confident answer built on loose matches. In the debugger that becomes a routing decision, so it is not a worse answer but a wrong branch. The fix is a distance threshold that fails towards the expensive path.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying the model will recognise irrelevant context. Sometimes it does, and that is not a property you can depend on.</p>
+    </li>
+    <li class="qa-item" id="c12-e2">
+      <p class="qa-q">Somebody resolves an incident wrongly and it goes into the store.</p>
+      <p class="qa-a">It becomes evidence and teaches the screener to repeat the mistake on similar logs. That is a data-quality problem with a control-flow consequence, which is worse than a data-quality problem alone. It argues for the store being curated rather than appended to automatically, and nothing currently curates it.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating the incident history as ground truth. People wrote it, under time pressure, at night.</p>
+    </li>
+    <li class="qa-item" id="c12-e3">
+      <p class="qa-q">A fixed evaluation set was recorded once. What goes wrong over time?</p>
+      <p class="qa-a">It ages, and a stale case is worse than no case. Ideal answers referencing tables that were since renamed will fail a correct system, and then passing them becomes the regression. Any fixed set needs an owner and a refresh cadence, and the 368-scenario set has neither documented.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating a recorded dataset as permanent. It is a snapshot of a system that kept moving.</p>
+    </li>
+    <li class="qa-item" id="c12-e4">
+      <p class="qa-q">What if the judge shares the generator's blind spot?</p>
+      <p class="qa-a">Then the evaluation is systematically flattering and nothing in the harness will show it. It is the strongest argument for label-free structural metrics, which do not depend on a model's judgment at all. Checking whether a cited URL is in the evidence is arithmetic, and no shared bias survives it.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Proposing a different judge model. It reduces correlation and does not remove it, and structural checks do.</p>
+    </li>
+    <li class="qa-item" id="c12-e5">
+      <p class="qa-q">The interviewer asks about your re-ranking work.</p>
+      <p class="qa-a">Say I have not shipped one. Then say where it would go. The screener retrieves five incidents and uses all five, so a re-ranker over a wider candidate set is exactly the improvement. That turns an absence into a design answer, which is the best available outcome for an item with nothing behind it.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing the technique fluently and letting it imply experience. The follow-up is always which model and on what data.</p>
+    </li>
+    <li class="qa-item" id="c12-e6">
+      <p class="qa-q">Every claim has a citation and the report is still wrong.</p>
+      <p class="qa-a">Entirely possible, and it is the honest limit of schema-enforced grounding. The schema removes uncited claims. It cannot check that the URL was in the evidence, that the source is reliable, or that the claim follows from it. Those are three separate problems and only the first is measured, as a fabrication rate.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating grounding as a correctness guarantee. It is a structural guarantee, and the difference is the whole answer.</p>
+    </li>
+    <li class="qa-item" id="c12-e7">
+      <p class="qa-q">You have no labelled data at all. How do you evaluate?</p>
+      <p class="qa-a">Structural and consistency metrics first, because they need no labels. Is every citation present in the evidence. Does the same input give the same verdict across runs. Does the output satisfy an invariant. Then a small hand-labelled sample for calibration, sized for a regression gate rather than a population estimate.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying you cannot evaluate without labels. The best metrics in your own bake-off needed none.</p>
+    </li>
+    <li class="qa-item" id="c12-e8">
+      <p class="qa-q">What would you change about this line?</p>
+      <p class="qa-a">Drop re-ranking and hybrid search, because neither appears in any system. Qualify MLflow as a component rather than work. Then add what is missing: the bake-off, the reproducibility measurement and the ground-truth audit are all stronger than the words currently on the line.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Only trimming. The evaluation work here is better than the line describes, and the swap is what improves it.</p>
+    </li>
+  </ol>
+</section>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;How do you evaluate an LLM system?&#8221;
+      <span class="tell">The central question of a senior AI loop. Most candidates answer with methodology. You can answer with three experiments and what each one changed.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>I start by asking whether an oracle exists. Three of my systems have one and use it: a subprocess running the real processor, a query planner explaining generated SQL, and a parser rather than a model on structured tables. Where none exists, three things I actually ran. A bake-off replaying one fixed evidence payload through the real code path with only the model swapped, on label-free metrics. An A/B on transcript window size at 10, 20 and 40 entries with eight runs an arm. And an audit of my own ground truth, which found only 28 of 49 reference files were valid.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;How do you know your judge model is right?&#8221;
+      <span class="tell">The standard follow-up to any LLM-as-a-judge claim. The strong answer includes direction of error, which most people never measure.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Three angles, none complete. Agreement with a human on a sample. Self-consistency across repeated runs, which for us is about one claim in five flipping on identical evidence. And the direction the errors go, which the bake-off measured: the pro model was more conservative, and the cheaper one erred towards calling unverifiable things partially supported. That last direction is the dangerous one, and it is why the tier choice was not just about cost.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Tell me about your hybrid search implementation.&#8221;
+      <span class="tell">A direct audit of an item with nothing behind it. Conceding and redirecting to where it would help is the only good outcome.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>I have not built one, and I would rather say that than stretch. My systems use web search in one place and vector retrieval in another, which is two mechanisms rather than a fused retriever. Where it would genuinely help is the debugger's incident screener: error logs contain exact tokens like codes and table names, and those are precisely what a pure vector search loses. A keyword arm fused with the vector arm would improve that routing decision.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Your retriever always returns five results. Is that a problem?&#8221;
+      <span class="tell">Tests whether you know how top-k behaves and whether you have thought about it in your own system.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Yes, and more than usual here, because those five feed a routing decision rather than an answer. Top-k always returns k, so a genuinely novel failure gets the five least dissimilar incidents and a confident category built on them. There is no similarity floor. What I would add is a distance threshold below which it routes to the expensive investigate branch by default, so an unfamiliar input fails towards spending money rather than towards silence.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;What is the weakest part of your evaluation work?&#8221;
+      <span class="tell">An invitation to be honest. There is a specific, defensible answer that also shows you apply your own rule consistently.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The 368-scenario harness scoring generated code by embedding similarity. For the prose fields that is defensible, since an investigation has no exact match. For the corrected-code field it breaks my own rule, because the production path already validates SQL with <code>EXPLAIN</code> and Python with a parse. The oracle exists and the harness does not use it. That is the first thing I would change, and it is reusing code rather than writing any.</p>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="recall">
+  <details>
+    <summary>Three chapters describe a deterministic check standing in for a model's judgment. Name the mechanism in each, and the single rule they share.</summary>
+    <p class="answer">Chapter 0003 runs <code>stat_var_processor.py</code> as a subprocess and reads whether real rows came out. Chapter 0006 sends generated SQL to Snowflake as an <code>EXPLAIN</code> and treats a returned plan as proof it binds. Chapter 0004 parses mapping tables with code rather than asking a model to read them. The shared rule is that a model should only be asked questions with no deterministic answer, and all three are cases where one existed.</p>
+    <span class="from"><a href="0003-multi-agent-schematization.html">Chapter 0003 &#183; the validator is a subprocess</a></span>
+  </details>
+  <details>
+    <summary>Chapter 0001 measures a reproducibility rate and chapter 0004 reports a composite accuracy. What do the two numbers have in common as interview material?</summary>
+    <p class="answer">Both are stronger when decomposed than when quoted. The one-in-five flip rate means little until you say the flips concentrate on the no-data versus partial boundary, which turns a symptom into a diagnosis. The 99.2% means something different once you say it is four weighted dimensions with fields at 0.30. In both cases the headline invites a follow-up and the decomposition is the actual answer.</p>
+    <span class="from"><a href="0001-vendor-evaluation-platform.html">Chapter 0001 &#183; measured reproducibility</a></span>
+  </details>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">The lessons behind this chapter</span>
+  <p>System Design School teaches these mechanisms from first principles and breaks them in a lab. This chapter defends what you did with them. An interviewer moves between those two registers without warning.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0003-cache-aside-and-friends.html">SDS 0003 &#183; Cache-aside and friends</a>
+      <span class="bridge-why">Embeddings and retrieval results are the two genuinely cacheable things on this line, and they have different write policies.</span>
+    </li>
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0004-eviction-and-why-lru-is-wrong.html">SDS 0004 &#183; Eviction, and why LRU is wrong</a>
+      <span class="bridge-why">An embedding cache under LRU cannot tell a nightly sweep from real traffic, which is exactly how a warm cache goes cold.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0031 &#183; RAG retrieval as a system &#8212; not yet built</span>
+      <span class="bridge-why">Recall against latency across index types, and what an unexamined k actually costs when it feeds a routing decision.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0039 &#183; The eval harness as a regression gate &#8212; not yet built</span>
+      <span class="bridge-why">Who evaluates the evaluator, and whether a 368-case harness with no threshold is a gate or a report.</span>
+    </li>
+  </ol>
+</div>
+
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0011-infrastructure.html">&#8592; 0011 &#183; Infrastructure</a></span>
+  <span><span class="dir">Next</span><a href="0013-on-device-rag.html">0013 &#183; On-device RAG over a quantized MobileLLM &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

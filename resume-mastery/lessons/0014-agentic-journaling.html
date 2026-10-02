@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>Agentic Journaling and Semantic Routing</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0014">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">R&#233;sum&#233; Mastery</a>
+    <span class="sep">/</span>
+    <span>Batch C &#183; Samsung Research</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Chapter 0014</span>
+  </div>
+  <h1>Agentic journaling and semantic routing</h1>
+  <p class="standfirst">Routing over somebody's own timeline is retrieval where the corpus is a person. That changes what a wrong answer costs, and it changes what &#8220;relevant&#8221; means &#8212; because recency matters in a journal in a way it never does in a document store.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Say what the router routes <em>between</em>, and why a journal is a harder retrieval target than a document set &#8212; then answer the question that follows: <em>what happens when it recommends something based on a bad month?</em></p>
+</div>
+
+<div class="claim-line">
+  <span class="callout-label">The line being defended</span>
+  <blockquote>&#8220;Built a <strong>GenAI journaling application</strong> using agentic workflows and <strong>semantic routing</strong> over user timelines, generating personalized recommendations and trip/event plans.&#8221;</blockquote>
+  <span class="whose">Samsung Research &#183; bullet 2 of 5</span>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">For <em>&#8220;tell me about the journaling application.&#8221;</em> The distinguishing idea is that the corpus is a person, so get there early and let the retrieval design follow from it.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">Somebody keeps a journal, and the application reads it back to offer things. What happened, what they might enjoy, and plans built from both.</p>
+      <p class="line">The material is the person's own history, which changes the problem more than it sounds.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">A router picks a <b>mode rather than a topic</b>. Is this asking what happened, asking what to do, or asking for a plan.</p>
+      <p class="line">Each needs different retrieval and a different output shape. A recollection cites the entry it came from. A plan is a structured itinerary.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">The part I would defend is the relevance function. In a document store relevance is similarity. <b>In a journal it is similarity, recency and frequency together.</b></p>
+      <p class="line">The most similar entry might be four years old from a city they have left. And something mentioned once is a data point, where something mentioned monthly is a preference.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">Two things I would rather say myself. Only the planning branch is genuinely agentic, because scheduling feeds back into option selection. The other two are one retrieval and one answer.</p>
+      <p class="line">And the worst failure here is not inaccuracy. <b>A recommendation built on a misread of someone's history is intrusion</b>, and people stop using things that misunderstand them.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;It uses agentic workflows and semantic routing to personalise recommendations.&#8221;</span> Three abstractions and no design. The follow-up is &#8220;routing between what?&#8221; and if the answer is topics, the whole thing collapses into a classifier. Say &#8220;it routes between modes, and only the planning branch is agentic&#8221; and both claims become checkable.</p>
+  <p>The other trap is treating this as ordinary RAG. The moment you say &#8220;retrieval over the user's timeline&#8221; without mentioning recency, an interviewer who has built anything personal will ask about the four-year-old entry. Get there first.</p>
+</div>
+
+
+<div class="trace">
+  <span class="callout-label">Walk them through it &#183; one request over one timeline</span>
+  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One question asked of a journal, followed to the suggestion that comes back. The entries are invented. The relevance problem is the real one.</p>
+  <p class="tr-case"><b>The picture.</b> A search engine against a friend who has known you for years. The search engine finds whatever is most like what you said. The friend knows that the thing you loved four years ago was four years ago, and that you have mentioned pottery every month since spring.</p>
+  <p class="tr-case"><b>The case.</b> Somebody has kept a journal for four years. They ask what they should do this weekend. Follow that request through the system, and watch what nearly goes wrong.</p>
+  <ol>
+    <li class="tr-step">
+      <span class="tr-k">The router</span>
+      <p><b>What happens.</b> The first decision is not what the request is about. It is what kind of request it is.</p>
+      <p><b>Concretely.</b> Three modes. Asking what happened, asking what to do next, or asking for something planned out.</p>
+      <p><b>If they ask why.</b> It routes between modes rather than topics because each mode needs different retrieval and a different output shape. A recollection cites an entry. A plan is a structured itinerary.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The risk</span>
+      <p><b>What happens.</b> Routing by meaning is retrieval with a consequence attached, so it deserves a warning.</p>
+      <p><b>Concretely.</b> An ordinary bad retrieval gives a slightly worse answer. A bad routing decision sends the whole request down the wrong branch.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The timeline</span>
+      <p><b>What happens.</b> Our request routes to recommendation, so now the history has to be read.</p>
+      <p><b>Concretely.</b> A timeline is ordered, and ordered is the important word. When something happened is part of what it means.</p>
+      <p><b>If they ask why.</b> In a document corpus relevance is about meaning. In a journal it is meaning and time together, and those two can disagree.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The near miss</span>
+      <p><b>What happens.</b> Pure similarity would surface the closest entry regardless of when it was written.</p>
+      <p><b>Concretely.</b> Here that is an enthusiastic entry about a bar in a city this person left three years ago. It is the most similar thing in four years of writing and it is useless.</p>
+      <p><b>If they ask why.</b> This is the part I would defend. The most similar entry can be the least useful one, and a journal spans years of somebody changing.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Recency</span>
+      <p><b>What happens.</b> So recency is part of the relevance function rather than a filter applied afterwards.</p>
+      <p><b>Concretely.</b> It is a decay rather than a cutoff, so nothing vanishes abruptly at some arbitrary age.</p>
+      <p><b>If they ask why.</b> A cutoff makes an entry relevant on Monday and invisible on Tuesday. A decay makes old things quieter, which is how people actually work.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Frequency</span>
+      <p><b>What happens.</b> The third term is how often something comes up, counted over distinct entries.</p>
+      <p><b>Concretely.</b> Pottery appears in eleven entries over the last year. The bar appears in one, at length.</p>
+      <p><b>If they ask why.</b> Counting distinct entries is what stops one long enthusiastic entry looking like a habit. Something mentioned once is a data point. Something mentioned monthly is a preference.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The answer</span>
+      <p><b>What happens.</b> A suggestion comes back, tied to the entries it came from.</p>
+      <p><b>Concretely.</b> Grounding here means the person can see why it was offered rather than being handed a recommendation from nowhere.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The plan branch</span>
+      <p><b>What happens.</b> Had they asked for a weekend planned out, the shape would be different, and this is the honest part.</p>
+      <p><b>Concretely.</b> Only the planning branch is genuinely agentic. It needs preferences, then options, then a schedule, and scheduling feeds back into which options survive.</p>
+      <p><b>If they ask why.</b> A recollection is one retrieval and one answer. Calling that agentic would be overstating it, and overstating it is how the word lost its meaning.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Cold start</span>
+      <p><b>What happens.</b> Everything above assumes a full timeline, and plenty of people do not have one.</p>
+      <p><b>Concretely.</b> A new user has nothing. Somebody who wrote a lot once and then stopped breaks the same assumption in a different way.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The real failure</span>
+      <p><b>What happens.</b> The worst failure in this system is not inaccuracy, and that is worth saying plainly.</p>
+      <p><b>Concretely.</b> A recommendation built on a misread of someone's history reads as intrusion. People stop using things that misunderstand them.</p>
+      <p><b>If they ask why.</b> The decay rate is also a number I chose rather than measured. And no weighting knows which period somebody would rather not revisit. The only honest fix there is user control, which is a product feature rather than a model change.</p>
+    </li>
+  </ol>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 312" role="img" aria-labelledby="mech0014-t mech0014-d">
+    <defs>
+      <marker id="ar14" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+    </defs>
+    <title id="mech0014-t">One router, three modes, and a relevance function that includes time</title>
+    <desc id="mech0014-d">A request is routed by meaning into one of three modes rather than by topic. Recollection needs a narrow slice of timeline and a faithful cited answer. Recommendation needs a broad read of preferences and may suggest something with no precedent. Planning needs both plus outside information, and it is the only branch that is genuinely agentic because each step depends on the last. Underneath all three, the relevance function combines similarity with recency and frequency, because in a journal the most similar entry may be four years old and no longer true of the person.</desc>
+
+    <rect class="box" x="8" y="16" width="150" height="50" rx="3"/>
+    <text class="lbl strong" x="83" y="38" text-anchor="middle">A request</text>
+    <text class="lbl-dim" x="83" y="55" text-anchor="middle">free text</text>
+
+    <path class="flow" marker-end="url(#ar14)" d="M 162 41 H 200"/>
+
+    <rect class="accent" x="204" y="16" width="176" height="50" rx="3"/>
+    <text class="lbl strong ink-accent" x="292" y="38" text-anchor="middle">Semantic router</text>
+    <text class="lbl-dim" x="292" y="55" text-anchor="middle">mode, not topic</text>
+
+    <path class="flow" marker-end="url(#ar14)" d="M 384 28 H 430"/>
+    <path class="flow" marker-end="url(#ar14)" d="M 384 41 H 430"/>
+    <path class="flow" marker-end="url(#ar14)" d="M 384 54 H 430"/>
+
+    <rect class="box" x="434" y="10" width="398" height="40" rx="3"/>
+    <text class="lbl strong" x="448" y="28">Recollect</text>
+    <text class="lbl-dim" x="530" y="28">narrow slice &#183; faithful &#183; cites the entry</text>
+    <text class="num ink-good" x="816" y="28" text-anchor="end">one step</text>
+
+    <rect class="box" x="434" y="54" width="398" height="40" rx="3"/>
+    <text class="lbl strong" x="448" y="72">Recommend</text>
+    <text class="lbl-dim" x="530" y="72">broad preferences &#183; may have no precedent</text>
+    <text class="num ink-good" x="816" y="72" text-anchor="end">one step</text>
+
+    <rect class="warn" x="434" y="98" width="398" height="40" rx="3"/>
+    <text class="lbl strong ink-warn" x="448" y="116">Plan</text>
+    <text class="lbl-dim" x="530" y="116">preferences, then options, then a schedule</text>
+    <text class="num ink-warn" x="816" y="116" text-anchor="end">agentic</text>
+
+    <rect class="box-2" x="8" y="152" width="824" height="82" rx="3"/>
+    <text class="lbl strong" x="24" y="176">Relevance here is not similarity alone</text>
+    <text class="lbl-dim" x="24" y="198">similarity &#215; recency &#215; frequency &#8212; the closest entry may be four years old and no longer true</text>
+    <text class="num ink-accent" x="24" y="220">mentioned once is a data point &#183; mentioned monthly is a preference</text>
+
+    <rect class="bad" x="8" y="246" width="824" height="56" rx="3"/>
+    <text class="lbl strong ink-bad" x="24" y="270">The failure that matters</text>
+    <text class="lbl-dim" x="24" y="292">A recommendation built on a misread of someone's history is not inaccuracy. It is intrusion.</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">What you say while drawing it</span>
+    <ol class="narrate">
+      <li>A request comes in as free text.</li>
+      <li>The router picks a mode, not a topic. That distinction is the first thing to say.</li>
+      <li>Three branches, and each has a different output shape.</li>
+      <li>Recollect is narrow and cites the entry it came from.</li>
+      <li>Recommend reads preferences broadly and may suggest something new.</li>
+      <li>Plan is the only one that is genuinely agentic, because each step depends on the last.</li>
+      <li>Underneath, the relevance function. Similarity is only one term of it.</li>
+      <li>Recency, because people change. Frequency, because once is not a preference.</li>
+      <li>And the red band, which is the product answer rather than the retrieval answer.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. One router, three branches, one relevance line, one warning.</p>
+  <ul>
+    <li><b>Mode, not topic.</b> The one mark to keep.</li>
+    <li>The <b>three branches</b> and which single one is agentic.</li>
+    <li><b>Similarity times recency times frequency.</b></li>
+    <li>The <b>intrusion line</b>, because it is the product insight.</li>
+  </ul>
+  <span class="timer">Say &#8220;the corpus is a person&#8221; as you draw the relevance band. Four words and the whole chapter is framed.</span>
+</div>
+
+<div class="star">
+  <span class="callout-label">Behavioural &#183; the story for this bullet</span>
+  <p class="frame">For <em>&#8220;tell me about a time the obvious technical answer was wrong for the product&#8221;</em> or <em>&#8220;a user-facing consequence you had to design around.&#8221;</em></p>
+  <ol class="rungs">
+    <li class="rung"><span class="rung-k">Decision</span><p>Whether relevance over a personal timeline should be semantic similarity, as in every retrieval system. Or something that weights time as heavily as meaning.</p></li>
+    <li class="rung"><span class="rung-k">Situation</span><p>The application suggested things based on what somebody had written. Pure similarity surfaces the closest entry regardless of when it was written, and a journal spans years of a person changing.</p></li>
+    <li class="rung"><span class="rung-k">Action</span><p>I made recency and frequency part of the relevance function rather than a filter applied afterwards. Recency as a decay rather than a cutoff, so nothing vanishes abruptly. Frequency counted over distinct entries, so one long entry could not look like a habit.</p><p>The weights differ per mode, because a recollection wants similarity dominant and a recommendation does not.</p></li>
+    <li class="rung"><span class="rung-k">Result</span><p>Suggestions stopped being driven by whatever was semantically closest in the whole history. That was often something from a life the person had moved on from.</p></li>
+    <li class="rung"><span class="rung-k">What it cost</span><p>A decay rate I chose rather than measured. That is the same weakness as the alpha in the forecasting layer. It can also still surface a period somebody would rather not revisit. No weighting knows which period that is. The only honest fix is user control, which is a product feature rather than a model change.</p></li>
+  </ol>
+</div>
+
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>Somebody writes entries about their days. The application reads them and offers things back: a suggestion, a plan for a weekend, a reminder of something they enjoyed. The material it works from is the person's own history.</p>
+  <p>Two mechanisms carry that. Routing decides what kind of request this is, and which part of the history to look at. Agentic workflow means the answer is assembled in steps rather than produced in one call. A trip plan needs several different things fetched and combined.</p>
+  <dl>
+    <dt>Timeline</dt>
+    <dd>The ordered set of a person's entries. Ordered is the important word, because when something happened is part of what it means.</dd>
+
+    <dt>Semantic routing</dt>
+    <dd>Choosing a branch by meaning rather than keyword. Here it decides whether a request wants a recollection, a recommendation or a plan.</dd>
+
+    <dt>Recency weighting</dt>
+    <dd>Preferring recent entries over older ones. In a journal this is not a tie-break, it is part of relevance, because people change.</dd>
+
+    <dt>Agentic workflow</dt>
+    <dd>Assembling an answer in steps, where later steps depend on earlier results. A trip plan needs preferences, then options, then a schedule.</dd>
+
+    <dt>Personalisation</dt>
+    <dd>Using someone's history to shape output. The whole value and the whole risk, because being wrong about a person is worse than being wrong about a fact.</dd>
+
+    <dt>Cold start</dt>
+    <dd>The state where a new user has almost no history. Personalisation has nothing to work with, and the system has to be useful anyway.</dd>
+
+    <dt>Sparse history</dt>
+    <dd>Someone who writes rarely, or wrote a lot once and then stopped. Both break assumptions that a timeline is evenly filled.</dd>
+
+    <dt>Sentiment drift</dt>
+    <dd>A person's mood or circumstances changing over time. An average over a whole timeline can describe somebody who no longer exists.</dd>
+
+    <dt>Structured extraction</dt>
+    <dd>Pulling typed facts out of free text, like places, people and dates, so retrieval has something better than raw prose to match against.</dd>
+
+    <dt>Grounding</dt>
+    <dd>Tying a suggestion back to the entry it came from, so the person can see why it was offered.</dd>
+  </dl>
+</div>
+
+<div class="primer stack">
+  <span class="callout-label">The technology &#8212; what each named thing is</span>
+  <p>The primer above defines the parts of the journaling problem. This one names the retrieval machinery underneath, starting from the ground. One constraint changes everything here. The corpus is one person's diary.</p>
+  <p>Every entry answers four things. What it actually is, in plain words. Where this system uses it. What it buys, meaning what goes wrong without it. And the follow-up an interviewer asks once you have said the name.</p>
+  <dl>
+    <dt>Embedding</dt>
+    <dd><i>the numbers behind &#8220;semantic&#8221;</i>A model reads a piece of text and outputs a fixed-length list of numbers, arranged so that texts meaning similar things land near each other in that space. Similarity is then just geometry, usually the cosine of the angle between two vectors. No keywords are involved at any point. <b>In the app.</b> Every appearance of the word semantic on this line resolves to a distance between two of these. <b>What it buys.</b> Matching on meaning rather than wording. A journal entry about &#8220;that place by the river we kept going back to&#8221; can be found by a query about a favourite restaurant, which no keyword search would ever connect. <b>The follow-up.</b> Vectors are only comparable within one embedding model. Change the model and every stored vector is meaningless, which on a personal timeline means re-embedding somebody's entire history, entry by entry, before the feature works again.</dd>
+
+    <dt>Vector index</dt>
+    <dd><i>over one person's timeline</i>The store that holds those vectors alongside the entries they came from, and answers &#8220;which of these are nearest to this query vector&#8221;. <b>In the app.</b> The timeline is the corpus, and there is one per user rather than one shared collection. <b>What it buys.</b> Retrieval over a whole history in milliseconds, so the model can be given the five relevant entries instead of the last twenty by date. <b>The follow-up.</b> The scale here is unusual and worth naming. A personal corpus is small, perhaps a few thousand entries, so exact search is entirely affordable and the whole approximate-index question mostly disappears. What does not disappear is that you now have one index per user to build, back up, migrate and delete, which is an operational shape rather than an algorithmic one.</dd>
+
+    <dt>Semantic routing</dt>
+    <dd><i>against a classifier</i>Deciding which handler should answer a request without training a classifier. You write a handful of example utterances per route, embed them once, then embed the incoming request and send it to whichever route's examples it lands nearest. <b>In the app.</b> It is the named mechanism in the bullet. <b>What it buys.</b> Adding a new capability means writing three example phrases, not collecting labelled data and retraining. For a product still finding its shape, that is the difference between a day and a sprint. <b>The follow-up.</b> Where it fails, because the trade is real. It has no properly calibrated notion of confidence, so there is no clean threshold at which to say &#8220;I am not sure&#8221;. And two routes with overlapping examples degrade quietly rather than raising anything.</dd>
+
+    <dt>Recency weighting</dt>
+    <dd><i>the decay term</i>Retrieval by similarity alone treats a note from three years ago exactly like one from yesterday. Recency weighting multiplies each result's score by a factor that shrinks with age, normally an exponential decay with a half-life you choose. <b>In the app.</b> A journal is a time series, and for most questions last week matters more than last year. <b>What it buys.</b> Answers that reflect who the user is now. Without it, an old and strongly-worded entry can outrank a recent and more relevant one forever. <b>The follow-up.</b> The half-life is a product decision wearing a maths costume. Set it short and the system forgets a standing preference someone stated once. Set it long and it keeps recommending the restaurant they stopped liking. There is no correct value, only a chosen one.</dd>
+
+    <dt>Agentic workflow</dt>
+    <dd><i>and when the word is earned</i>A loop in which the model chooses the next step, something is executed, the result comes back, and the model decides again with that result in view. The defining property is that the sequence is not known in advance. A fixed chain of prompts is not this, however many links it has. <b>In the app.</b> The bullet uses the word, so the distinction carries weight. <b>What it buys.</b> The ability to follow evidence. Planning a trip may need a second retrieval that only makes sense after the first one came back, and a fixed chain cannot express that. <b>The follow-up.</b> Which part actually loops. Planning across several dependent retrievals qualifies. Routing and then generating is two steps in a fixed order, and calling that agentic is the claim on this line most likely to be pulled apart.</dd>
+
+    <dt>Structured output</dt>
+    <dd><i>the plan as data</i>Handing the API a schema with the request so that generation is constrained to fit it, rather than asking for JSON in the prompt and parsing hopefully. <b>In the app.</b> A trip plan is a structure &#8212; dates, places, an order, durations &#8212; not a paragraph of prose. <b>What it buys.</b> The output becomes something the application can act on. A rendered itinerary, an editable list and a calendar export all need fields, and prose gives you none. <b>The follow-up.</b> Shape is not truth. A perfectly schema-valid plan can put a Tuesday event on Wednesday, book a return before the departure, or name a place that does not exist. The decoder checks structure and nothing else, so dates and ordering need checking in code afterwards.</dd>
+
+    <dt>Personal data</dt>
+    <dd><i>the constraint under everything</i>A journal is close to the most sensitive corpus a person owns. That single fact promotes storage location, encryption, retention, deletion and who can read the index from compliance paperwork into architecture. <b>In the app.</b> It is the real difference between this and any other retrieval system. <b>What it buys.</b> Naming it is what makes the design defensible. A system handling diaries that has no answer here is not a technical achievement, whatever the retrieval quality. <b>The follow-up.</b> Deletion, which is where this usually leaks. If an entry is removed, its vector has to go, and so do its summaries, any cached retrieval results, and anything else derived from it. Derived artefacts are exactly what people forget, and they are still personal data.</dd>
+
+    <dt>Cold start</dt>
+    <dd><i>the first two weeks</i>A brand new user has an empty timeline, so a system that personalises from history has nothing at all to work with. Every quality claim on this line is implicitly a claim about users who have already written a great deal. <b>In the app.</b> It is the state every single user passes through. <b>What it buys.</b> Having an answer here is what keeps the product usable during the exact period when people decide whether to keep it. <b>The follow-up.</b> What you show instead. A generic non-personalised path, an explicit onboarding question or two, or defaults drawn from the population. Any of the three is a fine answer. Having none means the product is broken for every new user.</dd>
+
+    <dt>Recommendation evaluation</dt>
+    <dd><i>offline and online</i>Two ways to find out whether recommendations are any good. Offline replays recorded history and checks whether the system would have surfaced what the user actually went on to choose, which is cheap and repeatable. Online puts it in front of real people and measures whether they accept it. <b>In the app.</b> &#8220;Personalized recommendations&#8221; is a quality claim with no number attached to it. <b>What it buys.</b> Offline evaluation lets you iterate daily without shipping anything, which is the only way to tune a retrieval and weighting scheme at reasonable speed. <b>The follow-up.</b> Offline scores are systematically optimistic. They can only score the things the user was shown and chose, and are blind to the recommendation the user would have loved and never saw. That blind spot is precisely the failure mode personalisation suffers from most.</dd>
+  </dl>
+</div>
+
+
+
+<h2>What the router actually chooses between</h2>
+
+<p class="breath">Not topics. Modes. A request can be asking what happened, asking what to do next, or asking for something planned. Those need different retrieval and different output, so they are different branches.</p>
+
+<p>Be concrete here, because &#8220;semantic routing&#8221; on its own is a phrase rather than a design. A recollection needs a narrow slice of timeline and a faithful answer. A recommendation needs a broad read of preferences and a suggestion that may have no precedent in the timeline. A plan needs both, plus external information the journal does not contain.</p>
+
+<p>The output shapes differ too. A recollection should cite the entry it came from. A plan is a structured itinerary. If one branch produced all three, the schema would have to be loose enough to hold all of them, which means loose enough to be wrong in all of them.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>&#8220;What did I do in Goa?&#8221; and &#8220;Where should I go next?&#8221; are not the same question. The system decides which one it is before it starts.</p>
+
+<h2>Why a timeline is harder than a document store</h2>
+
+<p class="breath">In a document corpus, relevance is about meaning. In a journal it is about meaning and time together, and the two can disagree. The most similar entry may be the least useful one.</p>
+
+<p>Someone asks for a restaurant suggestion. The most semantically similar entries are every restaurant they ever wrote about, including one from four years ago in a city they left. Pure similarity surfaces it. Recency says ignore it.</p>
+
+<p>That is why recency weighting is not a refinement here. It is part of the relevance function. The same applies to frequency: something mentioned once is a data point, and something mentioned monthly is a preference, and similarity search cannot tell them apart.</p>
+
+<p>And the timeline is small. A person might have a few hundred entries, not millions of documents. That changes the engineering: exhaustive scoring is affordable, and the interesting work moves from index structures to what you score on.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>The closest match is not always the right one. Something you said once, years ago, is not who you are now.</p>
+
+<h2>What makes it agentic, honestly</h2>
+
+<p class="breath">A recollection is one retrieval and one answer, and calling that agentic would be overstating it. A trip plan genuinely needs steps, because each one depends on the last.</p>
+
+<p>Apply the rule from chapter 0009. An agent earns its name when the path depends on what is found. Planning a weekend needs preferences from the timeline, then candidate options, then a schedule that fits them together, and a constraint discovered at step two changes step three.</p>
+
+<p>So the honest description is that one branch is agentic and the others are not, and the router is what decides which. That is a better answer than claiming the whole application is agentic, and it is the one that survives a follow-up.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Looking something up is one step. Planning a trip is several, and each one depends on what the last one found.</p>
+
+<h2>The failure that matters most</h2>
+
+<p class="breath">Being wrong about a fact is recoverable. Being wrong about a person is not, in the same way. A recommendation built on a misread of somebody's history reads as not being understood.</p>
+
+<p>This is the part to volunteer, because it is what separates a product answer from a retrieval answer. If the system suggests something based on a period the person would rather forget, the failure is not inaccuracy. It is intrusion.</p>
+
+<p>Two mitigations follow and neither is a model change. Ground the suggestion in the entry it came from, so the person can see why and correct it. And weight recency hard enough that a difficult period stops driving recommendations once it has passed.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>A wrong fact is annoying. A suggestion that shows the app misunderstood you is worse, and people stop using things that misunderstand them.</p>
+
+
+
+<section class="qset" id="toolbox">
+  <h2>Toolbox</h2>
+  <p class="qset-note">Every noun in the bullet, defined out loud, from the ground up. Two of the words here are the ones interviewers most enjoy testing, because &#8220;semantic&#8221; and &#8220;agentic&#8221; are both easy to say and specific to define.</p>
+  <ul class="qa-index">
+    <li><a href="#c14-t1">What semantic routing is</a></li>
+    <li><a href="#c14-t2">What gets embedded</a></li>
+    <li><a href="#c14-t3">How recency weighting works</a></li>
+    <li><a href="#c14-t4">When agentic is earned</a></li>
+    <li><a href="#c14-t5">What personal data changes</a></li>
+    <li><a href="#c14-t6">The cold-start problem</a></li>
+    <li><a href="#c14-t7">Proving the recommendations work</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c14-t1">
+      <p class="qa-q">What is semantic routing, and how is it different from a classifier?</p>
+      <p class="qa-a">Both decide which handler should answer a request. A classifier is trained on labelled data and outputs a calibrated probability. Routing skips the training. You write a handful of example utterances per route and embed them once. An incoming request is embedded and sent to whichever route's examples it lands nearest. What that buys is a new capability costing three example phrases, rather than a labelling round and a retrain. For a product still finding its shape that is a day against a sprint. It is weaker on confidence, because there is no calibrated threshold at which to say you are unsure. And two routes with overlapping examples degrade quietly.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Using the two words interchangeably. One is a nearest-neighbour lookup and the other is a trained model, and they fail in different ways.</p>
+    </li>
+    <li class="qa-item" id="c14-t2">
+      <p class="qa-q">What is actually embedded and searched here?</p>
+      <p class="qa-a">The user's own timeline entries, one index per person. An embedding is a fixed-length list of numbers a model produces from text, arranged so similar meanings land close together. What that buys is matching on meaning rather than wording. An entry about &#8220;that place by the river we kept going back to&#8221; is findable from a query about a favourite restaurant. The per-user part is unusual for retrieval work. The corpus is small, perhaps a few thousand entries, so exact search is affordable and the approximate-index question mostly disappears. What arrives instead is operational. You now have one index per user to build, back up and delete on request.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing it like a document corpus. Per-user indexes change the cost model and the deletion story, and that is the interesting half.</p>
+    </li>
+    <li class="qa-item" id="c14-t3">
+      <p class="qa-q">How does recency weighting work, and what does it cost you?</p>
+      <p class="qa-a">Retrieval by similarity alone treats a note from three years ago exactly like yesterday's. Recency weighting multiplies each score by a factor that shrinks with age, normally an exponential decay with a chosen half-life. A journal is a time series, so for most questions last week should outrank last year. What it buys is answers reflecting who the user is now. Without it an old and strongly-worded entry outranks a recent, more relevant one forever. The cost is that the half-life is a product decision dressed as maths. Too short and it forgets a standing preference. Too long and it recommends what they stopped liking. There is no correct value, only a chosen one.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Presenting the decay constant as tuned when it was picked. Saying you chose it by feel is fine. Implying it was fitted is not.</p>
+    </li>
+    <li class="qa-item" id="c14-t4">
+      <p class="qa-q">What makes a workflow agentic, and is this one?</p>
+      <p class="qa-a">Agentic means the model chooses the next step, something executes, the result comes back, and the model decides again with it in view. The defining property is that the sequence is not known in advance. A fixed chain of prompts is not that, however many links it has. What the loop buys is the ability to follow evidence, because a second retrieval may only make sense once the first came back. Planning a trip across several dependent retrievals qualifies. Routing and then generating is two steps in a fixed order. Narrow the claim to the part that actually loops, because that is the part of this line most likely to be pulled apart.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Defending the whole system as agentic. One branch qualifies. Saying which one is stronger than defending all of it.</p>
+    </li>
+    <li class="qa-item" id="c14-t5">
+      <p class="qa-q">The corpus is somebody's diary. What does that change?</p>
+      <p class="qa-a">It moves storage location, retention and deletion out of compliance and into architecture. A journal is close to the most sensitive corpus a person owns. Where the index lives is a design decision. Who can read it is a design decision. What naming this buys is a defensible design, because a system handling diaries with no answer here is not an achievement whatever its retrieval quality. Deletion is the hard one. Removing an entry has to remove its vector, its summaries, any cached retrieval results, and anything else derived from it. Derived artefacts are exactly what people forget, and they are still personal data.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Answering with encryption at rest. That is table stakes. The question is about what happens to derived data when a user asks to be forgotten.</p>
+    </li>
+    <li class="qa-item" id="c14-t6">
+      <p class="qa-q">What is cold start here, and what do you do about it?</p>
+      <p class="qa-a">A brand new user has an empty timeline, so a system that personalises from history has nothing to work with. Every quality claim on this line is implicitly about users who have already written a great deal. It matters more than it sounds, because new users are exactly the ones deciding whether to keep the app. What having an answer buys is a product that stays usable during that window. The options are a generic non-personalised path, an explicit onboarding question or two, or defaults drawn from the population until history builds. Any of the three is fine. Pick one deliberately and say which.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating it as an edge case. It is the first experience every single user has, and a personalisation system with no answer for it is broken at the front door.</p>
+    </li>
+    <li class="qa-item" id="c14-t7">
+      <p class="qa-q">How would you know the recommendations are any good?</p>
+      <p class="qa-a">Two ways, and they answer different questions. Offline, you replay recorded history and check whether the system would have surfaced what the person actually went on to choose. That is cheap and repeatable. Online, you put it in front of real people and measure whether suggestions get accepted. What offline evaluation buys is daily iteration without shipping anything, which is the only way to tune retrieval and weighting at reasonable speed. Quote the offline number carefully. It can only score what the user was shown and chose. It is blind to the recommendation they would have loved and never saw, which is the exact failure personalisation is prone to.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;Users liked it.&#8221; If there is no number, say there is no number. Inventing a satisfaction figure is the fastest way to lose the room.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="fundamentals">
+  <h2>Fundamentals</h2>
+  <p class="qset-note">Question two is the one that makes this bullet specific rather than generic. Everything else follows from it.</p>
+  <ul class="qa-index">
+    <li><a href="#c14-f1">What it does</a></li>
+    <li><a href="#c14-f2">What the router chooses</a></li>
+    <li><a href="#c14-f3">Why not one branch</a></li>
+    <li><a href="#c14-f4">Why a timeline is different</a></li>
+    <li><a href="#c14-f5">Recency as relevance</a></li>
+    <li><a href="#c14-f6">What makes it agentic</a></li>
+    <li><a href="#c14-f7">Cold start</a></li>
+    <li><a href="#c14-f8">Grounding a suggestion</a></li>
+    <li><a href="#c14-f9">The worst failure</a></li>
+    <li><a href="#c14-f10">The riskiest claim</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c14-f1">
+      <p class="qa-q">In two sentences, what does this application do?</p>
+      <p class="qa-a">Somebody keeps a journal, and the application reads it back to offer things. Recollections of what happened, recommendations shaped by what they seem to enjoy, and plans for trips or events built from both.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it a chatbot over notes. The output shapes are different per request type, and that difference is the design.</p>
+    </li>
+    <li class="qa-item" id="c14-f2">
+      <p class="qa-q">What does the semantic router choose between?</p>
+      <p class="qa-a">Modes, not topics. Is this asking what happened, asking what to do, or asking for a plan. Each needs different retrieval and produces a different output shape. A recollection wants a narrow slice and a faithful answer. A plan wants preferences plus outside information.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying it routes by subject. Subject routing is a topic classifier and it would not change the output shape.</p>
+    </li>
+    <li class="qa-item" id="c14-f3">
+      <p class="qa-q">Why not handle everything in one branch?</p>
+      <p class="qa-a">Because the output schemas differ. A recollection cites the entry it came from. A plan is a structured itinerary. One branch would need a schema loose enough to hold both. And a loose schema cannot catch a wrong answer in either shape.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Citing prompt length. The real cost is a schema that stops constraining anything.</p>
+    </li>
+    <li class="qa-item" id="c14-f4">
+      <p class="qa-q">How is retrieving over a journal different from retrieving over documents?</p>
+      <p class="qa-a">Time is part of relevance rather than metadata. The most semantically similar entry might be four years old, from a city the person has left. In a document store that is a fine match. In a journal it is the wrong answer, so the scoring has to combine similarity with recency.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating recency as a tie-break. It is part of the relevance function, and saying so is the specific insight here.</p>
+    </li>
+    <li class="qa-item" id="c14-f5">
+      <p class="qa-q">Recency and frequency both matter. What does each tell you?</p>
+      <p class="qa-a">Recency tells you whether something is still true of the person. Frequency tells you whether it is a preference or a one-off. Something mentioned once is a data point and something mentioned monthly is a pattern, and pure similarity search cannot distinguish them.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Only naming recency. The frequency signal is what separates a habit from an incident, and it needs counting rather than matching.</p>
+    </li>
+    <li class="qa-item" id="c14-f6">
+      <p class="qa-q">What makes this agentic rather than a single call?</p>
+      <p class="qa-a">Only the planning branch, and I would say so. A recollection is one retrieval and one answer. A trip plan needs preferences, then options, then a schedule, and a constraint found at one step changes the next. That is a path that depends on what is found, which is the test.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Claiming the whole application is agentic. Conceding that one branch is and the others are not is both true and more convincing.</p>
+    </li>
+    <li class="qa-item" id="c14-f7">
+      <p class="qa-q">A brand new user has three entries. What happens?</p>
+      <p class="qa-a">Personalisation has nothing to work with, and the honest design admits that rather than inventing preferences from three data points. The system should fall back to generic suggestions and say it is still learning. A confident personalised recommendation from three entries is worse than an obviously generic one.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Claiming it personalises anyway. Three entries cannot support it, and pretending they can is the failure the next question is about.</p>
+    </li>
+    <li class="qa-item" id="c14-f8">
+      <p class="qa-q">Why ground a suggestion in a specific entry?</p>
+      <p class="qa-a">So the person can see why it was offered and correct it. It converts an opaque recommendation into an inspectable one. It also gives the system a cheap correction signal, because a person disagreeing with the entry tells you more than a thumbs-down on the suggestion.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Framing it only as transparency. The correction signal is the engineering benefit and it is the more interesting half.</p>
+    </li>
+    <li class="qa-item" id="c14-f9">
+      <p class="qa-q">What is the worst thing this system can do?</p>
+      <p class="qa-a">Surface something from a period the person would rather not revisit. Or recommend based on a misreading of who they are. That failure is not inaccuracy, it is intrusion. People stop using things that misunderstand them. It is why recency weighting is a product decision and not only a retrieval one.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Naming a wrong restaurant. The interviewer is looking for whether you understand that personal data changes what failure means.</p>
+    </li>
+    <li class="qa-item" id="c14-f10">
+      <p class="qa-q">What is the riskiest claim in this bullet?</p>
+      <p class="qa-a">&#8220;Agentic workflows&#8221; as a blanket description, since only the planning branch genuinely qualifies. And &#8220;personalized&#8221; invites a question about how personalisation was evaluated. That is hard for a system where the ground truth is a person's own preference.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Naming semantic routing. That is the strongest and most specific part of the bullet.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="deep-dive">
+  <h2>Deep dive</h2>
+  <p class="qset-note">Retrieval design over personal data, and the evaluation problem that comes with it. The second half is where most candidates run out.</p>
+  <ul class="qa-index">
+    <li><a href="#c14-d1">Typed routing output</a></li>
+    <li><a href="#c14-d2">Combining the signals</a></li>
+    <li><a href="#c14-d3">Small corpus, different engineering</a></li>
+    <li><a href="#c14-d4">Extracting structure</a></li>
+    <li><a href="#c14-d5">Chunking a journal</a></li>
+    <li><a href="#c14-d6">The planning steps</a></li>
+    <li><a href="#c14-d7">A step that fails</a></li>
+    <li><a href="#c14-d8">Evaluating personalisation</a></li>
+    <li><a href="#c14-d9">Feedback signal</a></li>
+    <li><a href="#c14-d10">Sentiment drift</a></li>
+    <li><a href="#c14-d11">Privacy on device</a></li>
+    <li><a href="#c14-d12">Where it would break at scale</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c14-d1">
+      <p class="qa-q">How should the router's output be shaped?</p>
+      <p class="qa-a">As a typed literal over the modes, with a confidence. That mirrors the screener in chapter 0005. A mode parsed out of prose can come back as a fourth value. There would be no branch behind it. Three named modes and nothing else means every possible output has code waiting for it.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Letting the router answer in prose. It is control flow, so it needs the same discipline as any other routing decision.</p>
+    </li>
+    <li class="qa-item" id="c14-d2">
+      <p class="qa-q">How do you combine similarity, recency and frequency?</p>
+      <p class="qa-a">A weighted score, with recency as a decay rather than a cutoff, so nothing disappears abruptly. Frequency counts distinct entries rather than mentions. One long entry repeating a place should not look like a habit. The weights are per mode. Recollection wants similarity dominant, and recommendation wants recency and frequency to matter more.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>One global ranking. The modes want different weightings, which is another reason routing comes first.</p>
+    </li>
+    <li class="qa-item" id="c14-d3">
+      <p class="qa-q">A person has a few hundred entries. What does that change?</p>
+      <p class="qa-a">Almost everything about the engineering. Exhaustive scoring over a few hundred items is trivial, so approximate indexes and their recall trade-offs are irrelevant. The work moves entirely to what you score on. It also means per-user data is small enough to keep on a device, which matters for this product.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Reaching for a vector database. At this size it adds infrastructure and buys nothing.</p>
+    </li>
+    <li class="qa-item" id="c14-d4">
+      <p class="qa-q">Why extract structured facts rather than matching raw text?</p>
+      <p class="qa-a">Because places, people and dates are what queries are actually about, and they are buried in prose. Extracting them once gives you fields to filter and count on. Frequency of a place is countable only if the place was extracted. Raw similarity cannot answer &#8220;how often&#8221; at all.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying embeddings capture it. They capture similarity, and counting needs an entity rather than a direction in space.</p>
+    </li>
+    <li class="qa-item" id="c14-d5">
+      <p class="qa-q">How do you chunk a journal?</p>
+      <p class="qa-a">By entry, because the entry is the natural unit and it carries its date. Splitting one entry loses the date association unless every chunk carries it. Merging entries destroys the boundary that makes recency meaningful. This is the case where the document's own structure obviously beats a token window.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Proposing a fixed token size. The entry boundary carries the timestamp, which is half the relevance signal.</p>
+    </li>
+    <li class="qa-item" id="c14-d6">
+      <p class="qa-q">Walk me through the planning branch.</p>
+      <p class="qa-a">Read preferences from the timeline. Generate candidate options against those. Then build a schedule that fits the candidates together, checking constraints like travel time or opening hours. Step three regularly invalidates a candidate from step two, which is why it is a loop rather than a pipeline.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing it as three sequential calls. The feedback from scheduling into selection is what makes it agentic.</p>
+    </li>
+    <li class="qa-item" id="c14-d7">
+      <p class="qa-q">A step in the plan fails. What does the user get?</p>
+      <p class="qa-a">A partial plan with the gap named, rather than nothing. If options were found and scheduling failed, showing the options is still useful. The failure to avoid is a plan that silently omits what could not be arranged. The person cannot tell the difference between not suggested and not possible.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Returning an error. A partial answer with an honest gap is more useful than nothing.</p>
+    </li>
+    <li class="qa-item" id="c14-d8">
+      <p class="qa-q">How do you evaluate a personalised recommendation?</p>
+      <p class="qa-a">Not against a ground truth, because there is not one. What you can measure is whether the retrieved entries supported the suggestion, which is a grounding check. And whether the person accepted it. The first is checkable offline and the second needs users, so the offline metric is about faithfulness rather than quality.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Proposing a labelled test set. Somebody else's judgment of what this person would like is not ground truth.</p>
+    </li>
+    <li class="qa-item" id="c14-d9">
+      <p class="qa-q">What feedback signal would you want?</p>
+      <p class="qa-a">Disagreement with the grounding rather than with the suggestion. If a recommendation cites an entry and the person says that entry does not represent them any more, that is a precise correction. A thumbs-down on the output tells you something was wrong and not which part.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Collecting ratings on the suggestion. It is the coarsest possible signal and it is what everyone builds first.</p>
+    </li>
+    <li class="qa-item" id="c14-d10">
+      <p class="qa-q">Somebody's circumstances change completely. How does the system catch up?</p>
+      <p class="qa-a">Through recency decay, and the speed of that decay is the whole design question. Too slow and it recommends based on a life the person has left. Too fast and it forgets stable preferences that took years to establish. It is the same trade as the alpha in chapter 0007, and I would measure it the same way.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating it as a data freshness problem. It is a weighting decision with a cost on both sides.</p>
+    </li>
+    <li class="qa-item" id="c14-d11">
+      <p class="qa-q">Should this run on the device?</p>
+      <p class="qa-a">There is a strong argument. The corpus is one person's private journal, it is small enough to fit, and the retrieval is cheap at a few hundred entries. What pushes against it is the planning branch, which needs outside information, so that branch cannot be local anyway. A split design is the honest answer.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Answering all or nothing. The modes have different data requirements, so they can sit in different places.</p>
+    </li>
+    <li class="qa-item" id="c14-d12">
+      <p class="qa-q">Where does this break as a user's history grows?</p>
+      <p class="qa-a">Not on retrieval cost, because a decade of daily entries is still only a few thousand. It breaks on drift: a ten-year timeline describes several different people, and any single weighting is wrong for some of them. That is when you need segmentation by period rather than a single decayed score.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Answering with index scaling. The corpus stays small and the semantic problem is what grows.</p>
+    </li>
+  </ol>
+</section>
+
+<div class="quiz" data-quiz-id="0014-q1">
+  <p class="q">The semantic router misclassifies a request. What is the consequence?</p>
+  <ol class="options">
+    <li data-correct="true">Sends the request down the wrong retrieval path</li>
+    <li>Returns text that fails to parse into anything</li>
+    <li>Costs more tokens than a keyword match would</li>
+    <li>Needs retraining whenever a new entry is added</li>
+  </ol>
+  <div class="why">
+    <p>Wrong branch, wrong everything after it. A recommendation request routed as a recollection retrieves a narrow slice and answers faithfully about the past, when the person wanted a suggestion. The output is well-formed and answers a different question.</p>
+    <p>Parsing is not the risk if the router returns a typed literal, which is exactly why it should. And routing by retrieval rather than by a trained classifier is precisely what avoids retraining when entries are added.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0014-q2">
+  <p class="q">Retrieving over a personal timeline needs a signal that document retrieval usually ignores. Which?</p>
+  <ol class="options">
+    <li data-correct="true">Recency, because a journal is mostly about lately</li>
+    <li>Alphabetical order, so that the entries remain predictable</li>
+    <li>Entry length, because longer entries hold more detail</li>
+    <li>Random sampling, to avoid one unusually narrow period</li>
+  </ol>
+  <div class="why">
+    <p>Time is part of relevance rather than metadata. The most semantically similar entry might be four years old, from a city the person has left. In a document corpus that is a good match. In a journal it is the wrong answer.</p>
+    <p>Frequency matters for the same reason: something mentioned once is a data point and something mentioned monthly is a preference. Similarity search alone cannot tell those apart, which is why the scoring function has three terms rather than one.</p>
+  </div>
+</div>
+
+<section class="qset" id="edges">
+  <h2>Edges and exceptions</h2>
+  <p class="qset-note">Personal data changes what a failure is. Several of these have no technical answer, and saying so is correct.</p>
+  <ul class="qa-index">
+    <li><a href="#c14-e1">A difficult period</a></li>
+    <li><a href="#c14-e2">Contradictory entries</a></li>
+    <li><a href="#c14-e3">Someone who stopped writing</a></li>
+    <li><a href="#c14-e4">A suggestion with no precedent</a></li>
+    <li><a href="#c14-e5">Other people in the entries</a></li>
+    <li><a href="#c14-e6">Deleting an entry</a></li>
+    <li><a href="#c14-e7">Defending &#8220;agentic&#8221;</a></li>
+    <li><a href="#c14-e8">What you would change</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c14-e1">
+      <p class="qa-q">The timeline contains a period the person would rather not revisit.</p>
+      <p class="qa-a">Then retrieval has to be able to avoid it. No purely semantic system knows which period that is. The workable answer is user control. Let entries or ranges be marked as not for suggestions. That is a product feature rather than a model improvement, and it is the only honest mitigation.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Proposing sentiment detection. Inferring that somebody is sad and silently excluding it is a decision the system should not make alone.</p>
+    </li>
+    <li class="qa-item" id="c14-e2">
+      <p class="qa-q">Two entries contradict each other about a preference.</p>
+      <p class="qa-a">People are inconsistent, so this is normal rather than an error. Recency weighting resolves most of it by preferring the later statement. Where both are recent, the honest output acknowledges both. Picking a side sounds confident about a person who is not.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating it as data to clean. The contradiction is the truth about the person.</p>
+    </li>
+    <li class="qa-item" id="c14-e3">
+      <p class="qa-q">Somebody wrote daily for a year, then stopped six months ago.</p>
+      <p class="qa-a">Recency decay makes everything stale at once, so the system has very little weight anywhere. That is arguably correct, since it genuinely does not know what has happened since. The right behaviour is to say so rather than to confidently recommend from six-month-old data as if it were current.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Falling back to the whole history unweighted. That is exactly the case where the system is most likely to describe somebody who has changed.</p>
+    </li>
+    <li class="qa-item" id="c14-e4">
+      <p class="qa-q">Should a recommendation ever be something with no precedent in the timeline?</p>
+      <p class="qa-a">Yes, and it is the interesting half of recommendation. A system that only suggests what somebody already did is a search engine over their past. The value is generalising from preferences to something new. The cost is that it cannot be grounded in an entry, so it has to be presented differently.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Insisting everything is grounded. That makes recollection safe and recommendation useless.</p>
+    </li>
+    <li class="qa-item" id="c14-e5">
+      <p class="qa-q">The entries mention other people by name.</p>
+      <p class="qa-a">Then the journal contains third-party personal data that those people never consented to. It constrains what can leave the device and what can be used for anything beyond this user. It is a genuine reason to favour on-device processing, and it is a legal question rather than only a technical one.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating it all as the author's data. Other people appear in it and did not agree to anything.</p>
+    </li>
+    <li class="qa-item" id="c14-e6">
+      <p class="qa-q">A user deletes an entry. What has to happen?</p>
+      <p class="qa-a">It leaves the index, any extracted structure derived from it, and any cached preference that used it. Deletion in a derived system is harder than deletion in a store. The entry's influence has spread. If a preference was computed from it, that preference has to be recomputed rather than merely orphaned.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Only deleting the row. The derived artefacts are where the data actually survives.</p>
+    </li>
+    <li class="qa-item" id="c14-e7">
+      <p class="qa-q">Defend &#8220;agentic workflows&#8221; in this bullet.</p>
+      <p class="qa-a">Partially. The planning branch is genuinely agentic, because scheduling feeds back into option selection and the path depends on what is found. Recollection and recommendation are single retrievals with one generation. I would describe it as one agentic branch behind a router rather than an agentic application.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Defending all three branches. Conceding two of them makes the third claim believable.</p>
+    </li>
+    <li class="qa-item" id="c14-e8">
+      <p class="qa-q">What would you change?</p>
+      <p class="qa-a">Make the grounding visible on every recollection and recommendation, so corrections are precise rather than a thumbs-down. Add user control over which periods feed suggestions. And tune the recency decay against real behaviour rather than choosing it, which is the same experiment as tuning alpha in the forecasting layer.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Proposing a better model. Every one of the real problems here is about weighting, control and feedback.</p>
+    </li>
+  </ol>
+</section>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;Semantic routing between what?&#8221;
+      <span class="tell">The first question, because the phrase is abstract. An answer about topics turns this into a classifier and loses the design.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Between modes rather than topics. Is the person asking what happened, asking what they should do, or asking for something planned. Those need different retrieval and produce different output shapes: a recollection cites the entry it came from, a plan is a structured itinerary. If one branch produced all three the schema would have to be loose enough to hold all of them, which means loose enough to be wrong in all of them.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;How is this different from RAG over any document set?&#8221;
+      <span class="tell">The question that separates a generic answer from a designed one. The recency argument is specific and immediately convincing.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Time is part of relevance rather than metadata. Somebody asks for a suggestion and the most semantically similar entries are every restaurant they ever wrote about, including one from four years ago in a city they have left. In a document corpus that is a good match. Here it is wrong. So the score combines similarity with recency and with frequency, because something mentioned once is a data point and something mentioned monthly is a preference.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;What makes it agentic?&#8221;
+      <span class="tell">A standard challenge. Conceding two of three branches is what makes the third claim land.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Only the planning branch, and I would rather say that than defend all of it. A recollection is one retrieval and one generation. A trip plan reads preferences, generates candidate options, then builds a schedule, and scheduling regularly invalidates a candidate and sends it back. That feedback is what makes the path depend on what is found, which is my test for whether something is genuinely an agent.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;How would you evaluate personalisation?&#8221;
+      <span class="tell">Hard, and most candidates propose a labelled set. The strong answer separates what is checkable offline from what needs users.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>There is no ground truth, because the correct answer is a fact about one person. What is checkable offline is grounding: did the retrieved entries actually support the suggestion made. That is a faithfulness measurement and it catches the worst failures. Quality needs real users, and the signal I would want is disagreement with the grounding rather than with the output, because that tells you which part was wrong.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;What is the risk of a system like this?&#8221;
+      <span class="tell">Looking for product judgment rather than a technical answer. The word to reach for is intrusion.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Surfacing something from a period the person would rather not revisit, or recommending from a misreading of who they are. That failure is not inaccuracy, it is intrusion, and people stop using things that misunderstand them. No purely semantic system knows which period is painful, so the only honest mitigation is user control over which entries feed suggestions. That is a product feature rather than a model improvement.</p>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="recall">
+  <details>
+    <summary>Chapter 0005's screener and this chapter's router both route by meaning. State the shared design rule and the shared risk.</summary>
+    <p class="answer">The rule is that a routing output must be a typed literal over the known branches, with a confidence, rather than prose to be parsed. A category parsed out of a sentence can come back as a value with no code behind it. The shared risk is that retrieval feeding control flow fails differently from retrieval feeding an answer: a bad match does not give a worse response, it sends the request down a different path entirely.</p>
+    <span class="from"><a href="0005-agentic-pipeline-debugging.html">Chapter 0005 &#183; typed three-value routing</a></span>
+  </details>
+  <details>
+    <summary>Chapter 0007 chose a decay rate and could not justify it. What is the identical problem here, and the identical fix?</summary>
+    <p class="answer">The recency decay in the relevance function is the same shape as the EWMA alpha. Too fast and it forgets stable preferences that took years to form. Too slow and it recommends from a life the person has left. Both were chosen rather than measured, and the fix is the same backtest: hold out recent behaviour, predict it at several decay rates, and pick the one that minimises error.</p>
+    <span class="from"><a href="0007-execution-forecasting.html">Chapter 0007 &#183; choosing alpha properly</a></span>
+  </details>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">The lessons behind this chapter</span>
+  <p>System Design School teaches these mechanisms from first principles and breaks them in a lab. This chapter defends what you did with them. An interviewer moves between those two registers without warning.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0003-cache-aside-and-friends.html">SDS 0003 &#183; Cache-aside and friends</a>
+      <span class="bridge-why">Extracted structure and embeddings over a timeline are derived data, and what is safe to cache is decided by how it is derived.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0031 &#183; RAG retrieval as a system &#8212; not yet built</span>
+      <span class="bridge-why">A relevance function with three terms and per-mode weights is retrieval as a system rather than a similarity lookup.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0042 &#183; Sensitive data boundaries &#8212; not yet built</span>
+      <span class="bridge-why">A journal contains third-party personal data nobody else consented to, which constrains where any of it may be processed.</span>
+    </li>
+  </ol>
+</div>
+
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0013-on-device-rag.html">&#8592; 0013 &#183; On-device RAG over a quantized MobileLLM</a></span>
+  <span><span class="dir">Next</span><a href="0015-memory-for-a-dementia-companion.html">0015 &#183; Memory for a dementia companion &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

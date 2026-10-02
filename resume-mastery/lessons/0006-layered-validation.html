@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>Layered Validation on an Autonomous Path</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0006">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">R&#233;sum&#233; Mastery</a>
+    <span class="sep">/</span>
+    <span>Batch A &#183; Innovaccer</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Chapter 0006</span>
+  </div>
+  <h1>Layered validation on an autonomous path</h1>
+  <p class="standfirst">Three checks, each proving something different, none of them proving correctness. Knowing exactly what <code>EXPLAIN</code> does and does not tell you is the difference between a safety story and a slogan. Two claims in this bullet also need correcting, and both are better corrected by you.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Name what each layer proves, and what none of them can &#8212; then say the sentence most candidates never say: <em>a generated query that passes every check can still be wrong.</em></p>
+</div>
+
+<div class="claim-line">
+  <span class="callout-label">The line being defended</span>
+  <blockquote>&#8220;Guarded its autonomous path with <strong>layered validation</strong> &#8212; live Snowflake schemas in agent context, table-name checks closing the injection path in LLM-written SQL, and EXPLAIN plus syntax, import, and runtime checks proving each generated fix before it touches production &#8212; regression-tested on a <strong>368-scenario</strong> offline evaluation suite.&#8221;</blockquote>
+  <span class="whose">Innovaccer &#183; bullet 2 of 3</span>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">A spoken answer to <em>&#8220;how do you validate what the model writes?&#8221;</em> The winning move is precision about what each check proves, followed by the sentence nobody expects: none of them proves it is right.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">The debugger can write a fix and apply it to a production pipeline with nobody watching. So something has to check the fix first.</p>
+      <p class="line">No single check proves a fix is correct. So you build several cheap ones, and each rules out a different way of being wrong.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">Three layers. First, the real table definitions go into context before anything is written, so it is not guessing at column names.</p>
+      <p class="line">Second, generated SQL is sent to Snowflake as an <b>EXPLAIN</b>. That proves it parses and binds against the live schema, and it never executes.</p>
+      <p class="line">Third, Python goes through parso with error recovery on, so we get every syntax error in one pass instead of stopping at the first.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">The parso choice is the one I would defend. Each round trip to the model costs a generation, so returning four errors at once is one correction cycle rather than four.</p>
+      <p class="line">And I would state the limit plainly: <b>EXPLAIN tells you the sentence is grammatical and every word is real. It does not tell you the sentence is true.</b></p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">Two corrections to my own bullet. It says table-name checks close the injection path. The real barrier is an allowlist permitting only <b>SELECT and EXPLAIN</b>.</p>
+      <p class="line">And &#8220;regression-tested&#8221; is generous for 368 recorded cases scored by cosine similarity, with no threshold published.</p>
+      <p class="line">The gap that bothers me most is in the harness. It scores generated code by how similar it reads, when the production path already has a validator that could run it.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;Every generated fix is validated before it touches production.&#8221;</span> The flag guarding that layer defaults to off, so the sentence is true of the design and possibly not of the deployment. &#8220;There is a validation layer, it sits behind a flag, and here is the default&#8221; costs you nothing and cannot be contradicted.</p>
+  <p>The other trap is <span class="quoted">&#8220;we prevent SQL injection with table-name validation.&#8221;</span> An interviewer who cares about security will ask how, and the answer is a keyword denylist plus a statement allowlist. Lead with the allowlist. It is the strong control and it is the one that is actually there.</p>
+</div>
+
+
+<div class="trace">
+  <span class="callout-label">Walk them through it &#183; one generated fix, end to end</span>
+  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One model-written fix, followed from the prompt to the moment it is allowed near production. The fix is a stand-in. The layers and the defaults are not.</p>
+  <p class="tr-case"><b>The picture.</b> Proofreading a letter written in a language you half speak. A spellchecker proves every word is a real word. A grammar checker proves the sentences parse. Neither of them can tell you the letter says something true. That gap is the whole chapter.</p>
+  <p class="tr-case"><b>The case.</b> The debugger has decided a failed job needs a query changed. A model is about to write SQL that will run against a production warehouse. Follow that query through every gate between the model and the data.</p>
+  <ol>
+    <li class="tr-step">
+      <span class="tr-k">Before it writes</span>
+      <p><b>What happens.</b> The cheapest validation is the one that stops the mistake being made at all. Before the model writes anything, the real schemas go into its context.</p>
+      <p><b>Concretely.</b> The live Snowflake definitions for the tables that query mentions. Actual column names, actual types.</p>
+      <p><b>If they ask why.</b> This is prevention rather than detection, and it is by far the cheapest of the three layers. A model that has been shown the column does not have to guess it.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The allowlist</span>
+      <p><b>What happens.</b> The query comes back and is checked against what it is permitted to be.</p>
+      <p><b>Concretely.</b> There is a keyword denylist with things like DROP and TRUNCATE on it. There is also an allowlist permitting only SELECT and EXPLAIN.</p>
+      <p><b>If they ask why.</b> My r&#233;sum&#233; says table-name checks close the injection path. That is not what is implemented and I would rather say so. The allowlist is the strong control here, and a denylist only protects against what somebody thought of.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">EXPLAIN it</span>
+      <p><b>What happens.</b> The check on the query itself is one line. Put EXPLAIN in front of it and send it to Snowflake.</p>
+      <p><b>Concretely.</b> The database returns a plan without executing anything. If a plan comes back, the query parsed and every table and column in it exists.</p>
+      <p><b>If they ask why.</b> That second half is called binding. A query can be perfect grammar and still fail, because it mentions a column nobody has.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The limit</span>
+      <p><b>What happens.</b> This is the sentence most candidates never say, so say it before you are asked.</p>
+      <p><b>Concretely.</b> EXPLAIN proves the sentence is grammatical and every word in it is real. It does not prove the sentence is true.</p>
+      <p><b>If they ask why.</b> A query can join the wrong two tables, filter on the wrong date, and plan perfectly. Every layer here rules out a different way of being wrong. None of them proves being right.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The Python</span>
+      <p><b>What happens.</b> Some fixes are Python rather than SQL. That code gets parsed, never executed.</p>
+      <p><b>Concretely.</b> It goes through parso rather than the standard library's ast, with error recovery switched on.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Why parso</span>
+      <p><b>What happens.</b> Generated code usually comes back with more than one problem in it.</p>
+      <p><b>Concretely.</b> With ast the first syntax error raises and you learn nothing about the rest. The model fixes that one thing, resubmits, and the next error appears.</p>
+      <p><b>If they ask why.</b> parso keeps parsing after a mistake and returns every error at once. The argument I made was about round trips rather than about parsing. Four errors together is one correction cycle instead of four.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">What it costs</span>
+      <p><b>What happens.</b> That is a third-party parser in place of the standard library, and a reviewer was right to ask about it.</p>
+      <p><b>Concretely.</b> It also only catches structure. Imports and runtime behaviour are separate checks and are not covered by this layer.</p>
+      <p><b>If they ask why.</b> A list of checks in a bullet implies one thing proves another. Saying which layer proves what is the answer that survives a follow-up.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The suite</span>
+      <p><b>What happens.</b> Behind all of it sits an offline evaluation suite of 368 recorded scenarios with ideal answers.</p>
+      <p><b>Concretely.</b> They are scored by cosine similarity, which compares meaning. Nothing is run, and no threshold is published.</p>
+      <p><b>If they ask why.</b> Regression-tested is a generous word for that, and I would rather use the accurate one. Offline evaluation and a test suite are different things.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The gap</span>
+      <p><b>What happens.</b> The thing that bothers me most is in the harness rather than in the system.</p>
+      <p><b>Concretely.</b> It scores generated code by how similar it reads, when the production path already has a validator that could run it.</p>
+      <p><b>If they ask why.</b> Similarity to an ideal answer is a reasonable design for free text. For code it measures the wrong property, and the better measure was already sitting there.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The flag</span>
+      <p><b>What happens.</b> One fact matters more than the rest and it belongs at the end rather than hidden.</p>
+      <p><b>Concretely.</b> The feature flag gating this whole validation layer defaults to off.</p>
+      <p><b>If they ask why.</b> So the honest statement is that the layers are built, tested and not on by default. Volunteering that is worth more than any of the layers.</p>
+    </li>
+  </ol>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 330" role="img" aria-labelledby="mech0006-t mech0006-d">
+    <defs>
+      <marker id="ar6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+      <marker id="ar6b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head" style="fill:var(--bad)"/>
+      </marker>
+    </defs>
+    <title id="mech0006-t">Three checks between a generated fix and production, and the flag that bypasses them</title>
+    <desc id="mech0006-d">Before generation, the schema loader extracts the tables a query references and puts only their real definitions into the agent's context. The model then writes a fix. SQL goes to Snowflake as an EXPLAIN, which proves the query parses and binds without executing it. Python goes to parso with error recovery, which returns every syntax error in one pass rather than stopping at the first. A statement allowlist permits only SELECT and EXPLAIN, backed by a keyword denylist. Everything that passes reaches the apply gate. The whole layer sits behind a feature flag that defaults to off.</desc>
+
+    <rect class="box" x="8" y="14" width="190" height="56" rx="3"/>
+    <text class="lbl strong" x="103" y="36" text-anchor="middle">Schema loader</text>
+    <text class="lbl-dim" x="103" y="53" text-anchor="middle">tables from query, live</text>
+    <text class="lbl-dim" x="103" y="68" text-anchor="middle">only those definitions</text>
+
+    <path class="flow" marker-end="url(#ar6)" d="M 202 42 H 240"/>
+
+    <rect class="box-2" x="244" y="14" width="170" height="56" rx="3"/>
+    <text class="lbl strong" x="329" y="40" text-anchor="middle">Model writes a fix</text>
+    <text class="lbl-dim" x="329" y="58" text-anchor="middle">SQL or Python</text>
+
+    <path class="flow" marker-end="url(#ar6)" d="M 329 74 V 96 H 170 V 112"/>
+    <path class="flow" marker-end="url(#ar6)" d="M 329 74 V 96 H 490 V 112"/>
+
+    <rect class="box" x="30" y="116" width="280" height="86" rx="3"/>
+    <text class="lbl strong" x="170" y="138" text-anchor="middle">SQL &#8594; EXPLAIN on Snowflake</text>
+    <text class="num ink-good" x="170" y="160" text-anchor="middle">proves it parses and binds</text>
+    <text class="num ink-bad" x="170" y="180" text-anchor="middle">proves nothing about meaning</text>
+    <text class="lbl-dim" x="170" y="196" text-anchor="middle">never executes the query</text>
+
+    <rect class="box" x="350" y="116" width="280" height="86" rx="3"/>
+    <text class="lbl strong" x="490" y="138" text-anchor="middle">Python &#8594; parso</text>
+    <text class="num ink-good" x="490" y="160" text-anchor="middle">error_recovery=True</text>
+    <text class="lbl-dim" x="490" y="178" text-anchor="middle">every syntax error in one pass</text>
+    <text class="lbl-dim" x="490" y="196" text-anchor="middle">ast would stop at the first</text>
+
+    <text class="lbl strong ink-warn" x="654" y="138">Statement allowlist</text>
+    <text class="lbl-dim" x="654" y="156">SELECT and EXPLAIN only</text>
+    <text class="lbl-dim" x="654" y="174">denylist of DROP, ALTER,</text>
+    <text class="lbl-dim" x="654" y="190">TRUNCATE behind it</text>
+
+    <path class="flow" marker-end="url(#ar6)" d="M 170 206 V 232 H 330 V 250"/>
+    <path class="flow" marker-end="url(#ar6)" d="M 490 206 V 232 H 350 V 250"/>
+
+    <rect class="accent" x="180" y="254" width="320" height="46" rx="3"/>
+    <text class="lbl strong ink-accent" x="340" y="282" text-anchor="middle">apply gate &#8594; retrigger</text>
+
+    <path class="flow-bad" marker-end="url(#ar6b)" d="M 640 42 V 277 H 508" style="stroke-dasharray:5 4"/>
+    <text class="num ink-bad" x="648" y="238">ENABLE_PIPELINE_VALIDATIONS</text>
+    <text class="num ink-bad" x="648" y="256">defaults to false</text>
+    <text class="lbl-dim" x="648" y="274">the whole layer is bypassed</text>
+
+    <text class="lbl-dim" x="8" y="322">368 recorded scenarios, scored offline by cosine similarity between embeddings &#8212; no threshold reported</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">What you say while drawing it</span>
+    <ol class="narrate">
+      <li>Before anything is written, the schema loader pulls the real definitions for the tables in play.</li>
+      <li>The model writes a fix, and it is either SQL or Python.</li>
+      <li>SQL goes to the database as an EXPLAIN. It parses and binds, and it never runs.</li>
+      <li>Write both lines under that box: what it proves, and what it does not.</li>
+      <li>Python goes to parso with error recovery, so every syntax error comes back at once.</li>
+      <li>The allowlist on the right is the real injection barrier. Only SELECT and EXPLAIN.</li>
+      <li>Everything that passes reaches the apply gate.</li>
+      <li>And the dashed red line is the flag that skips the whole thing. It defaults to false.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. Two branches, one gate, and one dashed line that undoes all of it.</p>
+  <ul>
+    <li>The <b>split into SQL and Python</b>, with a different check on each.</li>
+    <li><b>Proves it binds, proves nothing about meaning.</b> The one mark to keep.</li>
+    <li><b>error_recovery=True</b> on the Python side, and why.</li>
+    <li>The <b>dashed bypass</b> and the word <b>false</b>. Never draw this diagram without it.</li>
+  </ul>
+  <span class="timer">Say &#8220;grammatical, not true&#8221; out loud as you draw the EXPLAIN box. Two words and the layer's limit is explained.</span>
+</div>
+
+<div class="star">
+  <span class="callout-label">Behavioural &#183; the story for this bullet</span>
+  <p class="frame">For <em>&#8220;tell me about a technical choice a reviewer questioned&#8221;</em> or <em>&#8220;a small decision with a large payoff.&#8221;</em></p>
+  <ol class="rungs">
+    <li class="rung"><span class="rung-k">Decision</span><p>Whether to validate generated Python with the standard library parser, which everybody reaches for, or with a parser that keeps going after the first mistake.</p></li>
+    <li class="rung"><span class="rung-k">Situation</span><p>Generated code came back with multiple problems at once. Using <code>ast</code>, the first syntax error raised and we learned nothing about the rest. The model fixed one thing and resubmitted, and the next error appeared.</p></li>
+    <li class="rung"><span class="rung-k">Action</span><p>I switched the validator to parso with error recovery enabled, which returns every error in one pass. The argument I made was about round trips rather than about parsing.</p><p>Each cycle back to the model is a generation, with its latency and cost. Four errors reported together is one cycle. Four errors reported one at a time is four.</p></li>
+    <li class="rung"><span class="rung-k">Result</span><p>Correction cycles collapsed on any fix with more than one problem, which is most of them. The feedback also got better. Seeing all the errors together makes the shape of the mistake obvious.</p></li>
+    <li class="rung"><span class="rung-k">What it cost</span><p>A third-party parser instead of the standard library. That is a real dependency and a reviewer was right to ask. It also only catches structure. Imports and runtime behaviour are not covered by this layer. I would rather say that than let a list in a bullet imply otherwise.</p></li>
+  </ol>
+</div>
+
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>A model writes a fix for a broken data job. That fix might be SQL or Python. Before anything runs it against production, something has to check it. The interesting part is that no single check proves a fix is <em>right</em>. So what you build is a set of cheap checks. Each one rules out a different way of being wrong.</p>
+  <p>Three of them here. Give the model the real table definitions so it is not guessing at column names. Ask the database to plan the query without running it, which catches anything that does not exist. And parse the Python properly, collecting every error rather than stopping at the first.</p>
+  <dl>
+    <dt>Snowflake</dt>
+    <dd>The data warehouse these pipelines run against. It holds the real tables, so it is also the authority on whether a query makes sense.</dd>
+
+    <dt>EXPLAIN</dt>
+    <dd>Asking a database to produce a plan for a query <b>without executing it</b>. If the plan comes back, the query parsed and every table and column in it exists.</dd>
+
+    <dt>Binding</dt>
+    <dd>The step where names in a query are resolved against real schemas. A query can be perfect grammar and still fail to bind, because it mentions a column nobody has.</dd>
+
+    <dt>parso</dt>
+    <dd>A Python parser used here instead of the built-in <code>ast</code>. Its advantage is <b>error recovery</b>: it keeps parsing after a mistake, so you get every syntax error at once.</dd>
+
+    <dt>Schema context</dt>
+    <dd>Putting the real column names and types into the prompt before the model writes anything. Prevention rather than detection, and by far the cheapest of the three layers.</dd>
+
+    <dt>Denylist</dt>
+    <dd>A list of forbidden things. Here, SQL keywords like <code>DROP</code> and <code>TRUNCATE</code>. Weak as a security primitive, because it protects against what you thought of.</dd>
+
+    <dt>Allowlist</dt>
+    <dd>The opposite, and the stronger one. Permit only <code>SELECT</code> and <code>EXPLAIN</code>, and everything you did not think of is refused by default.</dd>
+
+    <dt>Offline evaluation</dt>
+    <dd>Running a fixed set of recorded cases through the system and scoring the answers. Not the same thing as a test suite, and the difference matters in this chapter.</dd>
+
+    <dt>Cosine similarity</dt>
+    <dd>A number between minus one and one saying how close two pieces of text are in meaning. Used here to score an answer against an ideal one.</dd>
+
+    <dt>Feature flag</dt>
+    <dd>An environment variable switching behaviour without a deploy. The one gating this validation layer defaults to <b>off</b>, which is the single most important fact in the chapter.</dd>
+  </dl>
+</div>
+
+<div class="primer stack">
+  <span class="callout-label">The technology &#8212; what each named thing is</span>
+  <p>The primer above names the layers of the guard. This one names what they guard against, starting from the ground. Two different injections are in play here and they are not the same attack.</p>
+  <p>Every entry answers four things. What it actually is, in plain words. Where this system uses it. What it buys, meaning what goes wrong without it. And the follow-up an interviewer asks once you have said the name.</p>
+  <dl>
+    <dt>SQL, in three parts</dt>
+    <dd><i>DQL, DML, DDL</i>SQL is usually taught as one language, but it splits into three groups that do very different amounts of damage. Query language reads and changes nothing: <code>SELECT</code>. Manipulation changes rows: <code>INSERT</code>, <code>UPDATE</code>, <code>DELETE</code>. Definition changes the structure the rows live in: <code>CREATE</code>, <code>ALTER</code>, <code>DROP</code>, <code>TRUNCATE</code>. <b>In the app.</b> The allowlist admits the first group plus <code>EXPLAIN</code> and refuses the other two outright. <b>What it buys.</b> A precise place to draw the line. &#8220;Read-only&#8221; stops being a vague intention and becomes a list of permitted statement types that a program can check. <b>The follow-up.</b> Which group actually loses data. <code>DROP</code> is loud, obvious and immediately noticed. A <code>DELETE</code> with a slightly wrong predicate is silent, recoverable only from backup, and far more likely to be what a model generates.</dd>
+
+    <dt>Snowflake</dt>
+    <dd><i>the warehouse underneath</i>A cloud data warehouse. Its distinguishing design choice is that storage and compute are pulled apart. The data sits in one place permanently, and a &#8220;warehouse&#8221; is a compute cluster you size, start and stop independently, with several able to read the same tables at once without fighting. Access is governed by roles and grants. <b>In the app.</b> It holds the real tables, so it is the authority on whether a generated query means anything at all. <b>What it buys.</b> Isolation between workloads and a bill you can switch off, because nothing needs to be running for the data to exist. <b>The follow-up.</b> Cost is charged per second of running compute. That is why a validation step which runs <code>EXPLAIN</code> instead of the query itself is cheap as well as safe, and it is a nice detail to have ready.</dd>
+
+    <dt>SQL injection</dt>
+    <dd><i>the classic one</i>The oldest web vulnerability there is. An application builds a query by gluing user input into a string, so a user who types the right punctuation stops being data and becomes syntax. The textbook fix is parameter binding: the query text and the values are sent to the database separately, so a value can never be reinterpreted as code. <b>In the app.</b> The bullet claims the injection path is closed, so the word will come up. <b>What it buys.</b> Nothing here, and that is the point worth making. <b>The follow-up.</b> Binding does not apply to this shape. A model writes the entire statement rather than supplying a value to slot into one, so there is no parameter to bind. The defence has to be a different shape, which is exactly why the allowlist exists.</dd>
+
+    <dt>Prompt injection</dt>
+    <dd><i>the one that actually applies</i>Text that arrives inside the model's context and changes what the model does. It does not need to come from a user. A log line, an exception message, a table comment or a column description can all carry instructions, and the model has no way to tell data from directions. <b>In the app.</b> This system reads failures produced by other systems, which is untrusted input by definition. <b>What it buys.</b> Naming it correctly is what makes the defence make sense. <b>The follow-up.</b> There is no parser that fixes it, and anyone offering one is wrong. The only dependable control is on the far side: assume the generated statement may be hostile and let nothing but a read get through, enforced somewhere the model cannot reach.</dd>
+
+    <dt>Abstract syntax tree</dt>
+    <dd><i>AST</i>What a parser produces after it has understood your code. The text, the whitespace and the comments are gone, and what remains is a tree of typed nodes. An assignment becomes a node with a target and a value, whether it was written on one line or five, with any spacing and any variable names. <b>In the app.</b> Checking what a fix does structurally, rather than matching strings in it. <b>What it buys.</b> Checks that survive formatting. A string search for a dangerous call is defeated by a line break, a comment, an alias or a rename. A tree walk is not. <b>The follow-up.</b> What a tree cannot tell you. It proves the code parses and shows what shape it has. It says nothing whatsoever about whether running it is a good idea.</dd>
+
+    <dt><code>ast</code> and <code>parso</code></dt>
+    <dd><i>two Python parsers</i>Both turn Python source into a tree, and they disagree about failure. <code>ast</code> is in the standard library and raises <code>SyntaxError</code> at the first problem, giving you nothing else. <code>parso</code> recovers: it carries on past a broken construct and hands back both a tree and a list of the errors it found. <b>In the app.</b> Model-written code often has one broken line and nine perfectly good ones. <b>What it buys.</b> You see all ten problems in one pass instead of discovering them one deploy at a time. For a feedback loop that hands errors back to a model, that is the difference between one round trip and nine. <b>The follow-up.</b> The cost of recovery. A recovered tree is a guess about what the author meant, so a check that passes against it is weaker evidence than the same check passing against a clean parse. Know which one you got.</dd>
+
+    <dt>Static and runtime checks</dt>
+    <dd><i>the two halves of &#8220;proving&#8221;</i>Static means examining code without running it: does it parse, do the imports resolve, is the syntax legal, does it call anything forbidden. Runtime means actually executing it and watching what happens. They prove genuinely different things. <b>In the app.</b> The bullet claims a fix is proved before it touches production, and the word &#8220;proved&#8221; invites this distinction. <b>What it buys.</b> A cheap first filter. Static checks cost milliseconds and reject the obviously broken majority before anything expensive runs. <b>The follow-up.</b> Where the boundary sits, and be honest about it. Static checks are free and prove little. Runtime checks prove much more and need somewhere safe to execute, which is the expensive piece almost nobody builds first.</dd>
+
+    <dt>Grants and least privilege</dt>
+    <dd><i>the control under all of them</i>Database permissions attach to roles, and every connection acts as exactly one role. Least privilege means that role holds only the permissions the job genuinely needs. A role with <code>SELECT</code> on four tables and nothing else cannot drop anything, whatever the query text says, because the engine refuses before it parses intent. <b>In the app.</b> It is the layer that still holds when every check above it has been bypassed. <b>What it buys.</b> Defence that does not depend on your own code being correct. Every other layer here is something you wrote and could have got wrong. This one is enforced by the database. <b>The follow-up.</b> Whether the agent's role is actually restricted. If it connects as something powerful, then the allowlist is the only thing between a bad generation and a truncated table, and an allowlist is code you wrote.</dd>
+
+    <dt>Sandbox</dt>
+    <dd><i>where you would run it</i>An isolated place to execute code you do not trust. In practice: a container with no network access, a copy of the schema with no real data, or a throwaway database that is destroyed afterwards. The defining property is that the worst outcome is contained. <b>In the app.</b> Any check that runs a fix rather than reading it would need one. <b>What it buys.</b> The ability to promote a static check into a runtime one, which is a large jump in how much you have actually proved. <b>The follow-up.</b> Whether one exists. &#8220;We do not execute generated code, we parse it&#8221; is a complete and honest answer that nobody will fault. Implying a sandbox you do not have is the kind of claim that unravels in one question.</dd>
+
+    <dt>Offline evaluation</dt>
+    <dd><i>the 368 scenarios</i>A fixed set of recorded cases replayed through the system and scored. It is not a test suite in the usual sense, because the outputs are judged for quality rather than compared for equality &#8212; there is rarely one correct fix. <b>In the app.</b> It is the evidence behind the word &#8220;regression-tested&#8221;. <b>What it buys.</b> A way to change a prompt or a model and know whether things got better or worse, on a system whose output is not deterministic and cannot be asserted against. <b>The follow-up.</b> The scoring function and the pass bar. A suite whose score has never been written down, or which has no threshold that can fail a build, is a harness rather than a regression test. Using the honest word for it is the stronger position.</dd>
+  </dl>
+</div>
+
+
+
+<h2>Layer one: never let it guess a column name</h2>
+
+<p class="breath">The cheapest validation is the one that stops the mistake being made. Before the model writes a query, the real schemas for the tables that query mentions go into its context.</p>
+
+<p><code>SchemaLoaderTool</code> does something more careful than dumping a schema file. Given a query, it extracts the referenced tables using SQL lineage, loads the schema for <em>only those tables</em>, and formats it as context.</p>
+
+<p>That selectivity is the design. A warehouse has thousands of tables and you cannot put them all in a prompt. Extracting the tables first means the context holds exactly the definitions that matter, with column names, types, nullability and defaults.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Before asking somebody to write a query, hand them the actual table definitions. Most wrong column names never get written.</p>
+
+<h2>Layer two: ask the database, do not guess</h2>
+
+<p class="breath">The check on a generated query is one line. Prefix it with EXPLAIN and send it. If a plan comes back, every table and column in that query exists. Nothing is executed.</p>
+
+<p><code>validate_snowflake_query</code> builds <code>explain {query}</code>, runs it, and returns whether a result came back along with any error. That is the whole function, and its simplicity is the point.</p>
+
+<p>What it proves is precise and worth stating precisely. The query is syntactically valid. Every table exists. Every column exists on the table it is attributed to. The types in the predicates are compatible. That is a large class of errors ruled out by one round trip.</p>
+
+<p>What it does not prove is equally worth stating. It does not run. It says nothing about whether the query returns the right rows, whether the join is the one you wanted, or whether it will finish this decade. A perfectly plannable query can be semantically wrong in every way that matters.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>The database tells you the sentence is grammatical and every word is real. It does not tell you the sentence is true.</p>
+
+<h2>Layer three: parso, and why not <code>ast</code></h2>
+
+<p class="breath">Python gets parsed rather than executed. The library choice is deliberate: parso keeps going after a mistake and returns every error, where the standard parser stops at the first one.</p>
+
+<p><code>validate_python_code</code> loads a grammar, parses with <code>error_recovery=True</code>, and iterates the errors. Valid means the error list is empty.</p>
+
+<p>The built-in <code>ast.parse</code> raises a <code>SyntaxError</code> on the first problem and tells you nothing about the rest. That is fine for a human, who fixes one thing and runs it again. It is expensive for a model, because each round trip is a generation. Getting four syntax errors in one response means one correction cycle instead of four.</p>
+
+<p>The bullet also claims import and runtime checks. Be careful here. Parsing proves the code is well-formed, not that its imports resolve or that it runs. Import and runtime coverage comes from the pytest suite around the validation framework, not from <code>validate_python_code</code> itself.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>We read the code properly rather than running it, and we use a reader that reports every mistake rather than the first one.</p>
+
+<h2>The injection claim, corrected</h2>
+
+<p class="breath">The r&#233;sum&#233; says table-name checks close the injection path. The implemented guard is a keyword denylist plus a SELECT and EXPLAIN allowlist. The allowlist is the strong control, and it is not what the bullet names.</p>
+
+<p><code>validate_sql_query</code> upper-cases the query and looks for <code>DROP</code>, <code>DELETE</code>, <code>TRUNCATE</code>, <code>ALTER</code> and <code>CREATE</code>. That is a denylist, and denylists are structurally weak. They protect against the things somebody remembered, and a substring test on upper-cased text has obvious gaps.</p>
+
+<p>The control that actually holds is the allowlist: the connector path only runs <code>SELECT</code> and <code>EXPLAIN</code>. A statement that is not one of those never executes regardless of what it contains. That is a much better sentence to say, and it is true.</p>
+
+<p>So the honest version is: <em>the guard is an allowlist on statement type, backed by a keyword denylist, and table-name validation is described in the design notes rather than implemented as the barrier.</em></p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>The real protection is that only reading is allowed. The list of banned words is a second, weaker fence, and the r&#233;sum&#233; names the wrong one.</p>
+
+<h2>The 368 scenarios, and what scoring them by similarity means</h2>
+
+<p class="breath">There are 368 recorded cases with ideal answers. They are scored by comparing meaning, not by running anything. That is a reasonable design for free-text output and it has a specific blind spot.</p>
+
+<p>Each case holds an input &#8212; a code block, an error log, a type &#8212; and an ideal recommendation with an action, an investigation, a resolution and corrected code. Scoring uses <code>calculate_semantic_score</code>: embed the expected text, embed the actual text, take the cosine, multiply by a maximum and cap it.</p>
+
+<p>The blind spot is direct. Cosine similarity rewards <em>sounding like</em> the ideal answer. Two correct investigations written differently can score badly. A fluent, confident, wrong investigation that uses the right vocabulary can score well. For the <code>corrected_code</code> field especially, similarity is a poor proxy when you could instead run <code>EXPLAIN</code> on it, which is an oracle you already have.</p>
+
+<p>Two more things to say plainly. It is an offline evaluation harness rather than a pytest regression suite, so &#8220;regression-tested&#8221; is a generous word. And the documentation reports the harness, the dataset shape and the scoring, but no threshold, no CI wiring and no score.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>We check the answer reads like the right answer. We do not check that the answer works, even though for the SQL half we easily could.</p>
+
+
+
+<section class="qset" id="toolbox">
+  <h2>Toolbox</h2>
+  <p class="qset-note">Every noun in the bullet, defined out loud, from the ground up. This is a security claim, and security claims attract precise questions. Two of these answers are about saying plainly what a control does not do.</p>
+  <ul class="qa-index">
+    <li><a href="#c06-t1">DDL, DML and what is allowed</a></li>
+    <li><a href="#c06-t2">What Snowflake is</a></li>
+    <li><a href="#c06-t3">What SQL injection is</a></li>
+    <li><a href="#c06-t4">Why prompt injection is different</a></li>
+    <li><a href="#c06-t5">What an AST proves</a></li>
+    <li><a href="#c06-t6">Why parso and not ast</a></li>
+    <li><a href="#c06-t7">Least privilege underneath</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c06-t1">
+      <p class="qa-q">What are DDL and DML, and which of them does the allowlist let through?</p>
+      <p class="qa-a">SQL is taught as one language. It splits into three groups that do very different amounts of damage. DDL changes structure: create, alter, drop, truncate. DML changes rows: insert, update, delete. Reading is select, and it changes nothing. The allowlist permits select and explain, and refuses both of the other groups. What that buys is a precise place to draw the line. &#8220;Read-only&#8221; stops being an intention and becomes a list a program can check. Worth adding which group really hurts. Drop is loud and immediately noticed. A delete with a slightly wrong predicate is silent, recoverable only from backup, and far more likely to be what a model writes.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Listing drop and truncate as the danger. They are the easy half. The quiet writes are the ones a denylist was never going to catch.</p>
+    </li>
+    <li class="qa-item" id="c06-t2">
+      <p class="qa-q">What is Snowflake, architecturally?</p>
+      <p class="qa-a">A cloud data warehouse whose defining choice is that storage and compute are pulled apart. The data sits in one place permanently. A warehouse is a compute cluster you size, start and stop independently. Several can read the same tables at once without fighting each other. Access is governed by roles and grants. What that buys is isolation between workloads and a bill you can switch off, because nothing needs to be running for the data to exist. Billing is per second of running compute. That is why a validation step which runs explain, rather than the query itself, is cheap as well as safe.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;It's a cloud database.&#8221; The separation of storage and compute is the whole design, and it is what makes the cost argument work.</p>
+    </li>
+    <li class="qa-item" id="c06-t3">
+      <p class="qa-q">What is SQL injection, and how is it normally prevented?</p>
+      <p class="qa-a">The oldest web vulnerability there is. An application builds a query by gluing user input into a string. A user who types the right punctuation stops being data and becomes syntax. The standard fix is parameter binding. Query text and values are sent to the database separately, so a value can never be reinterpreted as code. What that buys here is nothing, and that is the point worth making. A model writes the entire statement rather than supplying a value to slot into one. There is no parameter to bind. The defence has to be a different shape, which is exactly why the allowlist exists.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Offering parameterised queries as the answer. It is the right answer to a different question, and reaching for it shows you have not thought about this one.</p>
+    </li>
+    <li class="qa-item" id="c06-t4">
+      <p class="qa-q">What is prompt injection, and why is it the one that matters here?</p>
+      <p class="qa-a">It is text arriving in the model's context that changes what the model does. It does not need to come from a user. A log line, an exception message, a table comment or a column description can all carry instructions. The model has no way to tell data from directions. It matters here because this system reads failures produced by other systems, which is untrusted input by definition. No parser fixes it, and anyone offering one is wrong. The only dependable control is on the far side. Assume the generated statement may be hostile and let nothing but a read through, enforced somewhere the model cannot reach.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Promising to sanitise the input. You cannot sanitise a language model's context. Constrain what its output is allowed to do instead.</p>
+    </li>
+    <li class="qa-item" id="c06-t5">
+      <p class="qa-q">What is an abstract syntax tree, and what can you prove with one?</p>
+      <p class="qa-a">It is what a parser produces after it has understood your code. The text, the whitespace and the comments are gone. What remains is a tree of typed nodes. An assignment becomes a node with a target and a value, whatever spacing or variable names it was written with. What that buys is checks that survive formatting. A string search for a dangerous call is defeated by a line break, a comment, an alias or a rename. A tree walk is not. You can prove it parses and what shape it has. You cannot prove anything about whether running it is a good idea.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating a clean parse as a passing check. It proves the text is Python. It says nothing about whether the fix is right.</p>
+    </li>
+    <li class="qa-item" id="c06-t6">
+      <p class="qa-q">Why parso rather than Python's built-in <code>ast</code>?</p>
+      <p class="qa-a">Error recovery. Both turn source into a tree, and they disagree about failure. The standard <code>ast</code> raises on the first syntax error and gives you nothing else. Parso carries on past a broken construct and hands back both a tree and a list of the errors it found. Model-written code is often one broken line among nine good ones. What that buys is seeing all ten problems in one pass instead of one deploy at a time. For a loop that feeds errors back to a model, that is one round trip rather than nine. The cost is that a recovered tree is a guess about what was meant, so a check passing against it is weaker evidence.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Naming the library without naming the property. Nobody chooses a parser for its name, and error recovery is the entire reason.</p>
+    </li>
+    <li class="qa-item" id="c06-t7">
+      <p class="qa-q">If every check above it were bypassed, what is left?</p>
+      <p class="qa-a">The database role. Permissions attach to roles, and every connection acts as exactly one role. Least privilege means that role holds only what the job needs. A role with select on four tables and nothing else cannot drop anything, whatever the query text says. The engine refuses before it considers intent. What that buys is defence that does not depend on your own code being correct. Every other layer here is something you wrote and could have got wrong. This one is enforced by the database. If the agent connects as something powerful, your allowlist is the last line, and an allowlist is code you wrote.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Listing application checks and stopping. The interviewer is waiting for the grant, and it is the strongest thing you have.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="fundamentals">
+  <h2>Fundamentals</h2>
+  <p class="qset-note">Questions two and three are the ones worth over-rehearsing. Precision about what a check proves is the whole signal in this chapter.</p>
+  <ul class="qa-index">
+    <li><a href="#c06-f1">What layered means</a></li>
+    <li><a href="#c06-f2">What EXPLAIN proves</a></li>
+    <li><a href="#c06-f3">What EXPLAIN misses</a></li>
+    <li><a href="#c06-f4">Why parso</a></li>
+    <li><a href="#c06-f5">Why live schemas</a></li>
+    <li><a href="#c06-f6">The injection guard</a></li>
+    <li><a href="#c06-f7">What the 368 are</a></li>
+    <li><a href="#c06-f8">How they are scored</a></li>
+    <li><a href="#c06-f9">Where validation sits</a></li>
+    <li><a href="#c06-f10">The riskiest claim</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c06-f1">
+      <p class="qa-q">What does &#8220;layered validation&#8221; actually mean here?</p>
+      <p class="qa-a">Three cheap checks that each rule out a different failure. Schemas in context stop wrong column names being written. <code>EXPLAIN</code> catches anything that does not exist in the warehouse. Parsing catches malformed Python. No single one proves the fix is correct, so they are stacked.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Implying the layers combine into a correctness proof. They rule out classes of wrongness, and saying that is more precise and more honest.</p>
+    </li>
+    <li class="qa-item" id="c06-f2">
+      <p class="qa-q">What does running EXPLAIN on a generated query prove?</p>
+      <p class="qa-a">That it parses, and that it binds. Every table named exists. Every column exists on the table it is attributed to. The predicate types are compatible. The database's own planner is the authority, so the check cannot drift from reality the way a cached schema file can.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying it validates the query. Name the two properties, because the next question is what it does not cover.</p>
+    </li>
+    <li class="qa-item" id="c06-f3">
+      <p class="qa-q">And what does it not prove?</p>
+      <p class="qa-a">Everything about meaning. It does not execute. So it says nothing about the rows returned, or whether the join is the one intended. It says nothing about whether the query finishes in reasonable time. A query can plan perfectly and be completely wrong. That is the honest limit of the layer.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Not having an answer ready. This is the follow-up, every time, and it is the one that shows whether you understood your own guard.</p>
+    </li>
+    <li class="qa-item" id="c06-f4">
+      <p class="qa-q">Why parso rather than the standard library parser?</p>
+      <p class="qa-a">Error recovery. The <code>ast.parse</code> function raises on the first syntax error and tells you nothing else. parso parses with recovery on and returns every error in one pass. The consumer here is a model, and each round trip costs a generation. Four errors in one response is one correction cycle instead of four.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;It is more robust.&#8221; Name the property. Error recovery is a specific feature with a specific payoff here.</p>
+    </li>
+    <li class="qa-item" id="c06-f5">
+      <p class="qa-q">Why fetch schemas live instead of shipping a schema file?</p>
+      <p class="qa-a">Because a file goes stale and nothing tells you. A column gets renamed and the file does not change. The model then writes a query against a table that no longer looks like that. The tool instead extracts the tables a query references and loads only those. So the context is both current and small.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Missing the selectivity. Loading only the referenced tables is what makes live loading affordable in a warehouse with thousands of them.</p>
+    </li>
+    <li class="qa-item" id="c06-f6">
+      <p class="qa-q">How is the injection path actually closed?</p>
+      <p class="qa-a">By an allowlist on statement type. The connector path runs only <code>SELECT</code> and <code>EXPLAIN</code>, so anything else never executes. There is also a keyword denylist covering <code>DROP</code>, <code>DELETE</code>, <code>TRUNCATE</code>, <code>ALTER</code> and <code>CREATE</code>. I would correct my own bullet here, because it names table-name checks and the barrier is the allowlist.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Leading with the denylist. Denylists are the weak half, and leading with the weak half invites exactly the bypass question you do not want.</p>
+    </li>
+    <li class="qa-item" id="c06-f7">
+      <p class="qa-q">What are the 368 scenarios?</p>
+      <p class="qa-a">Recorded failure cases with ideal answers. Each has an input of code block, error log and type, plus an ideal recommendation with action, investigation, resolution and corrected code. It is an offline evaluation dataset rather than a pytest suite, and I would use the word evaluation rather than regression.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it a test suite. There is a real difference and the interviewer may know it.</p>
+    </li>
+    <li class="qa-item" id="c06-f8">
+      <p class="qa-q">How are those scenarios scored?</p>
+      <p class="qa-a">By semantic similarity. Both the expected and actual text get embedded, the cosine is taken, multiplied by a maximum score and capped. So it measures whether the answer reads like the ideal one. It is a reasonable choice for free-text fields and a weak one for generated code.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Not naming the mechanism. &#8220;We score them&#8221; is the answer of someone who did not build the harness.</p>
+    </li>
+    <li class="qa-item" id="c06-f9">
+      <p class="qa-q">Where does this validation sit in the debugger's flow?</p>
+      <p class="qa-a">Between the fix being proposed and it being applied. The investigation produces corrected code and validation checks it. Only then can the action router send it to a retrigger. The important caveat is that <code>ENABLE_PIPELINE_VALIDATIONS</code> defaults to false. On a default deployment this layer is not in the path at all.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing it as always on. The default says otherwise and config is the first thing a careful interviewer reads.</p>
+    </li>
+    <li class="qa-item" id="c06-f10">
+      <p class="qa-q">What is the riskiest claim in this bullet?</p>
+      <p class="qa-a">Two of them. &#8220;Table-name checks closing the injection path&#8221; describes a guard that is documented rather than implemented, and the real barrier is the statement allowlist. And &#8220;regression-tested&#8221; oversells an offline evaluation set scored by cosine similarity with no threshold reported.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Defending either phrase. The underlying engineering is good, and the wording is what will not survive a careful reader.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="deep-dive">
+  <h2>Deep dive</h2>
+  <p class="qset-note">A third of these are about what a check cannot see. That is deliberate, and it is the level this bullet gets interviewed at.</p>
+  <ul class="qa-index">
+    <li><a href="#c06-d1">Binding versus parsing</a></li>
+    <li><a href="#c06-d2">EXPLAIN is not free</a></li>
+    <li><a href="#c06-d3">Error recovery in practice</a></li>
+    <li><a href="#c06-d4">Selective schema loading</a></li>
+    <li><a href="#c06-d5">Denylist versus allowlist</a></li>
+    <li><a href="#c06-d6">Import and runtime checks</a></li>
+    <li><a href="#c06-d7">Why cosine scoring</a></li>
+    <li><a href="#c06-d8">What cosine rewards</a></li>
+    <li><a href="#c06-d9">Scoring code by similarity</a></li>
+    <li><a href="#c06-d10">Pass rate without a threshold</a></li>
+    <li><a href="#c06-d11">The flag default</a></li>
+    <li><a href="#c06-d12">The layer you would add</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c06-d1">
+      <p class="qa-q">Distinguish parsing from binding, and say which one matters more here.</p>
+      <p class="qa-a">Parsing is grammar. Binding is resolving names against real schemas. Binding matters more, because a model writing SQL rarely produces ungrammatical SQL. It produces grammatical SQL about a column that does not exist. <code>EXPLAIN</code> is valuable precisely because it reaches the binding stage.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating them as the same check. The distinction is why a syntax checker would be nearly useless for the SQL half.</p>
+    </li>
+    <li class="qa-item" id="c06-d2">
+      <p class="qa-q">What does the EXPLAIN check cost you?</p>
+      <p class="qa-a">A round trip to Snowflake, on the critical path of an autonomous fix, plus a live connection with credentials. It also means validation fails when the warehouse is unavailable, and you need a decision about what happens then. Failing closed is right for an autonomous path, and it should be explicit.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it free because it does not execute. Planning a query is real work and it is a dependency you have taken on.</p>
+    </li>
+    <li class="qa-item" id="c06-d3">
+      <p class="qa-q">Give me a concrete case where error recovery changes the outcome.</p>
+      <p class="qa-a">A generated function with two problems. A missing colon on line three and a bad indent on line nine. The <code>ast</code> parser raises on line three and stops, so the feedback names one problem. The model fixes it and resubmits, and only then learns about line nine. parso returns both, so one cycle handles both.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Answering abstractly. A two-error example makes the argument in one sentence.</p>
+    </li>
+    <li class="qa-item" id="c06-d4">
+      <p class="qa-q">Why extract tables from the query first rather than load everything?</p>
+      <p class="qa-a">Context budget and signal. A warehouse has thousands of tables, and their combined schema does not fit in a prompt. Even if it did, burying the five relevant tables among thousands makes the model's job harder. Extracting first means the context is exactly the definitions that matter.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Only citing token cost. The signal argument is the stronger half and most people miss it.</p>
+    </li>
+    <li class="qa-item" id="c06-d5">
+      <p class="qa-q">Why is an allowlist stronger than a denylist here?</p>
+      <p class="qa-a">Because a denylist protects against what you remembered. The keyword list covers five statements and a substring test over upper-cased text has obvious gaps. An allowlist permitting only <code>SELECT</code> and <code>EXPLAIN</code> refuses everything nobody thought of, which is the class that actually hurts you.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Presenting the denylist as the control. It is defence in depth behind the real barrier, and the ordering matters when you describe it.</p>
+    </li>
+    <li class="qa-item" id="c06-d6">
+      <p class="qa-q">The bullet mentions import and runtime checks. Where do those live?</p>
+      <p class="qa-a">In the pytest suite around the validation framework, not in <code>validate_python_code</code>. That function parses and reports syntax errors. The test suite covers syntax, indentation, import and runtime error cases as scenarios. I would separate those two things rather than let the bullet imply one function does all four.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Letting the list stand as one pipeline. Two mechanisms are being described, and only one of them runs before a fix is applied.</p>
+    </li>
+    <li class="qa-item" id="c06-d7">
+      <p class="qa-q">Why score by semantic similarity at all?</p>
+      <p class="qa-a">Because most of the output is free text. An investigation and a resolution are prose, and there is no exact match to test against. Embedding both and taking a cosine is a defensible way to score prose at scale. It is the right tool for those fields, and the wrong one for the code field.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Dismissing it. It is a reasonable choice, and the interesting answer is where it stops being reasonable.</p>
+    </li>
+    <li class="qa-item" id="c06-d8">
+      <p class="qa-q">What does cosine similarity actually reward?</p>
+      <p class="qa-a">Reading like the ideal answer. Two correct investigations phrased differently can score poorly. A confident, fluent, wrong investigation using the right vocabulary can score well. So the metric is measuring register as much as correctness, and that gap is worth stating before someone else finds it.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying it measures semantic correctness. It measures semantic proximity, and proximity to a right answer is not the same as being right.</p>
+    </li>
+    <li class="qa-item" id="c06-d9">
+      <p class="qa-q">You score corrected code by similarity. What would you do instead?</p>
+      <p class="qa-a">Run it through the oracle I already have. For SQL, <code>EXPLAIN</code> the generated fix against the same schema and score binary validity. For Python, parse it. That turns the code field from a fuzzy match into a deterministic check, using machinery already written for the live path.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Not connecting the two halves of the chapter. The eval harness ignores a validator the production path already uses, and noticing that is the point of the question.</p>
+    </li>
+    <li class="qa-item" id="c06-d10">
+      <p class="qa-q">The harness reports a pass rate. Passing what?</p>
+      <p class="qa-a">That is the gap I would flag. <code>EvalSummary</code> carries passed, failed and error case counts plus a pass rate and an average score, so a threshold exists somewhere in the runner. What is not in the documentation is what that threshold is, what it gates, or any recorded score. Without those, it is a harness rather than a gate.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Quoting a pass rate you cannot source. If you do not have the number, say the harness exists and the number was not published.</p>
+    </li>
+    <li class="qa-item" id="c06-d11">
+      <p class="qa-q">Why would validation default to off?</p>
+      <p class="qa-a">Most likely because it was built after the path it guards. Shipping dark is the safe way to introduce a check that can block work. That is a defensible rollout pattern. What is not defensible is leaving it there. If I were still on this system, that flag would be the first thing I changed.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Guessing confidently. Say it is the ship-dark pattern, then say what you would do about it, and both halves land.</p>
+    </li>
+    <li class="qa-item" id="c06-d12">
+      <p class="qa-q">What layer is missing?</p>
+      <p class="qa-a">A blast-radius check. Every current layer asks whether the fix is well-formed. None asks how much it would change. A generated <code>UPDATE</code> touching ten rows and one touching ten million both pass every check here. Counting affected rows before applying is the layer I would add, and it is the one that maps to actual damage.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Proposing more of the same. Another syntax-level check adds nothing. The missing axis is magnitude, not correctness.</p>
+    </li>
+  </ol>
+</section>
+
+<div class="quiz" data-quiz-id="0006-q1">
+  <p class="q">A generated SQL fix passes the <code>EXPLAIN</code> check. What has that established?</p>
+  <ol class="options">
+    <li data-correct="true">That it parses and binds against the live schema</li>
+    <li>That it returns the rows the author actually wanted</li>
+    <li>That it runs faster than the query being checked</li>
+    <li>That it cannot drop or alter any existing table</li>
+  </ol>
+  <div class="why">
+    <p>Parsing and binding. The planner resolved every table and column against the real warehouse and the predicate types were compatible. That rules out a large class of errors in one round trip, and it never executes the query.</p>
+    <p>It establishes nothing about meaning. A query can plan perfectly and return the wrong rows, join the wrong way, or scan a table for an hour. What stops a destructive statement is a different control entirely: the allowlist that permits only <code>SELECT</code> and <code>EXPLAIN</code>.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0006-q2">
+  <p class="q">How does the 368-scenario suite decide whether an answer was good?</p>
+  <ol class="options">
+    <li data-correct="true">Cosine similarity between embeddings of expected and actual</li>
+    <li>An identical string comparison against the stored answer</li>
+    <li>A separate model adjudicating whether the answer holds</li>
+    <li>Whether the corrected code executed without raising errors</li>
+  </ol>
+  <div class="why">
+    <p>Embeddings and a cosine, multiplied by a maximum score and capped. That is a sensible way to score prose fields like an investigation, where no exact match exists.</p>
+    <p>The last option is the interesting wrong answer, because it is what the harness <em>should</em> do for the corrected-code field. The production path already has an oracle for that: run <code>EXPLAIN</code> on the generated SQL. Scoring code by how similar it reads is the weakest part of this evaluation.</p>
+  </div>
+</div>
+
+<section class="qset" id="edges">
+  <h2>Edges and exceptions</h2>
+  <p class="qset-note">Every one of these is a way a check passes and the fix is still wrong. That is the honest subject of this chapter.</p>
+  <ul class="qa-index">
+    <li><a href="#c06-e1">Valid and destructive</a></li>
+    <li><a href="#c06-e2">Snowflake unreachable</a></li>
+    <li><a href="#c06-e3">Parses but never runs</a></li>
+    <li><a href="#c06-e4">Schema changes after validation</a></li>
+    <li><a href="#c06-e5">Bypassing the denylist</a></li>
+    <li><a href="#c06-e6">A scenario set that ages</a></li>
+    <li><a href="#c06-e7">Validation off in production</a></li>
+    <li><a href="#c06-e8">What you would change</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c06-e1">
+      <p class="qa-q">Give me a fix that passes every layer and is still dangerous.</p>
+      <p class="qa-a">An <code>UPDATE</code> with a predicate that is valid but too broad. It parses, it binds, every column exists, and it changes ten million rows instead of ten. Nothing in this stack measures magnitude. That is the gap, and the missing layer is a row-count estimate before applying.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Reaching for an exotic example. The boring over-broad predicate is the realistic one and it makes the point better.</p>
+    </li>
+    <li class="qa-item" id="c06-e2">
+      <p class="qa-q">Snowflake is unreachable when a fix needs validating.</p>
+      <p class="qa-a">The SQL layer cannot run, and the decision is which way it fails. On an autonomous path it has to fail closed. An unvalidated fix is then never applied. Failing open would mean the one time validation mattered most is the time it was skipped. That is the worst possible correlation.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Suggesting a cached schema fallback. That reintroduces the staleness problem live loading exists to solve.</p>
+    </li>
+    <li class="qa-item" id="c06-e3">
+      <p class="qa-q">Python that parses cleanly but fails immediately on import.</p>
+      <p class="qa-a">Passes the parse layer, because parsing is grammar. A missing module or a bad name is a runtime concern and parso never resolves names. The bullet's mention of import checks comes from the pytest suite rather than from this validator. Closing it properly means importing in a sandbox, which is a bigger commitment.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Claiming the parser catches imports. It is a structural check and imports are a resolution-time concern.</p>
+    </li>
+    <li class="qa-item" id="c06-e4">
+      <p class="qa-q">The schema changes between validation and the retrigger.</p>
+      <p class="qa-a">Then the fix was validated against a warehouse that no longer exists in that shape. It is a time-of-check to time-of-use gap. During a migration that is real rather than theoretical. The window is small, and the mitigation is to validate as late as possible. Validate immediately before applying, not at proposal time.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Dismissing it as unlikely. Naming it as a TOCTOU gap shows you recognised the pattern, which is the whole point.</p>
+    </li>
+    <li class="qa-item" id="c06-e5">
+      <p class="qa-q">How would you get a destructive statement past the keyword denylist?</p>
+      <p class="qa-a">Several ways, which is the argument against denylists. Comments inside a keyword, a statement type nobody listed, or something reached through a stored procedure. I would not lean on it. The control that holds is the allowlist, because a statement that is not a <code>SELECT</code> or an <code>EXPLAIN</code> never reaches the connector at all.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Defending the denylist as sufficient. It is not, you already have something better, and saying so is the strong answer.</p>
+    </li>
+    <li class="qa-item" id="c06-e6">
+      <p class="qa-q">The 368 scenarios were recorded once. What happens as the platform changes?</p>
+      <p class="qa-a">They age, and a stale case is worse than no case. Ideal answers referencing tables that were since renamed will fail a correct system, and passing them becomes a regression. Any fixed evaluation set needs an owner and a refresh cadence, and neither is documented here.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating a recorded dataset as permanent. It is a snapshot of a moving system.</p>
+    </li>
+    <li class="qa-item" id="c06-e7">
+      <p class="qa-q">You find out validation was off in production the whole time. What do you say?</p>
+      <p class="qa-a">That the flag defaults to false and I should have checked which way it was set. Then the useful part. The layers still constrained the model during development. The statement allowlist is a separate control and it is always on. So the destructive path was closed even with validation off, and the correctness checks were not.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Getting defensive. Separating which protections were live from which were not is the answer that rebuilds credibility.</p>
+    </li>
+    <li class="qa-item" id="c06-e8">
+      <p class="qa-q">What would you change, in order?</p>
+      <p class="qa-a">Turn the validation flag on and require it before any autonomous apply. Score the corrected-code field with the validator instead of a cosine, since the oracle already exists. Add a row-count estimate as a blast-radius check. Then publish a threshold so the harness becomes a gate rather than a report.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Listing them without an order. The ordering is the judgment, and the first one is a config change with the largest payoff.</p>
+    </li>
+  </ol>
+</section>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;What does EXPLAIN actually prove?&#8221;
+      <span class="tell">The highest-signal question in this chapter. Most candidates say it validates the query and cannot go further, which reveals the check was adopted rather than understood.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Two things: the query parses, and it binds. Every table exists, every column exists on the table it is attributed to, and the predicate types are compatible. The planner is the authority so the check cannot go stale. It proves nothing about meaning, because it never runs. A query can plan perfectly and return entirely the wrong rows, and that is the honest limit of the layer.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Can a fix pass all your checks and still break production?&#8221;
+      <span class="tell">Testing whether you will claim safety you do not have. The right answer names the missing axis rather than defending the existing layers.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Yes, and the realistic case is an over-broad predicate. A statement that parses, binds and touches ten million rows instead of ten passes every layer here, because every layer asks whether the fix is well-formed and none asks how much it changes. The missing layer is blast radius: estimate affected rows before applying. That is the one I would add next.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;How do you prevent SQL injection?&#8221;
+      <span class="tell">A security-minded interviewer will ask, and the r&#233;sum&#233; wording points them at the weaker control. Lead with the allowlist.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The barrier is an allowlist: the connector path executes only <code>SELECT</code> and <code>EXPLAIN</code>, so anything else never runs whatever it contains. Behind that there is a keyword denylist for DROP, DELETE, TRUNCATE, ALTER and CREATE, and I would not rely on that half, because a denylist only covers what somebody remembered. I would also correct my own bullet, which names table-name checks.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Your evaluation scores generated code by similarity. Is that sound?&#8221;
+      <span class="tell">A sharp question. The strong answer concedes it and connects to machinery already in the system.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>For the prose fields it is defensible, since an investigation has no exact match to test against. For the corrected-code field it is the weakest part of the harness. We already have an oracle on the production path: <code>EXPLAIN</code> for SQL and a parse for Python. Scoring the code field with the validator instead of a cosine would make that part deterministic, and it is reusing code that already exists.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Was this validation actually on?&#8221;
+      <span class="tell">If the interviewer has read the config, this is coming. Getting there first is worth more than any answer you can give afterwards.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p><code>ENABLE_PIPELINE_VALIDATIONS</code> defaults to false, so on a default deployment the layer is not in the path. That is the ship-dark pattern and it is a reasonable way to introduce a check that can block work, but leaving it there is not. Worth separating what was still live: the statement allowlist is an independent control and it is always on, so the destructive path stayed closed even with validation off.</p>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="recall">
+  <details>
+    <summary>This chapter and chapter 0003 both put a deterministic check behind a model. Name the shared principle, and the one difference in how the two systems use it.</summary>
+    <p class="answer">The principle is that a model should never be asked a question that has an oracle. In chapter 0003 the oracle is <code>stat_var_processor.py</code> run as a subprocess, and its verdict drives the retry loop. Here the oracles are <code>EXPLAIN</code> and a parse. The difference is that chapter 0003 feeds the oracle's output back as correction, where this system uses it as a gate. Feeding it back is the stronger pattern, and it is what the eval harness here should do with generated code.</p>
+    <span class="from"><a href="0003-multi-agent-schematization.html">Chapter 0003 &#183; the validator is a subprocess</a></span>
+  </details>
+  <details>
+    <summary>The validation layer defaults to off, and the debugger it guards can retrigger production. Which chapter's four gates are you relying on instead, and which of them is unaffected?</summary>
+    <p class="answer">Chapter 0005's. The screener has to escalate, the solution's action field has to say apply, the action router has to agree, and the retrigger flag has to be on with a threshold. None of those four depends on <code>ENABLE_PIPELINE_VALIDATIONS</code>, so they hold regardless. What is lost with validation off is proof that the fix is well-formed, not the bounds on how often it can act.</p>
+    <span class="from"><a href="0005-agentic-pipeline-debugging.html">Chapter 0005 &#183; the four gates</a></span>
+  </details>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">The lessons behind this chapter</span>
+  <p>System Design School teaches these mechanisms from first principles and breaks them in a lab. This chapter defends what you did with them. An interviewer moves between those two registers without warning.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0002-p50-is-a-lie.html">SDS 0002 &#183; p50 is a lie</a>
+      <span class="bridge-why">An average similarity score across 368 cases hides the cases that failed badly, and those are the only ones worth reading.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0039 &#183; The eval harness as a regression gate &#8212; not yet built</span>
+      <span class="bridge-why">A 368-case suite is a gate only if something blocks on it, a threshold exists, and the sample is sized. None of those is documented here.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0040 &#183; JWT, sessions, OAuth &#8212; not yet built</span>
+      <span class="bridge-why">An allowlist on statement type is an authorisation decision, and this is where that vocabulary gets built properly.</span>
+    </li>
+  </ol>
+</div>
+
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0005-agentic-pipeline-debugging.html">&#8592; 0005 &#183; Agentic pipeline-failure debugging</a></span>
+  <span><span class="dir">Next</span><a href="0007-execution-forecasting.html">0007 &#183; Execution forecasting and dependency resolution &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

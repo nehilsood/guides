@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>The Max-Iteration Trap</title>
+<script src="../assets/visit.js"></script>
+</head>
+<body>
+<div class="prep-sitebar">
+  <a href="../index.html">&#8592;&#160;Interview prep</a>
+  <span>Guide 0001</span>
+  <span>Question 1 &#183; Deep prep sheet</span>
+</div>
+<style>
+.prep-sitebar{
+  max-width:1080px; margin:0 auto; padding:20px 24px 0;
+  font-family:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:10.5px; font-weight:500; letter-spacing:0.13em; text-transform:uppercase;
+  opacity:0.6; display:flex; gap:12px; flex-wrap:wrap; align-items:baseline;
+}
+.prep-sitebar a{color:inherit; text-decoration:none; border-bottom:1px solid currentColor; padding-bottom:1px}
+.prep-sitebar a:hover{opacity:1}
+.prep-sitebar span:not(:last-child)::after,
+.prep-sitebar a::after{content:""}
+.prep-sitebar span::before{content:"/"; margin-right:12px; opacity:0.5}
+</style>
+
+
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ground:#eef1f4; --surface:#ffffff; --surface-2:#f5f8fa; --sunken:#e5eaef;
+  --ink:#101820; --ink-2:#3d4b59; --ink-3:#6d7c8b;
+  --rule:#d2dae1; --rule-2:#e2e8ed;
+  --accent:#1a4f7a; --accent-ink:#1a4f7a; --accent-soft:#e2edf5;
+  --tail:#a75d16; --tail-ink:#8f4f11; --tail-soft:#f9eddf;
+  --good:#26685a; --good-soft:#e1efeb;
+  --bad:#96302f; --bad-soft:#f7e7e6;
+  --bar-a:#8fa8bb; --bar-b:#a75d16;
+  --sans:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --serif:"Newsreader",Georgia,"Times New Roman",serif;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#0d1218; --surface:#141b23; --surface-2:#1a232c; --sunken:#0a0f14;
+    --ink:#e9eef3; --ink-2:#adbbc8; --ink-3:#7f8e9d;
+    --rule:#293440; --rule-2:#1f2a34;
+    --accent:#7fb9e9; --accent-ink:#9fcdf3; --accent-soft:#14293a;
+    --tail:#e2a660; --tail-ink:#eeb977; --tail-soft:#33261a;
+    --good:#6ec4ae; --good-soft:#15302a;
+    --bad:#e08d8b; --bad-soft:#331d1d;
+    --bar-a:#4a6070; --bar-b:#c8873f;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0d1218; --surface:#141b23; --surface-2:#1a232c; --sunken:#0a0f14;
+  --ink:#e9eef3; --ink-2:#adbbc8; --ink-3:#7f8e9d;
+  --rule:#293440; --rule-2:#1f2a34;
+  --accent:#7fb9e9; --accent-ink:#9fcdf3; --accent-soft:#14293a;
+  --tail:#e2a660; --tail-ink:#eeb977; --tail-soft:#33261a;
+  --good:#6ec4ae; --good-soft:#15302a;
+  --bad:#e08d8b; --bad-soft:#331d1d;
+  --bar-a:#4a6070; --bar-b:#c8873f;
+}
+*{box-sizing:border-box}
+body{
+  background:var(--ground); color:var(--ink);
+  font-family:var(--serif); font-size:17.5px; line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1060px; margin:0 auto; padding:0 24px 96px}
+p{margin:0 0 0.85em; max-width:68ch}
+strong{font-weight:600; color:var(--ink)}
+em{font-style:italic}
+a{color:var(--accent-ink); text-decoration:none; border-bottom:1px solid color-mix(in srgb, var(--accent) 35%, transparent)}
+a:hover{border-bottom-color:var(--accent)}
+a:focus-visible,button:focus-visible{outline:2px solid var(--accent); outline-offset:3px}
+code,.m{font-family:var(--mono); font-size:0.86em; font-variant-ligatures:none}
+code{background:var(--surface-2); border:1px solid var(--rule-2); border-radius:3px; padding:0.08em 0.34em; color:var(--ink-2)}
+
+/* ---------- masthead ---------- */
+.mast{padding:56px 0 0}
+.kicker{
+  font-family:var(--mono); font-size:11.5px; font-weight:500; letter-spacing:0.14em;
+  text-transform:uppercase; color:var(--ink-3); display:flex; gap:14px; flex-wrap:wrap;
+  align-items:baseline; margin-bottom:22px;
+}
+.kicker span:not(:last-child)::after{content:"/"; margin-left:14px; color:var(--rule)}
+h1{
+  font-family:var(--sans); font-weight:700; font-size:clamp(38px,6vw,62px);
+  line-height:1.0; letter-spacing:-0.028em; margin:0 0 8px; text-wrap:balance;
+}
+.sub{font-family:var(--sans); font-weight:500; font-size:clamp(16px,2.2vw,20px); color:var(--ink-3); letter-spacing:-0.01em; margin:0 0 36px}
+
+.qcard{
+  background:var(--surface); border:1px solid var(--rule); border-left:4px solid var(--accent);
+  padding:26px 30px; margin:0 0 14px;
+}
+.qcard .lab{font-family:var(--mono); font-size:10.5px; letter-spacing:0.16em; text-transform:uppercase; color:var(--accent-ink); font-weight:600; margin-bottom:12px}
+.qcard blockquote{margin:0; font-size:20px; line-height:1.5; color:var(--ink); max-width:64ch}
+.qcard blockquote p{max-width:none}
+
+.verdict{
+  background:var(--tail-soft); border:1px solid color-mix(in srgb, var(--tail) 30%, transparent);
+  border-left:4px solid var(--tail); padding:22px 30px; margin:0 0 52px;
+}
+.verdict .lab{font-family:var(--mono); font-size:10.5px; letter-spacing:0.16em; text-transform:uppercase; color:var(--tail-ink); font-weight:600; margin-bottom:10px}
+.verdict p{margin:0; font-size:18.5px; line-height:1.55; color:var(--ink)}
+
+/* ---------- structure ---------- */
+.part{margin:0 0 68px; scroll-margin-top:20px}
+.parthead{display:flex; gap:18px; align-items:baseline; border-top:2px solid var(--ink); padding-top:14px; margin-bottom:26px}
+.pnum{font-family:var(--mono); font-size:13px; font-weight:600; color:var(--tail-ink); letter-spacing:0.06em; flex:0 0 auto; padding-top:5px}
+h2{font-family:var(--sans); font-weight:700; font-size:clamp(24px,3.4vw,33px); line-height:1.12; letter-spacing:-0.022em; margin:0; text-wrap:balance}
+h3{font-family:var(--sans); font-weight:600; font-size:20px; letter-spacing:-0.014em; margin:34px 0 10px; color:var(--ink); text-wrap:balance}
+h4{font-family:var(--sans); font-weight:600; font-size:16px; letter-spacing:-0.008em; margin:22px 0 6px; color:var(--ink)}
+.lede{font-size:19px; color:var(--ink-2); max-width:66ch; margin-bottom:22px}
+
+ul,ol{max-width:68ch; padding-left:1.25em; margin:0 0 1em}
+li{margin-bottom:0.42em}
+ul.tight li,ol.tight li{margin-bottom:0.18em}
+ol.beats{counter-reset:b; list-style:none; padding-left:0; max-width:70ch}
+ol.beats>li{counter-increment:b; position:relative; padding-left:44px; margin-bottom:16px}
+ol.beats>li::before{
+  content:counter(b); position:absolute; left:0; top:2px;
+  font-family:var(--mono); font-size:11px; font-weight:600; color:var(--surface);
+  background:var(--accent); width:24px; height:24px; border-radius:2px;
+  display:grid; place-items:center; letter-spacing:0;
+}
+
+/* ---------- callouts ---------- */
+.box{border:1px solid var(--rule); background:var(--surface); padding:20px 24px; margin:22px 0}
+.box>:last-child{margin-bottom:0}
+.box .lab{font-family:var(--mono); font-size:10.5px; letter-spacing:0.16em; text-transform:uppercase; font-weight:600; margin-bottom:10px; color:var(--ink-3)}
+.box.say{border-left:3px solid var(--good); background:var(--good-soft); border-color:color-mix(in srgb, var(--good) 26%, transparent)}
+.box.say .lab{color:var(--good)}
+.box.dont{border-left:3px solid var(--bad); background:var(--bad-soft); border-color:color-mix(in srgb, var(--bad) 26%, transparent)}
+.box.dont .lab{color:var(--bad)}
+.box.key{border-left:3px solid var(--tail); background:var(--tail-soft); border-color:color-mix(in srgb, var(--tail) 26%, transparent)}
+.box.key .lab{color:var(--tail-ink)}
+.box.fund{border-left:3px solid var(--accent); background:var(--accent-soft); border-color:color-mix(in srgb, var(--accent) 24%, transparent)}
+.box.fund .lab{color:var(--accent-ink)}
+.box .m{color:var(--ink-2)}
+
+.formula{
+  font-family:var(--mono); font-size:15px; background:var(--sunken); border:1px solid var(--rule);
+  padding:16px 20px; margin:18px 0; overflow-x:auto; white-space:pre; line-height:1.75; color:var(--ink);
+}
+
+/* ---------- tables ---------- */
+.tw{overflow-x:auto; margin:22px 0; border:1px solid var(--rule); background:var(--surface)}
+table{border-collapse:collapse; width:100%; font-family:var(--sans); font-size:14.5px}
+th{
+  text-align:left; font-weight:600; font-size:11px; letter-spacing:0.11em; text-transform:uppercase;
+  color:var(--ink-3); padding:12px 16px; border-bottom:1px solid var(--rule); background:var(--surface-2); white-space:nowrap;
+}
+td{padding:11px 16px; border-bottom:1px solid var(--rule-2); color:var(--ink-2); vertical-align:top}
+tr:last-child td{border-bottom:none}
+td:first-child{color:var(--ink); font-weight:500}
+.num{font-family:var(--mono); font-variant-numeric:tabular-nums; white-space:nowrap}
+.up{color:var(--tail-ink); font-weight:600}
+.flat{color:var(--ink-3)}
+
+/* ---------- percentile chart ---------- */
+figure{margin:28px 0; border:1px solid var(--rule); background:var(--surface); padding:24px}
+figcaption{font-family:var(--sans); font-size:13px; color:var(--ink-3); margin-top:18px; line-height:1.5; max-width:70ch}
+.chart{display:grid; grid-template-columns:52px minmax(0,1fr) 132px; column-gap:14px; row-gap:6px; align-items:center; font-variant-numeric:tabular-nums}
+.chart .plab{grid-row:span 2; font-family:var(--mono); font-size:12.5px; font-weight:600; color:var(--ink); text-align:right}
+.trk{height:15px; background:var(--surface-2); box-shadow:inset -1px 0 0 var(--rule-2)}
+.trk i{display:block; height:100%; border-radius:0 2px 2px 0}
+.trk.a i{background:var(--bar-a)}
+.trk.b i{background:var(--bar-b)}
+.blab{font-family:var(--mono); font-size:11.5px; color:var(--ink-3); white-space:nowrap}
+.chart .spacer{grid-column:1/-1; height:7px}
+.chart .ticks{grid-column:2; display:flex; justify-content:space-between; border-top:1px solid var(--rule); padding-top:6px; margin-top:6px}
+.ticks b{font-family:var(--mono); font-size:10.5px; font-weight:500; color:var(--ink-3)}
+.legend{display:flex; gap:20px; margin-bottom:20px; font-family:var(--sans); font-size:12.5px; color:var(--ink-2); flex-wrap:wrap}
+.legend i{display:inline-block; width:22px; height:9px; margin-right:7px; vertical-align:middle}
+.legend .la i{background:var(--bar-a)} .legend .lb i{background:var(--bar-b)}
+
+/* ---------- loop diagram ---------- */
+.loop{display:flex; flex-wrap:wrap; align-items:stretch; gap:0; font-family:var(--sans); margin:6px 0}
+.node{
+  flex:1 1 120px; min-width:118px; border:1px solid var(--rule); background:var(--surface-2);
+  padding:12px 14px; font-size:13.5px; font-weight:600; color:var(--ink); line-height:1.3;
+}
+.node small{display:block; font-weight:500; font-size:11.5px; color:var(--ink-3); margin-top:4px; font-family:var(--mono)}
+.node.gap{background:var(--tail-soft); border:1px dashed var(--tail); color:var(--tail-ink)}
+.node.gap small{color:var(--tail-ink)}
+.arrow{flex:0 0 26px; display:grid; place-items:center; font-family:var(--mono); color:var(--ink-3); font-size:15px}
+.backedge{font-family:var(--mono); font-size:11.5px; color:var(--ink-3); border-left:2px solid var(--rule); border-bottom:2px solid var(--rule); border-right:2px solid var(--rule); border-radius:0 0 4px 4px; padding:6px 12px 0; margin:0 40px; text-align:center; height:26px}
+
+/* ---------- follow-ups ---------- */
+.fu{border-top:1px solid var(--rule); padding:24px 0}
+.fu:first-of-type{border-top:2px solid var(--ink)}
+.fuq{display:flex; gap:14px; align-items:baseline; margin-bottom:12px}
+.fuq b{font-family:var(--mono); font-size:11px; font-weight:600; color:var(--tail-ink); flex:0 0 auto; padding-top:4px; letter-spacing:0.05em}
+.fuq p{font-family:var(--sans); font-weight:600; font-size:18px; letter-spacing:-0.012em; color:var(--ink); margin:0; max-width:62ch}
+.fua{padding-left:39px}
+.fua>:last-child{margin-bottom:0}
+@media(max-width:600px){.fua{padding-left:0}}
+
+/* ---------- misc ---------- */
+.grid2{display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:18px; margin:22px 0}
+.defect{border:1px solid var(--rule); background:var(--surface); border-top:3px solid var(--tail); padding:18px 20px}
+.defect h4{margin:0 0 8px; font-size:16.5px}
+.defect .tag{font-family:var(--mono); font-size:10px; letter-spacing:0.14em; text-transform:uppercase; color:var(--tail-ink); display:block; margin-bottom:7px; font-weight:600}
+.defect p{font-size:15.5px; line-height:1.55; margin:0; max-width:none; color:var(--ink-2)}
+dl.gloss{margin:20px 0; display:grid; grid-template-columns:auto 1fr; gap:0}
+dl.gloss dt{font-family:var(--mono); font-size:13px; font-weight:600; color:var(--ink); padding:10px 20px 10px 0; border-top:1px solid var(--rule-2); white-space:nowrap}
+dl.gloss dd{margin:0; padding:10px 0; border-top:1px solid var(--rule-2); font-size:15.5px; color:var(--ink-2); line-height:1.5}
+@media(max-width:640px){
+  dl.gloss{grid-template-columns:1fr}
+  dl.gloss dt{border-top:1px solid var(--rule-2); padding-bottom:0}
+  dl.gloss dd{border-top:none; padding-top:2px}
+}
+.srcs{font-family:var(--sans); font-size:14px; line-height:1.6}
+.srcs li{margin-bottom:8px; color:var(--ink-3)}
+footer{border-top:2px solid var(--ink); margin-top:20px; padding-top:16px; font-family:var(--mono); font-size:11.5px; letter-spacing:0.08em; text-transform:uppercase; color:var(--ink-3)}
+@media (prefers-reduced-motion: reduce){*{animation:none!important; transition:none!important}}
+
+/* ---------- spoken script: four beats, about 75 seconds ----------
+   Lines are capped at 46ch on purpose. You read a script aloud in short
+   lines; a full measure turns it back into prose. Every child of a beat is
+   placed explicitly in column 2, because with auto-placement a second
+   spoken line lands in the narrow label track and sets at a different
+   width from the first, which makes the script unreadable as a script. */
+.spoken{max-width:46rem; margin:34px 0 0; padding:20px 24px 22px; border:2px solid var(--accent); background:var(--accent-soft)}
+.spoken>.slab{font-family:var(--mono); font-size:10px; letter-spacing:0.16em; text-transform:uppercase; font-weight:700; color:var(--accent-ink); display:block; margin-bottom:10px}
+.spoken>.frame{margin:0 0 15px; max-width:none; font-size:0.92em; line-height:1.5; color:var(--ink-2)}
+.spoken ol.sbeats{display:grid; gap:13px; margin:0; padding:0; list-style:none; max-width:none}
+.spoken ol.sbeats>li{display:grid; grid-template-columns:minmax(7.5em,max-content) 1fr; gap:4px 18px; margin:0; padding-bottom:13px; border-bottom:1px solid var(--rule)}
+.spoken ol.sbeats>li:last-child{padding-bottom:0; border-bottom:none}
+.spoken ol.sbeats>li>*{grid-column:2}
+.spoken ol.sbeats>li>.beat{grid-column:1; grid-row:1; font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:0.11em; text-transform:uppercase; color:var(--accent-ink); padding-top:6px; white-space:nowrap}
+.spoken .line{margin:0; max-width:46ch; font-family:var(--serif); font-size:1.06em; line-height:1.55; color:var(--ink)}
+.spoken .line+.line{margin-top:7px}
+.spoken .line b{font-weight:700}
+.spoken .line code{font-size:0.86em}
+@media(max-width:620px){
+  .spoken ol.sbeats>li{grid-template-columns:1fr; gap:3px 0}
+  .spoken ol.sbeats>li>*{grid-column:1}
+  .spoken ol.sbeats>li>.beat{grid-column:1; grid-row:1; padding-top:0}
+}
+
+/* ---------- evidence: your numbers, not mine ----------
+   The one interactive block on the page. Everything above argues from
+   published figures; this is where the answer stops being general. The
+   earned answer underneath refuses to read as finished while it still
+   contains a number nobody measured - an unfilled slot renders red, in
+   mono, saying where to get it. Storage is best-effort localStorage in
+   this browser: empty fields with visible placeholders is the resting
+   state, not an error. */
+.evidence{border:1px solid var(--accent); background:var(--surface); margin:26px 0 0}
+.evidence>header{display:flex; flex-wrap:wrap; gap:4px 16px; align-items:baseline; justify-content:space-between; padding:13px 20px 11px; background:var(--accent)}
+.evidence>header .elab{font-family:var(--mono); font-size:10px; letter-spacing:0.16em; text-transform:uppercase; font-weight:700; color:var(--surface)}
+.evidence>header .hint{font-family:var(--mono); font-size:10px; letter-spacing:0.05em; color:var(--accent-soft)}
+.evidence .ebody{padding:16px 20px 18px}
+.evidence .ebody>p{max-width:64ch; font-size:15.5px; color:var(--ink-2); margin:0 0 0.8em}
+.evidence .ebody>:last-child{margin-bottom:0}
+.evidence .rows{display:grid; gap:0; margin:14px 0 0; border-top:1px solid var(--rule)}
+.evidence .row{display:grid; grid-template-columns:minmax(11em,1.15fr) minmax(6em,0.6fr) minmax(6em,0.6fr); gap:6px 16px; padding:12px 0 13px; border-bottom:1px solid var(--rule-2); align-items:start}
+.evidence .row:last-child{border-bottom:1px solid var(--rule)}
+.evidence .ran{font-size:15px; line-height:1.45; color:var(--ink); max-width:none}
+.evidence .field{display:grid; gap:3px; min-width:0}
+.evidence .field>label{font-family:var(--mono); font-size:9.5px; font-weight:700; letter-spacing:0.11em; text-transform:uppercase; color:var(--ink-3)}
+.evidence input[type="text"]{font-family:var(--mono); font-size:12.5px; color:var(--ink); background:var(--sunken); border:1px solid var(--rule); border-bottom:2px solid var(--ink-3); border-radius:2px; padding:6px 8px; width:100%; min-width:0}
+.evidence input[type="text"]:focus-visible{outline:2px solid var(--accent); outline-offset:1px; border-bottom-color:var(--accent)}
+.evidence input[type="text"].filled{border-bottom-color:var(--good); background:var(--surface)}
+.evidence .why-row{grid-column:1 / -1; display:grid; gap:4px; margin-top:9px}
+.evidence .why-row>label{font-family:var(--sans); font-size:14px; line-height:1.45; color:var(--ink-2); max-width:62ch}
+.evidence textarea{font-family:var(--sans); font-size:14.5px; line-height:1.5; color:var(--ink); background:var(--sunken); border:1px solid var(--rule); border-radius:2px; padding:8px 10px; width:100%; min-height:76px; resize:vertical}
+.evidence textarea:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+.evidence textarea.filled{border-color:var(--good); background:var(--surface)}
+.evidence input::placeholder,.evidence textarea::placeholder{color:var(--ink-3); opacity:0.9}
+.evidence .earned{margin:20px 0 0; padding:15px 18px; background:var(--good-soft); border-left:3px solid var(--good)}
+.evidence .earned .elab{font-family:var(--mono); font-size:10px; letter-spacing:0.16em; text-transform:uppercase; font-weight:700; color:var(--good); display:block; margin-bottom:9px}
+.evidence .earned p{margin:0; max-width:64ch; font-size:16px; line-height:1.55; color:var(--ink)}
+.evidence .earned p+p{margin-top:10px}
+.evidence .earned .placeholder{color:var(--bad); font-family:var(--mono); font-size:0.86em}
+.evidence .earned .caveat{font-size:14.5px; color:var(--ink-2)}
+@media(max-width:700px){.evidence .row{grid-template-columns:1fr}}
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <div class="kicker"><span>Senior ML Engineer</span><span>Inference &amp; serving round</span><span>Prep sheet</span></div>
+  <h1>The Max-Iteration Trap</h1>
+  <p class="sub">One question, four hidden defects, and the fundamentals you need to name them out loud.</p>
+
+  <div class="qcard">
+    <div class="lab">The question</div>
+    <blockquote><p>"Your self-correction loop improves output quality on every pass, but p99 latency just tripled in prod. Your teammate says <em>'just cap the max iterations.'</em> Why is that a band-aid, and what's actually broken?"</p></blockquote>
+  </div>
+
+  <div class="verdict">
+    <div class="lab">The one-sentence answer</div>
+    <p>A cap doesn't remove the tail — it clips it, and it clips it on exactly the requests that needed the extra compute, so you trade a visible latency problem for an invisible quality problem. What's actually broken is that the loop has <strong>no per-request stopping rule</strong>, its quality claim is <strong>measured as an average instead of per request</strong>, and it's <strong>an uncontrolled retry loop inside a shared serving engine</strong> with no latency budget.</p>
+  </div>
+</header>
+
+<section class="part">
+  <div class="parthead"><div class="pnum">00</div><h2>What the interviewer is actually testing</h2></div>
+  <p class="lede">This is not a trivia question. It is a <em>judgement</em> question wearing systems clothing. Four things are being probed at once, and a good answer touches all four without being asked.</p>
+  <div class="grid2">
+    <div class="defect" style="border-top-color:var(--accent)">
+      <span class="tag" style="color:var(--accent-ink)">Probe 1</span>
+      <h4>Symptom vs. cause</h4>
+      <p>Can you tell the difference between a knob that makes a number go down and a fix that makes the system correct? Everyone can find the knob.</p>
+    </div>
+    <div class="defect" style="border-top-color:var(--accent)">
+      <span class="tag" style="color:var(--accent-ink)">Probe 2</span>
+      <h4>Do you think in distributions?</h4>
+      <p>"Improves quality on every pass" is an average. "p99 tripled" is a tail. If you argue about the two as if they're the same kind of number, you've failed the question.</p>
+    </div>
+    <div class="defect" style="border-top-color:var(--accent)">
+      <span class="tag" style="color:var(--accent-ink)">Probe 3</span>
+      <h4>Do you know the serving stack?</h4>
+      <p>Batching, KV cache, prefix reuse, queueing. A refinement loop is not just an algorithm — it is extra load on a shared engine, and that's where p99 usually comes from.</p>
+    </div>
+    <div class="defect" style="border-top-color:var(--accent)">
+      <span class="tag" style="color:var(--accent-ink)">Probe 4</span>
+      <h4>Can you disagree well?</h4>
+      <p>Your teammate isn't wrong that you need a bound. Do you dunk on them, or do you ship their cap today as a guardrail and fix the mechanism properly? Seniority lives here.</p>
+    </div>
+  </div>
+</section>
+
+<section class="part">
+  <div class="parthead"><div class="pnum">01</div><h2>The answer, at three lengths</h2></div>
+  <p class="lede">Lead with the 30-second version. Interviewers interrupt; make sure the first thirty seconds contain the thesis, not the setup.</p>
+
+  <div class="box say">
+    <div class="lab">Say this — 30 seconds</div>
+    <p>"The cap is a real safety bound and I'd ship it today as a stopgap, but it's not a fix, because it doesn't change the shape of the latency distribution — it truncates it. And it truncates uniformly, on requests that are not uniform: the ones sitting at the cap are the hard ones that actually needed pass four. So I've converted a latency regression into a quality regression on my worst slice, and unlike latency, that regression isn't in my dashboard.</p>
+    <p>What's actually broken is three things. One, the loop has no stopping rule — it has no way to tell 'this is done' from 'this is not done', so it burns the whole budget on every request instead of exiting early on the easy ones. Two, 'quality improves every pass' is almost certainly a benchmark mean; per request, refinement both fixes and breaks answers, so I don't actually know what the extra passes are buying. Three, at the systems level this loop is an unbounded internal retry loop feeding the same batching engine, with no latency budget and no admission control — which is exactly why p99 tripled while p50 barely moved."</p>
+  </div>
+
+  <div class="box say">
+    <div class="lab">Say this — 90 seconds (add these beats)</div>
+    <ol class="beats">
+      <li><strong>Split the tail before theorising.</strong> "First I'd decompose p99: iteration count × per-iteration latency × queue wait. Those are three different bugs with three different fixes, and the numbers tell me which one I have."</li>
+      <li><strong>Name the variance mechanism.</strong> "The reason p50 is flat and p99 tripled is that iteration count is now a random variable. Total latency variance picks up a <span class="m">Var(N)·E[X]²</span> term. The tail of the total is dominated by the tail of the iteration count, not by the cost of one pass."</li>
+      <li><strong>Name the queueing mechanism.</strong> "Extra passes raise effective arrival rate, so utilisation rises, and queue wait scales like <span class="m">1/(1−ρ)</span>. My loop is also making other people's requests slow — including requests that never enter the loop."</li>
+      <li><strong>Fix the stop signal, not the ceiling.</strong> "The mechanism I want is an external verifier — tests, a compiler, a schema check, a retrieval check, a small reward model — so the loop stops on ground truth. A model grading its own work is the thing that's missing, and it's the thing you can't get by tuning a constant."</li>
+      <li><strong>Make the budget adaptive, then cap as a backstop.</strong> "Difficulty-conditioned budget from a cheap router, a wall-clock deadline rather than an iteration count, and <em>then</em> a hard cap plus circuit breaker as the last line of defence."</li>
+      <li><strong>Restate the objective.</strong> "And I'd push back on the framing: the goal was never 'maximise quality'. It's 'maximise quality subject to a p99 SLO' — goodput, not accuracy. If we'd written the SLO down first, the loop would have had a budget from day one."</li>
+    </ol>
+  </div>
+
+  <div class="box dont">
+    <div class="lab">Don't say</div>
+    <ul class="tight">
+      <li>"We'll set <code>max_iterations = 3</code> and ship it." — that's the trap, verbatim.</li>
+      <li>"Just add a bigger GPU / more replicas." — capacity hides an algorithmic bug and moves the cliff, it doesn't remove it.</li>
+      <li>"Cache the results." — nothing here says the traffic is repeated.</li>
+      <li>"p99 doesn't matter, most users are fine." — 1% of requests is 1 in 100; an agent making 20 model calls hits p99 about 18% of the time.</li>
+      <li>Anything that ends without naming a measurement you'd take. "What's broken" needs evidence, not a story.</li>
+    </ul>
+  </div>
+
+  <div class="spoken">
+    <span class="slab">Say it out loud &#183; about 75 seconds</span>
+    <p class="frame">The three above are written answers. This one is a script &#8212; four beats, short lines, built to be said. A spoken answer to <em>&#8220;your self-correction loop improves quality every pass, but p99 just tripled. Why is capping the iterations a band-aid?&#8221;</em> Read it aloud, then say it again with the page covered.</p>
+    <ol class="sbeats">
+      <li>
+        <span class="beat">Situation</span>
+        <p class="line">We have a self-correction loop. Every pass improves the output.</p>
+        <p class="line">In prod p99 tripled and p50 barely moved. My teammate wants to cap it at three iterations.</p>
+      </li>
+      <li>
+        <span class="beat">Mechanism</span>
+        <p class="line">The cap is a band-aid because the count was never the defect. The loop has no stopping rule &#8212; it stops when it runs out of budget, not when the work is done.</p>
+        <p class="line">And the tail isn&#8217;t one slow call. It&#8217;s the variance in the <em>number</em> of calls, and a cap truncates that tail rather than removing it.</p>
+        <p class="line">Those extra passes also queue on the same engine, so the loop slows down requests that never entered it.</p>
+      </li>
+      <li>
+        <span class="beat">What I did</span>
+        <p class="line">I shipped the cap the same day, as a guardrail.</p>
+        <p class="line">Then a real stop signal the loop can check itself against, a per-request budget sized to difficulty, and admission control so refinement can&#8217;t starve first-pass traffic.</p>
+        <p class="line">And I measured quality paired per request, not as an average.</p>
+      </li>
+      <li>
+        <span class="beat">What it cost</span>
+        <p class="line">The cap on its own would have hidden the problem. It truncates exactly the requests that needed the compute &#8212; trading a visible latency regression for an invisible quality one, with nothing in place that would have told us.</p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section class="part">
+  <div class="parthead"><div class="pnum">02</div><h2>Fundamentals: percentiles, and why p99 is the one that bites</h2></div>
+
+  <p>A percentile is just a sorted-order readout. <strong>p99 = 2.4 s</strong> means: sort every request's latency, walk 99% of the way up the list, and that's the number. 1 in 100 requests was slower than that.</p>
+
+  <div class="box fund">
+    <div class="lab">Fundamental — why averages lie</div>
+    <p>At 100 requests/second, a 120 ms <em>mean</em> TTFT can sit on top of a 600 ms p99. The mean is dominated by the bulk; the tail is where queueing, batch interference and retries live. Averages are structurally blind to exactly the failures you're paged for.</p>
+  </div>
+
+  <h3>Tail amplification: why 1% is never 1% of your users</h3>
+  <p>If a single call has a 1% chance of exceeding your p99, and a user session makes <span class="m">k</span> calls, the chance that session hits at least one slow call is <span class="m">1 − 0.99<sup>k</sup></span>:</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Calls per session or per agent trajectory</th><th>Chance of hitting ≥1 p99 event</th><th>What it feels like</th></tr></thead>
+    <tbody>
+      <tr><td class="num">1</td><td class="num">1.0%</td><td>Rare, forgettable</td></tr>
+      <tr><td class="num">5</td><td class="num">4.9%</td><td>Noticeable in a chat session</td></tr>
+      <tr><td class="num">20</td><td class="num up">18.2%</td><td>A fifth of agent runs feel broken</td></tr>
+      <tr><td class="num">50</td><td class="num up">39.5%</td><td>The tail <em>is</em> the product experience</td></tr>
+      <tr><td class="num">100</td><td class="num up">63.4%</td><td>Long agent loops fail more often than not</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="box key">
+    <div class="lab">Interview-grade line</div>
+    <p>"In an agentic product, p99 per call is roughly p50 per <em>session</em>. That's why the tail is the SLO — not the mean."</p>
+  </div>
+
+  <h3>And the tail is where timeouts turn latency into errors</h3>
+  <p>Clients have deadlines. If your client timeout is 5 s and your p99 is 7.2 s, you don't have a slow service — you have a service with a <strong>&gt;1% error rate</strong>. Latency past the deadline is indistinguishable from downtime, and retries on those failures make the load problem worse. Always ask where the caller's timeout sits relative to your tail.</p>
+</section>
+
+<section class="part">
+  <div class="parthead"><div class="pnum">03</div><h2>Fundamentals: where LLM latency actually comes from</h2></div>
+  <p class="lede">You cannot reason about a latency regression in an LLM system without decomposing it. Two phases, two bottlenecks, two different metrics.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Metric</th><th>What it measures</th><th>Bottleneck</th><th>Interactive-chat target (p99)</th></tr></thead>
+    <tbody>
+      <tr><td>TTFT</td><td>Arrival → first output token. Network + queue wait + prefill.</td><td>Compute-bound (prefill is a big matmul over the whole prompt)</td><td class="num">~300 ms</td></tr>
+      <tr><td>ITL / TPOT</td><td>Gap between consecutive output tokens during decode.</td><td>Memory-bandwidth-bound (reload KV cache per token)</td><td class="num">~50 ms</td></tr>
+      <tr><td>E2E latency</td><td>≈ TTFT + ITL × output_tokens</td><td>Both, plus scheduling</td><td class="num">workload-dependent</td></tr>
+      <tr><td>Goodput</td><td>Requests/sec <em>that met their SLO</em></td><td>The number that should drive capacity</td><td class="num">—</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>Typical p99 TTFT budget for a 400 ms target, and note how little of it is the model: network ingress 20 ms, queue wait 50 ms, tokenisation 10 ms, gateway 15 ms, safety filter 25 ms, <strong>prefill 280 ms</strong>. The two levers you actually control are <strong>queue wait</strong> and <strong>prefill</strong> — and a refinement loop attacks both.</p>
+
+  <div class="box fund">
+    <div class="lab">Fundamental — a loop turns E2E into a sum over passes</div>
+    <div class="formula">E2E = Σ (queue_wait_i + prefill_i + ITL_i × out_tokens_i)
+          i=1..N
+
+N is not a constant. N is a random variable.</div>
+    <p>Every term in that sum is a distribution, and <span class="m">N</span> is itself a distribution. That single fact explains the whole question.</p>
+  </div>
+</section>
+
+<section class="part">
+  <div class="parthead"><div class="pnum">04</div><h2>Why p50 stayed flat and p99 tripled</h2></div>
+  <p class="lede">This is the single most impressive thing you can explain in this answer, because it is the observation the interviewer gave you and most candidates skate past it.</p>
+
+  <figure>
+    <div class="legend">
+      <span class="la"><i></i>Before the loop (single pass)</span>
+      <span class="lb"><i></i>After the loop (uncapped refinement)</span>
+    </div>
+    <div class="chart">
+      <div class="plab">p50</div>
+      <div class="trk a"><i style="width:6.0%"></i></div><div class="blab">0.90 s</div>
+      <div class="trk b"><i style="width:7.0%"></i></div><div class="blab">1.05 s &nbsp;·&nbsp; +17%</div>
+      <div class="spacer"></div>
+      <div class="plab">p90</div>
+      <div class="trk a"><i style="width:10.7%"></i></div><div class="blab">1.60 s</div>
+      <div class="trk b"><i style="width:20.7%"></i></div><div class="blab">3.10 s &nbsp;·&nbsp; +94%</div>
+      <div class="spacer"></div>
+      <div class="plab">p99</div>
+      <div class="trk a"><i style="width:16.0%"></i></div><div class="blab">2.40 s</div>
+      <div class="trk b"><i style="width:48.0%"></i></div><div class="blab">7.20 s &nbsp;·&nbsp; 3.0×</div>
+      <div class="spacer"></div>
+      <div class="plab">p99.9</div>
+      <div class="trk a"><i style="width:22.0%"></i></div><div class="blab">3.30 s</div>
+      <div class="trk b"><i style="width:93.3%"></i></div><div class="blab">14.0 s &nbsp;·&nbsp; 4.2×</div>
+      <div class="ticks"><b>0</b><b>3 s</b><b>6 s</b><b>9 s</b><b>12 s</b><b>15 s</b></div>
+    </div>
+    <figcaption>The signature of a loop with no stopping rule: the median barely moves because most requests were fine after pass 1, while the upper percentiles fan out because a minority of requests run the budget to exhaustion. A cap flattens the right-hand bars and changes nothing about why they were long.</figcaption>
+  </figure>
+
+  <h3>The mechanism, stated properly</h3>
+  <p>Total latency is a <strong>compound random variable</strong>: a random number of passes <span class="m">N</span>, each costing a random <span class="m">X</span>. For the mean, the two just multiply. For the variance, a second term appears — and it's the one that owns your tail.</p>
+
+  <div class="formula">E[Total] = E[N] · E[X]
+
+Var[Total] = E[N] · Var[X]  +  Var[N] · E[X]²
+             \_____________/    \______________/
+              cost jitter        ITERATION-COUNT jitter
+              (was always        (this term is NEW, and it
+               there)             scales with E[X] SQUARED)</div>
+
+  <div class="box key">
+    <div class="lab">The line to deliver</div>
+    <p>"Adding a loop didn't make each pass slower — it made the <em>number</em> of passes uncertain. The <span class="m">Var(N)·E[X]²</span> term is new, it scales with the square of the per-pass cost, and it lands almost entirely in the tail. That's why p50 moved 17% and p99 moved 3×. Capping <span class="m">N</span> caps that variance by brute force, but the reason <span class="m">N</span> has a fat tail is that nothing in the system knows when to stop."</p>
+  </div>
+
+  <h3>Sequential is the worst possible shape for latency</h3>
+  <p>Four passes of 1 s run sequentially cost 4 s of wall clock. Four <em>samples</em> of 1 s run in parallel cost ~1 s of wall clock and the same 4 s of GPU time. Sequential refinement is the only test-time-compute strategy that converts compute directly into user-visible latency, because each pass is data-dependent on the last. That dependency chain is a design choice, and it's usually the wrong one — see Part 07.</p>
+</section>
+
+<section class="part">
+  <div class="parthead"><div class="pnum">05</div><h2>The loop is also slowing down requests that never enter it</h2></div>
+  <p class="lede">This is the part that separates "I understand algorithms" from "I have run something in production."</p>
+
+  <p>Every refinement pass is another request into the same inference engine. If 30% of requests take 3 extra passes, your effective arrival rate <span class="m">λ</span> isn't up 30% — it's up ~90%. Utilisation <span class="m">ρ = λ/μ</span> climbs, and queue wait does not climb linearly. It climbs like <span class="m">1/(1−ρ)</span>.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Utilisation ρ</th><th>Relative queue wait ∝ 1/(1−ρ)</th><th>Effect of +20% load on top</th></tr></thead>
+    <tbody>
+      <tr><td class="num">0.20</td><td class="num">1.25×</td><td class="flat">barely visible</td></tr>
+      <tr><td class="num">0.50</td><td class="num">2.0×</td><td class="flat">mild</td></tr>
+      <tr><td class="num">0.70</td><td class="num">3.3×</td><td>ρ→0.84, wait 6.3× &nbsp;(<span class="up">+88%</span>)</td></tr>
+      <tr><td class="num">0.80</td><td class="num">5.0×</td><td>ρ→0.96, wait 25× &nbsp;(<span class="up">+400%</span>)</td></tr>
+      <tr><td class="num">0.90</td><td class="num">10×</td><td class="up">saturated — unbounded queue growth</td></tr>
+    </tbody>
+  </table></div>
+
+  <p>Hence the industry rule of thumb: to hold a <strong>400 ms p99 TTFT</strong> you cap utilisation around <strong>70%</strong>; a 300 ms target needs ~63%; a 500 ms target buys you ~75%. Tail SLOs are purchased with headroom, and a refinement loop spends that headroom without telling anyone.</p>
+
+  <div class="box key">
+    <div class="lab">The systems insight — this is a retry loop</div>
+    <p>An uncapped self-correction loop is structurally identical to an <strong>unbounded client retry loop</strong>, and it has the same failure mode: <em>work amplification under load</em>. Load spike → latency up → more passes queued → less capacity for first passes → latency up further. That's a <strong>metastable failure</strong>: a positive feedback loop that keeps the system in the degraded state even after the trigger goes away. The known remedies are the same ones distributed systems already use for retries — <strong>budgets</strong>, <strong>circuit breakers</strong>, and <strong>separate queues so refinement passes cannot crowd out first passes</strong>.</p>
+  </div>
+
+  <div class="box dont">
+    <div class="lab">Watch for this trap in the follow-up</div>
+    <p>If the interviewer says "we scaled up the fleet and p99 came back down" — that is <em>consistent with</em> a queueing-dominated tail, and it means the algorithmic bug is still there, just paid for in dollars. Ask for p99 measured on a fixed replay at fixed low load. If the tail persists there, it's the algorithm. If it vanishes, it was contention. <strong>Those are different bugs.</strong></p>
+  </div>
+</section>
+
+<section class="part">
+  <div class="parthead"><div class="pnum">06</div><h2>Serving-stack specifics worth naming</h2></div>
+
+  <h3>Prefix caching — check this before you touch the algorithm</h3>
+  <p>A refinement pass sends <em>almost the same prompt as the previous pass</em>: same system prompt, same task, same prior draft, plus a critique. That's a long shared prefix. With prefix / KV-cache reuse, pass <span class="m">k</span>'s prefill is nearly free. Without it, you re-prefill a context that grows every pass — and because prefill is compute-bound and grows with prompt length, <strong>a 4-pass loop with a growing context and no prefix reuse can produce a 3× tail all by itself, with zero algorithmic change.</strong></p>
+
+  <div class="box say">
+    <div class="lab">Say this — it lands very well</div>
+    <p>"Before I redesign anything, I'd check the prefix cache hit rate on passes 2..N. A correction loop is the ideal prefix-cache workload, and if we're missing, we're paying full prefill N times on a context that's monotonically growing. That's a config bug that looks exactly like an algorithm bug."</p>
+  </div>
+
+  <h3>Batch slots, KV memory, and head-of-line blocking</h3>
+  <ul>
+    <li><strong>Loop requests are long requests.</strong> They hold a batch slot and their KV cache across many passes. Concurrent-request count, not GPU utilisation percentage, is what predicts tail TTFT — at 32 concurrent requests on a 70B model, p99 TTFT can be ~4× the p50; at 64 concurrent it roughly doubles again.</li>
+    <li><strong>KV memory pressure causes preemption.</strong> When the cache fills, the scheduler evicts or preempts requests, and preempted requests get re-prefilled. That is a latency cliff, not a slope, and it shows up only in the tail.</li>
+    <li><strong>FCFS + continuous batching still has head-of-line blocking</strong> at the token-iteration layer: long-generation requests delay newly arrived ones. Fixes are scheduling-level — priority classes, SJF-style prediction, multi-level feedback queues, iteration-level preemption.</li>
+    <li><strong>Scale on concurrency, not GPU%.</strong> Queue depth degrades 30–60 s before GPU metrics show strain; it's the leading indicator you want on the dashboard.</li>
+  </ul>
+</section>
+
+<section class="part">
+  <div class="parthead"><div class="pnum">07</div><h2>The quality claim is probably also wrong</h2></div>
+  <p class="lede">"Improves quality on every pass" is the premise you should politely refuse to accept at face value. This is the highest-value pushback available in the whole question.</p>
+
+  <h3>Intrinsic vs. extrinsic self-correction</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Type</th><th>Feedback source</th><th>What the literature finds</th></tr></thead>
+    <tbody>
+      <tr><td>Intrinsic</td><td>The model critiques its own output from a prompt alone</td><td>Frequently <span class="up">degrades</span> quality. Without ground truth, models can't reliably judge whether their previous answer was correct — so they "fix" correct answers.</td></tr>
+      <tr><td>Extrinsic</td><td>Unit tests, compiler, schema validator, tool output, retrieval, a trained verifier / reward model</td><td>This is where the real gains are. The loop stops on evidence rather than on vibes.</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>The error-dynamics model — the crispest way to say it</h3>
+  <p>Treat each iteration as a two-state Markov transition on correctness:</p>
+  <div class="formula">EIR = P(correct  → incorrect)   "error introduction rate"
+ECR = P(incorrect → correct)     "error correction rate"
+
+Refinement stops paying when:   ECR / EIR  =  Acc / (1 − Acc)</div>
+
+  <p>Read what that threshold demands. A model already at <strong>91% accuracy</strong> needs <span class="m">ECR/EIR &gt; 8.6</span> just to break even — it must be more than eight times better at fixing errors than at creating them, because the pool of correct answers it can damage is ten times larger than the pool of errors it can repair. Measured <span class="m">ECR/EIR</span> for weaker models sits near <span class="m">1.0</span>. For those models, <strong>iteration monotonically degrades accuracy</strong>, and the empirical dividing line is brutally sharp: near-zero EIR (≲0.5%) separates loops that help from loops that hurt.</p>
+
+  <div class="box key">
+    <div class="lab">The pushback, phrased safely</div>
+    <p>"I'd want to see the quality number as a <em>paired, per-request</em> comparison, not an aggregate. Refinement both fixes and breaks answers, and a mean can rise while a subset of requests regresses. If pass 3 fixes 4% and breaks 3%, the dashboard says +1% and the users who regressed are invisible. Which means the cap isn't just cutting gains — it's cutting an <em>unknown mix</em> of gains and unmeasured regressions. We don't currently know which."</p>
+  </div>
+
+  <h3>Overthinking: more passes actively hurt past a difficulty-dependent point</h3>
+  <ul>
+    <li><strong>Negative flips are real and common.</strong> In studied reasoning traces, ~<strong>67.5%</strong> of correct→incorrect transitions involve the model explicitly reconsidering and rejecting an answer that was right.</li>
+    <li><strong>There is a crossover point.</strong> Around ~7K reasoning tokens, negative flips start to outnumber positive ones.</li>
+    <li><strong>The right budget varies by ~7.5× across difficulty levels.</strong> Easy items begin overthinking around ~1.5K tokens; hard items tolerate ~8K. A single global constant is therefore wrong for almost every request — which is precisely the problem with the cap.</li>
+    <li><strong>Cheap stop signals exist.</strong> Answer oscillation correlates with negative flips at <span class="m">r≈0.78</span>; hesitation markers <span class="m">r≈0.71</span>; declining confidence <span class="m">r≈0.63</span>. Combined indicators hit ~76% precision at 80% recall, and indicator-based early stopping retains ~97% of peak accuracy on ~60% of the compute.</li>
+  </ul>
+
+  <div class="box fund">
+    <div class="lab">Fundamental — parallel beats sequential at matched compute</div>
+    <p>At a fixed budget of three model calls, <strong>independent sampling plus aggregation</strong> measured ~93.4% where <strong>sequential refinement</strong> measured ~86.6% on the same task. Sampling breaks the dependency chain that lets one bad critique poison every later pass — and it costs one round of wall clock instead of three. If you take one design lesson from this question: <em>spend test-time compute in width, not depth, unless you have a verifier that makes depth safe.</em></p>
+  </div>
+</section>
+
+<section class="part">
+  <div class="parthead"><div class="pnum">08</div><h2>So: what is actually broken</h2></div>
+  <p class="lede">Four named defects. Name them as defects, not as opinions — each one is a missing component, not a badly tuned parameter.</p>
+
+  <div class="loop">
+    <div class="node">Generate<small>pass 1</small></div>
+    <div class="arrow">→</div>
+    <div class="node">Critique<small>self, no ground truth</small></div>
+    <div class="arrow">→</div>
+    <div class="node">Refine<small>pass k+1</small></div>
+    <div class="arrow">→</div>
+    <div class="node gap">Stop?<small>ONLY iteration count</small></div>
+    <div class="arrow">→</div>
+    <div class="node">Return</div>
+  </div>
+  <div class="backedge">└──── unconditional back-edge: re-enters the same queue, holds the same batch slot ────┘</div>
+  <p style="font-family:var(--sans); font-size:13.5px; color:var(--ink-3); margin-top:14px">The dashed box is the whole question. Everything else in this loop is fine.</p>
+
+  <div class="grid2">
+    <div class="defect">
+      <span class="tag">Defect 1 · Control</span>
+      <h4>There is no stopping rule</h4>
+      <p>The loop cannot distinguish "done" from "not done", so it has no way to exit early on the ~90% of requests that were already correct after pass 1. It runs to whatever ceiling exists. A cap replaces one wrong global constant with a smaller wrong global constant; what's missing is a <em>per-request decision</em>.</p>
+    </div>
+    <div class="defect">
+      <span class="tag">Defect 2 · Evaluation</span>
+      <h4>Quality is measured as an average</h4>
+      <p>Aggregate improvement is compatible with a meaningful slice getting worse. Without paired per-request evals you don't know your EIR, you don't know whether the loop is above or below the break-even threshold, and you can't price the cap's quality cost.</p>
+    </div>
+    <div class="defect">
+      <span class="tag">Defect 3 · Architecture</span>
+      <h4>Compute is spent in depth, not width</h4>
+      <p>Sequential refinement is the one shape that converts GPU time into wall-clock latency 1:1, and it chains errors. Same budget spent as parallel sampling + aggregation is usually both faster and better.</p>
+    </div>
+    <div class="defect">
+      <span class="tag">Defect 4 · Systems</span>
+      <h4>Latency is not a first-class constraint</h4>
+      <p>No SLO, no per-request latency budget, no deadline propagation, no admission control, no priority separation between first passes and refinement passes, no circuit breaker. The loop can consume unbounded shared capacity, which is why the blast radius includes requests that never entered it.</p>
+    </div>
+  </div>
+</section>
+
+<section class="part">
+  <div class="parthead"><div class="pnum">09</div><h2>The fix, in the order you'd actually do it</h2></div>
+  <p class="lede">Present this as a sequence with the cheap, reversible things first. The cap survives — it just moves to the end, and it changes role from mechanism to guardrail.</p>
+
+  <ol class="beats">
+    <li><strong>Ship the cap today, as a stopgap, and say so.</strong> "I'd take my teammate's change immediately — bleeding p99 is worse than a small quality risk for a day. I'd also add a wall-clock deadline alongside it, because iterations are a proxy and time is the thing we're actually defending." Then instrument, and keep going.</li>
+    <li><strong>Decompose the tail before redesigning.</strong> Log per-request: iteration count <span class="m">N</span>, queue wait per pass, prefill tokens per pass, prefix-cache hit rate, decode tokens, and the stop reason. Plot the distribution of <span class="m">N</span>. Compare p99 of E2E conditioned on <span class="m">N</span>. This tells you which of three bugs you have: fat <span class="m">N</span> tail, growing per-pass cost, or queueing contention.</li>
+    <li><strong>Fix the cheap infrastructure wins.</strong> Prefix/KV cache reuse across passes; don't resend a monotonically growing transcript when a diff will do; separate priority class or queue for refinement passes so first-pass TTFT is protected; scale on concurrent-request count, not GPU%.</li>
+    <li><strong>Put in a real stop signal — external, cheap, asymmetric.</strong> Run the unit tests. Run the compiler. Validate against the schema. Execute the tool. Check the citation actually exists. Score with a small reward/verifier model. Stop when the check passes. Cheap deterministic checks are the best deal in the whole design: near-zero latency, ground-truth signal. Where no deterministic check exists, use oscillation and confidence-trajectory detectors and a fixed-point test (if pass <span class="m">k+1</span> differs from pass <span class="m">k</span> below a threshold, you've converged — stop).</li>
+    <li><strong>Make the budget adaptive, not uniform.</strong> A cheap difficulty router assigns the budget: easy requests get 1 pass, hard requests get 5. Optimal budget varies ~7.5× across difficulty, so uniform allocation is wrong for nearly every request. Set each bucket's budget where marginal accuracy per millisecond falls below your threshold — an explicit efficiency frontier, not a guess.</li>
+    <li><strong>Convert depth to width where you can.</strong> Where you have a verifier, best-of-N + verify is one wall-clock round instead of N. Where you have no verifier, self-consistency over independent samples beats sequential refinement at matched compute. Reserve sequential passes for cases where the critique genuinely carries information the first pass couldn't have.</li>
+    <li><strong>Make it anytime and deadline-driven.</strong> Always hold a returnable best-so-far. Compute the budget as <span class="m">remaining_deadline / expected_pass_cost</span> and propagate the deadline down the call chain. Under load shedding, degrade to one pass rather than dropping the request — graceful degradation, not a cliff.</li>
+    <li><strong>Write the SLO down and optimise the right objective.</strong> The target is not "maximum quality"; it's <strong>maximum quality subject to a p99 latency SLO</strong> — i.e. goodput. Add the error budget and burn-rate alerts, a guardrail metric for quality regression on the hard slice, a canary, and a circuit breaker that trips the loop off entirely when the tail budget is burning. <em>Now</em> the cap is a correct backstop, because something smarter is doing the real work.</li>
+  </ol>
+
+  <div class="box say">
+    <div class="lab">Closing line</div>
+    <p>"So: the cap is a fuse, and I do want a fuse. But right now the fuse <em>is</em> the design. What I want is a loop that stops because it has evidence it's done, that gets a budget proportional to how hard the request is, and that can't spend other requests' latency budget to buy its own quality. Once those three exist, the cap almost never fires — and that's how you know it's a guardrail rather than a policy."</p>
+  </div>
+</section>
+
+<section class="part">
+  <div class="parthead"><div class="pnum">10</div><h2>The diagnostic you'd run first</h2></div>
+  <p class="lede">If the interviewer asks "how would you actually find out?", this is the answer. Three measurements, three distinct verdicts.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Measurement</th><th>Result</th><th>Verdict</th><th>Fix lives in</th></tr></thead>
+    <tbody>
+      <tr><td>Distribution of iteration count <span class="m">N</span></td><td>Long right tail, most requests <span class="m">N=1</span></td><td>Missing stopping rule; a hard slice runs to the ceiling</td><td>Verifier + adaptive budget</td></tr>
+      <tr><td>Same, but <span class="m">N</span> is uniformly high</td><td>Everything iterates a lot</td><td>The stop criterion never fires at all — likely self-critique that always finds something to "improve"</td><td>Stop criterion / prompt / EIR</td></tr>
+      <tr><td>Per-pass prefill tokens &amp; prefix-cache hit rate</td><td>Prefill grows per pass, cache hit ~0</td><td>Config bug masquerading as an algorithm bug</td><td>Serving config</td></tr>
+      <tr><td>Fixed-load replay of the same traffic offline</td><td>Tail disappears at low load</td><td>Queueing / batch contention, not the algorithm</td><td>Capacity, scheduling, priority classes</td></tr>
+      <tr><td>Same replay</td><td>Tail persists at low load</td><td>Genuinely algorithmic — the loop is long on its own</td><td>Everything in Part 09</td></tr>
+      <tr><td>Paired per-request quality, pass 1 vs pass N</td><td>Some requests regress</td><td>You are above the EIR break-even threshold</td><td>Verify-first prompt, or stop iterating</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="box key">
+    <div class="lab">Why this table wins points</div>
+    <p>It shows you know that "p99 tripled" is three different bugs wearing the same dashboard, and that you would not choose a fix before you knew which one you had. Saying <em>"these are different bugs and I can distinguish them in an afternoon"</em> is the most senior thing available in this question.</p>
+  </div>
+</section>
+
+<section class="part">
+  <div class="parthead"><div class="pnum">11</div><h2>Follow-ups they will ask</h2></div>
+  <p class="lede">Twelve probes, ordered roughly by how likely they are. Each answer is written to be said aloud in under a minute.</p>
+
+  <div class="fu">
+    <div class="fuq"><b>F1</b><p>"Your verifier costs latency too. Haven't you just moved the problem?"</p></div>
+    <div class="fua">
+      <p>No, because the economics are asymmetric — and I'd show the arithmetic. A refine pass is a full generation: prefill plus hundreds of decode tokens. A verify step can be a unit-test run (milliseconds, no GPU), a schema validation (microseconds), or a small reward model doing a single forward pass with no long decode. Call refine 800 ms and verify 40 ms. Today I pay 4 × 800 = 3200 ms unconditionally. With a verifier I pay <span class="m">40 ms × passes + 800 ms × passes_actually_needed</span>, and passes-needed is 1 for most traffic. Expected cost drops even though I added a component.</p>
+      <p>The second half of the answer is that I only need the verifier to be right about <em>stopping</em>, not about grading. That's a much easier calibration problem, and I can tune the threshold asymmetrically: a false "keep going" costs one pass of latency; a false "stop" costs quality. I'd pick the operating point from that cost ratio, not from accuracy.</p>
+    </div>
+  </div>
+
+  <div class="fu">
+    <div class="fuq"><b>F2</b><p>"There's no verifier for this task. Open-ended prose. Now what?"</p></div>
+    <div class="fua">
+      <p>Then I stop running a sequential loop, because sequential refinement without ground truth is the configuration the literature says degrades quality. Three moves, in order:</p>
+      <ul class="tight">
+        <li><strong>Find a proxy verifier.</strong> Fully open-ended is rarer than it looks — structural validity, schema conformance, factual claims checkable against retrieval, constraint satisfaction ("did it stay under 200 words / cite three sources / avoid the banned list"), or a tool that executes something. Partial ground truth is still ground truth.</li>
+        <li><strong>Switch depth for width.</strong> Independent samples plus aggregation, or plus a pairwise preference model. One wall-clock round, no error chaining.</li>
+        <li><strong>Escalate instead of iterating.</strong> A cascade: cheap model first, and on low confidence route once to a stronger model rather than looping the weak one. One escalation is bounded latency; a loop isn't.</li>
+      </ul>
+      <p>And if none of that is available, I'd say so plainly: then the honest design is a fixed small budget, and we should stop calling it self-correction and start calling it a fixed-cost second draft.</p>
+    </div>
+  </div>
+
+  <div class="fu">
+    <div class="fuq"><b>F3</b><p>"p50 didn't move but p99 tripled. What does that fact alone tell you?"</p></div>
+    <div class="fua">
+      <p>That the regression is in the <em>tail of the iteration-count distribution</em> or in <em>load-induced queueing</em> — not in the base cost of a pass. If per-pass cost had risen, p50 would have risen too. So most requests are exiting after one pass (good — that means an early-exit signal partly exists, or the loop isn't always entered), and a minority are running to exhaustion.</p>
+      <p>The two candidates are distinguishable: replay identical traffic at low fixed load. If the tail survives, it's the algorithm — a hard slice genuinely runs long. If it collapses, it's contention, and my loop is stealing capacity from unrelated requests. I'd check the correlation between p99 and concurrent-request count before I'd check anything about the model.</p>
+    </div>
+  </div>
+
+  <div class="fu">
+    <div class="fuq"><b>F4</b><p>"Fine — how do you set the budget, if not a constant?"</p></div>
+    <div class="fua">
+      <p>Three inputs, none of them a hand-picked integer:</p>
+      <ul class="tight">
+        <li><strong>Difficulty.</strong> A cheap router or a difficulty estimate from the prompt assigns a budget per bucket. Optimal allocation varies ~7.5× across difficulty levels, so bucketing is where most of the win is.</li>
+        <li><strong>Deadline.</strong> Budget = <span class="m">remaining_deadline / expected_pass_cost</span>, recomputed each pass and propagated from the caller. Time is what the SLO is written in, so time is what the loop should be governed by. An iteration count is a proxy that goes stale the moment prompt lengths change.</li>
+        <li><strong>Marginal value.</strong> Per bucket, stop where marginal accuracy per millisecond falls below a threshold you choose from the SLO. Published cost-balanced operating points land around 50% compute reduction for ~6% accuracy loss, or ~97% of peak accuracy at 60% of compute — pick the point deliberately, on an efficiency frontier, and treat it as a product decision rather than a tuning artefact.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="fu">
+    <div class="fuq"><b>F5</b><p>"What if the loop never converges — it just oscillates between two answers?"</p></div>
+    <div class="fua">
+      <p>That's a real and common mode, and it's detectable rather than merely survivable. <strong>Fixed-point detection:</strong> if the diff between pass <span class="m">k</span> and <span class="m">k+1</span> is below a threshold, you've converged — stop, don't spend the rest of the budget. <strong>Oscillation detection:</strong> track the answer across passes; a flip-flop pattern is the strongest single predictor of a correct→incorrect transition (<span class="m">r≈0.78</span>). On detecting oscillation, don't pick the latest — return the earliest stable answer or aggregate across passes, because "latest" is a bad default when the process isn't contracting.</p>
+      <p>Framed properly, this is a control-stability question: the loop is a feedback system and it converges only if the correction rate dominates the error-introduction rate. If it's oscillating, the loop is not contracting, and no iteration budget will make it converge. That's the case where you stop iterating entirely rather than tuning the ceiling.</p>
+    </div>
+  </div>
+
+  <div class="fu">
+    <div class="fuq"><b>F6</b><p>"Isn't quality more important than latency here?"</p></div>
+    <div class="fua">
+      <p>Past a threshold, latency <em>is</em> quality — and past the client's timeout, latency is an error. If our timeout is 5 s and p99 is 7.2 s, we don't have a slow product, we have a &gt;1% failure rate, plus retry load that makes the tail worse. So it isn't a trade between two goods; it's a constraint.</p>
+      <p>The right framing is: set the SLO from actual user need, then maximise quality subject to it. And the SLO is workload-specific, not universal — voice agents need ~150 ms p99 TTFT because TTS adds 100–200 ms downstream; inline code completion needs sub-100 ms to feel native; a batch/async job can happily take 3 s. If this loop is serving an async review pipeline, tripling p99 might be entirely fine and I'd say so. The bug is that nobody wrote the number down, so we can't tell.</p>
+    </div>
+  </div>
+
+  <div class="fu">
+    <div class="fuq"><b>F7</b><p>"Why not just add capacity? GPUs are cheaper than engineering time."</p></div>
+    <div class="fua">
+      <p>Sometimes that's the right call, and I'd cost it rather than dismiss it. But three caveats. First, tail SLOs are bought with headroom, and headroom is superlinear: tightening p99 TTFT from 500 ms to 200 ms at the same RPS costs roughly 35% more infrastructure. Second, capacity fixes the queueing component and does nothing for the algorithmic component — if the tail persists on a low-load replay, no amount of hardware helps. Third, the loop's cost multiplier hits <span class="m">$</span>/request as hard as it hits latency, so scaling up pays the multiplier at a higher unit count. Adding capacity to an uncontrolled amplification loop is how you get a bill that scales with a bug.</p>
+    </div>
+  </div>
+
+  <div class="fu">
+    <div class="fuq"><b>F8</b><p>"Walk me through how you'd ship the real fix safely."</p></div>
+    <div class="fua">
+      <ul class="tight">
+        <li><strong>Write the SLO first</strong> — p99 E2E target, error budget, burn-rate alerts (a 14.4× burn over an hour pages).</li>
+        <li><strong>Offline first.</strong> Replay production traffic; compute paired per-request quality deltas, not aggregates; report the regression rate on the hard slice as a named guardrail metric.</li>
+        <li><strong>Shadow.</strong> Run the verifier in shadow mode to measure its stop-decision precision/recall against known outcomes before it controls anything.</li>
+        <li><strong>Canary</strong> on a small traffic slice, watching both the tail and the guardrail. Latency wins that cost quality must be visible in the same review.</li>
+        <li><strong>Kill switch and circuit breaker.</strong> Loop off entirely under tail-budget burn; degrade to one pass rather than dropping requests.</li>
+        <li><strong>Leave the cap in</strong>, as a fuse, and alert when it fires — because a firing cap now means the smarter mechanism failed, which is information.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="fu">
+    <div class="fuq"><b>F9</b><p>"How does this interact with the inference engine specifically?"</p></div>
+    <div class="fua">
+      <p>Four concrete interactions. <strong>Prefix cache:</strong> refinement passes share a long prefix, so hit rate on passes 2..N should be near 1; if it isn't, we're re-prefilling a growing context N times and that alone can explain a 3× tail. <strong>Batch slots:</strong> loop requests are long-lived; concurrent-request count predicts tail TTFT better than GPU utilisation, so autoscale on concurrency, around 24–28 rather than waiting for 80% GPU. <strong>KV memory:</strong> long-lived requests raise cache pressure, and pressure causes preemption and re-prefill — a cliff that appears only in the tail. <strong>Scheduling:</strong> continuous batching removes queue-level head-of-line blocking but not the token-iteration-level version, and FCFS treats a 5th refinement pass as equal in priority to someone's first request. That's the policy I'd change first: refinement passes go in a lower-priority class so they can never crowd out first passes. That's the same "prioritise originals over retries" remedy used against retry storms.</p>
+    </div>
+  </div>
+
+  <div class="fu">
+    <div class="fuq"><b>F10</b><p>"You keep saying the loop is like a retry storm. Make that precise."</p></div>
+    <div class="fua">
+      <p>A metastable failure needs a trigger and a sustaining positive feedback loop. Trigger: a load spike or a capacity loss. Sustaining loop: higher latency → more requests in flight → refinement passes queue behind first passes → less effective capacity for first passes → higher latency. The defining symptom is that the system stays degraded <em>after the trigger goes away</em>, because the amplified work is now self-sustaining. The remedies transfer directly: a <strong>global budget</strong> on in-flight refinement work (not per-request — total, so the amplification factor is bounded system-wide), a <strong>circuit breaker</strong> that drops to one pass, and <strong>separate queues</strong> so originals beat retries. I'd add: an uncapped loop is worse than a retry storm in one way, because it's <em>internal</em> — no client-side backoff will ever throttle it.</p>
+    </div>
+  </div>
+
+  <div class="fu">
+    <div class="fuq"><b>F11</b><p>"Suppose the extra passes genuinely do help, every time, measured properly. Is the cap fine then?"</p></div>
+    <div class="fua">
+      <p>Then the cap becomes an explicit, priced quality/latency decision rather than a band-aid — and that's a legitimate place to land, provided three things are true. One, the budget is <em>adaptive</em>, so the cap isn't spending easy requests' compute on nothing; a uniform cap wastes budget on easy items and starves hard ones even when refinement always helps. Two, the cap is expressed as a <em>deadline</em> and the algorithm is <em>anytime</em>, so you always return the best answer available at the deadline instead of a truncated one. Three, you've decided what happens to the requests that hit the ceiling — silently returning a worse answer is different from telling the caller "partial", and for some products that distinction matters a lot.</p>
+      <p>So: same conclusion, different reason. Even in the best case the fix isn't "cap iterations", it's "budget time, adaptively, and degrade gracefully."</p>
+    </div>
+  </div>
+
+  <div class="fu">
+    <div class="fuq"><b>F12</b><p>"Your teammate is in the room and is annoyed. What do you actually say to them?"</p></div>
+    <div class="fua">
+      <p>"Let's ship your cap this afternoon — the tail is bleeding and I'd rather have a fuse than an argument. I want to add a wall-clock deadline next to it, because prompt lengths drift and an iteration count won't hold. Then can we spend a day on instrumentation before we pick the number? If the tail turns out to be queueing, the cap is treating the wrong system, and I'd hate for us to tune a constant for a month over something that's a scheduler config."</p>
+      <p><em>Why this matters:</em> the question includes a teammate on purpose. The failure mode candidates fall into is treating "band-aid" as an invitation to be contemptuous. Take the stopgap, name the follow-up, and keep the disagreement about the system rather than about the person.</p>
+    </div>
+  </div>
+</section>
+
+<section class="part">
+  <div class="parthead"><div class="pnum">12</div><h2>Your evidence</h2></div>
+  <p class="lede">The one block on this page that is not finished. Fill it in and the answer stops being an argument you can reproduce and becomes one only you can give.</p>
+
+<div class="evidence" data-evidence-for="0001">
+  <header>
+    <span class="elab">Your numbers, not mine</span>
+    <span class="hint">saved in this browser as you type</span>
+  </header>
+  <div class="ebody">
+    <p>Everything above this line argues from published figures. That is the right floor and the wrong ceiling &#8212; it proves you read, not that you shipped. Below is where one system you actually ran goes.</p>
+    <p>Four rows. Three numbers and a cost. The script in section 01 is the shape; this is what fills it.</p>
+    <div class="rows">
+      <div class="row">
+        <span class="ran">The loop you have actually run or watched &#8212; and what its tail looked like</span>
+        <span class="field"><label for="e1-system">the system</label><input type="text" id="e1-system" data-field="system" placeholder="e.g. the invoice-extraction retry pass"></span>
+        <span class="field"><label for="e1-tail">p50 / p99</label><input type="text" id="e1-tail" data-field="tail" placeholder="e.g. p50 1.1 s, p99 6.8 s"></span>
+        <span class="why-row"><label for="e1-stop">What made it stop &#8212; honestly?</label><textarea id="e1-stop" data-field="stop" placeholder="Name the actual stopping rule: an iteration cap, a wall-clock deadline, a validator, or nothing at all. If it was a cap, say what number and who picked it. &#8220;Nothing &#8212; it ran until the client timed out&#8221; is a better answer than an invented verifier, because it is the one you can defend under follow-up."></textarea></span>
+      </div>
+      <div class="row">
+        <span class="ran">The check that could ground the stop signal, and what it costs beside one refinement pass</span>
+        <span class="field"><label for="e1-check">the check</label><input type="text" id="e1-check" data-field="check" placeholder="e.g. JSON-schema validation, ~4 ms"></span>
+        <span class="field"><label for="e1-exit">exit after 1</label><input type="text" id="e1-exit" data-field="exit" placeholder="e.g. 87% of requests"></span>
+        <span class="why-row"><label for="e1-why_check">Why is that check ground truth rather than the model grading itself?</label><textarea id="e1-why_check" data-field="why_check" placeholder="Say what the check is anchored in &#8212; a schema, a compiler, a test suite, a lookup that can actually fail &#8212; and give both costs: the check and one pass. The asymmetry is the whole argument, and it only lands with two numbers in it."></textarea></span>
+      </div>
+      <div class="row">
+        <span class="ran">What capping actually cost, as opposed to what you assumed it cost</span>
+        <span class="field"><label for="e1-capped">hit the cap</label><input type="text" id="e1-capped" data-field="capped" placeholder="e.g. 4% of requests"></span>
+        <span class="field"><label for="e1-quality">quality delta</label><input type="text" id="e1-quality" data-field="quality" placeholder="e.g. unknown - no paired eval"></span>
+        <span class="why-row"><label for="e1-proof">Could you prove the capped requests got worse?</label><textarea id="e1-proof" data-field="proof" placeholder="If you have a paired per-request comparison, give the number. If you do not, write that down instead. &#8220;We had no measurement that would have told us&#8221; is the sentence that demonstrates you understand the failure mode, and it is true far more often than the alternative."></textarea></span>
+      </div>
+      <div class="row">
+        <span class="ran">The decision you would defend: the promise you made, and what you gave up to keep it</span>
+        <span class="field"><label for="e1-slo">the SLO</label><input type="text" id="e1-slo" data-field="slo" placeholder="e.g. p99 under 3 s, agreed with product"></span>
+        <span class="field"><label for="e1-cost">what it cost</label><input type="text" id="e1-cost" data-field="cost" placeholder="e.g. cap shipped day one, verifier week two"></span>
+        <span class="why-row"><label for="e1-tradeoff">What did it cost, and who did you have to convince?</label><textarea id="e1-tradeoff" data-field="tradeoff" placeholder="Name the cost in the same units as the win: latency bought with quality, quality bought with spend, or a worse tail for the week it took to build the real fix. An answer with no cost in it reads as something you read rather than something you shipped."></textarea></span>
+      </div>
+    </div>
+    <div class="earned">
+      <span class="elab">The answer this guide earns</span>
+      <p>&#8220;I owned a self-correction loop on <span data-fill="system" class="placeholder">[row 1]</span>, where the tail ran at <span data-fill="tail" class="placeholder">[row 1]</span>. The cap was the design, not a guardrail &#8212; so I replaced it with <span data-fill="check" class="placeholder">[row 2]</span> as a real stopping rule, which exits after one pass on <span data-fill="exit" class="placeholder">[row 2]</span> of traffic, against an agreed SLO of <span data-fill="slo" class="placeholder">[row 4]</span>. What it cost: <span data-fill="cost" class="placeholder">[row 4]</span>.&#8221;</p>
+      <p class="caveat">The follow-up is always <em>&#8220;how did you know the capped requests weren&#8217;t fine?&#8221;</em> Have row 3 ready &#8212; including if the honest answer is that you couldn&#8217;t tell.</p>
+    </div>
+  </div>
+</div>
+
+</section>
+
+
+<section class="part">
+  <div class="parthead"><div class="pnum">13</div><h2>Numbers and formulas worth memorising</h2></div>
+  <p class="lede">The five things to have on the tip of your tongue. Getting one of these right in an interview is worth a paragraph of general reasoning.</p>
+
+  <div class="tw"><table>
+    <thead><tr><th>Idea</th><th>Form</th><th>Use it to say</th></tr></thead>
+    <tbody>
+      <tr><td>Compound variance</td><td class="num">Var[T] = E[N]Var[X] + Var[N]E[X]²</td><td>Why p50 held and p99 tripled</td></tr>
+      <tr><td>Queueing blow-up</td><td class="num">wait ∝ 1/(1−ρ)</td><td>Why +30% passes can be +400% queue wait at high ρ</td></tr>
+      <tr><td>Little's Law</td><td class="num">L = λW</td><td>In-flight requests from RPS × service time; sizing</td></tr>
+      <tr><td>Refinement break-even</td><td class="num">ECR/EIR = Acc/(1−Acc)</td><td>Why a 91%-accurate model needs 8.6× before iteration pays</td></tr>
+      <tr><td>Tail exposure</td><td class="num">1 − (1−p)^k</td><td>Why p99 per call is p50 per session at k=100</td></tr>
+    </tbody>
+  </table></div>
+
+  <h4>Reference figures</h4>
+  <ul class="tight">
+    <li><strong>Utilisation ceilings for TTFT p99:</strong> 300 ms → ~63%, 400 ms → ~70%, 500 ms → ~75%.</li>
+    <li><strong>SLO targets by workload (TTFT p99 / ITL p99):</strong> voice 150 / 30 ms · inline completion 100 / 25 ms · interactive chat 300 / 50 ms · RAG chat 400 / 80 ms · batch 3000 / 200 ms.</li>
+    <li><strong>Concurrency, not GPU%:</strong> on a 70B model, p99 TTFT ≈ 4× p50 at 32 concurrent requests, roughly doubling again by 64. Scale at 24–28 concurrent.</li>
+    <li><strong>Cost of a tighter tail:</strong> 500 ms → 200 ms p99 TTFT ≈ +35% infrastructure at the same RPS.</li>
+    <li><strong>Overthinking:</strong> negative flips outnumber positive ones past ~7K reasoning tokens; optimal budget varies ~7.5× by difficulty; indicator-based early stopping ≈ 97% of peak accuracy on 60% of compute.</li>
+    <li><strong>Parallel vs sequential at 3 calls:</strong> ~93.4% (independent sampling) vs ~86.6% (sequential refinement).</li>
+    <li><strong>Burn rate:</strong> 14.4× burn of a weekly error budget consumes it in under 12 hours — the classic paging threshold.</li>
+  </ul>
+</section>
+
+<section class="part">
+  <div class="parthead"><div class="pnum">14</div><h2>Glossary</h2></div>
+  <dl class="gloss">
+    <dt>TTFT</dt><dd>Time to first token. Network + queue wait + prefill. Compute-bound.</dd>
+    <dt>ITL / TPOT</dt><dd>Inter-token latency / time per output token. The decode-phase cadence. Memory-bandwidth-bound.</dd>
+    <dt>Prefill / decode</dt><dd>The two phases of a generation: one parallel pass over the prompt, then one token at a time. Different bottlenecks, different metrics, different fixes.</dd>
+    <dt>KV cache</dt><dd>Cached attention keys/values so each new token doesn't recompute the whole context. It's the memory that limits concurrency.</dd>
+    <dt>Prefix caching</dt><dd>Reusing KV state for a shared prompt prefix across requests. A refinement loop is the ideal workload for it.</dd>
+    <dt>Continuous batching</dt><dd>Scheduling at token-iteration granularity so new requests join a running batch immediately, instead of waiting for the whole batch to finish.</dd>
+    <dt>HOL blocking</dt><dd>Head-of-line blocking: a long job delays short jobs queued behind it. Continuous batching removes the queue-level form, not the token-level form.</dd>
+    <dt>ρ (rho)</dt><dd>Utilisation, λ/μ. Queue wait scales like 1/(1−ρ), which is why tail SLOs require headroom.</dd>
+    <dt>Goodput</dt><dd>Throughput counting only requests that met their SLO. The capacity number that actually matters.</dd>
+    <dt>Error budget</dt><dd>The allowed share of SLO violations over a window. Burn rate is how fast you're spending it.</dd>
+    <dt>Test-time compute</dt><dd>Spending more compute at inference to get a better answer: longer reasoning, more samples, search, verification, refinement.</dd>
+    <dt>Sequential vs parallel scaling</dt><dd>Depth (refine the same answer repeatedly) vs width (sample many answers and aggregate). Depth costs wall clock; width costs GPUs.</dd>
+    <dt>Intrinsic self-correction</dt><dd>The model critiques itself with no external signal. Cheap, and frequently harmful.</dd>
+    <dt>Extrinsic self-correction</dt><dd>Correction driven by tests, tools, retrieval, or a verifier. Where the gains live.</dd>
+    <dt>EIR / ECR</dt><dd>Error introduction rate / error correction rate. Their ratio against Acc/(1−Acc) decides whether iterating helps.</dd>
+    <dt>Negative flip</dt><dd>A correct answer becoming incorrect as reasoning or refinement continues. The measurable form of overthinking.</dd>
+    <dt>Verifier / reward model</dt><dd>A cheap scorer that decides whether an answer is good enough. In this question, it is the missing component.</dd>
+    <dt>Cascade / router</dt><dd>Try a cheap model, escalate on low confidence. Bounded latency, unlike a loop.</dd>
+    <dt>Self-consistency</dt><dd>Sample independently, aggregate by majority or preference. Breaks the error-chaining that sequential refinement creates.</dd>
+    <dt>Anytime algorithm</dt><dd>One that always holds a returnable best-so-far, so a deadline truncates gracefully instead of failing.</dd>
+    <dt>Metastable failure</dt><dd>A degraded state sustained by a positive feedback loop, persisting after the trigger is gone. Retry storms are the canonical case.</dd>
+    <dt>Admission control</dt><dd>Refusing or deferring work at the edge to keep the system inside its stable operating region.</dd>
+  </dl>
+</section>
+
+<section class="part">
+  <div class="parthead"><div class="pnum">15</div><h2>Sources</h2></div>
+  <ul class="srcs">
+    <li><a href="https://aiinterviewprep.substack.com/p/llm-inference-interview-questions">LLM Inference Interview Questions #1 — The Max-Iteration Trap</a> — the question as originally posed (full answer paywalled).</li>
+    <li><a href="https://www.spheron.network/blog/llm-inference-slo-ttft-itl-latency-budget-guide-2026/">LLM Inference SLO Engineering: TTFT, ITL, and P99 Latency Budgets for Production AI (2026)</a> — latency budgets, utilisation ceilings, concurrency thresholds, burn-rate figures.</li>
+    <li><a href="https://arxiv.org/html/2604.22273v2">Self-Correction as Feedback Control: Error Dynamics, Stability Thresholds, and Prompt Interventions in LLMs</a> — EIR/ECR, the break-even condition, parallel-vs-sequential at matched compute.</li>
+    <li><a href="https://arxiv.org/html/2604.10739v1">When More Thinking Hurts: Overthinking in LLM Test-Time Compute Scaling</a> — negative flips, crossover point, difficulty-stratified budgets, early-stopping indicators.</li>
+    <li><a href="https://arxiv.org/pdf/2406.02378">On the Intrinsic Self-Correction Capability of LLMs: Uncertainty and Latent Concept</a> and <a href="https://github.com/ryokamoi/llm-self-correction-papers">the self-correction paper list</a> — intrinsic vs extrinsic self-correction.</li>
+    <li><a href="https://arxiv.org/pdf/2606.07248">Clairvoyant: Predictive SJF Scheduling to Mitigate Head-of-Line Blocking</a> and <a href="https://arxiv.org/pdf/2407.00047">Queue Management for SLO-Oriented LLM Serving</a> — HOL blocking layers, FCFS limits, priority scheduling.</li>
+    <li><a href="https://sigops.org/s/conferences/hotos/2021/papers/hotos21-s11-bronson.pdf">Metastable Failures in Distributed Systems</a> (HotOS '21) and <a href="https://arxiv.org/html/2606.00942">Characterizing Metastable Faults and Failures</a> — retry amplification, sustaining feedback loops, budgets and circuit breakers.</li>
+    <li><a href="https://arxiv.org/abs/2604.14853">Adaptive Test-Time Compute Allocation for Reasoning LLMs via Constrained Policy Optimization</a> and <a href="https://arxiv.org/html/2602.09902v1">Routing, Cascades, and User Choice for LLMs</a> — fixed vs adaptive budgets, cascade routing, calibrated escalation.</li>
+    <li><a href="https://bentoml.com/llm/inference-optimization/llm-inference-metrics">Key metrics for LLM inference</a> and <a href="https://redis.io/blog/p99-latency/">P99 Latency: What It Means &amp; How to Fix It</a> — metric definitions and tail-latency fundamentals.</li>
+  </ul>
+</section>
+
+<footer>Prep sheet · Self-correction loops &amp; tail latency · September 2026</footer>
+
+
+<script>
+/* evidence.js, inlined - each guide is a standalone published page, so it
+   cannot rely on a sibling asset file. Markup contract: every input and
+   textarea carries data-field; anything with data-fill="<field>" is replaced
+   by that field's value as it is typed. Guarded throughout: a private window
+   or blocked storage returns nothing and the block still reads correctly. */
+(function(){
+  "use strict";
+  var KEY = "prep:v1:evidence";
+  function read(){ try { var r = localStorage.getItem(KEY); return r ? JSON.parse(r) : {}; } catch (e) { return {}; } }
+  function write(o){ try { localStorage.setItem(KEY, JSON.stringify(o)); return true; } catch (e) { return false; } }
+  /* An emptied field is a deletion, not an empty string: it has to read as
+     "not measured yet" in the earned answer, which refuses to render it. */
+  function save(id, field, val){
+    var all = read(), g = all[id] || {};
+    if (!val) { delete g[field]; } else { g[field] = val; }
+    if (!Object.keys(g).length) { delete all[id]; } else { all[id] = g; }
+    write(all);
+  }
+  function paintFill(block, field, val){
+    Array.prototype.slice.call(block.querySelectorAll('[data-fill="' + field + '"]')).forEach(function (t) {
+      if (t.dataset.prompt === undefined) { t.dataset.prompt = t.textContent; }
+      if (val) { t.textContent = val; t.classList.remove("placeholder"); }
+      else { t.textContent = t.dataset.prompt; t.classList.add("placeholder"); }
+    });
+  }
+  function wire(block){
+    var id = block.dataset.evidenceFor;
+    if (!id) return;
+    var saved = read()[id] || {};
+    Array.prototype.slice.call(block.querySelectorAll("input[data-field],textarea[data-field]")).forEach(function (el) {
+      var f = el.dataset.field;
+      if (saved[f] !== undefined && saved[f] !== null) { el.value = saved[f]; }
+      var v = el.value.trim();
+      if (v) { el.classList.add("filled"); }
+      paintFill(block, f, v);
+      /* input rather than change: typed numbers should survive closing the
+         tab mid-sentence, which is exactly when it happens. */
+      el.addEventListener("input", function () {
+        var cur = el.value.trim();
+        save(id, f, cur);
+        el.classList.toggle("filled", !!cur);
+        paintFill(block, f, cur);
+      });
+    });
+  }
+  function init(){
+    Array.prototype.slice.call(document.querySelectorAll(".evidence[data-evidence-for]")).forEach(wire);
+  }
+  if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", init); }
+  else { init(); }
+})();
+</script>
+
+</div>
+
+</body>
+</html>

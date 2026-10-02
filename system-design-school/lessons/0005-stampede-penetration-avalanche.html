@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>Stampede, Penetration, Avalanche</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0005">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">System Design School</a>
+    <span class="sep">/</span>
+    <span>Tier 1 · Caching &amp; latency</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Lesson 0005</span>
+    <span class="sep">/</span>
+    <span>Docker required</span>
+  </div>
+  <h1>Stampede, Penetration, Avalanche</h1>
+  <p class="standfirst">Three named ways a cache turns from an accelerator into the cause of an outage. All three are invisible at low traffic, all three are trivial to reproduce deliberately, and one of them is the most likely explanation for any unexplained breach of your 8-second budget.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>You will cause a real stampede with 200 concurrent cold requests, watch one cache miss become 200 upstream calls, then fix it with single-flight and TTL jitter and see the upstream call count collapse to one.</p>
+</div>
+
+<div class="anchor-box">
+  <span class="callout-label">Why you, specifically</span>
+  <blockquote>“Built a custom OpenAI-compatible LLM gateway powering those interviews at ~2.1 s median time-to-first-word under a hard <strong>8 s per-turn budget</strong>.”</blockquote>
+  <p>A stampede is the single most likely mechanism by which that budget gets breached in production. It needs three ingredients you have: a cache, an expensive miss path, and concurrency. It does not show up in staging because staging has no concurrency, and it does not show up in a closed-loop load test because — as you now know from lesson 0002 — that tool throttles itself exactly when the server stalls.</p>
+  <p>That sentence is defended in full in <a href="../../resume-mastery/lessons/0001-vendor-evaluation-platform.html">chapter 0001 of R&#233;sum&#233; Mastery</a> &#8212; this lesson is where the mechanism underneath it gets built and broken.</p>
+</div>
+
+<div class="primer">
+  <span class="callout-label">Start here — the plain version</span>
+  <p>So far a cache has only helped. This lesson is about the three ways it turns around and becomes
+  the reason you are down. All three are the same shape: <b>the cache stops answering, and the full
+  weight of your traffic arrives at whatever was hiding behind it</b> — a database, or in your case
+  a model you pay per token for.</p>
+  <p>They differ only in why the cache stopped answering. One popular entry expired and everybody
+  rebuilt it at once. Or people are asking for things that do not exist, so there is nothing to
+  cache. Or a great many entries expired at the same instant because they were all created at the
+  same instant. The fixes are small — a lock, and a random number added to expiry times — and this
+  lesson makes you cause each failure before fixing it, because the numbers are the point.</p>
+  <dl>
+    <dt>Stampede</dt>
+    <dd>One hot entry expires and every request that wanted it rebuilds it simultaneously. Also
+    called a <b>thundering herd</b> or the <b>dogpile</b> effect — three names, one event.</dd>
+
+    <dt>Penetration</dt>
+    <dd>Requests for things that do not exist. Every one is a miss, so every one goes through to
+    the source. The cache is present and contributing nothing.</dd>
+
+    <dt>Avalanche</dt>
+    <dd>A large number of entries expiring together, usually because they were written together
+    with an identical TTL. A cliff rather than a slope.</dd>
+
+    <dt>Single-flight</dt>
+    <dd>The fix for a stampede: let exactly one request do the expensive work while the rest wait
+    for its result. Also called <b>request coalescing</b>.</dd>
+
+    <dt>Double-check</dt>
+    <dd>The easily-forgotten half of single-flight — after you win the lock, look in the cache
+    <em>again</em>, because someone may have filled it while you were waiting.</dd>
+
+    <dt>TTL jitter</dt>
+    <dd>The fix for an avalanche: instead of expiring everything at exactly 3600 seconds, use 3600
+    plus a small random offset. Expiries spread out on their own.</dd>
+
+    <dt>Negative caching</dt>
+    <dd>The fix for penetration: remember that something does not exist, briefly, so the second
+    request for it is also a hit.</dd>
+
+    <dt>Stale-while-revalidate</dt>
+    <dd>Hand back the expired value immediately and refresh it in the background. Nobody ever waits;
+    you accept a short window of slightly old data.</dd>
+
+    <dt>Probabilistic early expiration</dt>
+    <dd>Refresh an entry a little <em>before</em> it expires, at random, so the expiry never
+    arrives while anyone is waiting. Published as <b>XFetch</b>.</dd>
+  </dl>
+</div>
+<h2>The three failures</h2>
+
+<h3>1. Stampede — many clients, one missing key</h3>
+
+<p>Also called thundering herd or dog-piling. A popular key expires. In the microsecond before anyone repopulates it, 200 concurrent requests all check the cache, all miss, and all proceed to the expensive miss path <em>simultaneously</em>. One logical cache miss becomes 200 upstream calls.</p>
+
+<p>The upstream, which was comfortably serving 15 requests per second, now receives 200 at once. It queues, slows, or rejects. Every one of those 200 requests is now slow, and if the miss path has a retry policy, you have just built a retry storm on top of a stampede.</p>
+
+<div class="note">
+  <span class="callout-label">The fix: single-flight</span>
+  <p>Also called request coalescing, or <em>leases</em> in the Facebook memcache paper. The first request to miss acquires a short-lived lock on that key and proceeds. The other 199 wait briefly and then read the value the winner wrote. One miss, one upstream call, 200 satisfied requests.</p>
+</div>
+
+<h3>2. Penetration — requests for keys that will never exist</h3>
+
+<p>Every request asks for something not in the cache <em>and</em> not in the store. Nothing populates, so every request goes through to the backend. A cache with a 0% hit rate is worse than no cache: you pay the lookup and get nothing.</p>
+
+<p>This happens accidentally when clients request nonexistent identifiers, and maliciously when someone discovers they can bypass your entire cache layer by requesting random keys. The fix is to <strong>cache the negative result</strong> — store a tombstone with a short TTL so “this does not exist” is itself a cache hit. Where the keyspace is huge, a Bloom filter in front answers “definitely absent” without a lookup at all.</p>
+
+<h3>3. Avalanche — everything expires at once</h3>
+
+<p>You warm your cache at deploy time with a uniform TTL of one hour. One hour later, every single entry expires within the same second, and every subsequent request misses simultaneously. This is a stampede across your whole keyspace rather than a single key, and it recurs hourly, forever, until someone notices the sawtooth.</p>
+
+<p>The fix is <strong>TTL jitter</strong>: instead of exactly 3600 seconds, use 3600 plus a random offset — say ±10%. Expiries spread out and the cliff becomes a gentle slope. It is a one-line change, and while the <a href="https://aws.amazon.com/builders-library/caching-challenges-and-strategies/" target="_blank" rel="noopener">Amazon Builders' Library</a> does warn that adding TTLs can make a thundering herd worse, jitter tends to get filed under retry advice rather than cache advice — which is why plenty of production caches still expire in lockstep.</p>
+
+<h3>A third fix worth knowing by name</h3>
+
+<p>Single-flight and jitter are what this lesson's lab builds, and between them they are enough. But there is a third mechanism, and naming it in an interview is cheap and lands well: <strong>probabilistic early expiration</strong>, published as <em>XFetch</em> in Vattani, Chierichetti and Lowenstein's <a href="http://www.vldb.org/pvldb/vol8/p886-vattani.pdf" target="_blank" rel="noopener">Optimal Probabilistic Cache Stampede Prevention</a> (PVLDB vol. 8, pp. 886–897, 2015).</p>
+
+<p>The idea: store how long the value took to recompute (<code>delta</code>) alongside it, and on every <em>read</em> decide whether to refresh early:</p>
+
+<pre class="code">refresh_now = -delta * beta * math.log(random.random()) &gt;= ttl_remaining</pre>
+
+<p>Reads near expiry get progressively more likely to trigger a refresh, and expensive values (large <code>delta</code>) start refreshing sooner than cheap ones. <code>beta</code> defaults to 1.0. Nobody waits on a lock and no request ever sees a miss, because the value is replaced before it expires.</p>
+
+<p>The tradeoff is that you are doing some recomputation you did not strictly need, and that the mechanism only fires when a key is being read — a key nobody touches still expires cold. So the honest ranking for your gateway is: <strong>single-flight</strong> because it bounds the damage absolutely, <strong>jitter</strong> because it is one line, and <strong>XFetch</strong> when a specific key is both hot and expensive enough that even one stampede-free miss is too slow. Your shared-prefix embeddings are exactly that shape.</p>
+
+<p>The same family includes <strong>stale-while-revalidate</strong>: serve the expired value immediately and refresh in the background. It eliminates the stampede outright and costs you a window of staleness you have to be able to justify — fine for embeddings, not fine for a rubric score.</p>
+
+<div class="table-wrap">
+<table>
+  <caption>The distinctions are worth memorising as a set — interviewers ask about one and are pleased when you name all three.</caption>
+  <thead>
+    <tr><th>Failure</th><th>Key exists in store?</th><th>Trigger</th><th>Fix</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>Stampede</strong></td><td>Yes</td><td>One hot key expires under concurrency</td><td>Single-flight lock; serve-stale-while-revalidate</td></tr>
+    <tr><td><strong>Penetration</strong></td><td>No</td><td>Requests for identifiers that do not exist</td><td>Cache negatives with a short TTL; Bloom filter</td></tr>
+    <tr><td><strong>Avalanche</strong></td><td>Yes, many</td><td>Uniform TTLs expiring together</td><td>TTL jitter; staggered warming</td></tr>
+  </tbody>
+</table>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 372" role="img" aria-labelledby="mech0005-t mech0005-d">
+    <title id="mech0005-t">A stampede, and what single-flight actually changes</title>
+    <desc id="mech0005-d">Two hundred requests arrive inside a 600 millisecond miss window. Without single-flight all 200 compute the same embedding. With a per-key lock, one computes and 199 wait, then re-check the cache and hit. Omitting the re-check inside the lock turns 200 parallel misses into 200 serial ones.</desc>
+    <defs>
+      <marker id="a5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+    </defs>
+
+    <!-- MARK 1 · the miss window, which is the only reason a herd exists -->
+    <text x="20" y="22" class="strong">One key expires. 200 clients want it.</text>
+    <path d="M96,36 L96,352" class="flow-dim"/>
+    <text x="20" y="50" class="mono ink-bad">t = 0</text>
+    <text x="20" y="64" class="lbl-dim">expires</text>
+    <path d="M96,86 L456,86" class="flow"/>
+    <path d="M96,80 L96,92" class="flow"/>
+    <path d="M456,80 L456,92" class="flow"/>
+    <text x="110" y="76" class="mono ink-warn">the miss window &#8212; 600 ms of embed, and every arrival inside it misses</text>
+
+    <!-- MARK 2 · without single-flight -->
+    <rect x="96" y="108" width="360" height="86" class="bad"/>
+    <text x="110" y="128" class="strong ink-bad">no lock</text>
+    <text x="110" y="146" class="lbl">all 200 arrivals miss, all 200 compute the same vector</text>
+    <text x="110" y="178" class="num ink-bad" style="font-size:19px">embed_calls = 200</text>
+    <text x="472" y="152" class="lbl">200&#215; the provider cost and 200&#215; the load,</text>
+    <text x="472" y="169" class="lbl">for one value you needed once</text>
+
+    <!-- MARK 3 · with single-flight -->
+    <rect x="96" y="216" width="120" height="86" class="good"/>
+    <text x="108" y="236" class="strong ink-good">winner</text>
+    <text x="108" y="253" class="lbl-dim">takes the</text>
+    <text x="108" y="268" class="lbl-dim">lock, computes</text>
+    <text x="108" y="290" class="mono ink-good">1 call</text>
+
+    <rect x="220" y="216" width="236" height="86" class="box"/>
+    <text x="232" y="236" class="strong">199 wait on the lock</text>
+    <text x="232" y="256" class="lbl">then <tspan class="strong">re-check the cache</tspan> &#8212; and hit</text>
+    <text x="232" y="278" class="mono">2 GETs each, 0 embeds</text>
+
+    <path d="M462,259 L500,259" class="flow" marker-end="url(#a5)"/>
+    <text x="512" y="252" class="num ink-good" style="font-size:19px">embed_calls = 1</text>
+    <text x="512" y="272" class="lbl-dim">measured, from 200</text>
+
+    <!-- MARK 4 · the bug the probe asks about -->
+    <path d="M232,306 L232,330" class="flow-bad" marker-end="url(#a5)"/>
+    <text x="246" y="326" class="lbl ink-bad"><tspan class="strong">Drop that re-check</tspan> and the 199 each compute after waiting:</text>
+    <text x="246" y="346" class="lbl ink-bad">200 serial misses &#215; 600 ms = <tspan class="strong">120 seconds</tspan>, worse than the stampede you fixed.</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">Say this while you draw it</span>
+    <ol class="narrate">
+      <li>A vertical line for <b>t = 0</b>, when the key expires, and a bracket for the <b>600 ms miss window</b>. The window is the whole cause: a herd only exists because computing the value takes time.</li>
+      <li>Top lane, no lock: <b>every arrival inside the window misses</b>, so all 200 compute the same vector. <b><code>embed_calls = 200</code>.</b></li>
+      <li>Bottom lane, one lock per key: one <b>winner</b> computes, and draw the other <b>199 as a block that waits</b>.</li>
+      <li>Now the mark that matters &#8212; the waiters <b>re-check the cache</b> after they get the lock, and hit. <b><code>embed_calls = 1</code>.</b></li>
+      <li>Finish on the bug, because it is the follow-up you will be asked: <b>drop the re-check and the 199 each compute anyway</b>, one after another. 200 &#215; 600 ms is <b>two minutes</b> — you have converted a stampede into a queue and made it worse.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. This one is worth being fast at: &#8220;a hot key expires and you get 500 concurrent requests&#8221; is one of the most common cache questions there is, and it wants a drawing.</p>
+  <ul>
+    <li>The <b>miss window</b>, and the fact that its width is the compute time. No window, no herd.</li>
+    <li>Two lanes with <b>the two call counts on them</b>: 200 and 1.</li>
+    <li>The <b>re-check inside the lock</b>. This is the mark people forget, and forgetting it is the whole trap.</li>
+    <li>The <b>serial number</b> — 200 &#215; 600 ms — because it is what makes the trap sound as bad as it is.</li>
+  </ul>
+  <span class="timer">Say the two counts out loud as you draw them. The numbers are the argument.</span>
+</div>
+
+<h2>Lab — cause a stampede, then stop it</h2>
+
+<div class="lab">
+  <header>
+    <span class="kicker">Lab 0005</span>
+    <span class="est">~20 minutes</span>
+    <h3>200 cold requests, one key</h3>
+  </header>
+  <div class="body">
+    <div class="prereq">
+      <span>Needs:</span>
+      <span class="chip needs-docker">Docker Desktop running</span>
+      <span class="chip">lesson 0003 cache in place</span>
+    </div>
+
+    <ol class="steps">
+      <li>
+        <p class="what">Reset to a clean, sane Redis and start the gateway with a slow embed step, so the miss window is wide enough to drive a herd through.</p>
+        <pre class="cmd"><span class="prompt">$ </span>docker compose exec redis redis-cli flushall
+<span class="prompt">$ </span>docker compose exec redis redis-cli config set maxmemory-policy allkeys-lfu
+<span class="prompt">$ </span>EMBED_MS=600 uv run uvicorn app.main:app <span class="comment"># terminal 1</span></pre>
+      </li>
+
+      <li>
+        <p class="what">Fire 200 concurrent requests for the <em>same</em> query against a cold cache.</p>
+        <pre class="cmd"><span class="prompt">$ </span>seq 200 | xargs -P 200 -I{} curl -s -o /dev/null \
+    -X POST <span class="str">'localhost:8000/v1/retrieve?q=identical+query'</span>
+<span class="prompt">$ </span>curl -s localhost:8000/v1/retrieve?q=identical+query -X POST | jq '.embed_calls'</pre>
+        <pre class="out">  <span class="fail">200</span></pre>
+        <div class="expect broken">
+          <span class="label">The stampede, in one number</span>
+          <p><code>embed_calls</code> is about <strong>200</strong>, not 1. Every request missed, and every request paid the full 600 ms. Your cache provided no protection whatsoever at exactly the moment protection mattered — and this is the normal, correct behaviour of naive cache-aside.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Add single-flight to <code>app/cache.py</code>. Two layers: an in-process lock per key (free, covers one worker) and a Redis lock (covers every replica).</p>
+        <span class="file-label">app/cache.py — additions</span>
+        <pre class="code"><span class="kw">import</span> asyncio
+<span class="kw">import</span> random
+
+<span class="comment"># One asyncio.Lock per key, created on demand. Covers concurrency inside</span>
+<span class="comment"># this process — which on a single uvicorn worker is all of it.</span>
+self._locks: dict[str, asyncio.Lock] = {}
+
+<span class="kw">def</span> _lock_for(self, key: str) -> asyncio.Lock:
+    <span class="kw">if</span> key <span class="kw">not in</span> self._locks:
+        self._locks[key] = asyncio.Lock()
+    <span class="kw">return</span> self._locks[key]
+
+<span class="kw">def</span> _jittered(self) -> int:
+    <span class="str">"""TTL with +/-10% noise, so a warmed cache does not expire as a cliff."""</span>
+    <span class="kw">return</span> int(self._ttl * random.uniform(0.9, 1.1))
+
+<span class="kw">async def</span> get_or_compute(
+    self, text: str, compute: Callable[[], Awaitable[tuple[float, ...]]]
+) -> tuple[float, ...]:
+    k = self.key(text)
+
+    hit = <span class="kw">await</span> self._try_get(k)
+    <span class="kw">if</span> hit <span class="kw">is not</span> <span class="kw">None</span>:
+        self.hits += 1
+        <span class="kw">return</span> hit
+
+    <span class="comment"># Single-flight. Only one coroutine per key gets past this line.</span>
+    <span class="kw">async with</span> self._lock_for(k):
+        <span class="comment"># Re-check inside the lock: while we waited, the winner very</span>
+        <span class="comment"># likely populated it. Skipping this check is the classic bug —</span>
+        <span class="comment"># it turns 200 parallel misses into 200 serial ones, which is</span>
+        <span class="comment"># slower than the stampede you were fixing.</span>
+        hit = <span class="kw">await</span> self._try_get(k)
+        <span class="kw">if</span> hit <span class="kw">is not</span> <span class="kw">None</span>:
+            self.hits += 1
+            <span class="kw">return</span> hit
+
+        self.misses += 1
+        value = <span class="kw">await</span> compute()
+        <span class="kw">await</span> self._try_set(k, value, self._jittered())
+        <span class="kw">return</span> value</pre>
+        <p>Extract <code>_try_get</code> and <code>_try_set</code> as the wrapped best-effort helpers you already wrote in lesson 0003 — the bodies do not change.</p>
+      </li>
+
+      <li>
+        <p class="what">Repeat step 2 exactly.</p>
+        <pre class="out">  <span class="pass">1</span></pre>
+        <div class="ba">
+          <div class="before">
+            <span class="label">before — 200 cold concurrent</span>
+            <p class="figure">200<span class="unit">upstream calls</span></p>
+            <p class="gloss">Every request paid 600 ms. Upstream saw a 200× spike.</p>
+          </div>
+          <div class="after">
+            <span class="label">after — single-flight</span>
+            <p class="figure">1<span class="unit">upstream call</span></p>
+            <p class="gloss">One request computed; 199 waited briefly and read the result.</p>
+          </div>
+        </div>
+        <div class="expect">
+          <span class="label">You should see</span>
+          <p><code>embed_calls</code> of <strong>1</strong>, or a very small number if you are running multiple uvicorn workers — each worker has its own in-process lock, so with 4 workers expect up to 4. That is the exact reason the Redis-lock layer exists.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Now reproduce penetration, so you have seen the second failure rather than only read about it.</p>
+        <pre class="cmd"><span class="comment"># 200 requests, every one a distinct query that has never been seen</span>
+<span class="prompt">$ </span>seq 200 | xargs -P 50 -I{} curl -s -o /dev/null \
+    -X POST <span class="str">'localhost:8000/v1/retrieve?q=unique-{}'</span>
+<span class="prompt">$ </span>docker compose exec redis redis-cli info stats | grep keyspace</pre>
+        <div class="expect broken">
+          <span class="label">You should see</span>
+          <p><code>keyspace_misses</code> climbing with essentially no hits. Single-flight does not help — every key is genuinely different, so there is nothing to coalesce. Different failure, different fix: for a real store you would cache the negative result. Here every query is legitimately new, which is itself the lesson: <strong>a cache does nothing for a workload with no repetition</strong>, and you should measure your repeat rate before assuming one will help.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Verify the jitter. Write several keys and inspect their actual TTLs.</p>
+        <pre class="cmd"><span class="prompt">$ </span>docker compose exec redis redis-cli --scan --pattern <span class="str">'emb:*'</span> \
+    | head -8 | xargs -I{} docker compose exec -T redis redis-cli ttl {}</pre>
+        <pre class="out">3512
+3389
+3601
+3267
+3448</pre>
+        <div class="expect">
+          <span class="label">You should see</span>
+          <p>A spread of values around 3600 rather than an identical figure repeated. Those entries will now expire over a several-minute window instead of all in the same second. That is the avalanche defused.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+</div>
+
+<div class="caution">
+  <span class="callout-label">The better fix, when you can afford it</span>
+  <p>Single-flight still makes 199 requests <em>wait</em> for the winner. Where a slightly stale answer is acceptable — and for embeddings it always is, since they never really change — <strong>serve-stale-while-revalidate</strong> is strictly better: keep the expired value, return it immediately, and refresh in the background. Nobody waits at all. Amazon's article calls this a soft TTL versus a hard TTL, and for anything on a hard latency budget it is usually the right shape.</p>
+</div>
+
+<div class="evidence" data-evidence-for="0005">
+  <header>
+    <span class="callout-label">Your numbers, not mine</span>
+    <span class="hint">saved in this browser as you type</span>
+  </header>
+  <div class="body">
+    <p>This is the lab that decides whether any of this course works, so its numbers are the ones worth being able to quote cold. The before-and-after is a single integer and it moves by two orders of magnitude.</p>
+
+    <div class="rows">
+      <div class="row">
+        <span class="ran">Step 2, <strong>the stampede</strong>: <code>embed_calls</code> after 200 concurrent requests for one cold key</span>
+        <span class="field"><label for="e5-before">Before</label><input type="text" id="e5-before" data-field="calls_before" placeholder="e.g. 200"></span>
+        <span class="field"><label for="e5-embedms">EMBED_MS used</label><input type="text" id="e5-embedms" data-field="embed_ms" placeholder="600"></span>
+        <span class="why-row"><label for="e5-window">Did you get all 200? If you got fewer, that is the finding &#8212; the miss window has to be wider than the time it takes your load generator to actually issue the requests</label><textarea id="e5-window" data-field="window_note" placeholder="At the default EMBED_MS=120 this machine got 81, not 200 — xargs cannot fork 200 curls faster than the winner finishes embedding. The herd was real; the window was too narrow to catch it."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 4, <strong>after single-flight</strong>: the same command, unchanged</span>
+        <span class="field"><label for="e5-after">After</label><input type="text" id="e5-after" data-field="calls_after" placeholder="e.g. 1"></span>
+        <span class="field"><label for="e5-wall">Wall clock</label><input type="text" id="e5-wall" data-field="wall" placeholder="e.g. 0.77 s"></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 5, <strong>penetration</strong>: Redis's own counters after 200 never-seen queries. The miss count is the one to look at twice</span>
+        <span class="field"><label for="e5-hits">keyspace_hits</label><input type="text" id="e5-hits" data-field="ks_hits" placeholder="e.g. 0"></span>
+        <span class="field"><label for="e5-misses">keyspace_misses</label><input type="text" id="e5-misses" data-field="ks_misses" placeholder="e.g. 400"></span>
+        <span class="why-row"><label for="e5-why2">200 queries, how many misses? If it is 400 rather than 200, explain the factor of two &#8212; it is the cost of the pattern you just added, and being able to name it is the difference between using single-flight and understanding it</label><textarea id="e5-why2" data-field="ks_why" placeholder="Two GETs per miss: the check before the lock and the re-check after it. Tens of microseconds each, against a 600 ms recompute."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 6, <strong>jitter</strong>: the range of actual TTLs on stored keys, against your nominal TTL</span>
+        <span class="field"><label for="e5-ttlrange">Observed range</label><input type="text" id="e5-ttlrange" data-field="ttl_range" placeholder="e.g. 3266&#8211;3946"></span>
+        <span class="field"><label for="e5-jitter">Jitter chosen</label><input type="text" id="e5-jitter" data-field="jitter" placeholder="e.g. &#177;10%"></span>
+        <span class="why-row"><label for="e5-jitterwhy">Now size it: how many keys will you hold, and how many expiries per second does your jitter imply? (keys &#247; 2jT)</label><textarea id="e5-jitterwhy" data-field="jitter_why" placeholder="e.g. 20 000 keys, T=3600, j=0.1 gives a 720 s smear, about 28 recomputes per second. Can the provider take that? If not, widen j or lengthen T."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">The threshold question: what would you actually set the <strong>lock timeout</strong> to, and what happens to the 199 waiters if the winner dies holding it?</span>
+        <span class="field"><label for="e5-lockto">Timeout</label><input type="text" id="e5-lockto" data-field="lock_timeout" placeholder="e.g. 2 &#215; p99 embed"></span>
+        <span class="field"><label for="e5-fallback">Waiters then</label><input type="text" id="e5-fallback" data-field="waiter_fallback" placeholder="compute / 503 / stale"></span>
+        <span class="why-row"><label for="e5-lockwhy">Why that number and not double it &#8212; too short and you re-admit the stampede, too long and one dead worker holds a hot key hostage</label><textarea id="e5-lockwhy" data-field="lock_why" placeholder="The timeout has to exceed p99 of the compute it protects, or the lock expires under a slow-but-healthy winner and every waiter piles in anyway."></textarea></span>
+      </div>
+    </div>
+
+    <div class="earned">
+      <span class="callout-label">The bullet this lesson earns</span>
+      <p>&#8220;Reproduced a cache stampede under 200 concurrent cold requests for a single key &#8212; <span data-fill="calls_before" class="placeholder">[run step 2]</span> redundant embedding calls &#8212; and cut it to <span data-fill="calls_after" class="placeholder">[run step 4]</span> with per-key single-flight plus <span data-fill="jitter" class="placeholder">[choose]</span> TTL jitter, at a measured cost of one extra cache lookup per miss.&#8221;</p>
+      <p class="caveat">That last clause is what stops it being a boast. Every real fix has a cost; naming yours before you are asked is the difference between having read about single-flight and having shipped it.</p>
+    </div>
+  </div>
+</div>
+
+<h2 id="underneath-0005">Underneath</h2>
+
+<div class="underneath">
+  <span class="callout-label">One layer down &#183; why the fixes have the shape they do</span>
+
+  <p>Single-flight, jitter and probabilistic refresh all look like three unrelated tricks. They are three answers to the same question &#8212; <em>how many of these clients should be allowed to do the work?</em> &#8212; and each one gets its shape from an argument you can reconstruct rather than memorise.</p>
+
+  <h3>Single-flight costs a second <code>GET</code>, and that is not optional</h3>
+
+  <div class="derive">
+    <p>Run the penetration step and read the Redis counters, not the application's:</p>
+    <span class="eq">200 distinct never-seen queries
+&#8594; keyspace_hits: 0
+&#8594; keyspace_misses: <b>400</b></span>
+    <p>Two lookups per query, not one, on every single miss: the check before taking the lock, and the re-check after getting it. That is the true cost of the pattern, and it is the correct trade &#8212; a second <code>GET</code> is tens of microseconds against a 600&#8239;ms recompute.</p>
+  </div>
+
+  <p>The reason the re-check cannot be skipped is that the lock does not communicate anything. It only serialises. A waiter that wakes up and computes has learned nothing from having waited, so 199 waiters each pay full price in turn: <strong>200 &#215; 600&#8239;ms = 120 seconds</strong> for a request that used to take 600&#8239;ms in parallel. Turning concurrency into a queue is a real and popular way to make a stampede worse, and the only thing preventing it is one <code>if</code>.</p>
+
+  <h3>Why jitter is multiplicative, and why 10&#8239;% is a real decision</h3>
+
+  <p>An avalanche happens because a batch of keys written together expires together. The fix is to make expiry times independent, and the useful way to think about it is that <strong>you are choosing how wide to smear the load</strong>. With a TTL of <em>T</em> and jitter of &#177;<em>j</em>, the keys written in one burst expire spread over <em>2jT</em>. At T&#8239;=&#8239;3600&#8239;s and j&#8239;=&#8239;0.1 that is a 720-second window &#8212; the measured TTLs came back between <strong>3266 and 3946</strong>, which is exactly that band.</p>
+
+  <div class="derive">
+    <p>So the sizing question is not &#8220;what is a sensible jitter&#8221; but: how many keys, and how much recompute can I afford per second?</p>
+    <span class="eq">expiries per second &#8776; keys / (2 &#183; j &#183; T)
+
+  20 000 keys, T = 3600, j = 0.10  &#8594;  20000 / 720  &#8776;  <b>28 /s</b>
+  20 000 keys, T = 3600, j = 0.01  &#8594;  20000 / 72   &#8776;  <b>278 /s</b></span>
+    <p>Jitter is multiplicative rather than additive for the same reason percentages usually are: it has to stay proportional across TTLs that differ by orders of magnitude. A flat &#177;60&#8239;s is generous on a 60-second TTL and meaningless on a day-long one.</p>
+  </div>
+
+  <h3>Where XFetch's formula comes from</h3>
+
+  <p>Jitter spreads expiry but still lets the value expire, so somebody always eats a cold miss. <a href="http://www.vldb.org/pvldb/vol8/p886-vattani.pdf" target="_blank" rel="noopener">Optimal Probabilistic Cache Stampede Prevention</a> (Vattani, Chierichetti, Lowenstein, VLDB 2015) removes that by refreshing <em>early</em>, at random, with a probability that rises as expiry approaches:</p>
+
+  <div class="derive">
+    <span class="eq">refresh_now  if  &#8722;&#916; &#183; &#946; &#183; ln(U) &#8805; ttl_remaining        U ~ Uniform(0,1)</span>
+    <p>Read it in pieces and it stops being magic. <b>&#916;</b> is how long the recompute takes, so the whole term scales with the cost of being wrong &#8212; an expensive value starts trying to refresh earlier. <b>&#8722;ln(U)</b> is an exponential draw with mean 1, which is what makes the decision independent per request and therefore un-synchronised across clients. And <b>&#946;</b> tunes eagerness: &#946;&#8239;=&#8239;1 is the paper's default, &#946;&#8239;&gt;&#8239;1 refreshes sooner and does more redundant work, &#946;&#8239;&lt;&#8239;1 hugs the deadline and risks the miss you were avoiding.</p>
+    <p>The consequence worth saying out loud: because the probability is driven by &#916;, <strong>a slow-to-compute value protects itself harder</strong>. That is the property you want and the reason this beats a fixed &#8220;refresh at 90&#8239;% of TTL&#8221; rule, which re-synchronises every client onto the same instant and reinvents the avalanche.</p>
+  </div>
+
+  <h3>Penetration is a different problem wearing the same clothes</h3>
+
+  <p>A stampede is many clients wanting one <em>real</em> value. Penetration is clients asking for values that will never exist, so there is nothing to cache and no lock to hold &#8212; every request is a guaranteed miss straight through to the expensive thing behind. Single-flight does not help at all, because there is no single flight to share.</p>
+
+  <p>The two answers are caching the negative result (cheap, correct, and costs memory proportional to how many distinct bad keys someone can invent) or a Bloom filter in front (constant memory, no false negatives, and a false-positive rate you choose). Which is right depends entirely on whether the bad keys are bounded &#8212; and if an attacker picks them, they are not.</p>
+
+  <p class="lands"><b>All three fixes are answers to &#8220;how many clients should do this work?&#8221;</b> Single-flight says one, and pays a second <code>GET</code>. Jitter says a controlled number per second, and you size it from your key count. XFetch says one, early, chosen at random in proportion to how expensive the work is.</p>
+</div>
+
+<h2>Check yourself</h2>
+
+<div class="quiz" data-quiz-id="0005-q1">
+  <p class="q">You add a per-key lock but forget to re-check the cache inside it. What happens under 200 concurrent misses?</p>
+  <ol class="options">
+    <li data-correct="true">All 200 compute in turn, which is slower than before</li>
+    <li>Only one computes, because the lock on its own suffices</li>
+    <li>All 200 fail, because the lock will always time out</li>
+    <li>Half of them compute, as the lock covers late arrivals</li>
+  </ol>
+  <div class="why">
+    <p>The lock serialises them, it does not eliminate them. Each of the 200 waits its turn, acquires the lock, sees no reason to re-check, and computes — so you have converted 200 parallel 600 ms calls into 200 <em>sequential</em> ones. The last request now waits two minutes. You have made it dramatically worse while appearing to add a fix.</p>
+    <p>The double-check inside the lock is the entire mechanism. This is a real bug that ships regularly, and it is why the comment in the lab code is three lines long.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0005-q2">
+  <p class="q">Which failure does single-flight <em>not</em> help with at all?</p>
+  <ol class="options">
+    <li data-correct="true">Penetration, where every single requested key is a distinct one</li>
+    <li>Avalanche, where a warmed keyspace all expires at one moment</li>
+    <li>Stampede, where one single popular hot key has just expired</li>
+    <li>Modal latency, where the cold code path is much slower</li>
+  </ol>
+  <div class="why">
+    <p>Coalescing works by merging concurrent requests <em>for the same key</em>. If every key is different there is nothing to merge, so penetration passes straight through. It needs a different fix — negative caching, or a Bloom filter where the keyspace is large.</p>
+    <p>Avalanche is the interesting near-miss: single-flight genuinely does help there, because an avalanche is many simultaneous per-key stampedes, and coalescing each one caps the damage. It just does not <em>solve</em> it — you still take a synchronised wave of misses, which is why jitter is the actual fix and coalescing is the safety net underneath.</p>
+  </div>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">A spoken answer to <em>&#8220;a hot key expires and 500 requests arrive at once &#8212; walk me through it.&#8221;</em> This is the single most likely caching question you will get. Read it aloud, then say it again with the page covered.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">We had an 8-second per-turn budget and an embedding cache in front of a 600-millisecond retrieval hop. The cache made the median look great and hid a failure mode entirely.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">A cache miss is not instant &#8212; it takes as long as computing the value. So there is a window, as wide as that computation, in which every arriving request also misses. Nothing is in the cache yet to stop them.</p>
+      <p class="line">One key expiring under load therefore turns into as many identical computations as you have concurrent clients. The cache does not fail; it just stops helping at the exact moment you need it.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">I caused it deliberately: 200 concurrent requests for one cold key, and I got <b>200 embedding calls</b> for one value. Then I put a lock per key in front of the miss path, so one caller computes and the rest wait. Same command afterwards: <b>one call</b>.</p>
+      <p class="line">And jittered the TTLs by ten percent, so a batch written together does not expire together and hand me the same problem across every key at once.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">Two things. Every miss now does two cache lookups instead of one: the check before the lock, and the re-check after it. I measured that as 400 misses for 200 queries. Cheap, and worth it.</p>
+      <p class="line">The other cost is a real risk: the waiters <em>must</em> re-check inside the lock. Skip that and all 199 compute anyway, one after another. Two hundred serial 600-millisecond calls is <b>two minutes</b> &#8212; I would have turned a stampede into a queue and made it strictly worse.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;We added a lock, so only one request recomputes.&#8221;</span> That is the right instinct and an incomplete claim, and the follow-up is always the same: <em>what do the other 199 do when they get the lock?</em> If the answer is &#8220;compute&#8221;, the lock made things worse, and saying the sentence without the re-check invites exactly that question.</p>
+  <p>The other trap is offering &#8220;we just raise the TTL.&#8221; A longer TTL makes the stampede <em>rarer</em> and not one bit smaller, and it buys that by serving staler data. It is a way of hoping the problem happens on someone else's shift.</p>
+</div>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      “A popular cache key expires and you get 500 concurrent requests. Walk me through what happens.”
+      <span class="tell">Name it as a stampede, describe the upstream amplification, then give single-flight <em>and</em> stale-while-revalidate as options with the tradeoff between them. Naming the failure first is what separates a confident answer from a groping one.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>All 500 miss, because the value takes 600&#8239;ms to compute and there is nothing in the cache to stop them for that whole window. So you get 500 identical computations of one value, 500&#215; the provider bill, and a latency spike on a path with a hard budget.</p>
+        <p>I have actually run this: 200 concurrent requests for one cold key gave exactly 200 embedding calls. The fix is a lock per key so one computes &#8212; and critically the waiters re-check the cache after acquiring it, which took it to one call.</p>
+        <span class="invites">Invites &#183; <b>&#8220;And if the process holding the lock dies?&#8221; &#8212; the lock needs a timeout longer than p99 of the compute, and the waiters need a decision: compute anyway, serve stale, or shed.</b></span>
+      </details>
+    </li>
+    <li>
+      “You added a lock per key. What is the bug?”
+      <span class="tell">They are checking for the double-check. If you also mention that in-process locks do not span replicas, you are answering the follow-up before it arrives.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The waiters have to <strong>re-check the cache after they get the lock</strong>. Without that, waiting taught them nothing: each one computes in turn, so 200 parallel misses become 200 serial ones. At 600&#8239;ms each that is two minutes, against 600&#8239;ms for the stampede I was fixing.</p>
+        <p>The second bug is scope. An <code>asyncio.Lock</code> covers one process, so with four uvicorn workers you get four computations, not one &#8212; better than 200 and not what the diagram claims. Beyond one replica it has to be a Redis lock, and then it needs a timeout and a fencing token.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Is a naive Redis lock safe?&#8221; &#8212; no, and that is lesson 0030: a lock without a fencing token cannot stop a stalled holder from acting after its lease expired.</b></span>
+      </details>
+    </li>
+    <li>
+      “Your cache hit rate is 2%. Is the cache helping?”
+      <span class="tell">No — you are paying a round trip for almost nothing. Either the workload has no repetition, or you are being penetrated. Measure the repeat rate before defending the cache.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Almost certainly not, and I would want to know which of two very different problems it is. If the keys are unique per request &#8212; a user's raw query text, say &#8212; then there is nothing to hit and the cache is pure added latency plus a Redis to operate.</p>
+        <p>If the keys should repeat but do not, the key is wrong: too much in it, unnormalised text, or something per-request like a timestamp or a request id. That is a bug with a two-minute fix. And 2&#8239;% with high cardinality is the penetration shape, where the answer is caching negatives or a Bloom filter rather than a better key.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So what hit rate would justify it?&#8221; &#8212; the break-even is where hit_rate &#215; saving exceeds the added round trip on every miss, which for a 600 ms compute against a 1 ms GET is a very low bar.</b></span>
+      </details>
+    </li>
+    <li>
+      “Why does latency spike every hour on the hour?”
+      <span class="tell">Avalanche from uniform TTLs, probably set at warm-up. The tell is periodicity: a sawtooth on a fixed interval is almost always an expiry cliff.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Everything was written at the same time, so everything expires at the same time. A TTL of one hour set during a deploy or a warm-up loop means the entire keyspace has the same expiry instant, and on that instant every key is a miss simultaneously &#8212; an avalanche rather than a stampede.</p>
+        <p>Jitter fixes it: &#177;10&#8239;% on a 3600-second TTL smears expiry across 720 seconds. I verified the spread &#8212; stored keys came back with TTLs between 3266 and 3946 rather than all reading 3600.</p>
+        <span class="invites">Invites &#183; <b>&#8220;How much jitter is enough?&#8221; &#8212; size it: keys &#247; (2jT) is your recompute rate at the smear, so 20 000 keys at &#177;10 % of an hour is about 28 per second.</b></span>
+      </details>
+    </li>
+    <li>
+      “Would you rather serve a 5-minute-stale embedding or make the user wait 600 ms?”
+      <span class="tell">For an embedding, stale every time — the value is a pure function and does not meaningfully change. Knowing <em>which</em> cached values tolerate staleness is the judgement being tested.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Stale, easily, and for this data it is not even close. An embedding is a pure function of the text and the model version &#8212; a five-minute-old vector for unchanged text is not stale, it is <em>correct</em>. The model version is in the cache key, so the only thing that could invalidate it changes the key.</p>
+        <p>Which is the general form of the answer: the question is not how old the value is, it is what could have changed underneath it. For a rubric score I would answer the other way, because someone can re-run an evaluation and the old number is then wrong rather than old.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So would you serve stale <em>while</em> refreshing?&#8221; &#8212; yes: stale-while-revalidate gives every caller a fast answer and lets one caller refresh, which is single-flight with the waiting removed.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="primary-source">
+  <span class="callout-label">Read this next — one source, not ten</span>
+  <span class="title"><a href="https://www.usenix.org/system/files/conference/nsdi13/nsdi13-final170_update.pdf" target="_blank" rel="noopener">Scaling Memcache at Facebook — Nishtala et al., NSDI 2013</a></span>
+  <p>Read <strong>section 3.2, “Reducing Latency”</strong>, and section 3.3 on leases. This is where the stampede fix was formalised at a scale where it genuinely mattered — their lease mechanism is single-flight plus a staleness allowance, and the paper is unusually honest about what it cost them. Fifteen pages, and one of the most quoted systems papers of the last two decades for good reason.</p>
+  <p class="cite">Shorter, and the practitioner's framing: <a href="https://aws.amazon.com/builders-library/caching-challenges-and-strategies/" target="_blank" rel="noopener">Caching challenges and strategies</a> — the “thundering herd” and soft-versus-hard-TTL sections.</p>
+</div>
+
+<h2>Recall — from lessons 0002–0004</h2>
+
+<div class="recall">
+  <details>
+    <summary>Why would your closed-loop load generator have failed to find this stampede?</summary>
+    <p class="answer">Two reasons compounding. It warms the cache on its first pass and then measures the warm path, and its workers throttle themselves the moment the upstream stalls — so the 200-way amplification never happens and the slow window is barely sampled. Reproducing a stampede requires genuine concurrency against a cold cache, which is what <code>xargs -P 200</code> gave you.</p>
+    <span class="from">lesson 0002 · coordinated omission</span>
+  </details>
+  <details>
+    <summary>You set <code>allkeys-lfu</code> in step 1. Why is that the right policy for this lab specifically?</summary>
+    <p class="answer">Step 5 sweeps 200 unique keys through the cache, each used exactly once. Under LRU those would evict the hot <code>identical+query</code> entry that steps 2 to 4 depend on, and you would be debugging your lock while your key quietly disappeared. Under LFU the one-shot keys go first. The lab is a miniature of the batch-job-flushes-cache problem.</p>
+    <span class="from">lesson 0004 · LRU vs LFU under scans</span>
+  </details>
+  <details>
+    <summary>A stampede sends 200 requests to an upstream sized for 15/sec. Which lesson-0002 idea explains why the damage exceeds 200 slow requests?</summary>
+    <p class="answer">Queueing, and tail compounding. The upstream queues, so requests wait behind each other and each one's response time includes that queueing — not just its own service time. If any hop then retries, the retries arrive on top of the queue. This is exactly why lesson 0011's circuit breaker and lesson 0012's timeout budgets exist, and why a stampede is an availability problem rather than a latency inconvenience.</p>
+    <span class="from">lesson 0002 · service time vs response time</span>
+  </details>
+</div>
+
+<div class="ask">
+  <p><strong>This lab is the acceptance test for the whole format.</strong> If <code>embed_calls</code> goes from ~200 to 1 on your machine, the break-fix approach is working and I will keep building lessons this way. If it does not, tell me what you saw — that result matters more to me than any other number in Tier 1.</p>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">Where this lands on the r&#233;sum&#233;</span>
+  <p>This lesson teaches the mechanism from first principles and breaks it in a lab. The chapter opposite defends what you actually did with it, including the number on the r&#233;sum&#233;. An interviewer crosses between those two registers without warning.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../resume-mastery/lessons/0001-vendor-evaluation-platform.html">RM 0001 &#183; Owning a vendor-evaluation platform</a>
+      <span class="bridge-why">The blind research pass is the thing worth caching, and its miss path takes seconds. Both failure modes here land on it directly.</span>
+    </li>
+    <li class="bridge-row">
+      <a href="../../resume-mastery/lessons/0002-llm-gateway-and-streaming.html">RM 0002 &#183; The gateway and the move to streaming</a>
+      <span class="bridge-why">Anything cached in front of the gateway inherits these three failures. The chapter is where you say which one you would hit first.</span>
+    </li>
+  </ol>
+</div>
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0004-eviction-and-why-lru-is-wrong.html">← 0004 · Eviction, and why LRU is wrong</a></span>
+  <span><span class="dir">Next</span><a href="0006-redis-is-not-magic.html">0006 · Redis is not magic →</a></span>
+</div>
+
+</div>
+</body>
+</html>

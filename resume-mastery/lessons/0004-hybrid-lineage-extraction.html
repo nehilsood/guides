@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>Hybrid Deterministic-LLM Lineage Extraction</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0004">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">R&#233;sum&#233; Mastery</a>
+    <span class="sep">/</span>
+    <span>Batch A &#183; CloudSufi</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Chapter 0004</span>
+  </div>
+  <h1>Hybrid deterministic-LLM lineage extraction</h1>
+  <p class="standfirst">The best sentence in this codebase is a comment: <em>deterministic extraction handles field mapping tables, zero hallucination risk.</em> That is the whole design. The interview risk is the number beside it, because 99.2% does not measure what the r&#233;sum&#233; makes it sound like.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Say exactly where a model is allowed to touch your data and where it is not &#8212; and answer <em>&#8220;99.2% of what?&#8221;</em> with the four weights and their sub-metrics, before anyone has to ask twice.</p>
+</div>
+
+<div class="claim-line">
+  <span class="callout-label">The line being defended</span>
+  <blockquote>&#8220;Built a hybrid deterministic-LLM <strong>Lineage Agent</strong> (Gemini, Google ADK) for legacy SAP BW to BigQuery migrations, extracting column-level field mappings at <strong>99.2%</strong> accuracy against a hand-authored gold standard.&#8221;</blockquote>
+  <span class="whose">CloudSufi &#183; bullet 4 of 4</span>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">A spoken answer to <em>&#8220;tell me about the lineage agent.&#8221;</em> Lead with the fork. The number comes last, with its decomposition attached, so it never sits alone.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">A client was migrating off a legacy SAP warehouse onto BigQuery, and nobody could say how the old one was wired.</p>
+      <p class="line">What existed was a pile of Word documents, with the real answer buried in mapping tables inside them.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">The design is one fork. <b>Code where there is a right answer, the model where there is a judgment.</b></p>
+      <p class="line">The mapping tables get parsed deterministically, so the 516 field mappings are extracted rather than generated. Object identity and cross-references go to the model, because those genuinely need an opinion.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">Two things I would defend. The model's answers pass guardrails that reject non-SAP names, self-loops, and generic words like <b>TABLE</b> offered as an object name.</p>
+      <p class="line">And the model sometimes called merge before extraction. That produced a graph with <b>zero field mappings and no error</b>.</p>
+      <p class="line">I fixed it with a before-tool callback rather than a better prompt. A prompt lowers a failure rate. A precondition removes it.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">The headline needs a caveat and I would rather give it than have it pulled. The 99.2% is a weighted composite. Node and edge are a quarter each, fields are 0.30, structure is 0.20.</p>
+      <p class="line">Inside the field term, most of the weight is count accuracy and a distribution cosine.</p>
+      <p class="line">So it is not 99.2% of columns checked one by one. The r&#233;sum&#233; wording implies more than the metric does.</p>
+      <p class="line">The other limit is the sample. Five documents, hand-written answers. Enough to catch a regression, not enough to claim a general accuracy figure.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;It extracts column-level mappings at 99.2% accuracy.&#8221;</span> It is the r&#233;sum&#233; line said out loud, and it invites <em>&#8220;so 99.2% of the 516 mappings were correct?&#8221;</em> The answer is no, and having to say no to your own sentence is a bad position. Give the four weights in the same breath as the number.</p>
+  <p>The other trap is <span class="quoted">&#8220;we used guardrails to prevent hallucination.&#8221;</span> The guardrails do not prevent hallucination. They reject a specific set of malformed outputs. What prevents hallucination in the mappings is that a model never wrote them, and that is a much stronger sentence.</p>
+</div>
+
+
+<div class="trace">
+  <span class="callout-label">Walk them through it &#183; one document, end to end</span>
+  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One legacy document, followed from the file share to a row in the lineage graph. The object names are real in shape. The document is a stand-in for the five.</p>
+  <p class="tr-case"><b>The picture.</b> Two people reading a departed engineer's handover notes. One copies the tables out exactly, because a table is already an answer. The other reads the prose around them and works out what the writer meant. You would never let the second person rewrite the tables.</p>
+  <p class="tr-case"><b>The case.</b> A client is moving off SAP BW onto BigQuery and nobody remembers how the old warehouse is wired. What exists is a pile of Word documents. Follow one of them, and one mapping row inside it.</p>
+  <ol>
+    <li class="tr-step">
+      <span class="tr-k">The document</span>
+      <p><b>What happens.</b> The document describes one warehouse object in prose, and buried inside it is a mapping table.</p>
+      <p><b>Concretely.</b> That table lists source column, target column and transformation. Across the five documents there are 516 such rows, and they are the valuable part.</p>
+      <p><b>If they ask why.</b> Object level lineage tells you which system feeds which. Field level tells you which column feeds which column. Only the second one lets you walk backwards from a wrong number.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The fork</span>
+      <p><b>What happens.</b> The whole design is one decision, made once. Code where there is a right answer, the model where there is a judgment.</p>
+      <p><b>Concretely.</b> That line is written down in the source file's own docstring rather than living in somebody's head.</p>
+      <p><b>If they ask why.</b> A mapping table is structured, so parsing it is solved. A parsed row cannot be invented. A generated row can.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Parse the tables</span>
+      <p><b>What happens.</b> The deterministic half reads the mapping tables with ordinary code and extracts every row.</p>
+      <p><b>Concretely.</b> The 516 field mappings are extracted, not generated. No model sees that path, so no model can hallucinate a column into it.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Read the prose</span>
+      <p><b>What happens.</b> The model handles the part that genuinely needs an opinion. Which object is this, and is this mention of another object really a data flow?</p>
+      <p><b>Concretely.</b> There are two model stages here, not ten. One parses documents into sections. One merges everything into a graph.</p>
+      <p><b>If they ask why.</b> Saying the real number is stronger than implying a swarm. Two sequential agents is the honest answer and it invites a better conversation.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Guardrails</span>
+      <p><b>What happens.</b> Every name the model produces has to get past rules before it reaches the graph.</p>
+      <p><b>Concretely.</b> SAP objects have machine-shaped names like <code>0WBS_ELEMT</code>, so a regular expression can reject anything that does not look like one. Self-loops are rejected. So is a generic word like TABLE offered as an object name.</p>
+      <p><b>If they ask why.</b> That denylist is a two-line fix for a whole class of wrong answer. The model was returning the name of a category instead of the name of an object.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The silent bug</span>
+      <p><b>What happens.</b> Some runs produced a complete-looking graph with zero field mappings in it. No exception and no warning.</p>
+      <p><b>Concretely.</b> The model was occasionally calling merge before the deterministic extraction had run. Tool-calling order is the model's choice, and sometimes it chose wrong.</p>
+      <p><b>If they ask why.</b> This is the best story in the chapter, and it is worth slowing down for.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The callback</span>
+      <p><b>What happens.</b> The obvious fix is clearer prompt wording, and it would have worked most of the time. I used a before-tool callback instead.</p>
+      <p><b>Concretely.</b> If merge is called and the extractions are not in state, the hook runs them first. The order stops being something the model gets to decide.</p>
+      <p><b>If they ask why.</b> A prompt lowers a failure rate. A precondition removes the failure. This one was invisible when it fired, which is exactly the kind you cannot afford to merely reduce.</p>
+      <p><b>The cost, said first.</b> It adds a hidden step. Somebody reading <code>agent.py</code> could reasonably be surprised that extraction runs without an explicit call, and a docstring is a weak mitigation.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The graph</span>
+      <p><b>What happens.</b> The merge stage assembles everything into the lineage graph the client actually wanted.</p>
+      <p><b>Concretely.</b> One row now says this SAP column becomes that BigQuery column, with this transformation, sourced from this document.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The 99.2</span>
+      <p><b>What happens.</b> The headline number needs its caveat, and I would rather give it than have it pulled out of me.</p>
+      <p><b>Concretely.</b> It is a weighted composite of four dimensions. Node and edge are a quarter each, fields are 0.30, structure is 0.20.</p>
+      <p><b>If they ask why.</b> Inside that field term, most of the weight is count accuracy and a distribution cosine. So it is not 99.2 per cent of columns checked one by one, and the r&#233;sum&#233; wording implies more than the metric delivers.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The sample</span>
+      <p><b>What happens.</b> The other limit is how much was measured.</p>
+      <p><b>Concretely.</b> Five documents, with the answers hand-written by a person who can also be wrong.</p>
+      <p><b>If they ask why.</b> That is enough to catch a regression. It is not enough to claim a general accuracy figure, and saying so is cheaper than being caught assuming it.</p>
+    </li>
+  </ol>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 320" role="img" aria-labelledby="mech0004-t mech0004-d">
+    <defs>
+      <marker id="ar4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+      <marker id="ar4g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head" style="fill:var(--good)"/>
+      </marker>
+    </defs>
+    <title id="mech0004-t">One document splitting into a parsed half and a judged half, rejoining at merge</title>
+    <desc id="mech0004-d">A Word specification document is parsed into sections by the first agent. From there the work splits. Field mapping tables are extracted deterministically by code, which cannot invent a column. Object identity and cross-reference classification go to the model, and its answers pass through guardrails that reject non-SAP names, self-loops and generic type words. A before-tool callback guarantees the deterministic extraction has run before the merge happens, because the model's tool-calling order is not reliable. The two halves merge into a lineage graph that is scored against a hand-written gold standard on four weighted dimensions.</desc>
+
+    <rect class="box" x="8" y="16" width="160" height="52" rx="3"/>
+    <text class="lbl strong" x="88" y="38" text-anchor="middle">SAP BW .docx</text>
+    <text class="lbl-dim" x="88" y="55" text-anchor="middle">5 documents</text>
+
+    <path class="flow" marker-end="url(#ar4)" d="M 172 42 H 210"/>
+
+    <rect class="box-2" x="214" y="16" width="160" height="52" rx="3"/>
+    <text class="lbl strong" x="294" y="38" text-anchor="middle">DocParser</text>
+    <text class="lbl-dim" x="294" y="55" text-anchor="middle">agent 1 &#183; sections</text>
+
+    <path class="flow" marker-end="url(#ar4g)" d="M 294 72 V 96 H 150 V 112"/>
+    <path class="flow" marker-end="url(#ar4)" d="M 294 72 V 96 H 500 V 112"/>
+
+    <rect class="good" x="24" y="116" width="252" height="96" rx="3"/>
+    <text class="lbl strong ink-good" x="150" y="138" text-anchor="middle">Deterministic extraction</text>
+    <text class="lbl-dim" x="150" y="158" text-anchor="middle">mapping tables, parsed by code</text>
+    <text class="num ink-good" x="150" y="180" text-anchor="middle">zero hallucination risk</text>
+    <text class="lbl-dim" x="150" y="198" text-anchor="middle">516 field mappings</text>
+
+    <rect class="warn" x="374" y="116" width="252" height="96" rx="3"/>
+    <text class="lbl strong ink-warn" x="500" y="138" text-anchor="middle">Model &#183; gemini-2.5-pro</text>
+    <text class="lbl-dim" x="500" y="158" text-anchor="middle">object identity</text>
+    <text class="lbl-dim" x="500" y="176" text-anchor="middle">cross-reference classification</text>
+    <text class="lbl-dim" x="500" y="198" text-anchor="middle">guardrails: regex, prefixes, denylist</text>
+
+    <path class="flow" marker-end="url(#ar4)" d="M 150 216 V 240 H 310 V 256"/>
+    <path class="flow" marker-end="url(#ar4)" d="M 500 216 V 240 H 330 V 256"/>
+
+    <rect class="accent" x="180" y="260" width="300" height="44" rx="3"/>
+    <text class="lbl strong ink-accent" x="330" y="286" text-anchor="middle">merge &#8594; lineage graph</text>
+
+    <text class="num ink-warn" x="640" y="240">before_tool_callback</text>
+    <text class="lbl-dim" x="640" y="258">runs extraction if merge</text>
+    <text class="lbl-dim" x="640" y="274">was called without it</text>
+    <text class="lbl-dim" x="640" y="296">tool order is not guaranteed</text>
+
+    <text class="lbl-dim" x="640" y="150">Scored 0.25 node &#183; 0.25 edge</text>
+    <text class="lbl-dim" x="640" y="168">0.30 field &#183; 0.20 structural</text>
+    <text class="num" x="640" y="192">threshold 0.85</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">What you say while drawing it</span>
+    <ol class="narrate">
+      <li>Five Word documents come in.</li>
+      <li>Agent one parses them into sections. That is the only reading step.</li>
+      <li>Now the work splits, and this fork is the whole design.</li>
+      <li>Left: the mapping tables are extracted by code. Zero hallucination risk, and 516 mappings come out.</li>
+      <li>Right: object identity and cross-references go to the model, because those need judgment.</li>
+      <li>The model's answers pass a regex, a prefix list and a denylist of generic type words.</li>
+      <li>Both halves merge into one graph.</li>
+      <li>The callout on the right is the callback that guarantees the left half ran before the merge.</li>
+      <li>And the score is four weighted dimensions, not one number about columns.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. The shape is a fork and a join, with one annotation that makes the fork trustworthy.</p>
+  <ul>
+    <li>The <b>fork</b>. Parsed on one side, judged on the other. Everything else is detail.</li>
+    <li><b>Zero hallucination risk</b> on the left branch. The one mark to keep.</li>
+    <li>The <b>callback</b> arrow, because it is the story an interviewer remembers.</li>
+    <li>The <b>four weights</b> on the right, so the 99.2% never stands alone.</li>
+  </ul>
+  <span class="timer">Say &#8220;code where there is an answer, model where there is a judgment&#8221; as you draw the fork. That sentence is the chapter.</span>
+</div>
+
+<div class="star">
+  <span class="callout-label">Behavioural &#183; the story for this bullet</span>
+  <p class="frame">For <em>&#8220;tell me about a bug that did not throw an error&#8221;</em> or <em>&#8220;a time the obvious fix was the wrong one.&#8221;</em></p>
+  <ol class="rungs">
+    <li class="rung"><span class="rung-k">Decision</span><p>Whether to fix a non-deterministic model behaviour by asking the model more clearly, or by making the correct order impossible to skip.</p></li>
+    <li class="rung"><span class="rung-k">Situation</span><p>Some runs produced a lineage graph with zero field mappings. No exception, no warning, and the graph looked complete. The cause was tool-calling order: the model occasionally called merge before the deterministic extraction had run.</p></li>
+    <li class="rung"><span class="rung-k">Action</span><p>The obvious fix was prompt wording, and it would have worked most of the time. I added a before-tool callback instead. If merge is called and the extractions are not in state, it runs them first.</p><p>I also wrote the reason into the callback's own docstring, so the next person does not delete it as redundant.</p></li>
+    <li class="rung"><span class="rung-k">Result</span><p>The failure cannot recur, rather than recurring less often. The pipeline stopped depending on the model choosing the right order, which means one fewer thing that is fine until it silently is not.</p></li>
+    <li class="rung"><span class="rung-k">What it cost</span><p>It adds a hidden step, and a reader of <code>agent.py</code> could reasonably be surprised that extraction runs without an explicit call. The docstring is the mitigation and it is a weak one. I would accept that trade again, because the alternative failure is invisible.</p></li>
+  </ol>
+</div>
+
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>A company is moving off an old SAP data warehouse onto BigQuery. Nobody remembers how the old one is wired. What exists is a pile of Word documents describing each object, and inside those documents are tables listing which source column feeds which target column.</p>
+  <p>The agent reads those documents and builds a map of the whole thing. Two kinds of map. <b>Object level</b> is which system feeds which. <b>Field level</b> is which column feeds which column. The second one is the valuable one, and it is the one a language model must not be allowed to invent.</p>
+  <dl>
+    <dt>Lineage</dt>
+    <dd>Where data came from, hop by hop. If a number in a report looks wrong, lineage is what lets you walk backwards to the column it started in.</dd>
+
+    <dt>SAP BW</dt>
+    <dd>The legacy warehouse being migrated off. Its objects have machine-style names like <code>0WBS_ELEMT</code>, which turns out to matter, because a name that shape can be validated by a regular expression.</dd>
+
+    <dt>Field mapping</dt>
+    <dd>One row of the answer: this source column becomes that target column, with this transformation. There are 516 of them across five documents.</dd>
+
+    <dt>Deterministic extraction</dt>
+    <dd>Reading the mapping tables with code rather than a model. The tables are structured, so parsing them is a solved problem and the output cannot be invented.</dd>
+
+    <dt>Hybrid</dt>
+    <dd>Using code where there is a right answer and a model where there is judgment. Here the split is written into the source file's own docstring.</dd>
+
+    <dt>Cross-reference</dt>
+    <dd>A mention of another object inside a document. Deciding whether a mention is really a data flow is a judgment call, which is why a model does it.</dd>
+
+    <dt>Guardrail</dt>
+    <dd>A rule that rejects an answer before it reaches the graph. Here: names that do not look like SAP objects, edges that point at themselves, and generic words like &#8220;TABLE&#8221; offered as an object name.</dd>
+
+    <dt>SequentialAgent</dt>
+    <dd>An ADK agent that runs sub-agents one after another. This pipeline has two of them, which is fewer than most people assume when they hear &#8220;agentic.&#8221;</dd>
+
+    <dt>Before-tool callback</dt>
+    <dd>A hook that runs before a tool does. It is how this pipeline guarantees the deterministic half ran, regardless of what order the model decided to call things in.</dd>
+
+    <dt>Gold standard</dt>
+    <dd>The hand-written answer the output is scored against. Five documents, written by a person, and small enough that the sample size is a fair question.</dd>
+  </dl>
+</div>
+
+<div class="primer stack">
+  <span class="callout-label">The technology &#8212; what each named thing is</span>
+  <p>The primer above names the parts of a lineage problem. This one names the tools and the measurement, starting from the ground. The accuracy figure in the bullet is the most contestable thing here, so it is defined too.</p>
+  <p>Every entry answers four things. What it actually is, in plain words. Where this system uses it. What it buys, meaning what goes wrong without it. And the follow-up an interviewer asks once you have said the name.</p>
+  <dl>
+    <dt>BigQuery</dt>
+    <dd><i>the destination warehouse</i>Google's analytical database, the kind you run reports against rather than serve an application from. There is no server to provision and no cluster to size. You load data and write SQL, and Google works out the machines. Storage is columnar, meaning a query that reads three columns of a two-hundred-column table pays for three, which is why it scans terabytes in seconds. <b>In the app.</b> It is the destination that SAP BW is being migrated into. <b>What it buys.</b> Analytics capacity without an analytics platform team, and a cost model tied to what you actually query. <b>The follow-up.</b> Why the shapes do not line up. BW is modelled around InfoObjects, InfoCubes and DSOs, and a great deal of the meaning lives in metadata rather than in the data. BigQuery has tables and columns and nothing else. The mapping work exists precisely because that translation is not mechanical.</dd>
+
+    <dt>Google ADK</dt>
+    <dd><i>Agent Development Kit</i>Google's open-source Python framework for systems where a model does work across several steps. A bare model call is one question and one answer. The framework supplies the rest: an agent type, a way to attach ordinary Python functions as tools, a shared dictionary carried between steps, and a runner that drives the sequence and records every event. <b>In the app.</b> Parse, extract, cross-reference, merge, with one model call inside. <b>What it buys.</b> Ordering, state passing and an inspectable trace, none of which you have to write. The trace is the part that matters when a document extracts wrongly and you need to know at which step it went wrong. <b>The follow-up.</b> It is not the model. Gemini does the reading. ADK decides what runs, in what order, and what each step is allowed to see.</dd>
+
+    <dt><code>SequentialAgent</code></dt>
+    <dd><i>a workflow agent</i>An agent that runs its children in a fixed order written down in code, passing the shared state along as it goes. No model is consulted about what comes next. It is a <code>for</code> loop with observability bolted on. <b>In the app.</b> Parse, extract, cross-reference, merge is a known order that never varies by document. <b>What it buys.</b> A pipeline you can read, test without a model, and reason about. Each stage can be run alone against a fixed input, which is what makes the accuracy figure reproducible rather than anecdotal. <b>The follow-up.</b> What happens on failure. A sequence has no branches. A stage that cannot produce its output has to write that fact into state and let the next stage decide what to do with it, or one malformed document takes down the whole run.</dd>
+
+    <dt>Before-tool callback</dt>
+    <dd><i><code>before_tool_callback</code></i>A hook the framework runs in the moment between the model asking for a tool and the tool actually running. It receives the tool name and the arguments, and it can inspect them, rewrite them, or refuse outright and return a result of its own. <b>In the app.</b> <code>ensure_deterministic_before_merge</code> uses it as a precondition, so a merge cannot execute on a model result that never went through the regex half. <b>What it buys.</b> An invariant that holds no matter what the model does. The ordering rule stops being a hope about prompt compliance and becomes a condition checked in Python on every single call. <b>The follow-up.</b> Why a callback rather than a line in the prompt. Because this one is enforced by the framework instead of requested of the model, and that is exactly the difference between a guardrail and advice.</dd>
+
+    <dt>Gemini</dt>
+    <dd><i><code>gemini-2.5-pro</code></i>Google's large language model family, used here in its larger reasoning tier and reached through the Google GenAI SDK. The larger tiers cost more per token and are better at multi-step inference over long inputs. <b>In the app.</b> Reading a written specification document and inferring which BW object a given column originally came from. <b>What it buys.</b> The half of the problem no rule can express. Where a name follows SAP convention a regex is better and cheaper. Where the only evidence is a sentence in a Word document written by a person, a model is the only thing that reads it. <b>The follow-up.</b> Why the expensive tier, and say the trade rather than dodging it. A cheaper tier costs less per document and shows up directly as a lower number against the gold standard, and 99.2% is the figure you are defending.</dd>
+
+    <dt>Regular expression</dt>
+    <dd><i>the deterministic half</i>A small language for describing the shape of text. <code>^[0-9A-Z][A-Z0-9_]{2,}$</code> reads as: begin with a digit or a capital letter, then at least two more capitals, digits or underscores, then end, with nothing else allowed. Matching is exact, instant and free. <b>In the app.</b> SAP technical names follow rigid naming conventions, so anything a pattern can identify never reaches the model at all. <b>What it buys.</b> Cost, speed and certainty on the easy majority. It also fixes the answer, so the same column extracts identically on every run, which a model does not guarantee. <b>The follow-up.</b> What it cannot do. A regex confirms that a string looks like an identifier. It has no idea whether that identifier exists, or whether it means what the document claims it means.</dd>
+
+    <dt>.docx</dt>
+    <dd><i>Office Open XML</i>Not a document in any single-file sense. A <code>.docx</code> is a ZIP archive containing XML parts, with the text living in <code>word/document.xml</code> and styling, numbering, tables and relationships in files beside it. Reading one means unzipping and walking XML, not reading text. <b>In the app.</b> <code>DocParser</code> pulls text and table structure out of specification documents written by people. <b>What it buys.</b> Access to the structure, not just the words. A table's rows and cells survive the parse, and in a specification document the table is usually where the mapping actually is. <b>The follow-up.</b> Where extraction loses information. Tables split across pages, merged cells and floating text boxes all flatten badly. A mapping destroyed at the parse step never reaches the model at all, so it cannot be blamed on the model.</dd>
+
+    <dt>DAG</dt>
+    <dd><i>directed acyclic graph</i>A set of nodes joined by one-way arrows, with the rule that you can never follow the arrows back to where you started. Lineage is naturally one of these. A column is derived from other columns, and nothing can be derived from itself. <b>In the app.</b> <code>is_dag_correct</code> is one of the weights in the evaluation, checking the shape of the extracted graph rather than the labels on it. <b>What it buys.</b> A correctness check that needs no gold standard. You can test acyclicity on a document nobody has ever labelled, which means it works on new data where accuracy cannot be computed at all. <b>The follow-up.</b> Why acyclicity is worth testing on its own. A cycle proves the extraction invented a dependency, because real lineage cannot contain one. It is a hallucination detector that costs nothing to run.</dd>
+
+    <dt>Structured output</dt>
+    <dd><i>response schema</i>Handing the API a schema in advance so that generation is constrained to fit it. This is not a prompt asking for JSON and it is not a parse-and-retry loop. Tokens that would break the shape are never produced in the first place. <b>In the app.</b> A field mapping is a record with required parts, and a stage returning prose could not be merged with the regex results. <b>What it buys.</b> The whole family of parsing failures disappears &#8212; no markdown fence, no preamble sentence, no trailing comma &#8212; and so does the code that used to handle them. <b>The follow-up.</b> Shape is not truth. Every field can be present, correctly typed, and entirely wrong. That gap is exactly why the cross-reference step exists downstream of the model rather than trusting its output.</dd>
+
+    <dt>Accuracy</dt>
+    <dd><i>and what it hides</i>The share of predictions that match the gold standard, counted over everything the system was asked about. One number, easy to quote, and the one most likely to be challenged. <b>In the app.</b> 99.2% is the headline figure in the bullet. <b>What it buys.</b> A single comparable number across runs, which is genuinely useful for spotting a regression between two versions of the same pipeline. <b>The follow-up.</b> Over what denominator, and against which failure. Precision asks how many of the mappings you produced were correct. Recall asks how many of the real mappings you found at all. A run that quietly skips the hard columns scores beautifully on one and badly on the other, and accuracy is the only one of the three that lets both hide behind a single figure.</dd>
+  </dl>
+</div>
+
+
+
+<h2>The split, and why it is the whole design</h2>
+
+<p class="breath">Tables get parsed by code. Judgment calls go to the model. That line is drawn once, in a docstring, and everything else follows from it.</p>
+
+<p>The top of <code>tools/field_mapper.py</code> says it in four lines. Deterministic extraction handles field mapping tables, with <b>zero hallucination risk</b>. The LLM handles object identification and cross-reference classification. Validation guardrails reject non-SAP names, self-loops and malformed edges.</p>
+
+<p>That is worth quoting almost verbatim in an interview, because it answers the question before it is asked. The 516 field mappings are not model output. They were parsed out of tables. A model cannot invent a column that is not there, because the model never wrote that part of the answer.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>The boring, exact part is done by a program. The model is only asked the questions that genuinely need an opinion.</p>
+
+<h2>Two agents, which is fewer than it sounds</h2>
+
+<p class="breath">There are two LLM stages, not ten. One parses documents into sections. One merges everything into a graph. Saying the real number is stronger than implying a swarm.</p>
+
+<p><code>agent.py</code> describes itself as a <b>2-stage SequentialAgent</b>. The first agent, <code>DocParser</code>, runs <code>parse_and_extract</code> over each <code>.docx</code>. The second identifies objects, classifies cross-references, and calls the merge tool that assembles the graph.</p>
+
+<p>The model is <code>gemini-2.5-pro</code>, set through a <code>LINEAGE_MODEL</code> environment variable. Pinning it there rather than in code is the same lesson as the gateway in chapter 0002: an alias that silently resolves somewhere new is a failure you cannot see.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Two steps that use the model, not a crowd of them. Read the documents, then join everything up.</p>
+
+<h2>The callback, which is the best story here</h2>
+
+<p class="breath">The model sometimes called merge before it called extraction. The result was a graph with zero field mappings and no error. The fix was not a better prompt. It was a hook that runs extraction anyway.</p>
+
+<p><code>ensure_deterministic_before_merge</code> is a <code>before_tool_callback</code>. Its own docstring names the failure: <em>prevents 0 field_mappings caused by LLM tool-calling order variance.</em> If merge is called and the deterministic extractions are not in state, it runs them first.</p>
+
+<p>This is the part worth understanding properly. Tool-calling order is not guaranteed. A model that got it right ninety-nine times will get it wrong the hundredth, and the output is not an error. It is a complete, well-formed, empty answer &#8212; which is the worst kind, because nothing alerts on it.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>The model occasionally did step two before step one. Rather than asking it more nicely, we made step one run by itself if it had been skipped.</p>
+
+<h2>Guardrails, and the failure they catch</h2>
+
+<p class="breath">The model is asked to name objects. Sometimes it returns the name of a category instead of an object. A denylist of those words is a two-line fix for a whole class of wrong answers.</p>
+
+<p>Three checks sit in <code>field_mapper.py</code>. A regex, <code>^[0-9A-Z][A-Z0-9_]{2,}$</code>, for what an SAP identifier looks like. A list of known prefixes, including <code>RSDRI</code>, <code>2LIS_</code> and <code>BW_</code>. And a reject list.</p>
+
+<p>The reject list is the interesting one. It contains <code>DSO</code>, <code>ADSO</code>, <code>INFOOBJECT</code>, <code>INFOCUBE</code>, <code>TABLE</code>, <code>FIELD</code>, <code>MAPPING</code>. Those are <em>types</em>, not objects. A model asked to name the object will sometimes answer with the kind of thing it is, and the graph would happily grow a node called <code>TABLE</code>.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>If you ask what breed the dog is and it answers &#8220;dog,&#8221; you throw that answer away rather than adding a dog called Dog.</p>
+
+<h2>What 99.2% actually measures</h2>
+
+<p class="breath">It is not the share of columns mapped correctly. It is a weighted average of four dimensions, and field mapping is 30% of it. Inside that 30%, most of the weight is on counts and distributions rather than on individual columns.</p>
+
+<p><code>evals/docs/eval_criteria.json</code> is explicit. Node accuracy 0.25, edge accuracy 0.25, <b>field mapping accuracy 0.30</b>, structural accuracy 0.20. The pass threshold is 0.85.</p>
+
+<p>Open the field mapping term and it has three sub-metrics. <b>Count accuracy</b> is one minus the relative error in how many mappings were found. <b>Type distribution similarity</b> is a cosine between the predicted and expected mix of mapping types. <b>Sample match rate</b> is how many of the sampled mappings matched.</p>
+
+<p>So a run that finds the right <em>number</em> of mappings, with the right <em>mix</em> of types, scores well on two of three sub-metrics without any individual column being checked. That is a reasonable metric. It is just not what &#8220;column-level field mappings at 99.2% accuracy&#8221; sounds like, and the gap is the thing to volunteer.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>We checked that we found about the right number of mappings, of about the right kinds, and that a sample of them were right. We did not check all 516 one by one.</p>
+
+
+
+<section class="qset" id="toolbox">
+  <h2>Toolbox</h2>
+  <p class="qset-note">Every noun in the bullet, defined out loud, from the ground up. The last one is the one to rehearse: a number like 99.2% invites a question about the metric behind it, and &#8220;accuracy&#8221; is the weakest word you could have used. Each answer says what the thing is, what it does here, and what you would lose without it.</p>
+  <ul class="qa-index">
+    <li><a href="#c04-t1">What BigQuery is</a></li>
+    <li><a href="#c04-t2">ADK and SequentialAgent</a></li>
+    <li><a href="#c04-t3">What a before-tool callback does</a></li>
+    <li><a href="#c04-t4">A regex in an LLM pipeline</a></li>
+    <li><a href="#c04-t5">What a .docx actually is</a></li>
+    <li><a href="#c04-t6">What a DAG check proves</a></li>
+    <li><a href="#c04-t7">What 99.2% accuracy means</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c04-t1">
+      <p class="qa-q">What is BigQuery, and why is mapping into it real work?</p>
+      <p class="qa-a">BigQuery is Google's analytical database, the kind you run reports against rather than serve an application from. There is no server to provision and no cluster to size. You load data and write SQL, and Google finds the machines. Storage is columnar, so a query reading three columns of a two-hundred-column table pays for three. That is why it scans terabytes in seconds, and why it costs what it costs. The mapping is real work because the two shapes do not correspond. BW carries meaning in InfoObjects, InfoCubes and DSOs, much of it in metadata rather than data. BigQuery has tables and columns and nothing else. Translating one into the other is a judgement about intent, not a rename.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it &#8220;Google's data warehouse&#8221; and stopping. The interesting half is the modelling mismatch, which is why the agent exists at all.</p>
+    </li>
+    <li class="qa-item" id="c04-t2">
+      <p class="qa-q">What is ADK, and what does SequentialAgent do inside it?</p>
+      <p class="qa-a">A bare model call is one question and one answer. ADK is Google's Python framework for turning that into a pipeline. It supplies the agent type, the tool wiring, a shared dictionary carried between steps, and a runner that drives the sequence and records every event. What it buys is ordering, state passing and an inspectable trace, none of which you write. The trace is the part that matters when a document extracts wrongly and you need to know which step did it. SequentialAgent is one of its workflow agents. It runs its children in a fixed declared order and threads state between them. No model decides what comes next, so each stage can be run alone against a fixed input.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling a fixed sequence &#8220;agentic.&#8221; Exactly one stage here asks a model anything. Saying so is the difference between honest and inflated.</p>
+    </li>
+    <li class="qa-item" id="c04-t3">
+      <p class="qa-q">What is a before-tool callback, and what can it actually do?</p>
+      <p class="qa-a">It is a hook that runs in the moment between the model asking for a tool and the tool running. It receives the tool name and the arguments. It can inspect them, rewrite them, or refuse outright and return a result of its own. Here it enforces a precondition, so a merge cannot execute on a model result that skipped the deterministic pass. What that buys is an invariant that holds no matter what the model does. The ordering rule stops being a hope about prompt compliance and becomes a condition checked in Python on every call. The framework enforces it, which is exactly what makes it a guardrail rather than advice.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing it as logging. A hook that can only watch is not a control, and the whole claim rests on it being able to refuse.</p>
+    </li>
+    <li class="qa-item" id="c04-t4">
+      <p class="qa-q">What is a regular expression doing in a pipeline built around a model?</p>
+      <p class="qa-a">A regular expression is a small language for describing the shape of text. Matching is exact, instant and free. It is here to catch everything that never needed a model. SAP technical names follow rigid conventions, so a pattern identifies them precisely at no cost. What that buys is speed, money and certainty on the easy majority. It also fixes the answer, so the same column extracts identically on every run, which a model does not guarantee. That leaves the model only the cases where meaning has to be inferred from prose written by a person. It also gives you a second opinion to merge against. The regex is not the fallback here. It is the first pass.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Presenting the deterministic half as legacy. It is the cheaper, more reliable half, and hybrid means both run.</p>
+    </li>
+    <li class="qa-item" id="c04-t5">
+      <p class="qa-q">What is a .docx file, actually?</p>
+      <p class="qa-a">It is not a document in any single-file sense. A .docx is a ZIP archive of XML parts. The text lives in one part, and styling, numbering, tables and images live in others. Reading one means unzipping and walking XML, not reading text. What that buys you is access to the structure rather than just the words. A table's rows and cells survive the parse, and in a specification document the table is usually where the mapping actually is. It also matters because the losses happen here. Tables split across pages, merged cells and floating text boxes all flatten badly. A mapping destroyed at the parse step never reaches the model to be got wrong.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating document parsing as solved. It is where silent recall loss comes from, and it never shows up as an error.</p>
+    </li>
+    <li class="qa-item" id="c04-t6">
+      <p class="qa-q">What is a DAG, and what does checking it prove?</p>
+      <p class="qa-a">A directed acyclic graph is a set of nodes joined by one-way arrows. Following those arrows can never bring you back to where you started. Lineage is naturally one, because a column is derived from other columns and nothing can be derived from itself. Checking it proves the shape is possible. A cycle means the extraction invented a dependency, since real lineage cannot contain one. What that buys is a correctness check needing no gold standard. You can run it on a document nobody has ever labelled, which means it works on new data where accuracy cannot be computed at all. It is a hallucination detector that costs nothing.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Confusing a shape check with a correctness check. A perfectly acyclic graph can still be entirely wrong about which column feeds which.</p>
+    </li>
+    <li class="qa-item" id="c04-t7">
+      <p class="qa-q">99.2% accuracy of what, exactly?</p>
+      <p class="qa-a">Of column-level field mappings, measured against a hand-authored gold standard. Accuracy is the share of predictions that match, counted over everything the system was asked about. What it buys is one comparable number across runs, which genuinely helps spot a regression between two versions. What it hides is which kind of mistake was made. Say the denominator before you are asked, because accuracy is the weakest of the three words available. Precision asks how many of the mappings you produced were right. Recall asks how many of the real ones you found at all. A run that quietly skips the hard columns scores beautifully on the first and badly on the second.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Letting the number stand alone. Five documents and a hand-built answer key is a small denominator, and saying so first is stronger than being asked.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="fundamentals">
+  <h2>Fundamentals</h2>
+  <p class="qset-note">The warm-up. Question four is the one this whole bullet lives or dies on, and it should be the easiest one you answer all day.</p>
+  <ul class="qa-index">
+    <li><a href="#c04-f1">What the agent does</a></li>
+    <li><a href="#c04-f2">What lineage is for</a></li>
+    <li><a href="#c04-f3">Object level and field level</a></li>
+    <li><a href="#c04-f4">Where the split is drawn</a></li>
+    <li><a href="#c04-f5">How many LLM stages</a></li>
+    <li><a href="#c04-f6">Why parse the tables</a></li>
+    <li><a href="#c04-f7">What the guardrails reject</a></li>
+    <li><a href="#c04-f8">What the gold standard is</a></li>
+    <li><a href="#c04-f9">What 99.2% averages</a></li>
+    <li><a href="#c04-f10">The riskiest claim</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c04-f1">
+      <p class="qa-q">In two sentences, what does this agent do?</p>
+      <p class="qa-a">It reads SAP BW specification documents and builds a lineage graph from them. The graph says which objects feed which. It also says which source column becomes which target column. A team migrating to BigQuery can then see how the old warehouse is wired.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying &#8220;it extracts lineage&#8221; and stopping. Name the two granularities, because the field-level one is the whole value.</p>
+    </li>
+    <li class="qa-item" id="c04-f2">
+      <p class="qa-q">Why does anyone need lineage?</p>
+      <p class="qa-a">Two reasons. When a number in a report is wrong, lineage is how you walk backwards to the column it came from. And when you migrate, it is how you know what will break. Without it a migration is a rewrite, because nobody can say what depends on what.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing it as documentation. It is a dependency graph, and the difference is that you can query it.</p>
+    </li>
+    <li class="qa-item" id="c04-f3">
+      <p class="qa-q">What is the difference between object-level and field-level lineage?</p>
+      <p class="qa-a">Object level says this system feeds that system. Field level says this column becomes that column. Object level is easy and roughly useless on its own. Field level is where the migration work actually lives, and it is where the 516 mappings are.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating them as the same thing at different zoom levels. They are produced differently here, and that is the point of the design.</p>
+    </li>
+    <li class="qa-item" id="c04-f4">
+      <p class="qa-q">Where exactly is the line between the deterministic half and the model?</p>
+      <p class="qa-a">Tables are parsed by code. Everything else goes to the model. Specifically, field mapping tables are extracted deterministically, with zero hallucination risk. The model does object identification and cross-reference classification, which are genuinely ambiguous. That line is written in the docstring of <code>field_mapper.py</code>.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Vagueness here. &#8220;It uses both&#8221; is the answer of somebody who inherited the design rather than drew it.</p>
+    </li>
+    <li class="qa-item" id="c04-f5">
+      <p class="qa-q">How many LLM stages are there?</p>
+      <p class="qa-a">Two. It is a two-stage <code>SequentialAgent</code>. One parses the documents into sections. One identifies objects and merges everything into the graph. I would rather say two than let &#8220;agentic&#8221; imply a swarm. The follow-up about why they are agents is easier to answer honestly at two.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Letting the word &#8220;agent&#8221; do work the architecture does not. Two sequential stages is a fine answer and an overstated one is not.</p>
+    </li>
+    <li class="qa-item" id="c04-f6">
+      <p class="qa-q">Why parse the tables rather than ask the model to read them?</p>
+      <p class="qa-a">Because the tables have structure and a model does not improve on a parser. A model reading a 40-row mapping table can drop a row, merge two, or invent a plausible column name. None of those produce an error. A parser either finds the table or does not, and its output is checkable.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;To save tokens.&#8221; True and beside the point. The reason is correctness, and cost is a bonus.</p>
+    </li>
+    <li class="qa-item" id="c04-f7">
+      <p class="qa-q">What do the guardrails actually reject?</p>
+      <p class="qa-a">Three things. Names that do not match the SAP identifier pattern. Edges that point at themselves. And names from a reject list of generic type words like <code>DSO</code>, <code>TABLE</code> and <code>MAPPING</code>. The last one exists because a model asked to name an object will sometimes answer with the category instead.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling them validation. They are output filters on a model, which is a specific and more interesting thing to have built.</p>
+    </li>
+    <li class="qa-item" id="c04-f8">
+      <p class="qa-q">What is the gold standard, and who wrote it?</p>
+      <p class="qa-a">Hand-authored expected outputs for five SAP BW documents, in <code>evals/docs/</code>. A person wrote them by reading the same documents. That makes it a real reference, and it also makes five the sample size, which I would state before being asked.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Presenting five documents as a benchmark. It is a regression check on a small, honest sample, and calling it that is stronger.</p>
+    </li>
+    <li class="qa-item" id="c04-f9">
+      <p class="qa-q">The 99.2% is an average over what?</p>
+      <p class="qa-a">Four weighted dimensions, and the weights matter. Node accuracy takes 0.25 of it, edge accuracy another 0.25 of it. Field mapping accuracy takes 0.30, with structural accuracy on the last 0.20 share. The pass threshold sits at 0.85 overall. So field mappings are under a third of the headline, and the other 70% is about the graph.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Not knowing the weights. It is the first follow-up, and a composite score you cannot decompose reads as a number you inherited.</p>
+    </li>
+    <li class="qa-item" id="c04-f10">
+      <p class="qa-q">What is the riskiest claim in this bullet?</p>
+      <p class="qa-a">The phrase &#8220;column-level field mappings at 99.2% accuracy.&#8221; It reads as though 99.2% of individual column mappings were checked and correct. The metric is a weighted composite, and the field term is mostly count accuracy and a distribution cosine. I would give the decomposition before anyone asks for it.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Defending the phrasing. The engineering is good and the wording oversells it, and those are two separate conversations.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="deep-dive">
+  <h2>Deep dive</h2>
+  <p class="qset-note">The middle third of these are about the metric rather than the pipeline, because that is where a senior interviewer will spend the time.</p>
+  <ul class="qa-index">
+    <li><a href="#c04-d1">The two stages in detail</a></li>
+    <li><a href="#c04-d2">Tool-calling order variance</a></li>
+    <li><a href="#c04-d3">Why a callback, not a prompt</a></li>
+    <li><a href="#c04-d4">The reject list</a></li>
+    <li><a href="#c04-d5">Self-loops</a></li>
+    <li><a href="#c04-d6">Decomposing the score</a></li>
+    <li><a href="#c04-d7">Count accuracy</a></li>
+    <li><a href="#c04-d8">The distribution cosine</a></li>
+    <li><a href="#c04-d9">Why 0.85</a></li>
+    <li><a href="#c04-d10">Five documents</a></li>
+    <li><a href="#c04-d11">Pinning the model</a></li>
+    <li><a href="#c04-d12">Where this generalises</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c04-d1">
+      <p class="qa-q">Walk me through the two stages.</p>
+      <p class="qa-a">Agent one is <code>DocParser</code>. It runs <code>parse_and_extract</code> over each <code>.docx</code> and produces sections. Agent two identifies which SAP objects a section is about, classifies cross-references, and calls the merge tool. The merge tool assembles nodes, edges and field mappings into one graph and exports it.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing the parser as an LLM step. It is a document parser wrapped in an agent, and the distinction is the one the chapter is about.</p>
+    </li>
+    <li class="qa-item" id="c04-d2">
+      <p class="qa-q">What is tool-calling order variance and how did it bite you?</p>
+      <p class="qa-a">The model decides what order to call tools in, and that decision is not stable. It sometimes called merge before the deterministic extraction had run. The merge then had nothing to merge, so it produced a graph with zero field mappings. No exception, no warning, a complete-looking result.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it a bug in the model. It is a property of letting a model sequence your pipeline, and the design question is what you do about it.</p>
+    </li>
+    <li class="qa-item" id="c04-d3">
+      <p class="qa-q">Why fix it with a callback rather than a clearer prompt?</p>
+      <p class="qa-a">Because a prompt makes it rarer and a callback makes it impossible. <code>ensure_deterministic_before_merge</code> is a before-tool hook. If merge is called and the extractions are not in state, it runs them first. Prompt wording moves a failure rate. A precondition removes the failure.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;We improved the prompt and it stopped happening.&#8221; That is a failure you stopped observing, which is a different thing from a failure you fixed.</p>
+    </li>
+    <li class="qa-item" id="c04-d4">
+      <p class="qa-q">Why does the reject list contain words like DSO and TABLE?</p>
+      <p class="qa-a">Because those are type names, not object names. Asked which object a section describes, a model sometimes answers with the kind of object it is. Without the list, the graph grows a node called <code>TABLE</code> that several documents appear to reference, and it looks like a real hub.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating it as a cosmetic filter. A spurious hub node corrupts every structural metric, and structural accuracy is 20% of the score.</p>
+    </li>
+    <li class="qa-item" id="c04-d5">
+      <p class="qa-q">Why explicitly reject self-loops?</p>
+      <p class="qa-a">Because a document about an object mentions that object many times. So the easiest wrong edge to produce is one from a node to itself. It is also the most damaging, because the graph is supposed to be a DAG. One self-loop makes it not one. A structural check expecting a DAG then fails for a reason unrelated to lineage.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying it is harmless. It flips <code>is_dag_correct</code>, which is a named sub-metric here.</p>
+    </li>
+    <li class="qa-item" id="c04-d6">
+      <p class="qa-q">Decompose the 99.2% for me.</p>
+      <p class="qa-a">Four dimensions. Node accuracy at 0.25, built from precision, recall, type correctness and metadata completeness. Edge accuracy at 0.25, matching on the source, target and edge-type tuple. Field mapping accuracy at 0.30. Structural accuracy at 0.20, covering whether it is a DAG, the component count, and cross-reference precision.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Quoting the weights without the sub-metrics. The sub-metrics are where the interesting answer is, and the next question goes straight there.</p>
+    </li>
+    <li class="qa-item" id="c04-d7">
+      <p class="qa-q">Inside the field mapping term, what is count accuracy actually measuring?</p>
+      <p class="qa-a">One minus the relative error in how many mappings were found for a given edge. Say the gold standard has 40 mappings and we found 39 of them. That scores 0.975 on this sub-metric. It says nothing about whether those are the right ones. It is a useful signal for a missing table, and a weak one for correctness.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Reading it as per-mapping accuracy. Knowing that it is not is the whole reason you can talk about this metric credibly.</p>
+    </li>
+    <li class="qa-item" id="c04-d8">
+      <p class="qa-q">And the type distribution similarity?</p>
+      <p class="qa-a">A cosine between the predicted mix of mapping types and the expected mix. If the gold standard is mostly direct mappings with a few transformations, and we produce the same proportions, the cosine is high. It catches a systematic bias, like classifying everything as direct. It does not catch two individual mappings swapped.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Not being able to say what a metric misses. Every metric misses something, and naming it is the difference between using one and quoting one.</p>
+    </li>
+    <li class="qa-item" id="c04-d9">
+      <p class="qa-q">The threshold is 0.85. Why there?</p>
+      <p class="qa-a">It is a chosen bar, not a derived one, and I would say so. What makes it defensible is that it gates a regression check on five documents with known answers. If a change drops the composite below 0.85 on those five, something moved and it needs looking at. The absolute value matters less than it being fixed.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Inventing a justification for 0.85. A threshold used as a regression tripwire does not need a statistical origin story.</p>
+    </li>
+    <li class="qa-item" id="c04-d10">
+      <p class="qa-q">Five documents. Is that enough?</p>
+      <p class="qa-a">Not to claim a general accuracy figure, and I would not. It is enough to catch a regression, because the answers are hand-written and stable. What it cannot tell you is how the agent behaves on a differently shaped document. That is the honest limit of the number.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Defending five as sufficient. Saying what it is sufficient <em>for</em> is both true and more impressive.</p>
+    </li>
+    <li class="qa-item" id="c04-d11">
+      <p class="qa-q">Why is the model name in an environment variable?</p>
+      <p class="qa-a">So it is pinned and swappable without a code change. <code>LINEAGE_MODEL</code> defaults to <code>gemini-2.5-pro</code>. The reason to care is the failure from chapter 0002. An alias there quietly started resolving to a model that refused a parameter we sent. A named version fails loudly when it disappears.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating it as configuration hygiene. It is a specific defence against a specific failure you have actually seen.</p>
+    </li>
+    <li class="qa-item" id="c04-d12">
+      <p class="qa-q">Where does this hybrid pattern generalise to?</p>
+      <p class="qa-a">Anywhere part of the input is structured and part is not. The rule I would state is that a model should only be asked questions that have no deterministic answer. Tables, identifiers and arithmetic are not those questions. Classification, disambiguation and summarisation are. Most document pipelines get this backwards and hand the whole file to the model.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Generalising to &#8220;use less AI.&#8221; The rule is about which questions have oracles, and that is a sharper and more useful claim.</p>
+    </li>
+  </ol>
+</section>
+
+<div class="quiz" data-quiz-id="0004-q1">
+  <p class="q">The model calls the merge tool before it has called deterministic extraction. What happens?</p>
+  <ol class="options">
+    <li data-correct="true">A callback quietly runs the deterministic extraction step first</li>
+    <li>The merge returns zero field mappings without any warning</li>
+    <li>The agent silently retries against a much larger model</li>
+    <li>The document gets rejected and the entire pipeline stops</li>
+  </ol>
+  <div class="why">
+    <p>The callback runs it. <code>ensure_deterministic_before_merge</code> is a before-tool hook: if merge is called and the extractions are not in state, it runs them and then lets the merge proceed.</p>
+    <p>Zero field mappings without a warning is exactly what happened <em>before</em> the callback existed, and it is why the callback exists. That failure is the dangerous kind, because the output is well-formed and complete-looking. Nothing throws, so nothing alerts.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0004-q2">
+  <p class="q">The 99.2% headline is a weighted average. What is it averaging?</p>
+  <ol class="options">
+    <li data-correct="true">Four weighted dimensions, of which fields are only one</li>
+    <li>Every column mapping found across the five source documents</li>
+    <li>The precision and recall of the field mappings alone</li>
+    <li>The share of documents that parsed without any error</li>
+  </ol>
+  <div class="why">
+    <p>Four dimensions: node 0.25, edge 0.25, field mapping 0.30, structural 0.20. So the field term is under a third of the headline, and the rest is about the graph rather than the columns.</p>
+    <p>The tempting reading is the second one, because that is what the r&#233;sum&#233; wording suggests. Inside the field term, count accuracy and a type-distribution cosine carry most of the weight, and only the sample match rate looks at individual mappings.</p>
+  </div>
+</div>
+
+<section class="qset" id="edges">
+  <h2>Edges and exceptions</h2>
+  <p class="qset-note">Half of these are about what the metric cannot see. That is the right emphasis for a bullet whose headline is a number.</p>
+  <ul class="qa-index">
+    <li><a href="#c04-e1">A table the parser misses</a></li>
+    <li><a href="#c04-e2">Scoring well while being wrong</a></li>
+    <li><a href="#c04-e3">A document in a new format</a></li>
+    <li><a href="#c04-e4">When the gold standard is wrong</a></li>
+    <li><a href="#c04-e5">A legitimate cycle</a></li>
+    <li><a href="#c04-e6">Rejecting a real object</a></li>
+    <li><a href="#c04-e7">Scaling past five documents</a></li>
+    <li><a href="#c04-e8">What you would change</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c04-e1">
+      <p class="qa-q">The parser misses a mapping table because the document formats it differently. What happens?</p>
+      <p class="qa-a">Those mappings are simply absent, and nothing complains. The deterministic half has no notion of how many tables it should have found. Count accuracy against the gold standard would catch it for the five known documents. For a new document there is no expected count, so the failure is silent.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Assuming the guardrails catch it. They filter what the model produced. They do not notice what the parser never produced.</p>
+    </li>
+    <li class="qa-item" id="c04-e2">
+      <p class="qa-q">Could the agent score above 0.85 while being meaningfully wrong?</p>
+      <p class="qa-a">Yes, and this is the honest answer to the metric question. Find the right number of mappings with the right type mix but the wrong pairings. Count accuracy and the distribution cosine both stay high. Only the sample match rate falls, and it is one sub-metric inside a 0.30 term.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying no. The interviewer is testing whether you know your own metric's blind spot, and claiming it has none ends that line of credit.</p>
+    </li>
+    <li class="qa-item" id="c04-e3">
+      <p class="qa-q">A sixth document arrives from a different SAP team, formatted unlike the other five. What breaks first?</p>
+      <p class="qa-a">The deterministic parser, because it is the half that depends on layout. The model half degrades gracefully, since object identification is robust to formatting. That is the trade the hybrid design makes. The reliable half is also the brittle one. It fails by finding nothing, rather than by finding something wrong.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Claiming the hybrid is robust. It is <em>correct</em> where it works and brittle at the edges, which is a better property but not the same one.</p>
+    </li>
+    <li class="qa-item" id="c04-e4">
+      <p class="qa-q">What if the hand-written gold standard is wrong?</p>
+      <p class="qa-a">Then the score is wrong in a direction nobody can see. With five documents there is no way to average that out. The mitigation is that the gold files are small and readable. A disagreement can be settled by opening the source document. I would treat a sudden score drop as a claim about either side until checked.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating the gold standard as ground truth by definition. Somebody typed it, and that is the same class of risk as everything else here.</p>
+    </li>
+    <li class="qa-item" id="c04-e5">
+      <p class="qa-q">What if the real lineage genuinely contains a cycle?</p>
+      <p class="qa-a">Then the structural check is wrong rather than the graph. <code>is_dag_correct</code> compares predicted against expected. A gold standard saying cyclic and a prediction saying cyclic still scores correct. What would break is the self-loop guardrail, which rejects an edge unconditionally. A genuine self-referencing object would be dropped.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Assuming lineage is always acyclic. It usually is, and a guardrail that assumes it is a rule rather than a heuristic is a thing to know about your own code.</p>
+    </li>
+    <li class="qa-item" id="c04-e6">
+      <p class="qa-q">Could the guardrails reject a real object?</p>
+      <p class="qa-a">Yes. The identifier regex requires at least three characters of uppercase, digits or underscores, starting with a digit or capital. A legitimately short or unusually named object would be dropped silently. The prefix list is a similar bet. Both are tuned to the five documents we have, and that is a real limit.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Presenting the guardrails as safe. They trade recall for precision, and saying which way you traded is the answer.</p>
+    </li>
+    <li class="qa-item" id="c04-e7">
+      <p class="qa-q">Scale this to five hundred documents. What changes?</p>
+      <p class="qa-a">Three things. The gold standard stops being feasible. Evaluation moves to sampling, plus invariants such as rejecting any node named after a type. The model calls need concurrency and a retry budget. And the graph needs identity resolution, because the same object gets named differently across teams. Five documents never exposed that.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Answering only with infrastructure. The interesting scaling problem here is evaluation, not throughput.</p>
+    </li>
+    <li class="qa-item" id="c04-e8">
+      <p class="qa-q">What would you change about this?</p>
+      <p class="qa-a">The metric, first. I would add a per-mapping precision and recall alongside the composite, so the headline number and the column-level claim are the same number. Second, a completeness check on the parser, so a missed table is loud rather than silent. Neither is hard, and both close the gap between what we measure and what we say.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Naming a model upgrade. The model is not the weak part here, and saying so shows you know where the risk actually sits.</p>
+    </li>
+  </ol>
+</section>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;99.2% of what, exactly?&#8221;
+      <span class="tell">The single most likely question on this bullet, because the number is the most specific thing in it. A candidate who cannot decompose a metric they quoted is assumed to have inherited it.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>A weighted composite over four dimensions. Node accuracy and edge accuracy at 0.25 each, field mapping accuracy at 0.30, structural accuracy at 0.20, with a pass threshold of 0.85. Inside the field term there are three sub-metrics: count accuracy, a cosine over the mapping-type distribution, and a sample match rate. So it is not 99.2% of columns individually verified, and I would rather say that than have you find it.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;How do you stop the model hallucinating a column that does not exist?&#8221;
+      <span class="tell">Asked of every LLM extraction system. Most answers are about prompting or validation. The strong answer is that the model was never given that job.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>By not asking it. The field mapping tables are parsed deterministically by code, so the 516 mappings are extracted rather than generated. There is no step where a model proposes a column name. The model only handles object identification and cross-reference classification, and those answers pass guardrails before they reach the graph.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Why is this agentic at all? It sounds like a parser and one model call.&#8221;
+      <span class="tell">A fair challenge, and the honest answer is more impressive than a defence. This is where overclaiming gets punished.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Largely fair. It is a two-stage sequential agent, and the framework is buying tool orchestration and state rather than autonomy. The one place the agent framing earns itself is the before-tool callback, which is a framework hook I used to make a precondition unskippable. I would not describe this as a swarm, and the r&#233;sum&#233; does not.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Tell me about a failure this system had.&#8221;
+      <span class="tell">An invitation. The zero-mappings bug is the best answer in the chapter because it is silent, specific, and fixed structurally.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Some runs produced a graph with zero field mappings and no error at all. The cause was tool-calling order: the model sometimes called merge before the deterministic extraction had run, so there was nothing to merge. The result looked complete, which is the dangerous kind. I fixed it with a before-tool callback that runs extraction if it has not run, rather than with prompt wording.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Five documents is a small evaluation set. Does the number mean anything?&#8221;
+      <span class="tell">Testing whether you will defend a sample size you should concede. Conceding it and saying what it is good for is the winning move.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It means something narrow. Five documents with hand-written expected outputs is a regression gate: if a change moves the composite below 0.85 on those five, something broke. It is not a population estimate, and I would not present it as one. To claim general accuracy I would need sampled per-mapping verification across many more documents, which is the first thing I would build next.</p>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="recall">
+  <details>
+    <summary>The model occasionally called tools in the wrong order and produced a complete-looking result with nothing in it. Which chapter has the same failure shape, and what is the shared lesson?</summary>
+    <p class="answer">Chapter 0001, the Scout's soft-fail. A total search outage there is indistinguishable from a vendor with no public footprint, and the report comes back confident and empty. Same shape here: the graph is well-formed and contains zero field mappings. The shared lesson is that the most dangerous failures return success, and the fix in both cases is to make absence distinguishable from emptiness.</p>
+    <span class="from"><a href="0001-vendor-evaluation-platform.html">Chapter 0001 &#183; the confident, empty report</a></span>
+  </details>
+  <details>
+    <summary>The evaluation here is a fixed threshold on a composite score over five known documents. Which System Design School lesson names that pattern, and what does it need to become a real gate?</summary>
+    <p class="answer">Lesson 0002's discipline applies directly: a single summary number hides its own distribution. A composite of 0.99 over five documents could be 0.999 on four and 0.96 on one, and the one is what you want to see. To be a real gate it needs the per-document scores reported alongside the mean, and a sample size that makes a drop distinguishable from noise.</p>
+    <span class="from"><a href="../../system-design-school/lessons/0002-p50-is-a-lie.html">SDS 0002 &#183; p50 is a lie</a></span>
+  </details>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">The lessons behind this chapter</span>
+  <p>System Design School teaches these mechanisms from first principles and breaks them in a lab. This chapter defends what you did with them. An interviewer moves between those two registers without warning.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0002-p50-is-a-lie.html">SDS 0002 &#183; p50 is a lie</a>
+      <span class="bridge-why">A composite score over five documents is a summary statistic, and this is the lesson about what a summary statistic hides.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0027 &#183; The outbox pattern and CDC &#8212; not yet built</span>
+      <span class="bridge-why">SAP BW to BigQuery lineage is a change stream built by hand. The lesson gives you the vocabulary for what it would be built as.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0039 &#183; The eval harness as a regression gate &#8212; not yet built</span>
+      <span class="bridge-why">A 0.85 threshold on five documents is a gate only if something blocks on it and the sample is sized. This is that lesson.</span>
+    </li>
+  </ol>
+</div>
+
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0003-multi-agent-schematization.html">&#8592; 0003 &#183; Five-stage multi-agent schematization</a></span>
+  <span><span class="dir">Next</span><a href="0005-agentic-pipeline-debugging.html">0005 &#183; Agentic pipeline-failure debugging &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

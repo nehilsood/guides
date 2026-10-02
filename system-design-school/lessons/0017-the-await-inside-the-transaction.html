@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>The Await Inside the Transaction</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0017">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">System Design School</a>
+    <span class="sep">/</span>
+    <span>Tier 1 &#183; Postgres</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Lesson 0017</span>
+    <span class="sep">/</span>
+    <span>Needs Postgres</span>
+  </div>
+  <h1>The Await Inside the Transaction</h1>
+  <p class="standfirst">The bug is the indentation of one line. A transaction opened before a model call instead of after it costs <strong>two</strong> scarce things at once &#8212; a pooled connection and every row lock it has taken &#8212; for the entire second that somebody else's GPU is thinking. Throughput falls from 5.5 turns a second to <strong>0.9</strong>, and seventeen of twenty-four turns blow the budget.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Move three statements into a different order and take throughput from <strong>0.9 turns a second to 5.5</strong>, the worst lock wait from <strong>24.7 seconds to 4 milliseconds</strong>, and the count of turns over the 8-second budget from <strong>seventeen to zero</strong>. Then find the second ceiling underneath the first, watch two perfectly ordinary workers deadlock, and read the log line the database was writing the whole time.</p>
+</div>
+
+<div class="anchor-box">
+  <span class="callout-label">Why you, specifically</span>
+  <blockquote>&#8220;Built its custom <strong>OpenAI-compatible LLM gateway</strong>, then moved the inference path from REST to streaming Gemini Live, cutting end-to-end turn latency <strong>47&#8239;%</strong> at p50 (4.1&#8239;s to 2.2&#8239;s) and <strong>52&#8239;%</strong> at p90 (5.1&#8239;s to 2.4&#8239;s), with zero mid-interview session drops.&#8221;</blockquote>
+  <p>Those are latency numbers for a turn that lasts seconds, which is what makes this lesson's bug specific to your system rather than generic advice. A web request holds a transaction for milliseconds and the damage is invisible; a turn that calls a model holds it for <em>two to four seconds</em>, and that is the number on the r&#233;sum&#233;.</p>
+  <p>It is also the likeliest live bug in the stack, because the shape that causes it is the shape a careful person writes. You open a session, you fetch the context you need, you call the model, you write the result, and you commit &#8212; one clean unit of work. Every step of that reasoning is correct except where the session begins.</p>
+  <p>The claim is defended in full in <a href="../../resume-mastery/lessons/0002-llm-gateway-and-streaming.html">chapter 0002 of R&#233;sum&#233; Mastery</a>. This lesson is where the thing that would quietly undo those numbers gets measured.</p>
+</div>
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>A transaction is a claim on resources that lasts until you commit. Two of those resources are scarce and neither of them is the database's CPU: the connection it is using, and the locks it has taken. Both are held for the whole life of the transaction, whether or not the transaction is doing anything.</p>
+  <p>An <code>await</code> makes that duration much longer without making it look longer. The event loop moves on, the code reads as if it is one continuous block, and nothing in the syntax hints that you have just parked two shared resources for the length of a network call to somebody else.</p>
+  <dl>
+    <dt>Row lock</dt>
+    <dd>Taken by <code>SELECT &#8230; FOR UPDATE</code> or by an <code>UPDATE</code>, and held until commit. There is no shorter option: a lock you can release before the write is not a lock.</dd>
+
+    <dt>Lock wait</dt>
+    <dd>Time a statement spends waiting to take a lock somebody else holds. It appears in the slow-query log as a slow <code>SELECT</code>, which is where the trail goes cold.</dd>
+
+    <dt>Held transaction</dt>
+    <dd>One kept open across an <code>await</code> on something other than the database. The subject of this lesson, and a thing you can see in a diff.</dd>
+
+    <dt>Effective concurrency</dt>
+    <dd>How many calls are genuinely in flight. Throughput times call duration, which is Little's law again, and usually smaller than any limit you configured.</dd>
+
+    <dt><code>deadlock_timeout</code></dt>
+    <dd>How long Postgres waits before checking for a deadlock at all. Default <b>1&#8239;s</b>; this compose file sets 1&#8239;s explicitly so the lab does not take ten.</dd>
+
+    <dt>Deadlock</dt>
+    <dd>Two transactions each holding what the other needs. Postgres detects it and kills one with 40P01 &#8212; after it has finished waiting.</dd>
+
+    <dt><code>log_lock_waits</code></dt>
+    <dd>A Postgres setting that logs any wait longer than <code>deadlock_timeout</code>. Off by default, on in this compose file, and the only place the truth is written down.</dd>
+
+    <dt>Lock ordering</dt>
+    <dd>Always taking locks in the same sequence. The one structural defence against deadlock, and it is a code convention rather than a setting.</dd>
+
+    <dt>Unit of work</dt>
+    <dd>The span a transaction is meant to cover. The mistake is not having one, it is drawing its boundary around a call to somebody else's service.</dd>
+  </dl>
+</div>
+
+<h2>One await, two resources</h2>
+
+<p>The code that causes this reads well. Open a session, take the row you are about to modify, call the model, write the result, commit. It is a single unit of work with a clear boundary, which is precisely the advice people are given about transactions, and it is correct in every respect except one: the boundary was drawn around a call that leaves the machine.</p>
+
+<p>What makes it hard to see is that <em>two</em> different scarce resources are consumed and they fail in two different ways. The row lock serialises everybody who wants that row. The pooled connection &#8212; which lesson 0015 just finished measuring &#8212; serialises everybody who wants the database at all. Give each worker its own row and the lock contention vanishes entirely, and throughput is <strong>still</strong> a third of what it should be.</p>
+
+<div class="note">
+  <span class="callout-label">Why this survives review, and survives staging</span>
+  <p>In a diff it is an indentation. The statements are identical, the SQL is identical, and the only difference is which side of the <code>async with</code> the model call sits on. There is no linter for it and no test that fails, because with one worker it is perfectly correct and slightly slower.</p>
+  <p>It also does not reproduce at low concurrency. One turn holds a connection for a second and nobody notices; five turns against a pool of five is the first moment it exists. So it arrives in production as a latency regression with no corresponding deploy to the database, which is how the database ends up being investigated first.</p>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 396" role="img" aria-labelledby="mech0017-t mech0017-d">
+    <title id="mech0017-t">The same three statements with the model call inside the transaction and outside it</title>
+    <desc id="mech0017-d">Two stacked timelines for the same piece of work. In the upper one the transaction opens, takes a row lock, then waits through a one-second model call before writing and committing, so the lock and the pooled connection are both held for the whole call. A second worker's bar sits entirely behind the first, waiting. In the lower one the model call happens first while nothing is held, and the transaction covers only the lock, the write and the commit, which takes a few milliseconds, so the second worker overlaps the first completely. The measured results underneath give nought point nine turns per second against five point five, a worst lock wait of twenty-four point seven seconds against four milliseconds, and seventeen turns over the eight-second budget against none. A closing line notes that the ceiling is the smaller of the pool size and the provider quota.</desc>
+
+    <text x="20" y="22" class="strong">Same three statements. The only difference is which side of the call they sit on.</text>
+
+    <!-- MARK 1 &#183; the bug: one transaction, drawn around everything it holds. -->
+    <text x="20" y="58" class="lbl-dim">transaction spans the call</text>
+    <rect x="150" y="62" width="460" height="42" class="warn"/>
+    <text x="162" y="88" class="lbl ink-warn">BEGIN &#183; lock</text>
+    <text x="548" y="88" class="lbl ink-warn">write</text>
+
+    <!-- MARK 2 &#183; and the thing inside it is not the database. -->
+    <rect x="300" y="70" width="230" height="26" class="box-2"/>
+    <text x="312" y="88" class="lbl">await model &#183; ~1 000&#8239;ms</text>
+
+    <!-- MARK 3 &#183; so both scarce things are held for the whole of it. -->
+    <text x="150" y="124" class="lbl ink-bad">holds a connection AND the row lock the whole time</text>
+
+    <!-- MARK 4 &#183; which puts the next worker entirely behind it. -->
+    <rect x="612" y="140" width="195" height="24" class="warn"/>
+    <text x="624" y="157" class="lbl ink-warn">worker 2 starts here</text>
+    <path d="M150,152 L612,152" class="flow-bad"/>
+    <text x="162" y="146" class="lbl ink-bad">worker 2 waiting</text>
+
+    <!-- MARK 5 &#183; the fix: the same statements, the call moved out. -->
+    <text x="20" y="196" class="lbl-dim">transaction after the call</text>
+    <rect x="150" y="204" width="230" height="26" class="box-2"/>
+    <text x="162" y="222" class="lbl">await model &#183; ~1 000&#8239;ms</text>
+
+    <!-- MARK 6 &#183; and the transaction is now as short as the work in it. -->
+    <rect x="390" y="200" width="200" height="34" class="good"/>
+    <text x="402" y="222" class="lbl ink-good">BEGIN &#183; write &#183; commit</text>
+    <text x="604" y="222" class="lbl-dim">a few ms</text>
+
+    <!-- MARK 7 &#183; so worker 2 overlaps instead of queueing. -->
+    <rect x="180" y="250" width="230" height="24" class="good"/>
+    <text x="192" y="267" class="lbl ink-good">worker 2, overlapping</text>
+
+    <!-- MARK 8 &#183; what that reordering was worth, measured. -->
+    <text x="150" y="304" class="lbl">0.9 turns/s &#8594; <tspan class="strong ink-good">5.5</tspan> &#183; worst lock wait 24 689&#8239;ms &#8594; <tspan class="strong ink-good">4&#8239;ms</tspan></text>
+
+    <!-- MARK 9 &#183; and the number a product owner actually recognises. -->
+    <text x="150" y="328" class="lbl"><tspan class="strong ink-bad">17 of 24</tspan> turns over the 8&#8239;s budget &#8594; <tspan class="strong ink-good">0 of 24</tspan></text>
+
+    <!-- MARK 10 &#183; the second failure, which a row each does not fix. -->
+    <text x="150" y="352" class="lbl">a row each removes the lock and keeps <tspan class="strong">the pool</tspan>: 4.0 turns/s</text>
+
+    <!-- MARK 11 &#183; because the real ceiling is whichever is smaller. -->
+    <text x="150" y="376" class="lbl">ceiling = <tspan class="strong">min(pool, provider quota)</tspan> &#8212; here 5, not 8</text>
+
+    <!-- MARK 12 &#183; and the cost of getting the order wrong twice. -->
+    <text x="560" y="352" class="lbl ink-bad">two rows, two orders</text>
+    <text x="560" y="376" class="lbl ink-bad">= 40P01 after 1&#8239;s</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">Say this while you draw it</span>
+    <ol class="narrate">
+      <li>Two timelines, <b>same three statements</b>. Top one opens the transaction first, so the call happens inside it.</li>
+      <li>That holds <b>two things at once</b> for the whole second: a pooled connection and the row lock. Worker two sits entirely behind it.</li>
+      <li>Bottom one does the call first, holding nothing, and the transaction covers only <b>lock, write, commit</b> &#8212; a few milliseconds.</li>
+      <li>Worker two now <b>overlaps</b> instead of queueing. Measured: <b>0.9 turns a second to 5.5</b>, worst lock wait <b>24.7 s to 4 ms</b>.</li>
+      <li>The number to say out loud is the budget one: <b>seventeen of twenty-four turns over eight seconds, to none</b>.</li>
+      <li>And the trap underneath: give every worker its own row and the lock goes away, but <b>the pool does not</b> &#8212; 4.0 a second, because the ceiling is the smaller of the pool and the quota.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. Twelve marks, the standing ceiling. This one is the easiest diagram in the batch to redraw and the easiest to redraw <em>wrongly</em> &#8212; the temptation is to make the two transactions different lengths of the same shape rather than different shapes.</p>
+  <ul>
+    <li>Two timelines where the <b>model call is the same width in both</b> and only the transaction bar moves.</li>
+    <li>The top one holding <b>two things</b>, not one. Say both out loud as you draw it.</li>
+    <li>The three numbers: <b>0.9 &#8594; 5.5</b>, <b>24.7&#8239;s &#8594; 4&#8239;ms</b>, <b>17 of 24 &#8594; 0</b>.</li>
+    <li>That a row each <b>only removes one of the two</b>, and the ceiling is min(pool, quota).</li>
+  </ul>
+  <span class="timer">Draw the model-call box first, in both rows, identical. Everything else on this diagram is about what is wrapped around it, and if the boxes end up different sizes you have drawn a lesson about speed instead.</span>
+</div>
+
+<h2>Lab &#8212; 0.9 turns a second, and the second ceiling underneath</h2>
+
+<div class="lab">
+  <header>
+    <span class="kicker">Lab 0017</span>
+    <span class="est">~30 minutes</span>
+    <h3>Four cells, a log nobody greps, and two workers that deadlock without doing anything odd</h3>
+  </header>
+  <div class="body">
+    <div class="prereq">
+      <span>Needs:</span>
+      <span class="chip">anchor/vendor-eval-gateway</span>
+      <span class="chip">Docker &#183; Postgres</span>
+      <span class="chip">~30 min</span>
+    </div>
+
+    <div class="caution">
+      <span class="callout-label">These numbers are timings, and they wobble</span>
+      <p>Unlike lesson 0016, every table here contains wall clock, so expect a few per cent of variation between runs. What does <em>not</em> wobble is the shape: the first row is an order of magnitude slower than the third on every run, and the over-budget count has been 16 or 17 of 24 on every run taken.</p>
+      <p>The model call is the anchor's <code>FakeUpstream</code> with a shortened answer, about one second instead of the full profile's three and a half, so the lab finishes. The sleeps are real; nothing here fakes a clock.</p>
+    </div>
+
+    <ol class="steps">
+      <li>
+        <p class="what">Start Postgres and run the same work four ways: transaction inside the call or outside it, crossed with one shared row or a row per worker.</p>
+        <pre class="cmd"><span class="prompt">$ </span>cd anchor/vendor-eval-gateway
+<span class="prompt">$ </span>docker compose up -d postgres
+<span class="prompt">$ </span>uv run python -m bench.locks --experiment hold</pre>
+        <pre class="out">24 concurrent evaluation turns. Each one reads a score,
+calls the model, and writes the score back. Pool size 5,
+upstream concurrency 8, model call ~1000 ms, budget 8000 ms.
+
+transaction rows          wall turns/s     p50     p99  max lock wait over budget  starved
+spans call  one row     26393ms     0.9  13697ms  26391ms         24689ms          17        0
+spans call  row each     6035ms     4.0   3135ms   6034ms          4331ms           0        0
+after call  one row      4339ms     5.5   2077ms   4339ms             4ms           0        0
+after call  row each     4343ms     5.5   2091ms   4343ms             4ms           0        0
+
+Two different failures. Sharing a row serialises on the LOCK; a row
+each still serialises on the POOL, because a held transaction holds a
+connection whether or not it is waiting for anything.</pre>
+        <div class="expect broken">
+          <span class="label">Four cells, and the middle two are the interesting ones</span>
+          <p>Row one against row three is the headline: <strong>0.9 turns a second against 5.5</strong>, and <strong>seventeen of twenty-four turns over the eight-second budget against none</strong>. The worst lock wait went from 24.7 seconds to four milliseconds. Nothing changed but the order of three statements.</p>
+          <p>Now read row two, which is the one that stops this being obvious. <strong>Every worker had its own row</strong>, so there was no lock contention at all &#8212; and throughput was still 4.0 rather than 5.5. The remaining loss is the pool: a held transaction holds a connection whether or not it is waiting for anything, so twenty-four workers share five.</p>
+          <p>Rows three and four are identical, which is the proof that once the transaction is short, the row layout stops mattering. Two failures, and they have to be removed separately.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Isolate the second failure by sweeping the pool with the lock contention removed, and check it against the provider's own limit.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.locks --experiment ceiling</pre>
+        <pre class="out">24 turns, a row each, transaction spanning the model call.
+The upstream allows 8 concurrent calls no matter what.
+
+ pool  turns/s      p50      p99  calls in flight
+    2      1.7    6900ms   13875ms              1.7
+    5      3.9    3183ms    6106ms              3.9
+    8      5.5    2096ms    4358ms              5.5
+   16      5.5    2085ms    4357ms              5.5
+
+Calls in flight tracks the POOL until the pool passes the quota, and
+then stops. Two ceilings, and for most of this table the binding one
+is the resource nobody was watching.</pre>
+        <div class="expect">
+          <span class="label">The last two rows are identical, and that is where the quota takes over</span>
+          <p>Doubling the pool from eight to sixteen bought <strong>nothing</strong>, because at eight the provider's concurrency limit becomes the binding constraint. Below that, throughput tracks the pool almost exactly: 1.7 at a pool of two, 3.9 at five.</p>
+          <p>So the ceiling is <code>min(pool_size, provider_quota)</code>, and for three of these four rows the smaller number is the one nobody was watching. The provider quota is the number that gets quoted in capacity conversations because it is the one somebody negotiated; the pool size is a default.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Now ask the database what it saw, using the setting this compose file turns on and almost nobody turns on in production.</p>
+        <pre class="cmd"><span class="prompt">$ </span>docker compose logs postgres --since 5m 2&gt;&amp;1 | grep -c 'still waiting'
+<span class="prompt">$ </span>docker compose logs postgres --since 5m 2&gt;&amp;1 | grep 'still waiting' | tail -2</pre>
+        <pre class="out">53
+sds-postgres  | ... LOG:  process 25252 still waiting for ShareLock on transaction 7467 after 1000.523 ms
+sds-postgres  | ... LOG:  process 25251 still waiting for AccessExclusiveLock on tuple (0,22) of relation 18193 of database 16384 after 1000.738 ms</pre>
+        <div class="expect">
+          <span class="label">It was writing this down the whole time</span>
+          <p>Your process ids, timestamps and transaction numbers will differ, and the count will too &#8212; this is the only step in the lesson whose output cannot be reproduced exactly, because it is a log. <strong>The timestamps in the quoted lines are elided for that reason</strong>; what matters is the shape.</p>
+          <p><code>log_lock_waits</code> is <em>off by default</em> in Postgres, and the second line is why that matters: the waiting shows up in the slow-query log as a slow <code>SELECT</code>, so an investigation that starts from query timings finds a statement that is not slow and a database that is not busy. The cause is a transaction that is running no query at all.</p>
+          <p>The threshold for this log is <code>deadlock_timeout</code>, which is the next step's subject. One setting, two jobs, and it is the reason this line appears after exactly a second.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Then the failure that is not a slowdown. Two workers, two rows, opposite order, one model call in between.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.locks --experiment deadlock</pre>
+        <pre class="out">Two workers, two rows, opposite order, one model call in between.
+Neither worker is doing anything unusual.
+
+  worker A: 40P01 after 2036 ms
+  worker B: committed after 2035 ms
+
+40P01 is deadlock_detected. Postgres waits deadlock_timeout -- one
+second here, ten times that by default -- before it even looks, so the
+cheapest part of this is the error and the expensive part is the wait.</pre>
+        <div class="expect broken">
+          <span class="label">Two seconds, and only the last millisecond of it is the deadlock</span>
+          <p>Neither worker did anything strange. Each locked a row, called the model, and locked a second row &#8212; and they happened to pick the two rows in opposite orders, which is a thing that happens when the rows come from a set rather than from a literal.</p>
+          <p>The timing is the part worth carrying. The call is about a second and the answer arrived at two, because <strong>Postgres does not look for a deadlock until <code>deadlock_timeout</code> has elapsed</strong> &#8212; one second here, and ten by default. Detection is cheap; the waiting in front of it is not, and at the default setting this pair would have sat there for ten seconds against an eight-second budget.</p>
+          <p>The defence is a code convention rather than a setting: <strong>take locks in a consistent order</strong>, usually by sorting the ids before locking. Holding no locks across the call removes the window entirely, which is the same fix as everything else in this lesson.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Check whether the damage is about the number of workers or the length of the call, by halving one and doubling the other.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run python -m bench.locks --experiment hold --workers 12 --call-ms 2000 | sed -n '6,9p'</pre>
+        <pre class="out">spans call  one row     25546ms     0.5  14971ms  25544ms         23316ms           9        0
+spans call  row each     6293ms     1.9   4073ms   6292ms          4074ms           0        0
+after call  one row      4209ms     2.9   2253ms   4209ms             4ms           0        0
+after call  row each     4214ms     2.8   2258ms   4214ms             3ms           0        0</pre>
+        <div class="ba">
+          <span class="label">Before / after &#183; half the workers, twice the call, the same wall clock</span>
+          <p>Twenty-four workers at a one-second call took 26.4&#8239;s. Twelve workers at a two-second call took <strong>25.5&#8239;s</strong>. The product is what matters, and it is the whole arithmetic of the first row: when the lock is held across the call, the work is strictly serial, so <code>wall = workers &#215; call duration</code> and throughput is <code>1 / call duration</code> no matter how many workers you add.</p>
+          <p>That is the sentence to keep, because it says what scaling out will do: <strong>nothing</strong>. Adding replicas adds workers, and the first row does not depend on the number of workers. It is also why this gets misdiagnosed as a model-provider problem &#8212; the only number in the equation that looks like a cause is the call duration.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Read the two code paths side by side, because the entire lesson is visible in a few lines of the anchor.</p>
+        <pre class="cmd"><span class="prompt">$ </span>grep -n '# The bug\|# The fix' -A 5 bench/locks.py</pre>
+        <pre class="out">99:            # The bug. Everything the transaction holds is held for the whole
+100-            # duration of a network call to somebody else's GPU.
+101-            async with factory() as session:
+102-                tally.lock_waits.append(await lock_row(session, score_id))
+103-                await upstream.complete(prompt)
+104-                await session.execute(
+--
+113:            # The fix, and it is the same three statements in a different
+114-            # order: do the slow thing while holding nothing.
+115-            await upstream.complete(prompt)
+116-            async with factory() as session:
+117-                tally.lock_waits.append(await lock_row(session, score_id))
+118-                await session.execute(</pre>
+        <div class="expect">
+          <span class="label">The diff is one line's position</span>
+          <p>Line 103 against line 115 &#8212; the same statement, <code>await upstream.complete(prompt)</code>, moved from inside the <code>async with</code> to above it. Everything else is identical: same SQL, same lock, same commit, same session factory.</p>
+          <p>Worth looking at deliberately, because this is what you are searching for in your own codebase. Not a slow query and not a missing index: <strong>a session or transaction scope that contains an <code>await</code> on something that is not the database</strong>. In an async codebase that is a grep, and it is the highest-yield grep in this lesson.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Finally run the tests, one of which asserts the mechanism in a single line.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run pytest tests/test_scores.py -q 2&gt;&amp;1 | tail -1</pre>
+        <pre class="out">6 passed in 1.24s</pre>
+        <div class="expect">
+          <span class="label">The one to read is the last</span>
+          <p><code>test_a_transaction_across_an_await_holds_a_pool_connection</code> takes a pool of one, opens a transaction, sleeps fifty milliseconds to stand in for the model call, and asserts that nobody else can obtain a connection during it. That is this lesson in an assertion, and it fails the moment somebody moves the call back inside.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+</div>
+
+<div class="evidence" data-evidence-for="0017">
+  <header>
+    <span class="callout-label">Your numbers, not mine</span>
+    <span class="hint">saved in this browser as you type</span>
+  </header>
+  <div class="body">
+    <p>Everything in this lesson is a timing, so expect a few per cent of drift. The over-budget count and the ordering of the four rows have been stable across every run taken.</p>
+
+    <div class="rows">
+      <div class="row">
+        <span class="ran">Step 1, <strong>the headline</strong>: throughput with the transaction spanning the call, and after moving it</span>
+        <span class="field"><label for="e17-in">spans call</label><input type="text" id="e17-in" data-field="inside" placeholder="e.g. 0.9 turns/s"></span>
+        <span class="field"><label for="e17-out">after call</label><input type="text" id="e17-out" data-field="outside" placeholder="e.g. 5.5 turns/s"></span>
+        <span class="why-row"><label for="e17-budget">Which number would you take to a product owner, and why that one?</label><textarea id="e17-budget" data-field="budget" placeholder="Seventeen of twenty-four turns over the eight-second budget, going to zero. Throughput is an engineering number; turns that missed the budget is the thing the product actually promised, and it is the same measurement."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 1, <strong>the second failure</strong>: throughput with a row per worker, so no two workers share a lock</span>
+        <span class="field"><label for="e17-rows">row each</label><input type="text" id="e17-rows" data-field="roweach" placeholder="e.g. 4.0 turns/s"></span>
+        <span class="field"><label for="e17-wait">max lock wait</label><input type="text" id="e17-wait" data-field="wait" placeholder="e.g. 24 689 ms to 4 ms"></span>
+        <span class="why-row"><label for="e17-two">Name the two resources a held transaction consumes, and say which one a row per worker does not fix</label><textarea id="e17-two" data-field="two" placeholder="The row locks it has taken and the pooled connection it is using. A row each removes the lock contention entirely and leaves the pool, which is why throughput was still 4.0 rather than 5.5 -- twenty-four workers sharing five connections."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 2, <strong>the ceiling</strong>: where doubling the pool stopped helping, and what took over</span>
+        <span class="field"><label for="e17-ceil">flat from</label><input type="text" id="e17-ceil" data-field="ceiling" placeholder="e.g. pool 8"></span>
+        <span class="field"><label for="e17-quota">bound by</label><input type="text" id="e17-quota" data-field="quota" placeholder="e.g. the quota of 8"></span>
+        <span class="why-row"><label for="e17-min">Write the ceiling for your own turn path as a formula, with your two numbers in it</label><textarea id="e17-min" data-field="min" placeholder="min(pool_size, provider_concurrency) divided by call duration, per replica. Ours is min(5, 8) over about 2.2 s, so roughly two turns a second per replica -- and the pool is the smaller number, which nobody had noticed."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 4, <strong>the deadlock</strong>: how long it took, and how much of that was detection</span>
+        <span class="field"><label for="e17-dead">time to 40P01</label><input type="text" id="e17-dead" data-field="deadlock" placeholder="e.g. 2 036 ms"></span>
+        <span class="field"><label for="e17-timer">detector timer</label><input type="text" id="e17-timer" data-field="timer" placeholder="e.g. 1 s, default 10"></span>
+        <span class="why-row"><label for="e17-order">What would this have cost at the default deadlock_timeout, against your budget?</label><textarea id="e17-order" data-field="order" placeholder="Ten seconds before Postgres even looks, against an eight-second turn budget -- so the deadlock would be discovered after the request it belongs to is already dead. The fix is lock ordering, and holding no locks across the call removes the window."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">The decision: <strong>where in your real code does a transaction scope contain an await on something that is not the database?</strong></span>
+        <span class="field"><label for="e17-where">file and line</label><input type="text" id="e17-where" data-field="where" placeholder="e.g. the scoring stage"></span>
+        <span class="field"><label for="e17-held">held for</label><input type="text" id="e17-held" data-field="held" placeholder="e.g. ~2.2 s per turn"></span>
+        <span class="why-row"><label for="e17-fix">What is the smallest change, and what does it cost you that the current shape gives for free?</label><textarea id="e17-fix" data-field="fix" placeholder="Move the model call above the session scope. The cost is that the read and the write are no longer in one transaction, so the value can move underneath -- which is exactly lesson 0016's problem, and it is solved by writing a delta or a version check rather than by holding the lock."></textarea></span>
+      </div>
+    </div>
+
+    <div class="earned">
+      <span class="callout-label">The bullet this lesson earns</span>
+      <p>&#8220;Found a database transaction held open across the model call in the turn path and measured it &#8212; <span data-fill="inside" class="placeholder">[run step 1]</span> against <span data-fill="outside" class="placeholder">[run step 1]</span> after reordering three statements, with worst-case lock wait going <span data-fill="wait" class="placeholder">[run step 1]</span>; separately showed the remaining ceiling was <span data-fill="ceiling" class="placeholder">[run step 2]</span> rather than the provider quota everyone was quoting.&#8221;</p>
+      <p class="caveat">The second clause is what makes it a systems answer rather than a bug report. Anybody can move a line; knowing that removing the lock left a second, quieter ceiling &#8212; and that it was the pool rather than the number everyone was negotiating over &#8212; is the part that shows you measured instead of guessing.</p>
+    </div>
+  </div>
+</div>
+
+<h2 id="underneath-0017">Underneath</h2>
+
+<div class="underneath">
+  <span class="callout-label">One layer down &#183; why one line costs two resources</span>
+
+  <p>Four things. The first is what a transaction actually holds, the second is why the ceiling is a minimum of two numbers, the third is why the evidence is in a log nobody enables, and the fourth is why the fix creates a problem that lesson 0016 already solved.</p>
+
+  <h3>A transaction holds locks and a connection, and an await extends both</h3>
+
+  <p>Row locks are taken by the statement and released by the commit. There is no intermediate option, and there should not be &#8212; a lock you could release before writing would not be protecting anything. So the duration of the lock is the duration of the transaction, exactly, and anything that lengthens the second lengthens the first.</p>
+
+  <p>The connection is the part people miss, because it is not a database concept at all. It belongs to lesson 0015's pool, and a transaction cannot span connections, so the connection is pinned for the transaction's life. This is why the row-per-worker cell still lost a third of its throughput: <strong>zero lock contention and the pool still saturated</strong>, because twenty-four transactions were each holding one of five connections through a one-second call.</p>
+
+  <p>An <code>await</code> is what makes this invisible. The event loop moves on, so nothing appears blocked and CPU stays low; the code reads as one continuous block; and the two resources being held are both held by an object that is not doing anything. A synchronous version of the same bug ties up a thread, which at least shows up as a thread pool at its limit.</p>
+
+  <h3>The ceiling is a minimum, and the smaller number is usually the default</h3>
+
+  <p>Two limits apply to the same work and the effective one is whichever is smaller. The provider quota is the number that gets discussed, because somebody negotiated it and it appears in a contract. The pool size is five because that is what SQLAlchemy ships.</p>
+
+  <div class="derive">
+    <p>Calls actually in flight, against the two limits, from step 2:</p>
+    <span class="eq">pool   quota   min   turns/s   in flight   binding limit
+   2       8      2      1.7        1.7      the pool
+   5       8      5      3.9        3.9      the pool
+   8       8      8      5.5        5.5      either
+  16       8      8      5.5        5.5      the quota</span>
+    <p>In-flight calls track the pool exactly until the pool passes the quota, and then stop. The useful consequence is that <b>the number you would quote in a capacity conversation is wrong in three of these four rows</b>, and it is wrong in the direction that makes you think you have headroom.</p>
+  </div>
+
+  <h3>The database wrote it down, under a name nobody greps</h3>
+
+  <p>Every wait longer than <code>deadlock_timeout</code> is logged, if <code>log_lock_waits</code> is on. It is off by default, which means the clearest evidence of this bug is usually not being collected &#8212; and the place people look instead is the slow-query log, where a lock wait appears as a slow <code>SELECT</code> with no explanation.</p>
+
+  <p>That misdirection is worth naming, because it is why this gets escalated to a database team. Query timings show a statement taking seconds. The database shows low CPU, few connections and no expensive plans. Both observations are correct, and the cause is a transaction that has issued no statement for a second and is waiting on a GPU somewhere else.</p>
+
+  <div class="derive">
+    <p>Where the second in a two-second deadlock actually went:</p>
+    <span class="eq">phase                              elapsed   who is doing it
+lock row A / row B                    ~0 ms   both workers, successfully
+await the model call               ~1 000 ms   the provider
+wait for the second lock           ~1 000 ms   deadlock_timeout, before any check
+detect the cycle and choose a victim  &lt;1 ms   Postgres
+total                              ~2 036 ms   measured</span>
+    <p>Detection is free and the wait in front of it is not. At the default <code>deadlock_timeout</code> of 10&#8239;s that middle row is ten times longer, so a deadlock would be reported <b>after the eight-second budget had already expired</b> &#8212; the request fails as a timeout and the deadlock never appears in the story.</p>
+  </div>
+
+  <h3>The fix reopens lesson 0016's problem, on purpose</h3>
+
+  <p>Moving the model call out of the transaction means the read and the write are no longer atomic. Something can change the row in between &#8212; which is precisely the gap lesson 0016 measured, where eight writers produced a total of one.</p>
+
+  <p>That is not an argument for putting the transaction back. It is the reason the two lessons are adjacent. The correct combination is a short transaction <em>and</em> a write that does not depend on a remembered value: either a single statement that computes from the current one, or a version check that fails loudly and retries. Holding a lock across a model call is a way of avoiding lesson 0016 by making lesson 0015 worse.</p>
+
+  <div class="derive">
+    <p>The four combinations, and only one of them is shippable:</p>
+    <span class="eq">transaction scope   write style          correct   throughput
+spans the call      read-modify-write        yes       0.9/s
+spans the call      atomic delta             yes       0.9/s
+after the call      read-modify-write         NO       5.5/s
+after the call      atomic or versioned      yes       5.5/s</span>
+    <p>The third row is the dangerous one, because it is what you get by applying this lesson without the previous one: six times the throughput and a silent lost update. <b>The two changes are one change</b>, and shipping half of them replaces a latency bug with a correctness bug.</p>
+  </div>
+
+  <p class="lands">Which lands on the sentence worth keeping: <b>a transaction's boundary is a claim on shared resources, so it should never contain a call you do not control.</b> Everything else in this lesson is that sentence with numbers attached.</p>
+</div>
+
+<h2>Check yourself</h2>
+
+<div class="quiz" data-quiz-id="0017-q1">
+  <p class="q">A transaction spans the model call, but every worker updates its own row, so no two workers ever contend for a lock. Throughput was still 4.0 instead of 5.5. Why?</p>
+  <ol class="options">
+    <li data-correct="true">The transaction holds a pooled connection for the whole call</li>
+    <li>Postgres locked the whole table because every row was touched</li>
+    <li>The model provider throttled the calls once they all overlapped</li>
+    <li>Each worker waited on the deadlock detector before it committed</li>
+  </ol>
+  <div class="why">
+    <p>The pool. A transaction cannot move between connections, so the connection is pinned for its whole life &#8212; including the second it spends waiting for a model. Twenty-four workers holding a transaction each, against a pool of five, is <strong>lesson 0015's queue arriving through a different door</strong>.</p>
+    <p>This is the cell that makes the bug hard to reason about: removing the obvious resource contention leaves two-thirds of the damage in place. The two costs have to be removed separately, and only shortening the transaction removes both.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0017-q2">
+  <p class="q">Two workers lock two rows in opposite orders with a one-second model call in between. The 40P01 arrived after 2 036&#8239;ms. What was most of that time?</p>
+  <ol class="options">
+    <li data-correct="true">Waiting on the deadlock detector, whose timer is one second</li>
+    <li>Network round trips to the model provider, which were slow</li>
+    <li>Postgres rebuilding its lock table after the conflict was found</li>
+    <li>The retry loop running the whole transaction a second time</li>
+  </ol>
+  <div class="why">
+    <p>About a second of model call and then about a second of <code>deadlock_timeout</code>, because <strong>Postgres does not look for a deadlock until that timer expires</strong>. Detecting the cycle and choosing a victim is sub-millisecond; the waiting in front of it is the entire cost.</p>
+    <p>The compose file sets the timer to one second so the lab is quick. The default is <strong>ten</strong>, which against an eight-second turn budget means the deadlock is reported after the request it belongs to has already failed as a timeout &#8212; and so it never appears in the incident write-up at all.</p>
+  </div>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">A spoken answer to <em>&#8220;what is the most expensive mistake you have found in an async service?&#8221;</em> Read it aloud, then say it again with the page covered.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">Our turn path opens a database session, reads a score, calls the model, writes the score, and commits. One clean unit of work.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">The transaction holds two scarce things until it commits: the row locks it took, and the pooled connection it is using.</p>
+      <p class="line">An await does not release either. So both are held for the whole second the model is thinking.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">I measured all four combinations. Transaction inside the call gave <b>0.9 turns a second</b>; moving it after gave <b>5.5</b>.</p>
+      <p class="line">Worst lock wait went from <b>24.7 seconds to four milliseconds</b>, and turns over the budget went from <b>seventeen of twenty-four to none</b>.</p>
+      <p class="line">Giving every worker its own row only recovered half of it. The pool was the other ceiling.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">The read and the write are no longer atomic, so the row can move underneath. That is a lost update if you leave it there.</p>
+      <p class="line">We write a delta rather than a remembered value. The two changes are really one change.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;We keep transactions short.&#8221;</span> Everybody says this and almost nobody has measured it. The follow-up is <em>&#8220;short in what units?&#8221;</em>, and the honest answer for most async services is &#8220;short in statements, seconds long in wall clock&#8221;. The version that holds names the boundary rather than the length: <span class="quoted">&#8220;no transaction scope contains an await on anything but the database, so the longest one is a write and a commit.&#8221;</span> That is checkable, and it is a grep.</p>
+  <p>The second trap is diagnosing this as a database problem, which is where it usually gets sent. Database CPU is low, connections are flat, no query has a bad plan, and every one of those observations is correct. If you find yourself saying <span class="quoted">&#8220;the database was fine&#8221;</span>, the next sentence has to be about what was holding its resources while doing nothing &#8212; otherwise you have reported the symptom as a conclusion.</p>
+</div>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;Walk me through what a request does against the database in your turn path.&#8221;
+      <span class="tell">Sounds like an architecture warm-up. The interviewer is listening for where you say the transaction begins relative to the model call, and most people say it without noticing.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The important part is what the transaction does <em>not</em> contain: the model call happens first, holding nothing, and the transaction is a write and a commit. It used to be the other way round, which is the version most people write, because wrapping the whole unit of work in one session looks like the careful thing to do.</p>
+        <p>I measured what that cost. Twenty-four concurrent turns went from <strong>0.9 a second to 5.5</strong> by moving one line, and <strong>seventeen of the twenty-four had been blowing the eight-second budget</strong>. The reason is that the transaction holds two scarce things until commit &#8212; its row locks and its pooled connection &#8212; and an await releases neither.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What did that break?&#8221; &#8212; the read and the write stop being atomic, which is the previous lesson's problem.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;If every worker writes a different row, does the problem go away?&#8221;
+      <span class="tell">A good-faith question that sounds like it should end the conversation. The measured answer is no, and it is the most useful thing in this lesson.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It removes half of it. I ran exactly that case &#8212; a row per worker, so zero lock contention &#8212; and throughput was <strong>4.0 instead of 5.5</strong>. The remaining loss is the connection pool: a transaction cannot span connections, so it pins one for its whole life, and twenty-four transactions holding one each against a pool of five is a queue.</p>
+        <p>Which is the thing worth knowing about this bug: <strong>two resources, two failures, and they have to be removed separately</strong>. Only shortening the transaction removes both, and it removes them regardless of the row layout &#8212; the two shortened rows in my table were identical to each other.</p>
+        <span class="invites">Invites &#183; <b>&#8220;So how big should the pool be?&#8221; &#8212; which is a Little's law question with a computable answer.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;How would you have found this from monitoring?&#8221;
+      <span class="tell">The diagnostic version. Most answers describe what they would look at now that they know the answer; the good one names why the obvious places are empty.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Not from the database dashboard, which is the problem. CPU is low, the connection count is flat at the pool size, and no query has a bad plan &#8212; all correct, because the transaction doing the damage is issuing no statements. The lock waiting shows up in the slow-query log as a slow <code>SELECT</code>, which sends the investigation in the wrong direction.</p>
+        <p>The place it is actually recorded is <code>log_lock_waits</code>, which is <strong>off by default</strong>. With it on I got fifty-three lines in five minutes saying &#8220;still waiting for AccessExclusiveLock on tuple &#8230; after 1000&#8239;ms&#8221;. So my answer is: turn it on, and alert on the ratio of request time to query time, because the signature of this class of bug is that the first rises while the second does not.</p>
+        <span class="invites">Invites &#183; <b>&#8220;What else is off by default that you'd turn on?&#8221; &#8212; a genuinely good conversation to be invited into.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;Two of your workers deadlocked. What happened and what do you change?&#8221;
+      <span class="tell">Checks whether you know that a deadlock is an ordering bug rather than a load problem, and whether you know what the detector costs.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Two transactions took the same two rows in opposite orders, which happens as soon as the rows come from a set rather than from literals. I reproduced it: two workers, two rows, a model call in between, and one of them got <strong>40P01 after about two seconds</strong> &#8212; roughly a second of model call and roughly a second of <code>deadlock_timeout</code>, because Postgres does not look for a cycle until that timer expires.</p>
+        <p>Two changes. The structural one is <strong>consistent lock ordering</strong>, which usually means sorting the ids before locking anything &#8212; a code convention, not a setting. The one that removes the window entirely is holding no locks across the call, which is the same fix as the rest of this. And the setting matters too: at the default ten-second timeout, the deadlock is reported after an eight-second budget has already expired, so it never appears in the incident at all.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Would you lower deadlock_timeout then?&#8221; &#8212; it also controls the lock-wait log, and lowering it costs a check on every waiter.</b></span>
+      </details>
+    </li>
+    <li>
+      &#8220;You moved the model call out of the transaction. What did that break?&#8221;
+      <span class="tell">The question that separates a fix from an understanding. If the answer is &#8220;nothing&#8221;, the interviewer now knows you have not thought about what the transaction was doing.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Atomicity of the read and the write. The transaction was, incidentally, protecting against the row changing between reading the score and writing it back &#8212; so shortening it reopens exactly the lost-update case I can measure separately: eight concurrent writers, final value one, no errors raised.</p>
+        <p>So it is one change rather than two. The transaction gets short <em>and</em> the write stops depending on a remembered value &#8212; either a single statement that computes from the current value, or a version check that fails and retries. Shipping only the first half buys six times the throughput and a silent correctness bug, which is a strictly worse trade than the one I started with.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Which of those two would you pick?&#8221; &#8212; the single statement, unless the new value is not expressible as a function of the old one.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="primary-source">
+  <span class="callout-label">Read this next &#8212; one source, not ten</span>
+  <span class="title"><a href="https://www.postgresql.org/docs/17/mvcc-intro.html" target="_blank" rel="noopener">PostgreSQL &#8212; Concurrency Control</a></span>
+  <p>Chapter 13, and this lesson lives in the tension between its opening claim and its locking section. The introduction promises that <em>&#8220;reading never blocks writing and writing never blocks reading&#8221;</em>, which is true and is why the readers in lesson 0016 never waited. The moment you take an explicit lock you have opted out of that promise, and everything measured here is the price of the opt-out.</p>
+  <p class="cite">The settings in this lab are the server's own: <code>deadlock_timeout</code> defaults to 1&#8239;s in the documentation's terms but the practical default on most servers is the one people raise, and <code>log_lock_waits</code> is off unless you turn it on. Both are set explicitly in <code>docker-compose.yml</code> so the lab can see what production usually cannot. For the pool half of the story, lesson 0015's <a href="https://docs.sqlalchemy.org/en/20/core/pooling.html" target="_blank" rel="noopener">SQLAlchemy pooling documentation</a> is the source for why a transaction pins a connection.</p>
+</div>
+
+<h2>Recall &#8212; from lessons 0014&#8211;0016</h2>
+
+<div class="recall">
+  <details>
+    <summary>0015 measured 363&#8239;ms of a 454&#8239;ms request spent waiting for a connection. This lesson's row-per-worker case lost throughput with no lock contention at all. Are those the same finding?</summary>
+    <p class="answer">The same mechanism reached by a different route, and the difference is what makes this one worse. In 0015 the connection was held for the length of a query, so the pool's hold time was about ninety milliseconds and the ceiling was around fifty requests a second per replica. Here the connection is held for the length of a model call, so the hold time is a thousand milliseconds and the same pool of five yields about five turns a second &#8212; a tenfold reduction in ceiling from one line of code, with no change to the pool configuration at all. That is the useful way to carry it: <b>the pool size is only half of the ceiling and the hold time is the other half</b>, and the hold time is the half that a code change can move by an order of magnitude. It also explains why raising the pool is a poor response: it treats the visible number rather than the one that moved.</p>
+    <span class="from">lesson 0015 &#183; the pool as a queue</span>
+  </details>
+  <details>
+    <summary>0016 showed eight writers producing a total of one because the read and the write were not atomic. This lesson's fix separates them further apart. Is that a contradiction?</summary>
+    <p class="answer">No, but it is a trap, and it is the reason the two lessons are adjacent rather than in either order alone. Holding the transaction across the model call was, incidentally, protecting the read-modify-write; shortening it removes that protection and reopens the lost update exactly as 0016 measured it. The resolution is that the transaction was never the right protection, only an expensive accidental one: the correct pair is a short transaction plus a write that does not depend on a remembered value. Either a single statement computing from the current value, or a version check that fails loudly and retries with a budget sized from the contention. Applying this lesson without the previous one is the worst of the four combinations &#8212; six times the throughput and a silent wrong answer &#8212; which is why the derivation table in Underneath has four rows and only one of them is shippable.</p>
+    <span class="from">lesson 0016 &#183; the gap between read and write</span>
+  </details>
+  <details>
+    <summary>0014 found a bug that needed a real database because an event loop made the check and the write atomic by accident. Does the event loop help or hurt here?</summary>
+    <p class="answer">It hurts, and for the mirror-image reason. In 0014 the single-threaded loop made two operations in one coroutine atomic with respect to each other, which hid a race that a real database exposes. Here the loop is what allows a coroutine to hold two shared resources while doing nothing at all: the await yields, so the process stays busy, CPU stays low, nothing appears blocked, and a transaction sits open for a second. A synchronous version of this bug ties up a worker thread, which at least surfaces as a thread pool at its limit &#8212; a signal somebody would notice. So the event loop hides this one in the same way it hid 0014's: by making the cost invisible from inside the process. The general form worth keeping is that <b>async removes the symptom that would have made you look</b>, in both directions, and the only reliable answer is to measure the resource rather than the process.</p>
+    <span class="from">lesson 0014 &#183; the event loop hiding a race</span>
+  </details>
+</div>
+
+<div class="ask">
+  <p><strong>One thing to bring back from this one, and it is a grep rather than a number.</strong> Search your own codebase for a session or transaction scope that contains an <code>await</code> on anything that is not the database &#8212; a model call, an HTTP client, a queue publish, a storage write. In an async codebase that search takes a couple of minutes and it is the highest-yield thing in this batch.</p>
+  <p>If you find one, the number worth measuring is not throughput. It is how long the transaction is open for, in milliseconds, against how long the statements inside it take. A ratio above about ten says this lesson applies to you.</p>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">Where this lands on the r&#233;sum&#233;</span>
+  <p>This lesson teaches the mechanism from first principles and breaks it in a lab. The chapter opposite defends the latency numbers this bug would quietly undo, and the question of what a turn costs is the same question in both registers.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../resume-mastery/lessons/0002-llm-gateway-and-streaming.html">RM 0002 &#183; The LLM gateway and streaming</a>
+      <span class="bridge-why">A turn that takes seconds is a transaction that takes seconds, if the session was opened one line too early &#8212; and 47&#8239;% at p50 is the number it would erase.</span>
+    </li>
+  </ol>
+</div>
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0016-the-update-that-was-never-refused.html">&#8592; 0016 &#183; The update that was never refused</a></span>
+  <span><span class="dir">Index</span><a href="index.html">All lessons &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>3D-RNN over Resting-State fMRI</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0021">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">R&#233;sum&#233; Mastery</a>
+    <span class="sep">/</span>
+    <span>Batch D &#183; Publications</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Chapter 0021</span>
+  </div>
+  <h1>3D-RNN over resting-state fMRI</h1>
+  <p class="standfirst">Three hundred scans, and millions of numbers in each one. In that regime the architecture is almost never what decides the result. The validation protocol is, and an interviewer who knows this field will go straight there.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Explain what functional connectivity is in two sentences, then get ahead of the three questions this literature always gets: <em>how did you split it, what did you do about head motion, and did you beat a model that uses no imaging at all?</em></p>
+</div>
+
+<div class="claim-line">
+  <span class="callout-label">The line being defended</span>
+  <blockquote>&#8220;<strong>Attention Deficit Hyperactivity Disorder Prediction Using Resting-State Networks</strong> &#8212; 3D-RNN framework predicting ADHD from resting-state fMRI functional connectivity across <strong>300+ scans</strong>.&#8221;</blockquote>
+  <span class="whose">ICICV 2022, Springer &#183; Lecture Notes in Networks and Systems &#183; second of three authors</span>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">For <em>&#8220;tell me about the fMRI paper.&#8221;</em> Say the sample size early and volunteer the confounds. Restraint is what makes this one land.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">Children lie in a scanner doing nothing, and it records which brain regions rise and fall together over the session.</p>
+      <p class="line">The question is whether those patterns separate children with an ADHD diagnosis from those without.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">An atlas divides the brain into regions, and you correlate every region's signal with every other's. That matrix is what the model reads.</p>
+      <p class="line">Three-dimensional convolutions read each volume and a recurrent layer reads the sequence. <b>The same shape as the hand-pose paper</b>, with a different encoder.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">And the honest framing comes first. <b>Millions of numbers per subject and three hundred subjects</b>, so almost anything fits.</p>
+      <p class="line">Which means the validation protocol decides the result, not the architecture. That is the part an expert in this area asks about immediately.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">Two confounds carry the label directly. <b>Children with ADHD move more, and motion changes measured connectivity.</b> Site does the same thing.</p>
+      <p class="line">And in the public competition, an entry using only age, sex, handedness and IQ scored at the top with no imaging at all. Any imaging model has to beat that.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;We predicted ADHD from resting-state fMRI with a 3D-RNN across three hundred scans.&#8221;</span> Every word of that is in the bullet and it invites the three questions this literature always gets. How was it split, what about head motion, and did it beat a model with no imaging in it. Answering those before they arrive turns a suspicious claim into a credible one.</p>
+  <p>The other trap is the word predicting near the word ADHD. It sounds like a diagnostic capability, and no imaging measure is a validated diagnostic for ADHD. Say classifying, and say plainly that this is a research result rather than a clinical one.</p>
+</div>
+
+
+<div class="trace">
+  <span class="callout-label">Walk them through it &#183; one scan, end to end</span>
+  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One child's scan, followed from the scanner to a prediction. Then the three questions this literature always gets, answered before they are asked.</p>
+  <p class="tr-case"><b>The picture.</b> Working out who in an office is on the same team by watching who goes for coffee at the same time. Nobody hands you the org chart. You infer the structure from what rises and falls together, over and over, with nothing being asked of anybody.</p>
+  <p class="tr-case"><b>The case.</b> A child lies in a scanner and is asked to do nothing for a few minutes. Follow that scan to a prediction, and then to the reasons a good prediction should worry you.</p>
+  <ol>
+    <li class="tr-step">
+      <span class="tr-k">Doing nothing</span>
+      <p><b>What happens.</b> The person performs no task at all, and that is the point rather than a shortcut.</p>
+      <p><b>Concretely.</b> What gets measured is spontaneous fluctuation rather than a response to anything.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The signal</span>
+      <p><b>What happens.</b> Every couple of seconds the scanner records how much oxygenated blood is in each small cube of brain.</p>
+      <p><b>Concretely.</b> That is an indirect and slow proxy for neural activity. It peaks several seconds after whatever caused it.</p>
+      <p><b>If they ask why.</b> Saying indirect and slow out loud is worth a lot here. It is the difference between having used this data and having read about it.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The atlas</span>
+      <p><b>What happens.</b> Tens of thousands of cubes is too many, so the brain is divided into named regions.</p>
+      <p><b>Concretely.</b> The signal inside each region is averaged over time, giving one time course per region.</p>
+      <p><b>If they ask why.</b> Which atlas you choose changes the numbers, and there is no correct answer. That is a real degree of freedom and it should be stated rather than buried.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The matrix</span>
+      <p><b>What happens.</b> Then correlate every region's time course with every other region's.</p>
+      <p><b>Concretely.</b> Regions whose signals move together are called functionally connected. That whole matrix is the connectome, and it is what the model sees.</p>
+      <p><b>If they ask why.</b> Some groups of regions consistently rise and fall together, like the default mode network. Those are the resting-state networks in the title.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The model</span>
+      <p><b>What happens.</b> Three-dimensional convolutions read each volume and a recurrent layer reads the sequence.</p>
+      <p><b>Concretely.</b> That is the same shape as the hand-pose paper, with a different encoder in front of it.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The arithmetic</span>
+      <p><b>What happens.</b> Now the honest framing, and it comes before any result.</p>
+      <p><b>Concretely.</b> Tens of thousands of voxels times a couple of hundred time points is millions of numbers per subject. There are about three hundred subjects.</p>
+      <p><b>If they ask why.</b> So the model has far more parameters than examples, and almost anything fits. The validation protocol decides the result, not the architecture.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Motion</span>
+      <p><b>What happens.</b> The first confound is the signature problem of this field.</p>
+      <p><b>Concretely.</b> Head motion changes measured connectivity. Children with ADHD move more, so motion carries the label directly.</p>
+      <p><b>If they ask why.</b> A model that learns motion will look exactly like a model that learned something about the brain.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Site</span>
+      <p><b>What happens.</b> The second confound does the same thing through different machinery.</p>
+      <p><b>Concretely.</b> Different hospitals use different scanners and protocols, and they contribute cases in different proportions.</p>
+      <p><b>If they ask why.</b> So sites have to be held out whole. Train on every site but one and test on the one left out. A random split lets the model recognise the scanner instead.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The baseline</span>
+      <p><b>What happens.</b> The third question is the one that decides whether any of this was worth doing.</p>
+      <p><b>Concretely.</b> In the public ADHD imaging competition, an entry using only age, sex, handedness, IQ and site scored at the top. No imaging at all.</p>
+      <p><b>If they ask why.</b> That is the bar any imaging model has to clear, and most do not. Volunteering it is far better than being told it.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The trade</span>
+      <p><b>What happens.</b> Holding sites out whole produces a smaller number, and that is the correct trade in this field.</p>
+      <p><b>Concretely.</b> A smaller claim that survives questioning beats a larger one that collapses on the first question about the split.</p>
+      <p><b>If they ask why.</b> The deeper limit is the label itself. An ADHD diagnosis is a clinical judgement against behavioural criteria, and clinicians disagree. No model can be more consistent than its labels.</p>
+    </li>
+  </ol>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 330" role="img" aria-labelledby="mech0021-t mech0021-d">
+    <defs>
+      <marker id="ar21" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+    </defs>
+    <title id="mech0021-t">A long preprocessing chain, a tiny sample, and two confounds that carry the label</title>
+    <desc id="mech0021-d">A resting-state scan produces one brain volume every couple of seconds, tens of thousands of voxels each. A long preprocessing chain follows: motion correction, registration to a template, nuisance regression and low-frequency filtering, and each of those steps is a choice that changes the result. An atlas then divides the brain into regions and the region time courses are correlated into a connectivity matrix. Three-dimensional convolutions read each volume and a recurrent layer reads the sequence, which is a per-timestep encoder plus recurrence, the same shape as the hand-pose paper. With three hundred subjects and millions of numbers each, the model has far more parameters than examples, so the validation protocol decides the result rather than the architecture. Two confounds carry information about the label directly: head motion, because children with ADHD move more and motion changes measured connectivity, and site, because different hospitals use different scanners and contribute cases in different proportions. The benchmark that matters is a model using only age, sex, handedness and site, which scored at the top of the public competition with no imaging at all.</desc>
+
+    <rect class="box" x="8" y="16" width="124" height="44" rx="3"/>
+    <text class="lbl strong" x="70" y="34" text-anchor="middle">Resting scan</text>
+    <text class="lbl-dim" x="70" y="50" text-anchor="middle">one volume / ~2 s</text>
+
+    <path class="flow" marker-end="url(#ar21)" d="M 136 38 H 172"/>
+
+    <rect class="warn" x="176" y="16" width="216" height="44" rx="3"/>
+    <text class="lbl strong ink-warn" x="284" y="34" text-anchor="middle">Preprocessing chain</text>
+    <text class="lbl-dim" x="284" y="50" text-anchor="middle">motion, registration, regression, filtering</text>
+
+    <path class="flow" marker-end="url(#ar21)" d="M 396 38 H 432"/>
+
+    <rect class="box" x="436" y="16" width="180" height="44" rx="3"/>
+    <text class="lbl strong" x="526" y="34" text-anchor="middle">Atlas &#8594; regions</text>
+    <text class="lbl-dim" x="526" y="50" text-anchor="middle">a choice with no right answer</text>
+
+    <path class="flow" marker-end="url(#ar21)" d="M 620 38 H 656"/>
+
+    <rect class="accent" x="660" y="16" width="172" height="44" rx="3"/>
+    <text class="lbl strong ink-accent" x="746" y="34" text-anchor="middle">Connectivity</text>
+    <text class="lbl-dim" x="746" y="50" text-anchor="middle">correlation, not a wire</text>
+
+    <rect class="box-2" x="8" y="72" width="824" height="34" rx="3"/>
+    <text class="lbl strong" x="24" y="94">3D convolutions read each volume &#183; a recurrent layer reads the sequence &#8212; a per-timestep encoder plus recurrence, as in chapter 0020</text>
+
+    <rect class="bad" x="8" y="118" width="824" height="42" rx="3"/>
+    <text class="lbl strong ink-bad" x="24" y="138">Millions of numbers per subject &#183; three hundred subjects</text>
+    <text class="lbl-dim" x="24" y="156">far more parameters than examples, so almost anything fits &#8212; the protocol decides, not the architecture</text>
+
+    <rect class="bad" x="8" y="172" width="408" height="76" rx="3"/>
+    <text class="lbl strong ink-bad" x="24" y="194">Confound one &#183; head motion</text>
+    <text class="lbl-dim" x="24" y="214">raises short-range and lowers long-range connectivity</text>
+    <text class="lbl-dim" x="24" y="232">children with ADHD move more</text>
+    <text class="num ink-warn" x="24" y="246">so motion carries the label</text>
+
+    <rect class="bad" x="424" y="172" width="408" height="76" rx="3"/>
+    <text class="lbl strong ink-bad" x="440" y="194">Confound two &#183; site</text>
+    <text class="lbl-dim" x="440" y="214">different scanners, protocols, case proportions</text>
+    <text class="lbl-dim" x="440" y="232">a random split leaks the scanner</text>
+    <text class="num ink-warn" x="440" y="246">hold out whole sites instead</text>
+
+    <rect class="warn" x="8" y="260" width="824" height="62" rx="3"/>
+    <text class="lbl strong ink-warn" x="24" y="282">The benchmark with no brain in it</text>
+    <text class="lbl-dim" x="24" y="302">age &#183; sex &#183; handedness &#183; IQ &#183; site &#8212; scored top of the public competition, with no imaging</text>
+    <text class="num ink-bad" x="24" y="318">report both on the same held-out sites &#8212; the difference is the claim about brains</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">What you say while drawing it</span>
+    <ol class="narrate">
+      <li>A scan on the left, one volume every couple of seconds.</li>
+      <li>The preprocessing chain in orange, and say why. Every step is a choice that moves the result.</li>
+      <li>An atlas, and say there is no correct one.</li>
+      <li>The connectivity matrix, and the word correlation rather than connection.</li>
+      <li>The bar across the middle is the architecture, and say it is a familiar shape.</li>
+      <li>Then the red band. Millions of numbers, three hundred people.</li>
+      <li>Two confounds side by side, both red, and say what makes them the same problem.</li>
+      <li>Motion carries the label. Site carries the label. Neither is about brains.</li>
+      <li>And the last band is the one that ends the argument. A model with no scans in it.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. One chain, one sample-size band, two confounds, one baseline.</p>
+  <ul>
+    <li><b>Correlation, not a wire.</b> The definition that keeps you honest.</li>
+    <li><b>Millions of numbers, three hundred people.</b> The framing sentence.</li>
+    <li>Two confounds, and why both <b>carry the label</b>.</li>
+    <li>The <b>no-imaging baseline</b>, because it is the answer nobody expects you to know.</li>
+  </ul>
+  <span class="timer">Say &#8220;the protocol decides, not the architecture&#8221; as you draw the red band. It is the sentence that says you know this field.</span>
+</div>
+
+<div class="star">
+  <span class="callout-label">Behavioural &#183; the story for this bullet</span>
+  <p class="frame">For <em>&#8220;tell me about a result you did not trust&#8221;</em> or <em>&#8220;a time you argued for a weaker claim than the data seemed to support.&#8221;</em></p>
+  <ol class="rungs">
+    <li class="rung"><span class="rung-k">Decision</span><p>Whether a good classification number on a small multi-site clinical dataset is a finding, or a reason to go looking for what leaked.</p></li>
+    <li class="rung"><span class="rung-k">Situation</span><p>Three hundred scans, millions of numbers each, and a model with far more parameters than examples. Group differences in this literature are small and overlapping. A clean separation is not what a real effect looks like.</p></li>
+    <li class="rung"><span class="rung-k">Action</span><p>I treated the protocol as the result. Sites had to be held out whole. Different hospitals use different scanners and contribute cases in different proportions, so a random split lets the model recognise the scanner.</p><p>Head motion had to be reported per group. Children with ADHD move more, and motion changes measured connectivity directly. And the comparison that matters is against a model with no imaging in it.</p></li>
+    <li class="rung"><span class="rung-k">Result</span><p>A smaller claim that survives questioning, rather than a larger one that collapses on the first question about how the data was split.</p></li>
+    <li class="rung"><span class="rung-k">What it cost</span><p>A less impressive headline number, which in this field is the correct trade. The deeper limit I could not do anything about is the label. An ADHD diagnosis is a clinical judgement against behavioural criteria, and clinicians disagree. No model can be more consistent than its labels, and that ceiling is lower than the method's.</p></li>
+  </ol>
+</div>
+
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>Somebody lies in a scanner and is asked to do nothing. Every couple of seconds it records how much oxygenated blood is in each small piece of the brain. Doing nothing is the point. What you are looking at is which areas rise and fall together on their own.</p>
+  <p>Regions whose signals move together are called functionally connected. The claim under this paper is that those patterns differ between children with ADHD and children without, enough for a model to tell them apart.</p>
+  <dl>
+    <dt>Resting-state fMRI</dt>
+    <dd>Scanning while the person does no task. What you measure is spontaneous fluctuation rather than a response to anything.</dd>
+
+    <dt>BOLD signal</dt>
+    <dd>Blood-oxygen-level dependent. An indirect and slow proxy for neural activity, peaking several seconds after the event that caused it.</dd>
+
+    <dt>Voxel</dt>
+    <dd>One small cube of brain in the image. A volume has tens of thousands of them, and a scan has one volume every couple of seconds.</dd>
+
+    <dt>Atlas</dt>
+    <dd>A parcellation of the brain into named regions. Which one you choose changes the numbers, and there is no correct answer.</dd>
+
+    <dt>Functional connectivity</dt>
+    <dd>How strongly two regions' time series move together, usually a correlation. A matrix of those is the connectome.</dd>
+
+    <dt>Resting-state networks</dt>
+    <dd>Groups of regions that consistently rise and fall together, such as the default mode network.</dd>
+
+    <dt>Site effect</dt>
+    <dd>Systematic differences between scanners and protocols at different hospitals. Often correlated with how many cases each site contributed.</dd>
+
+    <dt>Head motion</dt>
+    <dd>The signature confound of this field. It changes measured connectivity, and the children who move most are not randomly distributed.</dd>
+
+    <dt>Phenotypic baseline</dt>
+    <dd>A model using only age, sex, handedness, IQ and site. The bar any imaging model has to clear, and often does not.</dd>
+
+    <dt>Leave-one-site-out</dt>
+    <dd>Training on all sites but one and testing on the held-out site. The split that measures generalisation rather than memorisation.</dd>
+  </dl>
+</div>
+
+<div class="primer stack">
+  <span class="callout-label">The technology &#8212; what each named thing is</span>
+  <p>The primer above defines the neuroscience. This one defines the data pipeline and the statistics, starting from the ground. On a clinical prediction paper the statistics are where the questions land, so half of these are about how the number was produced.</p>
+  <p>Every entry answers four things. What it actually is, in plain words. Where this work uses it. What it buys, meaning what goes wrong without it. And the follow-up an interviewer asks once you have said the name.</p>
+  <dl>
+    <dt>ADHD-200</dt>
+    <dd><i>the dataset behind almost all of this work</i>A public collection of resting-state brain scans with diagnosis and demographic information attached, contributed by several imaging sites and released so that methods could be compared on common ground. It is the reason this research area exists in the form it does, because individual labs cannot collect hundreds of scans. <b>In the app.</b> &#8220;300+ scans&#8221; almost certainly comes from a subset of it. <b>What it buys.</b> Comparability. Naming the dataset lets somebody place your result against the published ones immediately, which a raw scan count never does. <b>The follow-up.</b> It is multi-site, and that is the origin of the site effect described in the primer above. It also has a designated held-out test set, which is the benchmark every published result is measured against, so whether you used it matters.</dd>
+
+    <dt>Preprocessing</dt>
+    <dd><i>what happens before you see the data</i>A raw scan is not usable data. Between the scanner and any analysis sit a long series of corrections: aligning the volumes to cancel head movement, correcting for the fact that slices were acquired at slightly different moments, registering the brain onto a standard template so subjects are comparable, smoothing spatially, and filtering the signal down to the slow frequency band the BOLD response actually occupies. <b>In the app.</b> These steps shape the resulting features more than any model choice does. <b>What it buys.</b> Data from different people and different scanners that can be compared at all. <b>The follow-up.</b> Which pipeline, by name. Standard ones such as fMRIPrep or C-PAC make results comparable and reproducible. A bespoke sequence of steps means nobody can reproduce your numbers, however good they are.</dd>
+
+    <dt>nilearn and nibabel</dt>
+    <dd><i>the Python tools</i>Two layers. nibabel reads and writes neuroimaging file formats, chiefly NIfTI, and gives you the voxel array and the spatial transform that says where in the head it sits. nilearn builds on it with the things you actually want: standard atlases, masking, extracting region time courses, estimating connectivity, and plotting brains. <b>In the app.</b> They are the practical path from a scan sitting on disk to a matrix you can train on. <b>What it buys.</b> Everything between the file and the features, without writing volumetric indexing code and getting the orientation conventions wrong. <b>The follow-up.</b> Naming them signals that you handled the imaging data yourself rather than receiving a prepared feature file, which is a real and recognised distinction in this field.</dd>
+
+    <dt>Connectivity matrix</dt>
+    <dd><i>the feature, concretely</i>This is where the abstract phrase becomes numbers. Average the signal across all voxels inside each atlas region to get one time course per region. Then correlate every region's time course with every other region's. With 100 regions that produces a 100 by 100 symmetric matrix, and because it is symmetric with a trivial diagonal, just under 5,000 of its entries are actually distinct. <b>In the app.</b> This matrix is what &#8220;functional connectivity&#8221; means operationally. <b>What it buys.</b> A fixed-size feature vector per subject, regardless of scan length, which is what makes any standard classifier applicable. <b>The follow-up.</b> Nearly 5,000 features against 300 samples. That ratio is the central difficulty of the whole problem, and every methodological choice downstream is a response to it.</dd>
+
+    <dt>Atlas choice</dt>
+    <dd><i>the decision nobody reports</i>Before you can average within regions, something has to define the regions. An atlas is that parcellation, and there are many: AAL, Harvard-Oxford, Schaefer, each with variants at different numbers of parcels. There is no correct one. <b>In the app.</b> It sets the size of the matrix and therefore the entire feature count. <b>What it buys.</b> A reduction from hundreds of thousands of voxels to a few hundred regions, which is what makes the problem tractable at all. <b>The follow-up.</b> Results move with the choice, sometimes substantially. Trying several atlases and reporting the one that scored best is a form of overfitting that leaves no trace whatsoever in a method section, and reviewers in this field know it.</dd>
+
+    <dt>3D-RNN</dt>
+    <dd><i>the model in the title</i>A recurrent network applied to volumetric data over time, rather than to a flattened feature vector. The idea is to keep the spatial structure of the brain volume intact while modelling how it evolves, instead of destroying the geometry before the model sees it. <b>In the app.</b> It is the named architecture in the work. <b>What it buys.</b> Spatial relationships survive into the model. A connectivity matrix has already discarded where the regions are, and a volumetric model has not. <b>The follow-up.</b> Be precise about what is recurrent over what. Over time, over slices, or over regions. A reviewer asks this immediately, and the answer decides whether the architecture actually matches the signal you claim to be using.</dd>
+
+    <dt>Cross-validation</dt>
+    <dd><i>and the leave-one-site-out kind</i>Splitting the data repeatedly so that every sample gets tested exactly once by a model that never saw it, then averaging. It exists because a single train-test split on a small dataset is mostly luck. Leave-one-site-out is the stricter version here: hold out an entire imaging site, train on the others, and test on it. <b>In the app.</b> It is the difference between a result and an artefact. <b>What it buys.</b> An estimate that reflects a new hospital with a different scanner, which is the only deployment that would ever matter clinically. <b>The follow-up.</b> Accuracy drops under leave-one-site-out, frequently by a lot. That drop is the honest number, and reporting both is stronger than reporting only the higher one.</dd>
+
+    <dt>AUC and balanced accuracy</dt>
+    <dd><i>the metrics that survive imbalance</i>Two metrics that do not collapse when one class is more common. AUC is the probability that a randomly chosen positive case is scored above a randomly chosen negative one, which means it evaluates the ranking and needs no threshold at all. Balanced accuracy averages sensitivity and specificity, so getting the majority class right cannot carry the score. <b>In the app.</b> The classes here are uneven, which makes plain accuracy actively misleading. <b>What it buys.</b> A number that cannot be inflated by predicting the common class. <b>The follow-up.</b> Say the majority-class baseline out loud. If 60% of scans are controls, then 60% accuracy is what guessing achieves, and a 65% result is a far smaller claim than it first sounds.</dd>
+
+    <dt>Statistical power</dt>
+    <dd><i>the thing 300 scans mostly lacks</i>The probability that your study detects an effect that is genuinely there. It falls quickly as the sample shrinks, and falls further as the number of features grows, which is the worst possible combination for this problem. Low power does not mean wrong results, it means unstable ones. <b>In the app.</b> The bullet's headline is a sample count, which invites exactly this question. <b>What it buys.</b> Knowing it is what stops you over-claiming from a result that would not survive a second dataset. <b>The follow-up.</b> Report a confidence interval. On 300 samples the interval around any accuracy figure is wide enough that a point estimate on its own is close to meaningless, and giving it unprompted is a strong signal.</dd>
+  </dl>
+</div>
+
+
+
+
+<h2>What functional connectivity actually is</h2>
+
+<p class="breath">Divide the brain into regions with an atlas. Average the signal inside each region over time. Correlate every region's time course with every other's. That matrix is the connectome, and it is what the model sees.</p>
+
+<p>It is worth saying that this is a correlation, not a connection. Nothing here observes an axon. Two regions rising and falling together may be talking, or both listening to a third, or both following breathing.</p>
+
+<p>The signal itself is indirect and slow. Blood oxygenation peaks several seconds after the neural event, so the time resolution is coarse and the useful frequency band is very low.</p>
+
+<p>And the atlas is a choice with no right answer. Different parcellations give different matrices from the same scan, which is one reason results in this literature move when you change something that should not matter.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Chop the brain into regions, see which regions rise and fall together, and give the model that table. It is a correlation, not a wire.</p>
+
+<h2>Three hundred scans is the whole story</h2>
+
+<p class="breath">One scan is tens of thousands of voxels times a couple of hundred time points. Millions of numbers per subject, and three hundred subjects. The model has far more parameters than it has examples.</p>
+
+<p>In that regime almost anything will fit the training set perfectly. What separates a real finding from a lucky one is not the architecture, it is how the data was held out and what it was compared against.</p>
+
+<p>So the first thing to say about this paper is the sample size, and the second is the validation protocol. Saying it in that order signals you know which one an expert cares about.</p>
+
+<p>It also sets the right expectation about the effect. Group differences in this literature are small and overlapping. A model separating the groups cleanly is more likely to have found a confound than a mechanism.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Millions of numbers per person, three hundred people. Anything will fit. The interesting question is what you held out and what you compared to.</p>
+
+<h2>The two confounds that ruin this literature</h2>
+
+<p class="breath">Head motion and site. Both change the measured connectivity, and both are correlated with the thing being predicted. A model that learns either will look like it learned something about the brain.</p>
+
+<p>Motion is the famous one. Moving in the scanner systematically raises apparent short-range connectivity and lowers long-range connectivity. Children with ADHD move more, so motion carries information about the label directly.</p>
+
+<p>That means a connectivity difference between groups can be a motion difference wearing a connectivity costume. The mitigations are motion regression, discarding corrupted volumes, and matching groups on motion, and none of them is complete.</p>
+
+<p>Site is the same shape. Multi-site data means different scanners and protocols, and sites do not contribute cases in the same proportions. Split randomly and the model can score well by recognising the scanner.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Kids with ADHD wiggle more, and wiggling changes the measurement. And different hospitals have different scanners. Either one can be what the model actually learned.</p>
+
+<h2>The baseline that has no brain in it</h2>
+
+<p class="breath">In the public ADHD imaging competition, an entry using only personal characteristics scored at the top. No imaging at all. Age, sex, handedness, IQ and site were enough to beat models built on the scans.</p>
+
+<p>That result is the honest benchmark for this whole area. Any imaging model has to be compared against a no-imaging model on the same split, or the reported accuracy does not say the imaging contributed anything.</p>
+
+<p>Naming it yourself is a strong move. It shows you know the literature rather than one paper, and it reframes the conversation from &#8220;what accuracy&#8221; to &#8220;accuracy against what.&#8221;</p>
+
+<p>And it suggests the fix. Report both numbers, on the same held-out sites, and the difference between them is the actual claim being made about brains.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>An entry with no scans in it scored higher than every entry that had them. The prize still went to the best imaging entry. So an imaging model has to beat the no-imaging one, or the scan added nothing.</p>
+
+
+
+
+<section class="qset" id="toolbox">
+  <h2>Toolbox</h2>
+  <p class="qset-note">Every noun in the title, defined out loud, from the ground up. This is a clinical prediction claim, so the questions are statistical before they are neural, and the strongest answers are the ones that volunteer a limit.</p>
+  <ul class="qa-index">
+    <li><a href="#c21-t1">Where the data comes from</a></li>
+    <li><a href="#c21-t2">What preprocessing does</a></li>
+    <li><a href="#c21-t3">Voxels to a feature vector</a></li>
+    <li><a href="#c21-t4">The feature-to-sample ratio</a></li>
+    <li><a href="#c21-t5">What the RNN runs over</a></li>
+    <li><a href="#c21-t6">Why accuracy is the wrong metric</a></li>
+    <li><a href="#c21-t7">What would make it trustworthy</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c21-t1">
+      <p class="qa-q">Where do 300 resting-state scans come from?</p>
+      <p class="qa-a">From a public multi-site collection, in this field usually ADHD-200. It gathers resting-state scans with diagnosis and demographic data, contributed by several imaging sites. It was released so that methods could be compared on common ground. It exists because no single lab can collect hundreds of scans. What naming it buys is comparability. Somebody can place your result against the published ones immediately, which a raw scan count never does. It also explains the hardest problem in the paper. Multi-site means different scanners and different protocols, and that difference is learnable signal with nothing to do with the diagnosis.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Presenting the scan count as the achievement. Three hundred is small here, and the source matters more than the number.</p>
+    </li>
+    <li class="qa-item" id="c21-t2">
+      <p class="qa-q">What happens to a scan before you ever see it as data?</p>
+      <p class="qa-a">A raw scan is not usable data. Between the scanner and any analysis sits a long series of corrections. Aligning the volumes to cancel head movement. Correcting for slices acquired at slightly different moments. Registering the brain onto a standard template so subjects are comparable. Smoothing spatially. Filtering down to the slow band the signal lives in. What it buys is data from different people and scanners that can be compared at all. Those steps shape the features more than any model choice does. Say which pipeline you used. A standard one such as fMRIPrep makes your result reproducible. A bespoke sequence does not.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating preprocessing as plumbing. In neuroimaging it is the largest single source of variation between published results.</p>
+    </li>
+    <li class="qa-item" id="c21-t3">
+      <p class="qa-q">How do you get from voxels to something a model can read?</p>
+      <p class="qa-a">Pick an atlas, which divides the brain into named regions. Average the signal across all voxels inside each region to get one time course per region. Then correlate every region's time course with every other. That correlation matrix is what functional connectivity means in practice. With a hundred regions it is a hundred by hundred symmetric matrix. What the atlas buys is a reduction from hundreds of thousands of voxels to a few hundred regions, which is what makes the problem tractable. What the matrix buys is a fixed-size feature vector per subject, whatever the scan length, so any standard classifier applies. There is no correct atlas, only a chosen one.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying &#8220;we used functional connectivity&#8221; and stopping. It is three concrete steps, and the atlas you chose changes the answer.</p>
+    </li>
+    <li class="qa-item" id="c21-t4">
+      <p class="qa-q">Do the feature-to-sample arithmetic for me.</p>
+      <p class="qa-a">A hundred regions gives a hundred by hundred matrix. It is symmetric with a trivial diagonal, so just under five thousand entries are actually distinct. You have around three hundred scans. So features outnumber samples by more than fifteen to one. What doing this arithmetic out loud buys is showing you know where the difficulty is. It is the central problem of the whole field, and every methodological choice downstream is a response to it. With this shape of data any model will fit noise unless something constrains it hard.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Discussing architecture before this ratio. With this shape of data, regularisation and the split matter far more than the model.</p>
+    </li>
+    <li class="qa-item" id="c21-t5">
+      <p class="qa-q">A 3D-RNN. Recurrent over what, exactly?</p>
+      <p class="qa-a">Say the axis. Over time, over slices, or over regions. Those are three different models and only one matches the signal you claim to use. The idea behind a volumetric model is to keep the brain's spatial structure intact while modelling how it changes. The alternative destroys the geometry before the model sees it. What that buys over a connectivity matrix is that spatial relationships survive, because a correlation matrix has already thrown away where the regions are. Resting-state connectivity is computed over time, so a network recurrent over time is the coherent choice. A reviewer asks this in the first minute.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Naming the architecture without the axis. It is the question that separates having built the model from having inherited it.</p>
+    </li>
+    <li class="qa-item" id="c21-t6">
+      <p class="qa-q">Why is accuracy the wrong headline here?</p>
+      <p class="qa-a">Because the classes are uneven. If six in ten scans are controls, guessing control every time scores sixty percent. So quote the majority-class baseline beside any figure. Better, quote AUC or balanced accuracy. AUC is the probability a randomly chosen positive is scored above a randomly chosen negative, so it evaluates the ranking and needs no threshold. Balanced accuracy averages sensitivity and specificity, so getting the common class right cannot carry the score. What they buy is a number that cannot be inflated by predicting the majority. Those survive imbalance and plain accuracy does not.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>An accuracy number with no baseline. It is the first thing anyone with clinical experience asks, and it often erases most of the claimed result.</p>
+    </li>
+    <li class="qa-item" id="c21-t7">
+      <p class="qa-q">What would make this result trustworthy?</p>
+      <p class="qa-a">Leave-one-site-out validation, so an entire scanner is held out. Train on the other sites and test on that one. What it buys is an estimate reflecting a new hospital with different equipment, which is the only deployment that would ever matter clinically. Then a confidence interval, because on three hundred samples the interval around any figure is wide enough that a point estimate means little. And a check that the model is not simply reading head motion, which differs systematically between the groups. The accuracy usually falls under all three. That lower number is the one worth defending.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Defending the headline figure. Volunteering the drop under a harder protocol is what makes the rest of the work credible.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="fundamentals">
+  <h2>Fundamentals</h2>
+  <p class="qset-note">This is a clinical-adjacent claim, so the register matters. Overclaiming here is more damaging than anywhere else on the r&#233;sum&#233;.</p>
+  <ul class="qa-index">
+    <li><a href="#c21-f1">What the paper does</a></li>
+    <li><a href="#c21-f2">Functional connectivity</a></li>
+    <li><a href="#c21-f3">What 3D-RNN means</a></li>
+    <li><a href="#c21-f4">Why recurrence</a></li>
+    <li><a href="#c21-f5">Three hundred scans</a></li>
+    <li><a href="#c21-f6">Head motion</a></li>
+    <li><a href="#c21-f7">The split</a></li>
+    <li><a href="#c21-f8">The no-imaging baseline</a></li>
+    <li><a href="#c21-f9">The word predicting</a></li>
+    <li><a href="#c21-f10">The riskiest claim</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c21-f1">
+      <p class="qa-q">In two sentences, what does this paper do?</p>
+      <p class="qa-a">It takes brain scans recorded while children lie still doing nothing. The model tries to separate those with an ADHD diagnosis from those without. What it reads is which brain regions rise and fall together over the scan.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it a diagnostic tool. No imaging measure is a validated diagnostic for ADHD, and that sentence is expensive to say.</p>
+    </li>
+    <li class="qa-item" id="c21-f2">
+      <p class="qa-q">Explain functional connectivity.</p>
+      <p class="qa-a">Divide the brain into regions with an atlas, average the signal in each region over time, then correlate every region's time course with every other's. That matrix is the connectome. It is a correlation rather than a connection, because nothing here observes an actual pathway.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing it as wiring. Two regions can move together because both follow a third, or because both follow breathing.</p>
+    </li>
+    <li class="qa-item" id="c21-f3">
+      <p class="qa-q">What does 3D-RNN mean, structurally?</p>
+      <p class="qa-a">A spatial part and a temporal part. Three-dimensional convolutions read each volume, since the data is a cube rather than a picture. Then a recurrent layer reads the sequence of volumes in order. It is the same shape as the hand-pose paper, with a different encoder.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating it as one exotic model. It is a per-timestep encoder plus recurrence, which is a familiar shape once you say it that way.</p>
+    </li>
+    <li class="qa-item" id="c21-f4">
+      <p class="qa-q">Why model time at all, if you already have a connectivity matrix?</p>
+      <p class="qa-a">Because the matrix throws away everything about when. It assumes connectivity is one fixed number for the whole scan, and there is evidence it varies within a session. Reading the sequence keeps that. Whether three hundred subjects can support learning it is the fair objection.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Claiming dynamics are clearly better. The added capacity has to be paid for out of a very small sample.</p>
+    </li>
+    <li class="qa-item" id="c21-f5">
+      <p class="qa-q">Three hundred scans. Is that a lot?</p>
+      <p class="qa-a">No, and it is the defining fact. One scan is millions of numbers, so the model has far more parameters than examples. Almost anything fits the training set. What separates a real finding from a lucky one is the held-out split and the comparison, not the architecture.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Presenting it as a reasonable dataset size. It is normal for the field and tiny for the method, and saying both is the honest version.</p>
+    </li>
+    <li class="qa-item" id="c21-f6">
+      <p class="qa-q">What is the biggest confound here?</p>
+      <p class="qa-a">Head motion, and it is not close. Moving in the scanner raises apparent short-range connectivity and lowers long-range connectivity. Children with ADHD move more, so motion carries information about the label. A connectivity difference can be a motion difference wearing a connectivity costume.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Naming noise generally. Motion is the specific, named, well-documented confound, and knowing it by name is the credential.</p>
+    </li>
+    <li class="qa-item" id="c21-f7">
+      <p class="qa-q">How should the data have been split?</p>
+      <p class="qa-a">By site, holding out whole sites. The scans come from different hospitals with different scanners and protocols, and sites do not contribute cases in equal proportions. Split randomly and the model can score well by recognising the scanner rather than the child.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Random cross-validation. It is the default everywhere and it is the wrong default on multi-site clinical data.</p>
+    </li>
+    <li class="qa-item" id="c21-f8">
+      <p class="qa-q">What does an imaging model have to beat?</p>
+      <p class="qa-a">A model with no imaging in it. In the public ADHD competition, an entry using only personal characteristics scored at the top, with no scans at all. So the honest comparison is against age, sex, handedness, IQ and site on the same held-out split.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Comparing only against other imaging models. The difference against a no-imaging baseline is the actual claim about brains.</p>
+    </li>
+    <li class="qa-item" id="c21-f9">
+      <p class="qa-q">The title says predicting. Is that the right word?</p>
+      <p class="qa-a">Classifying would be more accurate. Prediction implies saying something about a future state, and this separates two groups whose labels already exist. The distinction matters because it is what separates a research result from a clinical claim.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Using predicting loosely in a clinical setting. It is the word that makes a careful listener take the whole thing less seriously.</p>
+    </li>
+    <li class="qa-item" id="c21-f10">
+      <p class="qa-q">What is the riskiest claim in this bullet?</p>
+      <p class="qa-a">&#8220;Predicting ADHD.&#8221; It sounds like a diagnostic capability and no imaging measure is a validated diagnostic for ADHD. The second risk is the label itself. An ADHD diagnosis is a clinical judgement rather than a biological fact, so the label has error in it and that error is the ceiling.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Naming the sample size. That one is defensible as soon as you say what the validation protocol was.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="deep-dive">
+  <h2>Deep dive</h2>
+  <p class="qset-note">Preprocessing choices, the label itself, and what would make a result believable. The last few are about research integrity as much as method.</p>
+  <ul class="qa-index">
+    <li><a href="#c21-d1">Analytical variability</a></li>
+    <li><a href="#c21-d2">Nuisance regression</a></li>
+    <li><a href="#c21-d3">Scrubbing</a></li>
+    <li><a href="#c21-d4">Atlas choice</a></li>
+    <li><a href="#c21-d5">Class imbalance</a></li>
+    <li><a href="#c21-d6">Harmonisation</a></li>
+    <li><a href="#c21-d7">The label's ceiling</a></li>
+    <li><a href="#c21-d8">What accuracy to expect</a></li>
+    <li><a href="#c21-d9">Interpretability</a></li>
+    <li><a href="#c21-d10">Making it believable</a></li>
+    <li><a href="#c21-d11">The data's boundary</a></li>
+    <li><a href="#c21-d12">What is stale now</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c21-d1">
+      <p class="qa-q">How much do preprocessing choices matter?</p>
+      <p class="qa-a">Enough that they are a finding in their own right. Large studies have given the same dataset to many teams and got different conclusions, purely from analysis choices. So a result that depends on one pipeline is weaker than it looks, and stating the pipeline is the minimum.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating preprocessing as a fixed prelude. It is a long series of decisions, and the decisions move the answer.</p>
+    </li>
+    <li class="qa-item" id="c21-d2">
+      <p class="qa-q">What gets regressed out, and what does that cost?</p>
+      <p class="qa-a">Motion parameters, and signals from white matter and ventricles that should not carry neural information. Sometimes the average over the whole brain too, which is contested. That last one changes correlations systematically and can create negative ones that were not there.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Listing it as cleaning. Global signal regression in particular is an active argument, and picking a side silently is what a reviewer will notice.</p>
+    </li>
+    <li class="qa-item" id="c21-d3">
+      <p class="qa-q">What is scrubbing, and what does it do to your sample?</p>
+      <p class="qa-a">Discarding volumes where the head moved too much. It helps the signal and it shrinks the scan, and it does not shrink every scan equally. The children who move most lose the most data, and those children are not randomly distributed across the two groups.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Presenting it as a clean fix. It trades a measurement confound for a differential missing-data problem.</p>
+    </li>
+    <li class="qa-item" id="c21-d4">
+      <p class="qa-q">Does the atlas choice change the result?</p>
+      <p class="qa-a">Yes, and there is no correct atlas. Different parcellations produce different matrices from the same scan, and a finding that only appears under one of them is weak. Repeating the analysis under two or three is cheap and it is the kind of robustness check that makes a small-sample result credible.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating the atlas as given. It is a modelling assumption that arrived looking like a data format.</p>
+    </li>
+    <li class="qa-item" id="c21-d5">
+      <p class="qa-q">The groups are not the same size. What follows?</p>
+      <p class="qa-a">Accuracy stops being informative. With an uneven split, always guessing the larger class can look respectable. Sensitivity and specificity separately, or a balanced measure, say what actually happened. And in a clinical framing the two error types have very different costs.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Reporting accuracy alone. It is the same failure as an average hiding the cases that matter, in chapter 0012.</p>
+    </li>
+    <li class="qa-item" id="c21-d6">
+      <p class="qa-q">Can site effects be removed rather than held out?</p>
+      <p class="qa-a">Partly. There are harmonisation methods that model each site's offset and scaling and remove them. They help and they are not complete, because site is entangled with who was recruited there. Holding out whole sites is still the test that matters, and harmonisation is not a substitute for it.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Harmonising and then splitting randomly. That fits the correction using the test data, which is leakage in a respectable coat.</p>
+    </li>
+    <li class="qa-item" id="c21-d7">
+      <p class="qa-q">How good can any model here actually get?</p>
+      <p class="qa-a">Bounded by the label. An ADHD diagnosis is a clinical judgement made against behavioural criteria, and different clinicians disagree. So the target is a noisy measurement of a category, not a biological fact. A model cannot be more consistent than the labels it was trained on.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating the diagnosis as ground truth. Every question about the ceiling comes back to this and it is the most interesting thing in the chapter.</p>
+    </li>
+    <li class="qa-item" id="c21-d8">
+      <p class="qa-q">What accuracy should make you suspicious?</p>
+      <p class="qa-a">Anything comfortably above the sixties on a held-out site. Group differences in this literature are small and overlapping, so clean separation is more likely to be a confound than a discovery. That is an uncomfortable thing to say about your own result and it is the correct instinct.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Celebrating a high number. In this field a high number is a reason to look for leakage first.</p>
+    </li>
+    <li class="qa-item" id="c21-d9">
+      <p class="qa-q">Can you say which connections mattered?</p>
+      <p class="qa-a">Carefully, and less than people want. Attribution methods over a model with more parameters than examples produce maps that look meaningful and are unstable across runs. The honest check is whether the same regions appear under different seeds, different atlases and different sites.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Showing a single attribution map as a finding. Rerunning with another seed usually produces a different one.</p>
+    </li>
+    <li class="qa-item" id="c21-d10">
+      <p class="qa-q">What would make a result like this believable?</p>
+      <p class="qa-a">Leave-one-site-out, a no-imaging baseline on the same split, motion reported per group, and the analysis repeated under a second atlas. None of that is expensive. All of it is what separates a paper somebody builds on from a paper somebody cites once.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Proposing a bigger model or more layers. Nothing about this problem is short of capacity.</p>
+    </li>
+    <li class="qa-item" id="c21-d11">
+      <p class="qa-q">What kind of data is this, from a governance point of view?</p>
+      <p class="qa-a">Health data about children, which is close to the strictest category there is. Public research datasets come with usage agreements about redistribution and re-identification, and brain images are not as anonymous as people assume. Knowing the terms you worked under is a fair thing to be asked.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating a public dataset as unrestricted. Public means available under terms, not free of them.</p>
+    </li>
+    <li class="qa-item" id="c21-d12">
+      <p class="qa-q">This was 2022. What has moved?</p>
+      <p class="qa-a">The field got more sceptical about small-sample deep learning, largely because results kept failing to replicate. The methodological answer has been larger consortium datasets and stricter validation rather than better architectures. Saying that yourself is better than defending the result as it stands.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Presenting the approach as current. The honest position is that the method was reasonable and the field learned something since.</p>
+    </li>
+  </ol>
+</section>
+
+<div class="quiz" data-quiz-id="0021-q1">
+  <p class="q">With millions of numbers per subject and three hundred subjects, what decides the result?</p>
+  <ol class="options">
+    <li data-correct="true">The validation protocol, more than the architecture</li>
+    <li>The optimiser, and how long training continues</li>
+    <li>Whichever brain atlas defines the region boundaries</li>
+    <li>The scanner's field strength across the sites</li>
+  </ol>
+  <div class="why">
+    <p>The model has far more parameters than examples, so almost anything fits the training set perfectly. What separates a real finding from a lucky one is how the data was held out and what the result was compared against.</p>
+    <p>The atlas does change the numbers, which is why repeating under a second one is a good robustness check. It is a smaller effect than a split that lets whole scanners leak between train and test.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0021-q2">
+  <p class="q">Which confound in this literature is correlated with the diagnosis itself?</p>
+  <ol class="options">
+    <li data-correct="true">Head motion, because affected children move more</li>
+    <li>Scanner drift, because sessions run quite long</li>
+    <li>Room temperature, because it affects blood flow</li>
+    <li>Time of day, because attention naturally varies</li>
+  </ol>
+  <div class="why">
+    <p>Moving in the scanner systematically raises apparent short-range connectivity and lowers long-range connectivity. Children with ADHD move more, so motion carries information about the label directly, and a group difference can be a motion difference in disguise.</p>
+    <p>The mitigations are motion regression, discarding corrupted volumes and matching the groups on motion. None is complete, and discarding volumes removes more data from exactly the children who move most.</p>
+  </div>
+</div>
+
+<section class="qset" id="edges">
+  <h2>Edges and exceptions</h2>
+  <p class="qset-note">Several of these are about what you should refuse to claim. That restraint is the point of the chapter.</p>
+  <ul class="qa-index">
+    <li><a href="#c21-e1">Comorbidity</a></li>
+    <li><a href="#c21-e2">Medication</a></li>
+    <li><a href="#c21-e3">Age range</a></li>
+    <li><a href="#c21-e4">Would you deploy it</a></li>
+    <li><a href="#c21-e5">A confident wrong answer</a></li>
+    <li><a href="#c21-e6">Subtypes</a></li>
+    <li><a href="#c21-e7">Defending predicting</a></li>
+    <li><a href="#c21-e8">What you would change</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c21-e1">
+      <p class="qa-q">Many of these children have another diagnosis too.</p>
+      <p class="qa-a">Then the two groups differ in more than one way and the model has several things it could be separating on. Comorbidity is the norm rather than the exception in this population. A binary label hides it entirely, which makes any interpretation of what the model found much weaker.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating the control group as clean. The comparison is rarely one condition against nothing.</p>
+    </li>
+    <li class="qa-item" id="c21-e2">
+      <p class="qa-q">Some of the children are on stimulant medication.</p>
+      <p class="qa-a">Which changes brain activity. So the model may be separating medicated from unmedicated rather than diagnosed from not. Medication status correlates with diagnosis almost perfectly. Disentangling the two needs a scanning protocol designed for it.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Omitting it. It is one of the first questions any reviewer in this area asks.</p>
+    </li>
+    <li class="qa-item" id="c21-e3">
+      <p class="qa-q">The children span several years of age.</p>
+      <p class="qa-a">And brains change a great deal over those years, so age is a strong signal in the data on its own. If the groups differ in age distribution at all, the model can use that. It is part of why the no-imaging baseline scores as well as it does.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating age as a covariate to mention. In a developing brain it is one of the largest effects present.</p>
+    </li>
+    <li class="qa-item" id="c21-e4">
+      <p class="qa-q">Would you put this in a clinic?</p>
+      <p class="qa-a">No, and I would say so without hedging. No imaging measure is a validated diagnostic for ADHD. The effect sizes are small, and the sample is far too small to support a clinical claim. It is a research result about whether a signal exists, and that is a different sentence.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Any answer that begins with &#8220;with more data.&#8221; The question is testing judgement, and the confident no is the right answer.</p>
+    </li>
+    <li class="qa-item" id="c21-e5">
+      <p class="qa-q">The model is confidently wrong about a child.</p>
+      <p class="qa-a">In a clinical framing the two errors cost very differently. Neither is acceptable from a research model. Chapter 0015 made the same point in a different domain. Where a decision belongs to a clinician, the system's job is to inform rather than decide. This one is not even at the informing stage.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Discussing thresholds. Threshold tuning implies a deployment, and the honest answer is that there is no deployment.</p>
+    </li>
+    <li class="qa-item" id="c21-e6">
+      <p class="qa-q">ADHD has recognised subtypes. Does the binary label survive that?</p>
+      <p class="qa-a">Not well. Inattentive and hyperactive presentations are different, and pooling them assumes one brain signature covers both. Splitting them would be more principled and it makes an already small sample smaller. That tension is genuine and worth naming rather than resolving.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Ignoring subtypes. It is one of the standard criticisms of binary classification in this area.</p>
+    </li>
+    <li class="qa-item" id="c21-e7">
+      <p class="qa-q">Defend the word predicting.</p>
+      <p class="qa-a">I would replace it with classifying. Prediction implies saying something about a state that is not yet known, and this separates two groups whose labels already exist. In a clinical adjacent title that word does real work, and correcting it costs nothing.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Defending it as convention. It is convention, and it is still the word that makes a careful listener discount the rest.</p>
+    </li>
+    <li class="qa-item" id="c21-e8">
+      <p class="qa-q">What would you change?</p>
+      <p class="qa-a">Hold out whole sites, and report a no-imaging baseline on the same split. Report motion per group, since that is the confound everyone will suspect. And describe the result as classification rather than prediction, because the paper is stronger with a smaller claim on it.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Proposing a deeper network. Capacity is the one thing this problem has too much of already.</p>
+    </li>
+  </ol>
+</section>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;What is functional connectivity, exactly?&#8221;
+      <span class="tell">A definitional opener. The word correlation rather than connection is what earns credit.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>You divide the brain into regions with an atlas, average the signal inside each region over the scan, and correlate every region's time course with every other's. That matrix is the connectome. It is important that this is a correlation and not a connection, because nothing here observes a pathway. Two regions can move together because they are communicating, or because both follow a third region, or because both follow breathing. And the signal is indirect and slow, since blood oxygenation peaks several seconds after the neural event.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Three hundred scans. Is that enough?&#8221;
+      <span class="tell">The question this whole chapter is built around. Answer it as a protocol question.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It is normal for the field and tiny for the method, and both halves of that matter. One scan is millions of numbers, so the model has far more parameters than examples and almost anything fits the training set. That means the validation protocol decides the result rather than the architecture. The things I would want to state are the split, the motion handling, and what the model was compared against, and none of those is about the network.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;How did you handle head motion?&#8221;
+      <span class="tell">If the interviewer knows this field, this is their first real question. Knowing it by name is the credential.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It is the signature confound here, so it deserves a specific answer. Moving in the scanner raises apparent short-range connectivity and lowers long-range connectivity, and children with ADHD move more, so motion carries information about the label directly. The standard mitigations are regressing motion parameters out, discarding volumes where the head moved too much, and matching the groups on motion. None of them is complete, and discarding volumes removes the most data from exactly the children who move most.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;What did you compare against?&#8221;
+      <span class="tell">Bringing up the no-imaging baseline unprompted is the strongest move available in this chapter.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The comparison that matters is a model with no imaging in it. In the public ADHD competition an entry using only personal characteristics, age and sex and handedness and IQ, scored at the top, ahead of models built on the scans. So the honest benchmark is that baseline on the same held-out split, and the difference between the two is the actual claim being made about brains. Reporting only against other imaging models does not establish that the imaging contributed anything.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Could this be used clinically?&#8221;
+      <span class="tell">A judgement question. The confident no is the right answer and hedging is the wrong one.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>No. No imaging measure is a validated diagnostic for ADHD, the effect sizes in this literature are small and overlapping, and three hundred subjects cannot support a clinical claim. There is also a ceiling that more data would not remove, which is the label itself. An ADHD diagnosis is a clinical judgement made against behavioural criteria and clinicians disagree, so the target is a noisy measurement of a category rather than a biological fact. This is a research result about whether a signal exists.</p>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="recall">
+  <details>
+    <summary>Chapter 0020 insisted on one particular kind of data split. Name it, and name its exact analogue here.</summary>
+    <p class="answer">There it was signer-wise, because sign datasets are recorded by a handful of people and a random split lets the model score by recognising the person. Here it is site-wise, because scans come from different hospitals with different scanners and a random split lets the model score by recognising the scanner. Both are the same failure: a grouping variable that is correlated with the label and cheaper to learn than the label. And in both cases the honest accuracy is lower than the leaky one.</p>
+    <span class="from"><a href="0020-hand-pose-lstm.html">Chapter 0020 &#183; splits that leak a grouping variable</a></span>
+  </details>
+  <details>
+    <summary>Chapter 0015 drew a line about clinical judgement. Where does that same line fall in this chapter?</summary>
+    <p class="answer">There the rule was that whether to orient somebody to reality is a clinical decision the system does not make alone. Here the line is earlier and firmer. An ADHD diagnosis is a clinical judgement, so it is both the label the model is trained on and something the model has no standing to make. That gives two consequences: the label carries disagreement between clinicians as noise, and the correct answer to whether this belongs in a clinic is no rather than not yet.</p>
+    <span class="from"><a href="0015-memory-for-a-dementia-companion.html">Chapter 0015 &#183; where a clinical judgement belongs</a></span>
+  </details>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">The lessons behind this chapter</span>
+  <p>System Design School teaches these mechanisms from first principles and breaks them in a lab. This chapter defends what you did with them. An interviewer moves between those two registers without warning.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0002-p50-is-a-lie.html">SDS 0002 &#183; p50 is a lie</a>
+      <span class="bridge-why">One accuracy over a small multi-site cohort hides the per-site picture, and the per-site picture is where the result either holds or does not.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0039 &#183; The eval harness as a regression gate &#8212; not yet built</span>
+      <span class="bridge-why">Leave-one-site-out is a harness decision, and a harness that lets a grouping variable leak measures the wrong thing silently.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0042 &#183; Sensitive data boundaries &#8212; not yet built</span>
+      <span class="bridge-why">Brain images of children are health data under a usage agreement, and they are less anonymous than people assume.</span>
+    </li>
+  </ol>
+</div>
+
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0020-hand-pose-lstm.html">&#8592; 0020 &#183; Time-distributed LSTM over hand pose</a></span>
+  <span><span class="dir">Next</span><a href="0022-career-narrative.html">0022 &#183; The career narrative &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

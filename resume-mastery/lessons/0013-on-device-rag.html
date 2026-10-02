@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>On-Device RAG over a Quantized MobileLLM</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0013">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">R&#233;sum&#233; Mastery</a>
+    <span class="sep">/</span>
+    <span>Batch C &#183; Samsung Research</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Chapter 0013</span>
+  </div>
+  <h1>On-device RAG over a quantized MobileLLM</h1>
+  <p class="standfirst">The word &#8220;RAG&#8221; here does not mean documents. It means retrieving the right handful of functions out of fifty before a small model has to choose one. That reframing is the chapter, and it is what turns a crowded r&#233;sum&#233; bullet into a design you can defend.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Explain why fifty functions cannot all go in the prompt, and what you retrieve instead &#8212; then answer the question that decides it: <em>what happens when the model picks the wrong one?</em></p>
+</div>
+
+<div class="claim-line">
+  <span class="callout-label">The line being defended</span>
+  <blockquote>&#8220;Designed an <strong>on-device RAG and function-calling layer</strong> over a quantized <strong>MobileLLM</strong>, covering <strong>50+ TV functions</strong> from natural-language queries.&#8221;</blockquote>
+  <span class="whose">Samsung Research &#183; bullet 1 of 5</span>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">For <em>&#8220;tell me about the on-device work.&#8221;</em> The reframing is the whole answer, so get to it in the first fifteen seconds and let everything else follow from it.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">A television that does what you ask it in ordinary language, with a model running on the set itself so nothing leaves the room.</p>
+      <p class="line">The hard part is not understanding the sentence. It is that the set has more than fifty things it can do.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">Fifty function definitions do not fit in a small model's context alongside the user's sentence. So this is retrieval, and <b>the corpus is the catalogue itself</b>.</p>
+      <p class="line">Embed the request, retrieve the handful of function descriptions that match, and only those go in the prompt. Then the model picks one and fills its parameters.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">The output is constrained, so the model cannot name a function that does not exist or mistype a parameter.</p>
+      <p class="line">I would be clear about the limit though. <b>A valid call to the wrong function is exactly as valid.</b> The schema kills one class of failure and leaves the interesting one.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">Two failures that need different repairs. Either the right function never reached the shortlist, which is recall and no model fixes it. Or the shortlist was right and the model chose badly.</p>
+      <p class="line">That second one is where quantization hurts most, because picking between similar options needs exactly the resolution you spent.</p>
+      <p class="line">And on a device there is no bigger model to escalate to. So the rule I would use is reversibility: if it is easy to undo, act. If not, ask.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;I built an on-device RAG system with function calling.&#8221;</span> It invites &#8220;retrieval over what?&#8221; and if you hesitate there the whole bullet wobbles. Say &#8220;the corpus is the function catalogue&#8221; in the same breath and the design immediately makes sense.</p>
+  <p>The other trap is <span class="quoted">&#8220;covering 50+ functions.&#8221;</span> Said as an achievement it sounds like an accuracy claim, and it is a count of the catalogue. Separate them yourself: this many functions were routable, and here is the accuracy, split into retrieval recall and selection.</p>
+</div>
+
+
+<div class="trace">
+  <span class="callout-label">Walk them through it &#183; one spoken request, end to end</span>
+  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One sentence said to a television, followed to the setting that changes. Nothing leaves the room, and that constraint shapes every step.</p>
+  <p class="tr-case"><b>The picture.</b> A restaurant with a fifty-page menu and a waiter who can only hold three pages in their head. Somebody asks for something warm and spicy. The ma&#238;tre d' hands over the three pages that might match and the waiter picks from those. If the right dish was on page forty, nothing the waiter does can find it.</p>
+  <p class="tr-case"><b>The case.</b> Someone says <em>&#8220;make it warmer&#8221;</em> at a television. The set can do more than fifty things, and the model deciding which one runs on the set itself.</p>
+  <ol>
+    <li class="tr-step">
+      <span class="tr-k">The sentence</span>
+      <p><b>What happens.</b> The words reach a small language model running locally. No network call, so nothing about the room goes anywhere.</p>
+      <p><b>Concretely.</b> Understanding the sentence is not the hard part. Working out which of fifty-odd actions it means is.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The catalogue</span>
+      <p><b>What happens.</b> The obvious approach is to list every function in the prompt and let the model choose.</p>
+      <p><b>Concretely.</b> Each function needs a name, a description and a parameter list. Fifty of those is far more text than a small model can hold alongside the conversation.</p>
+      <p><b>If they ask why.</b> The context window is the binding constraint on a device, and a quantized model has less of everything. This is where the design decision actually comes from.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Retrieval</span>
+      <p><b>What happens.</b> So this becomes a retrieval problem, and the corpus being retrieved from is the catalogue itself.</p>
+      <p><b>Concretely.</b> Embed the request, match it against the function descriptions, and put only the nearest few in the prompt.</p>
+      <p><b>If they ask why.</b> That is the reframing worth defending. It is not a document collection. It is a list of things the device can do, treated as a corpus.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The shortlist</span>
+      <p><b>What happens.</b> Four or five candidate functions go into the prompt along with what the person said.</p>
+      <p><b>Concretely.</b> For &#8220;make it warmer&#8221; that might be colour temperature, picture mode, backlight and room heating if the set controls it.</p>
+      <p><b>If they ask why.</b> Adding a new function is now writing a description rather than retraining anything. That is the second thing this bought.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The choice</span>
+      <p><b>What happens.</b> The model picks one and fills in its parameters from the sentence.</p>
+      <p><b>Concretely.</b> Warmer has to become a named setting and a direction or an amount. That extraction step is where vague words get turned into numbers.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The schema</span>
+      <p><b>What happens.</b> The output is constrained as it is generated, so it has to match the shape of a real call.</p>
+      <p><b>Concretely.</b> The model cannot name a function that does not exist or mistype a parameter. Those are not caught afterwards, they are impossible.</p>
+      <p><b>If they ask why.</b> Be clear about the limit though. A valid call to the wrong function is exactly as valid. The schema protects the shape and never the choice.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Two failures</span>
+      <p><b>What happens.</b> There are two ways this goes wrong and they need different repairs.</p>
+      <p><b>Concretely.</b> The right function never reached the shortlist, which is a recall problem. Or the shortlist was right and the model chose badly from it.</p>
+      <p><b>If they ask why.</b> No model quality recovers the first one. If the right answer was never in the prompt, the best model in the world cannot pick it.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Where it hurts</span>
+      <p><b>What happens.</b> The second failure is where quantization does its damage.</p>
+      <p><b>Concretely.</b> Choosing between similar options depends on small differences in the output distribution. That is exactly the resolution a smaller number format spends.</p>
+      <p><b>If they ask why.</b> So the evaluation has to be function selection rather than a general benchmark. A general score barely moves while this gets worse.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Act or ask</span>
+      <p><b>What happens.</b> Say confidence is low, or nothing matched well. On a device there is no bigger model to escalate to.</p>
+      <p><b>Concretely.</b> That leaves three options. Guess, ask, or do nothing. Each is a product decision with a different cost.</p>
+      <p><b>If they ask why.</b> The rule I would use is reversibility. If the action is easy to undo, act. If it is not, ask first.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The trade</span>
+      <p><b>What happens.</b> Retrieval introduced a failure mode that did not exist before, and I would rather name it than defend it.</p>
+      <p><b>Concretely.</b> A single classifier over a fixed catalogue would never miss the right option. It would also need retraining every time a function changed.</p>
+      <p><b>If they ask why.</b> I would make the same trade again, and I would want retrieval recall reported as its own number rather than folded into an accuracy figure.</p>
+    </li>
+  </ol>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 290" role="img" aria-labelledby="mech0013-t mech0013-d">
+    <defs>
+      <marker id="ar13" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+      <marker id="ar13b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head" style="fill:var(--bad)"/>
+      </marker>
+    </defs>
+    <title id="mech0013-t">Fifty functions narrowed to a shortlist, then one choice, with two distinct failures</title>
+    <desc id="mech0013-d">A spoken request is embedded and matched against the descriptions of every function the television can perform. The catalogue is the corpus being retrieved from, because fifty function definitions do not fit in a small model's context. Only the nearest few reach the prompt. A quantized model then selects one and fills its parameters, under a constrained output format that makes an invalid call impossible. Two different failures exist: retrieval can omit the correct function entirely, which no model quality can repair, or the model can choose wrongly from a correct shortlist. Whether the system acts or asks depends on how reversible the action is.</desc>
+
+    <rect class="box" x="8" y="16" width="150" height="50" rx="3"/>
+    <text class="lbl strong" x="83" y="38" text-anchor="middle">&#8220;make it brighter&#8221;</text>
+    <text class="lbl-dim" x="83" y="55" text-anchor="middle">on the device</text>
+
+    <path class="flow" marker-end="url(#ar13)" d="M 162 41 H 192"/>
+
+    <rect class="box-2" x="196" y="10" width="212" height="62" rx="3"/>
+    <text class="lbl strong" x="302" y="32" text-anchor="middle">Retrieve over the catalogue</text>
+    <text class="lbl-dim" x="302" y="50" text-anchor="middle">50+ function descriptions</text>
+    <text class="num ink-accent" x="302" y="66" text-anchor="middle">the corpus is the capabilities</text>
+
+    <path class="flow" marker-end="url(#ar13)" d="M 412 41 H 442"/>
+
+    <rect class="good" x="446" y="10" width="196" height="62" rx="3"/>
+    <text class="lbl strong ink-good" x="544" y="32" text-anchor="middle">Shortlist of a few</text>
+    <text class="lbl-dim" x="544" y="50" text-anchor="middle">only these enter the prompt</text>
+    <text class="lbl-dim" x="544" y="66" text-anchor="middle">fifty would not fit</text>
+
+    <path class="flow" marker-end="url(#ar13)" d="M 646 41 H 684"/>
+
+    <rect class="box" x="688" y="10" width="144" height="62" rx="3"/>
+    <text class="lbl strong" x="760" y="32" text-anchor="middle">Quantized model</text>
+    <text class="lbl-dim" x="760" y="50" text-anchor="middle">pick one, fill slots</text>
+    <text class="lbl-dim" x="760" y="66" text-anchor="middle">constrained output</text>
+
+    <path class="flow" marker-end="url(#ar13)" d="M 760 76 V 104"/>
+
+    <rect class="accent" x="600" y="108" width="232" height="50" rx="3"/>
+    <text class="lbl strong ink-accent" x="716" y="130" text-anchor="middle">reversible? act. otherwise ask.</text>
+    <text class="lbl-dim" x="716" y="148" text-anchor="middle">no bigger model to escalate to</text>
+
+    <rect class="bad" x="8" y="176" width="824" height="102" rx="3"/>
+    <text class="lbl strong ink-bad" x="24" y="200">Two failures, two different repairs</text>
+    <text class="lbl-dim" x="24" y="224">1. The right function never reached the shortlist &#8212; a recall problem</text>
+    <text class="lbl-dim" x="24" y="242">no model quality fixes it, because the answer was not available</text>
+    <text class="num ink-bad" x="24" y="266">fix: retrieve more, or write better descriptions</text>
+    <text class="lbl-dim" x="440" y="224">2. The shortlist was right and the model chose badly</text>
+    <text class="lbl-dim" x="440" y="242">this is where quantization hurts most</text>
+    <text class="num ink-bad" x="440" y="266">fix: disambiguate, or ask the user</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">What you say while drawing it</span>
+    <ol class="narrate">
+      <li>A spoken request arrives, and everything happens on the set.</li>
+      <li>First box: retrieval, and say what the corpus is. The catalogue itself.</li>
+      <li>That is the sentence that makes the whole bullet make sense.</li>
+      <li>Out comes a shortlist. Only those few go in the prompt, because fifty would not fit.</li>
+      <li>The model picks one and fills its parameters, in a constrained format.</li>
+      <li>Then the decision on the right: act if it is reversible, ask if it is not.</li>
+      <li>And say why that matters here: on a device there is no bigger model to escalate to.</li>
+      <li>Then the red band, which is the part an interviewer will push on.</li>
+      <li>Two failures. One is recall and one is selection, and they need different repairs.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. A line of four boxes, one decision, and a band with two failure modes.</p>
+  <ul>
+    <li><b>The corpus is the capabilities.</b> The one mark to keep.</li>
+    <li>The <b>shortlist</b>, and why fifty cannot go in.</li>
+    <li><b>Reversible? act. otherwise ask.</b></li>
+    <li>The <b>two failures</b> and that they need different fixes.</li>
+  </ul>
+  <span class="timer">Say &#8220;we retrieve over the functions, not over documents&#8221; as you draw the second box. One sentence and the bullet is reframed.</span>
+</div>
+
+<div class="star">
+  <span class="callout-label">Behavioural &#183; the story for this bullet</span>
+  <p class="frame">For <em>&#8220;tell me about designing under a hard constraint&#8221;</em> or <em>&#8220;a problem you reframed.&#8221;</em></p>
+  <ol class="rungs">
+    <li class="rung"><span class="rung-k">Decision</span><p>Whether to treat fifty functions as a prompt-engineering problem, or to treat the catalogue as a corpus and retrieve over it.</p></li>
+    <li class="rung"><span class="rung-k">Situation</span><p>A television had to act on natural language, with a model small enough to run on the set. The catalogue was over fifty functions, each with a description and typed parameters. All of it together was far more than the context could hold.</p></li>
+    <li class="rung"><span class="rung-k">Action</span><p>I reframed it as retrieval. Embed the request, match it against function descriptions, and put only the nearest few in the prompt.</p><p>That has a second-order effect people miss. The descriptions stop being documentation and become the index. So they have to be written in the words people actually say, rather than in product vocabulary.</p></li>
+    <li class="rung"><span class="rung-k">Result</span><p>The context problem went away. Adding a new function became writing a description rather than retraining anything. It also made the failure modes separable: recall of the correct function, and selection from a correct shortlist.</p></li>
+    <li class="rung"><span class="rung-k">What it cost</span><p>A second failure mode that did not exist before. If retrieval misses, the right answer is never available and no model quality recovers it. A single classifier over a fixed catalogue would not have that failure, and it would need retraining on every change. I would make the same trade again, and I would want the recall number reported separately.</p></li>
+  </ol>
+</div>
+
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>Someone says &#8220;make it brighter&#8221; to a television. The television has to work out which of its many settings that means and change it. No network call, because the model runs on the set itself.</p>
+  <p>The hard part is not understanding the sentence. It is that the television has fifty-odd things it can do. Each one needs a description and a parameter list. All of that together is far more text than a small model can hold. So something has to narrow fifty down to a few before the model ever sees them.</p>
+  <dl>
+    <dt>Function calling</dt>
+    <dd>Giving the model a list of actions with typed parameters. It replies naming one and filling its arguments. The system then performs it.</dd>
+
+    <dt>Function catalogue</dt>
+    <dd>The full set of things the device can do. Here, fifty or more, each with a name, a description and parameters.</dd>
+
+    <dt>Retrieval</dt>
+    <dd>Fetching the few candidates most likely to be relevant. In this system the corpus being retrieved from is <b>the catalogue itself</b>, not a document collection.</dd>
+
+    <dt>Context window</dt>
+    <dd>How much text the model can consider at once. On a small on-device model this is the binding constraint, and it is why the catalogue cannot simply be pasted in.</dd>
+
+    <dt>MobileLLM</dt>
+    <dd>A small language model architecture designed for phones and similar devices. Small enough to run locally, and correspondingly weaker.</dd>
+
+    <dt>Quantized</dt>
+    <dd>Stored at reduced numeric precision so it fits in the device's memory. Covered in chapter 0010, and the same trade applies here.</dd>
+
+    <dt>Slot filling</dt>
+    <dd>Extracting the parameter values from what the person said. &#8220;Brighter&#8221; has to become a named setting and a direction or amount.</dd>
+
+    <dt>Constrained decoding</dt>
+    <dd>Forcing the output to match a grammar or schema as it is generated, so an invalid function name cannot be produced at all.</dd>
+
+    <dt>Confirmation</dt>
+    <dd>Asking before acting. The cheapest safety mechanism available, and the one that costs the most in perceived speed.</dd>
+
+    <dt>Fallback</dt>
+    <dd>What happens when confidence is low or nothing matches. On a device there is no bigger model to escalate to, which makes this decision sharper.</dd>
+  </dl>
+</div>
+
+<div class="primer stack">
+  <span class="callout-label">The technology &#8212; what each named thing is</span>
+  <p>The primer above defines the pieces of the on-device loop. This one names the model, the silicon and the runtime it has to fit on, starting from the ground. Everything hard about this bullet is a consequence of the device, so the device is where the definitions start.</p>
+  <p>Every entry answers four things. What it actually is, in plain words. Where it shows up in this work. What it buys, meaning what goes wrong without it. And the follow-up an interviewer asks once you have said the name.</p>
+  <dl>
+    <dt>MobileLLM</dt>
+    <dd><i>Meta, sub-billion parameters</i>A family of language models designed from the start for phones and embedded hardware, rather than taken from a large model and shrunk. The research behind it found that below a billion parameters the usual scaling intuitions invert: depth beats width, so the architecture is unusually deep and thin. It also shares input and output embeddings and uses grouped-query attention, both of which are about fitting rather than about quality. <b>In the app.</b> It is the model named in the bullet. <b>What it buys.</b> Useful language ability in a few hundred megabytes, which is the only band a television will give a background process. <b>The follow-up.</b> Why it is not simply a small Llama. The entire point of the work is that architectural choices which barely register at seven billion parameters dominate the result at three hundred million.</dd>
+
+    <dt>Embedding sharing</dt>
+    <dd><i>the sub-billion trick</i>A model has a table mapping every token in its vocabulary to a vector on the way in, and a matrix projecting back out to vocabulary size on the way out. Those two are the same shape. Sharing means using one set of weights for both jobs instead of two. <b>In the app.</b> It is one of the four design decisions that define MobileLLM. <b>What it buys.</b> Real capacity. With a vocabulary of thirty thousand tokens, those tables are a large fraction of a three-hundred-million-parameter model, so sharing frees a meaningful share of the budget for actual layers. <b>The follow-up.</b> It is a size argument, not a quality one. At large scale the embedding table is a rounding error and nobody bothers, which is exactly why small-model design has to be treated as its own problem rather than as scaling down.</dd>
+
+    <dt>Grouped-query attention</dt>
+    <dd><i>GQA</i>In standard attention every head computes its own keys and values, and all of them must be cached for every token generated so far. GQA has several heads share one set of key and value projections, which cuts the cache by the size of the group while leaving each head its own queries. <b>In the app.</b> On a device, the growing cache rather than the fixed weights is what eventually runs you out of memory. <b>What it buys.</b> A conversation that can get longer. The weights are a constant, but the key-value cache grows with every token, and on a fixed memory budget that growth is the ceiling. <b>The follow-up.</b> The two ends of the spectrum. Multi-head attention gives every head its own keys and values, best quality and largest cache. Multi-query gives all heads one shared set, smallest cache and some quality loss. GQA sits between them and the group count is the dial.</dd>
+
+    <dt>Quantization on device</dt>
+    <dd><i>the arithmetic that decides everything</i>Storing each weight in four or eight bits instead of sixteen. The arithmetic is worth memorising because it settles the feasibility argument on its own. A 350-million-parameter model is roughly 700&#8239;MB at FP16, about 350&#8239;MB at INT8, and under 200&#8239;MB at INT4. <b>In the app.</b> A television's budget for a background process is measured in hundreds of megabytes, so only one of those numbers fits. <b>What it buys.</b> The project existing. There is no version of this where an FP16 model sits resident on a television alongside the actual television software. <b>The follow-up.</b> Memory is only half the story. These devices are bandwidth-bound rather than compute-bound, so the speed gain comes from reading fewer bytes per generated token, not from the arithmetic being faster.</dd>
+
+    <dt>NPU</dt>
+    <dd><i>neural processing unit</i>A dedicated block of silicon that does one thing, integer matrix multiplication, extremely efficiently. Modern television and phone chips have one alongside the CPU and GPU. It is far better per watt than a general processor and far less flexible, because it only implements the operations its designers built in. <b>In the app.</b> It is what makes local inference viable at all on a device with no fan and a tight power budget. <b>What it buys.</b> Inference that does not heat the device, drain a battery, or steal cycles from the interface the user is looking at. <b>The follow-up.</b> What it will not run. An operator the NPU does not implement falls back to the CPU, and a single fallback in the middle of a graph forces data back and forth across memory. That round trip can cost more than the accelerator saved.</dd>
+
+    <dt>On-device runtimes</dt>
+    <dd><i>ExecuTorch, TFLite, ONNX Runtime Mobile</i>The programs that actually execute a model on the device. Each takes its own converted file format, implements its own set of operators, and has its own story for reaching the NPU. They are not interchangeable and a model exported for one does not run on another. <b>In the app.</b> Choosing one is really choosing which export path has to work. <b>What it buys.</b> An execution engine measured in megabytes rather than the hundreds a training framework would need, with no Python on the device at all. <b>The follow-up.</b> Conversion is the project risk, and it is the one people underestimate. The model trains perfectly and then fails to export because of one unsupported operation, and the fix is almost always rewriting the model rather than changing the runtime.</dd>
+
+    <dt>On-device embeddings</dt>
+    <dd><i>the retrieval half</i>A second, much smaller model whose only job is turning text into vectors, so that the query and the function catalogue can be compared locally. These encoders are typically tens of megabytes, an order of magnitude below the language model. <b>In the app.</b> Retrieval is what keeps fifty function schemas out of the prompt. <b>What it buys.</b> A short prompt. Sending all fifty function definitions every time would dominate the prefill, which is the dominant cost on a small device, so retrieving the five that matter is most of the latency win. <b>The follow-up.</b> Two models, two budgets. People routinely forget that the retriever is also a model, which has to be loaded, quantized, kept warm and counted against the same memory ceiling.</dd>
+
+    <dt>Constrained decoding</dt>
+    <dd><i>grammars and schemas</i>At each step the model proposes probabilities for every possible next token. Constrained decoding masks out the ones that would make the output invalid against a grammar or a JSON schema before sampling. The invalid continuation is not rejected afterwards, it is never available to be chosen. <b>In the app.</b> A malformed call to a television function is a failure the user watches happen. <b>What it buys.</b> Parse failures become impossible rather than rare, which removes the retry path entirely. On a device with a few hundred milliseconds of budget, there is no room for a second attempt. <b>The follow-up.</b> It guarantees a valid parse and never a correct choice. The model can emit a perfectly formed call to entirely the wrong function, and only the confirmation step catches that.</dd>
+
+    <dt>Function catalogue</dt>
+    <dd><i>the fifty</i>The list of things the device can actually be told to do, each entry carrying a name, a description in words, and typed parameters. It is the boundary between what the user can say and what the system can execute. <b>In the app.</b> &#8220;50+ TV functions&#8221; is a claim about the size of exactly this. <b>What it buys.</b> A closed world. The model is choosing from a known list rather than inventing an action, which means an invalid action is a retrieval problem rather than a safety incident. <b>The follow-up.</b> How it was counted and how it changes. A catalogue baked into firmware is a different design from one that updates over the air, and the second requires the retriever's index to update along with it, which is a whole extra path.</dd>
+
+    <dt>Latency budget</dt>
+    <dd><i>wake to action</i>The total time from the user finishing speaking to the television doing something, covering wake word detection, transcription, retrieval, model generation, parsing and execution. A remote-control interaction has to feel instant, which means a few hundred milliseconds for all of it together. <b>In the app.</b> It is the single constraint that rules the cloud out, because a network round trip alone can consume the whole budget. <b>What it buys.</b> Stating it as a budget forces every design decision to be justified in milliseconds rather than in preference. <b>The follow-up.</b> Where the budget actually goes. On a small device prefill dominates, so the length of what you put into the prompt matters considerably more than the number of tokens you expect back.</dd>
+  </dl>
+</div>
+
+
+
+<h2>Why this is retrieval at all</h2>
+
+<p class="breath">Fifty function definitions do not fit in a small model's context alongside the conversation. So you retrieve the handful that might apply, and the model chooses among those. The corpus is the catalogue.</p>
+
+<p>This is the sentence that makes the bullet make sense. People hear &#8220;RAG&#8221; and think documents, then wonder what a television has to retrieve. The answer is its own capabilities.</p>
+
+<p>Work the arithmetic out loud, because it converts a vague claim into a constraint. A function definition with a description and two or three typed parameters is not small. Fifty of them is far more than a device model can hold while also holding the user's sentence and any conversation history.</p>
+
+<p>So the pipeline is: embed the request, retrieve the nearest few function definitions, put only those in the prompt, and let the model pick one and fill its parameters.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>The television knows fifty tricks. You cannot read all fifty descriptions to it every time, so you hand it the five that sound relevant.</p>
+
+<h2>Where the errors actually come from</h2>
+
+<p class="breath">Two failures, and they are not the same. Retrieval can fail to include the right function at all. Or retrieval succeeds and the model picks the wrong one from the shortlist.</p>
+
+<p>The first is unrecoverable. If the correct function is not in the retrieved set, no amount of model quality helps, because the right answer was never available. That is a recall problem in the retriever.</p>
+
+<p>The second is a selection problem, and it is where quantization hurts most. Choosing between similar functions depends on small differences in the output distribution, and that resolution is exactly what low-precision weights spend.</p>
+
+<p>Knowing which failure you have changes the fix entirely. Recall failures are fixed by retrieving more candidates or by better descriptions. Selection failures are fixed by better disambiguation, or by asking the user.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Either the right answer was not on the shortlist, or it was and the model chose badly. Those need completely different repairs.</p>
+
+<h2>What a schema can and cannot guarantee</h2>
+
+<p class="breath">Constrained output means the model cannot invent a function name or a parameter type. It does not mean the chosen function is correct. The schema protects the shape, not the choice.</p>
+
+<p>This is the same principle as chapter 0001's grounding schema, applied to a different problem. Force the output into the function-call form and an impossible action becomes unrepresentable. The device will never be asked to run something that does not exist.</p>
+
+<p>The limit is the part worth volunteering. A perfectly valid call to the wrong function is exactly as valid, structurally, as a call to the right one. So the schema removes one entire class of failure and leaves the interesting one untouched.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>The form will not let you write a setting that does not exist. It will happily let you write the wrong one.</p>
+
+<h2>The decision nobody asks about until they do</h2>
+
+<p class="breath">On a device there is no larger model to escalate to. So when confidence is low, the only options are to guess, to ask, or to do nothing. Each is a product decision with a different cost.</p>
+
+<p>In a server-side system a low-confidence result can go to a bigger model. On a television it cannot, because the whole point is that nothing leaves the device.</p>
+
+<p>The asymmetry that decides it is reversibility. Changing brightness is trivially undone and the cost of being wrong is small, so acting is reasonable. Deleting a recording is not, so confirmation is worth its friction there. A single global confidence threshold treats those two identically and is the wrong design.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>If it is easy to undo, just do it. If it is not, ask first. The threshold should depend on what the action costs, not on one global number.</p>
+
+
+
+<section class="qset" id="toolbox">
+  <h2>Toolbox</h2>
+  <p class="qset-note">Every noun in the bullet, defined out loud, from the ground up. On-device work is judged on whether you can do the memory and latency arithmetic out loud, so three of these are numbers rather than definitions.</p>
+  <ul class="qa-index">
+    <li><a href="#c13-t1">What MobileLLM is</a></li>
+    <li><a href="#c13-t2">What grouped-query attention saves</a></li>
+    <li><a href="#c13-t3">The memory arithmetic</a></li>
+    <li><a href="#c13-t4">What runs it on the device</a></li>
+    <li><a href="#c13-t5">Why retrieve over fifty functions</a></li>
+    <li><a href="#c13-t6">What constrained decoding guarantees</a></li>
+    <li><a href="#c13-t7">Where the latency goes</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c13-t1">
+      <p class="qa-q">What is MobileLLM, and how is it not just a small Llama?</p>
+      <p class="qa-a">A family of language models designed from the start for phones and embedded hardware, at under a billion parameters. The finding behind it is that below that size the usual scaling intuitions invert. Depth beats width, so the architecture is unusually deep and thin. It also shares input and output embeddings and uses grouped-query attention, both of which are about fitting rather than quality. What it buys is useful language ability in a few hundred megabytes, which is the only band a television will give a background process. Those choices barely register at seven billion parameters. At three hundred million they decide the result.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing it as a compressed large model. It was designed at this size, and that distinction is the whole contribution.</p>
+    </li>
+    <li class="qa-item" id="c13-t2">
+      <p class="qa-q">What is grouped-query attention, and what does it save?</p>
+      <p class="qa-a">In standard attention every head computes its own keys and values, and all of them must be cached for every token generated so far. Grouped-query attention has several heads share one set of key and value projections, while each keeps its own queries. That shrinks the cache by the size of the group. What it buys is a conversation that can get longer. The weights are a constant, but the key-value cache grows with every token, and on a fixed memory budget that growth is the ceiling. Multi-head is one set per head, best quality and largest cache. Multi-query is one shared set, smallest cache and some quality loss. Grouped sits between, and the group count is the dial.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it a speed optimisation. It is a memory one, and on a bandwidth-bound device that becomes speed for a different reason.</p>
+    </li>
+    <li class="qa-item" id="c13-t3">
+      <p class="qa-q">Do the memory arithmetic for me.</p>
+      <p class="qa-a">Quantization means storing each weight in four or eight bits instead of sixteen. The arithmetic settles the feasibility argument on its own. Take a 350-million-parameter model. At sixteen bits a weight that is about 700 megabytes. At eight bits it is roughly 350. At four bits it is under 200, plus the KV cache on top, which grows with context. A television gives a background process a few hundred megabytes. So four-bit is not a preference here, it is the constraint. What it buys is the project existing at all. There is no version where a sixteen-bit model sits resident beside the actual television software.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Quoting a parameter count with no byte count. The bytes are the thing that has to fit, and the conversion is one multiplication.</p>
+    </li>
+    <li class="qa-item" id="c13-t4">
+      <p class="qa-q">What actually runs the model on the device?</p>
+      <p class="qa-a">A mobile runtime such as ExecuTorch, TFLite or ONNX Runtime Mobile. Each takes its own converted file format and implements its own set of operators, so they are not interchangeable. What one buys is an execution engine measured in megabytes rather than hundreds, with no Python on the device. It usually dispatches to the NPU, a dedicated block of silicon that does integer matrix multiplication extremely efficiently. That is what keeps inference from heating the device or stealing cycles from the interface. The risk lives in conversion. An unsupported operator either blocks the export or falls back to the CPU mid-graph, and that round trip can cost more than the accelerator saved.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating export as a build step. It is where on-device projects actually stall, and the fix is usually to change the model.</p>
+    </li>
+    <li class="qa-item" id="c13-t5">
+      <p class="qa-q">There are only fifty functions. Why retrieve at all?</p>
+      <p class="qa-a">Because fifty schemas with descriptions and typed parameters is a large prompt, and prefill is the dominant cost on this hardware. Retrieval uses a second, much smaller model that turns text into vectors, so the query and the catalogue can be compared locally. Those encoders are tens of megabytes, an order below the language model. It puts maybe five candidates in front of the model instead of fifty. What that buys is most of the latency win, because the prompt is what you are paying for. It also keeps the catalogue growable without growing the prompt. The trade is that a function the retriever misses cannot be called at all.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying fifty is small enough to inline. On a server it would be. The whole point of this bullet is that it is not a server.</p>
+    </li>
+    <li class="qa-item" id="c13-t6">
+      <p class="qa-q">What does constrained decoding guarantee, and what does it not?</p>
+      <p class="qa-a">At each step the model proposes probabilities for every possible next token. Constrained decoding masks out the ones that would make the output invalid against a schema, before sampling. The invalid continuation is not rejected afterwards. It is never on the table. What that buys is parse failures becoming impossible rather than rare, which removes the retry path entirely. On a device with a few hundred milliseconds of budget there is no room for a second attempt. So it guarantees a parse. It does not guarantee a choice. The model can emit a perfectly formed call to entirely the wrong function, and only the confirmation step in front of the user catches that.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Offering it as the correctness story. Well-formed and correct are different properties, and only one of them is enforceable here.</p>
+    </li>
+    <li class="qa-item" id="c13-t7">
+      <p class="qa-q">Where does the latency actually go?</p>
+      <p class="qa-a">The budget runs from the user finishing speaking to the television doing something. Wake word, transcription, retrieval, prefill, generation, parse, execute. A remote-control interaction has to feel instant, which is a few hundred milliseconds for all of it. What stating it as a budget buys is that every design decision gets justified in milliseconds rather than in preference. It is also the single constraint that rules out the cloud, because a network round trip can consume the whole thing. On this hardware prefill dominates, because the prompt is long relative to the reply. So prompt length matters more than output length here, which reverses the usual server intuition.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Quoting a single model latency. The user feels the whole chain, and the model is one link in it.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="fundamentals">
+  <h2>Fundamentals</h2>
+  <p class="qset-note">Question two is the reframing this whole bullet depends on. If that lands, the rest of the conversation is easy.</p>
+  <ul class="qa-index">
+    <li><a href="#c13-f1">What it does</a></li>
+    <li><a href="#c13-f2">Why it is retrieval</a></li>
+    <li><a href="#c13-f3">Why not all fifty</a></li>
+    <li><a href="#c13-f4">What gets retrieved</a></li>
+    <li><a href="#c13-f5">What the model returns</a></li>
+    <li><a href="#c13-f6">Why on the device</a></li>
+    <li><a href="#c13-f7">What the schema buys</a></li>
+    <li><a href="#c13-f8">The two failure types</a></li>
+    <li><a href="#c13-f9">Low confidence</a></li>
+    <li><a href="#c13-f10">The riskiest claim</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c13-f1">
+      <p class="qa-q">In two sentences, what does this layer do?</p>
+      <p class="qa-a">It turns something a person says to a television into the right action on that television. A small model runs on the set itself. It picks a function from the device's catalogue and fills in its parameters. Nothing leaves the device.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Leading with MobileLLM. The model is a constraint, not the product, and naming it first invites the wrong conversation.</p>
+    </li>
+    <li class="qa-item" id="c13-f2">
+      <p class="qa-q">What is being retrieved? There are no documents here.</p>
+      <p class="qa-a">The function definitions themselves. The catalogue is the corpus. Each function has a name, a description and typed parameters, and the retriever finds the handful most likely to match the request. So it is retrieval over capabilities rather than over content.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Letting &#8220;RAG&#8221; imply a document store. The reframing is the whole reason this design is interesting.</p>
+    </li>
+    <li class="qa-item" id="c13-f3">
+      <p class="qa-q">Why not put all fifty functions in the prompt?</p>
+      <p class="qa-a">They do not fit. A function definition with a description and a few typed parameters is not small. Fifty of them is far more than a device-sized model can hold alongside the user's sentence. Even if it fit, burying the relevant few among fifty makes the choice harder.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Only citing token limits. The signal argument matters too, and it still applies on a model with a larger window.</p>
+    </li>
+    <li class="qa-item" id="c13-f4">
+      <p class="qa-q">How does the retriever decide which functions are candidates?</p>
+      <p class="qa-a">By similarity between the request and each function's description, so the descriptions are load-bearing text rather than documentation. A function whose description does not use the words people actually say will not be retrieved, and then it can never be chosen. That makes description quality a recall problem.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating descriptions as comments. They are the index, and editing one changes behaviour.</p>
+    </li>
+    <li class="qa-item" id="c13-f5">
+      <p class="qa-q">What does the model actually return?</p>
+      <p class="qa-a">A function name and its arguments, in a constrained format. Not prose. The parameter values are extracted from what the person said, which is the slot-filling half and often the harder one. &#8220;Brighter&#8221; has to become a named setting plus a direction or an amount.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing only function selection. Slot filling is where ambiguity lives, since people rarely state values precisely.</p>
+    </li>
+    <li class="qa-item" id="c13-f6">
+      <p class="qa-q">Why run this on the device rather than in the cloud?</p>
+      <p class="qa-a">Privacy and latency. What somebody says in their living room never leaves the room, which for a television is the deciding argument. And there is no network round trip, so a short command feels immediate. You accept a weaker model to get both.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Leading with cost. It matters at scale and it is not why a consumer device does this.</p>
+    </li>
+    <li class="qa-item" id="c13-f7">
+      <p class="qa-q">What does constraining the output format guarantee?</p>
+      <p class="qa-a">That the call is structurally valid. The model cannot name a function that does not exist or give a parameter the wrong type, because the format has no shape for it. What it does not guarantee is that the chosen function is the right one. A valid call to the wrong function is exactly as valid.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Presenting the schema as correctness. It removes one class of failure completely and leaves the interesting one untouched.</p>
+    </li>
+    <li class="qa-item" id="c13-f8">
+      <p class="qa-q">Name the two ways this system gets an answer wrong.</p>
+      <p class="qa-a">Retrieval misses the right function, so it was never on the shortlist. Or retrieval succeeds and the model picks the wrong one from it. The first is a recall problem and no model quality fixes it. The second is a selection problem, and it is where quantization hurts most.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating them as one accuracy number. They have different causes and completely different fixes.</p>
+    </li>
+    <li class="qa-item" id="c13-f9">
+      <p class="qa-q">What happens when the model is not confident?</p>
+      <p class="qa-a">There is no bigger model to escalate to, so the options are act, ask, or decline. The right choice depends on reversibility. Changing brightness is trivially undone, so acting is fine. Deleting a recording is not, so confirmation earns its friction. One global threshold for both is the wrong design.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Proposing a single confidence cutoff. The cost of being wrong differs per function, so the threshold should too.</p>
+    </li>
+    <li class="qa-item" id="c13-f10">
+      <p class="qa-q">What is the riskiest claim in this bullet?</p>
+      <p class="qa-a">&#8220;Covering 50+ TV functions&#8221; reads as a success rate and it is a coverage count. It says the catalogue had that many entries, not that all fifty were selected correctly. I would separate those two before anyone asks, and give the accuracy figure separately if I have it.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Letting a count stand as a quality claim. It is the same shape as a 100% success rate that means completion rather than correctness.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="deep-dive">
+  <h2>Deep dive</h2>
+  <p class="qset-note">Half retrieval design, half the constraints of running on a television. Both halves get asked by anyone who has shipped on-device.</p>
+  <ul class="qa-index">
+    <li><a href="#c13-d1">How many to retrieve</a></li>
+    <li><a href="#c13-d2">Descriptions as an index</a></li>
+    <li><a href="#c13-d3">Where the index lives</a></li>
+    <li><a href="#c13-d4">Constrained decoding</a></li>
+    <li><a href="#c13-d5">Slot filling</a></li>
+    <li><a href="#c13-d6">Multi-turn reference</a></li>
+    <li><a href="#c13-d7">Two functions at once</a></li>
+    <li><a href="#c13-d8">Quantization and selection</a></li>
+    <li><a href="#c13-d9">Latency budget</a></li>
+    <li><a href="#c13-d10">Adding a function</a></li>
+    <li><a href="#c13-d11">Measuring it</a></li>
+    <li><a href="#c13-d12">Versus intent classification</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c13-d1">
+      <p class="qa-q">How many functions do you retrieve, and how would you pick that number?</p>
+      <p class="qa-a">Few enough to fit comfortably, many enough that the right one is nearly always present. I would tune it by measuring recall of the correct function at each size. Then selection accuracy at each size. Those move in opposite directions. The best number is where their product peaks, not where either is best.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Optimising recall alone. A longer shortlist guarantees the answer is present and makes the choice harder, so the two have to be measured together.</p>
+    </li>
+    <li class="qa-item" id="c13-d2">
+      <p class="qa-q">You said descriptions are the index. What follows from that?</p>
+      <p class="qa-a">That they have to be written in the words people actually say, not in product vocabulary. If the setting is called &#8220;backlight&#8221; internally and everyone says &#8220;brightness,&#8221; the description needs both. It also means editing a description is a behaviour change and should be tested like one.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Writing descriptions for engineers. They are matched against consumer phrasing, so they should contain consumer phrasing.</p>
+    </li>
+    <li class="qa-item" id="c13-d3">
+      <p class="qa-q">Where does the retrieval index live on a television?</p>
+      <p class="qa-a">On the device, in the same memory budget as the model. That is what keeps it small. Fifty function definitions and their embeddings is a tiny index, which is why this works at all. A general document corpus would not fit, and that constraint is what makes the catalogue the right corpus.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Assuming a vector database. At this size a flat array and a dot product is both sufficient and faster.</p>
+    </li>
+    <li class="qa-item" id="c13-d4">
+      <p class="qa-q">How do you stop the model inventing a function name?</p>
+      <p class="qa-a">Constrain the decode. The output must match a grammar over the shortlist's function names and parameter types. An invalid name then cannot be generated, because those tokens are never available. That is stronger than validating afterwards, since there is no invalid output to reject.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing post-hoc validation. Rejecting a bad output costs a retry, and preventing it costs nothing.</p>
+    </li>
+    <li class="qa-item" id="c13-d5">
+      <p class="qa-q">Why is slot filling harder than function selection?</p>
+      <p class="qa-a">Because people do not state values. &#8220;Make it brighter&#8221; gives a direction and no amount. &#8220;A bit louder&#8221; gives a vague magnitude. The model has to map fuzzy language onto a typed parameter. The sensible default is a relative step, rather than an absolute value it had to guess.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating parameters as easy once the function is chosen. Selection is a closed choice and slot filling is open-ended.</p>
+    </li>
+    <li class="qa-item" id="c13-d6">
+      <p class="qa-q">&#8220;Make it brighter.&#8221; Then &#8220;a bit more.&#8221; What has to happen?</p>
+      <p class="qa-a">The second utterance has no function in it at all. It only means something relative to the previous turn, so the system needs the last action in context. That is conversation state on a device with a tight context budget. In practice it means keeping a short structured record of recent actions, rather than the raw transcript.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating each utterance as independent. Follow-ups are the common case in voice, not the exception.</p>
+    </li>
+    <li class="qa-item" id="c13-d7">
+      <p class="qa-q">&#8220;Turn the volume down and switch to Netflix.&#8221;</p>
+      <p class="qa-a">Two functions in one sentence. The system has to emit a sequence rather than a single call. That means the output format must permit a list. If it does not, the model will pick one and silently drop the other. That is the worst outcome, because the person thinks both happened.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Assuming one call per utterance. Compound commands are ordinary speech, and silently dropping half is worse than failing.</p>
+    </li>
+    <li class="qa-item" id="c13-d8">
+      <p class="qa-q">Why does quantization hurt function selection specifically?</p>
+      <p class="qa-a">Because selecting between similar candidates depends on small differences in the output distribution. Reduced precision is exactly what erodes those. Fluency survives low bit widths well. So the model still produces a confident, well-formed call. It is just slightly more likely to be the wrong one, which is a failure that looks like success.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying quantization lowers accuracy generally. The damage is concentrated exactly on the task this system performs.</p>
+    </li>
+    <li class="qa-item" id="c13-d9">
+      <p class="qa-q">What is the latency budget for a spoken command?</p>
+      <p class="qa-a">Much tighter than a conversation. A person expects a remote control to respond in a few hundred milliseconds, and a television that thinks for two seconds feels broken. That budget covers embedding the request, the retrieval, and the generation. It is also why the model has to be small rather than merely small enough to fit.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Comparing it to a chat turn. A command is not a conversation, and the tolerance is an order of magnitude lower.</p>
+    </li>
+    <li class="qa-item" id="c13-d10">
+      <p class="qa-q">A new feature adds a fifty-first function. What has to happen?</p>
+      <p class="qa-a">Write its description, embed it, add it to the index. No retraining, which is the main benefit of doing selection by retrieval rather than by a trained classifier. The risk is that the new description overlaps an existing one. Then both get retrieved, and selection gets harder for a command that used to work.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying it is free. Adding a candidate makes every neighbouring decision slightly harder, so the regression test is on the old functions.</p>
+    </li>
+    <li class="qa-item" id="c13-d11">
+      <p class="qa-q">How would you measure whether this works?</p>
+      <p class="qa-a">Two metrics, matching the two failures. Retrieval recall, meaning how often the correct function is in the shortlist. And end-to-end accuracy, meaning how often the right function is called with the right parameters. The gap between them is selection error, which is the part a better model fixes.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Reporting one accuracy number. Splitting it tells you which half to invest in, and that is the whole point of measuring.</p>
+    </li>
+    <li class="qa-item" id="c13-d12">
+      <p class="qa-q">Why not a trained intent classifier instead?</p>
+      <p class="qa-a">A classifier over fifty fixed intents would be smaller and faster, and it needs retraining every time a function is added or changed. The retrieval approach handles new functions by writing a description. It also generalises to phrasings nobody thought of, which a classifier trained on a fixed set does poorly.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Dismissing the classifier. For a fixed catalogue it is a genuinely strong baseline, and the argument is about change rather than accuracy.</p>
+    </li>
+  </ol>
+</section>
+
+<div class="quiz" data-quiz-id="0013-q1">
+  <p class="q">This layer is described as RAG. What corpus is being retrieved from?</p>
+  <ol class="options">
+    <li data-correct="true">Retrieval over the function catalogue, not over documents</li>
+    <li>Retrieval over the model weights held in memory</li>
+    <li>Retrieval over the user's own viewing history instead</li>
+    <li>Retrieval over a remote index across the network</li>
+  </ol>
+  <div class="why">
+    <p>The device's own capabilities. Fifty function definitions, each with a description and typed parameters, are far more than a small on-device model can hold alongside the user's sentence. So the retriever narrows fifty to a handful and only those enter the prompt.</p>
+    <p>Nothing crosses the network, which rules out the last option and is the entire reason the work is on-device. Viewing history is a different system's problem, and it appears in chapter 0014 rather than this one.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0013-q2">
+  <p class="q">Constrained output guarantees the model cannot name a function that does not exist. Why is that not enough?</p>
+  <ol class="options">
+    <li data-correct="true">A schema constrains the shape, and never the chosen value</li>
+    <li>A schema is checked only after the call has run</li>
+    <li>A schema cannot be enforced by a quantized small model</li>
+    <li>A schema is advisory text the model may freely ignore</li>
+  </ol>
+  <div class="why">
+    <p>A valid call to the wrong function is structurally identical to a valid call to the right one. The schema removes an entire class of failure, which is invented names and mistyped parameters, and leaves selection error completely untouched.</p>
+    <p>It is the same limit as schema-enforced grounding in chapter 0001: the shape is guaranteed and the value is not. Constrained decoding is also enforced during generation rather than checked afterwards, which is what makes the second option wrong.</p>
+  </div>
+</div>
+
+<section class="qset" id="edges">
+  <h2>Edges and exceptions</h2>
+  <p class="qset-note">Voice systems live in their edges. Most of these are about what happens when the person is not clear.</p>
+  <ul class="qa-index">
+    <li><a href="#c13-e1">Nothing matches</a></li>
+    <li><a href="#c13-e2">Two plausible functions</a></li>
+    <li><a href="#c13-e3">A destructive action</a></li>
+    <li><a href="#c13-e4">Misheard speech</a></li>
+    <li><a href="#c13-e5">Someone else's voice</a></li>
+    <li><a href="#c13-e6">Defending 50+</a></li>
+    <li><a href="#c13-e7">The catalogue grows</a></li>
+    <li><a href="#c13-e8">What you would change</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c13-e1">
+      <p class="qa-q">Someone asks for something the television cannot do.</p>
+      <p class="qa-a">Retrieval still returns the nearest few, because top-k always returns k. The model still has to choose from them. Without a similarity floor it will confidently perform the closest available action, which is worse than failing. The fix is a distance threshold below which the answer is that it cannot be done.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Assuming it declines naturally. Nothing in the pipeline offers &#8220;none of these&#8221; as an option unless you build it.</p>
+    </li>
+    <li class="qa-item" id="c13-e2">
+      <p class="qa-q">Two functions are both plausible for what was said.</p>
+      <p class="qa-a">Then the request was genuinely ambiguous and guessing is the wrong instinct. If both are reversible, pick the more common and make undo obvious. If either is not, ask a single disambiguating question. What you must not do is pick silently and leave the person working out what happened.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Always asking. A question on every ambiguous command makes the product tiring, so reversibility has to decide.</p>
+    </li>
+    <li class="qa-item" id="c13-e3">
+      <p class="qa-q">How do you handle a function that deletes something?</p>
+      <p class="qa-a">Confirmation, independent of confidence. Reversibility should be a property of the function rather than a threshold on the model's certainty. A confident wrong answer is exactly the case that hurts. Destructive functions get a confirm step even at high confidence, and reversible ones do not get one at low confidence.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Gating on confidence alone. Confidence is the model's opinion of itself, and it is the least reliable input to an irreversible decision.</p>
+    </li>
+    <li class="qa-item" id="c13-e4">
+      <p class="qa-q">Speech recognition mishears the command. What does your layer see?</p>
+      <p class="qa-a">A perfectly plausible sentence that is not what was said, and nothing downstream can tell. This layer's input is already the output of another uncertain system, and the errors compound. It argues for the retrieval floor again, since a misheard command often lands nowhere near any function description.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating the transcript as ground truth. It is another model's best guess, and the two error rates multiply.</p>
+    </li>
+    <li class="qa-item" id="c13-e5">
+      <p class="qa-q">A child, or a television advert, says something the set hears.</p>
+      <p class="qa-a">Then the system acts on input nobody intended to give it. That is an activation problem rather than a retrieval one, and it sits upstream of this layer. What this layer can contribute is the reversibility rule, so an unintended command changes brightness rather than deleting recordings.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Claiming it is out of scope. It is upstream, and the mitigation inside your layer is still worth naming.</p>
+    </li>
+    <li class="qa-item" id="c13-e6">
+      <p class="qa-q">Defend &#8220;covering 50+ TV functions.&#8221;</p>
+      <p class="qa-a">It is a coverage count, not an accuracy claim. The catalogue had that many entries and the layer could route to all of them. It does not say all fifty were selected correctly, and I would separate the two. The number that matters is end-to-end accuracy, split into retrieval recall and selection.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Letting the count imply quality. It is the same shape as a success rate that means completion, and interviewers read both the same way.</p>
+    </li>
+    <li class="qa-item" id="c13-e7">
+      <p class="qa-q">The catalogue grows to five hundred functions.</p>
+      <p class="qa-a">Retrieval matters more, not less, and the shortlist size probably has to stay the same. What breaks first is description overlap: at five hundred, many will be near-duplicates and the retriever cannot separate them. That is when you need hierarchy, retrieving a category first and then within it.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying it scales linearly. Retrieval scales fine and disambiguation does not, and that is the interesting half.</p>
+    </li>
+    <li class="qa-item" id="c13-e8">
+      <p class="qa-q">What would you change?</p>
+      <p class="qa-a">Add a similarity floor so &#8220;I cannot do that&#8221; is a real outcome. Make reversibility a property of each function and drive confirmation from it. Then split the accuracy measurement into recall and selection, because right now one number hides which half needs work.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Proposing a bigger model. The device budget is fixed, and two of these three fixes cost nothing at inference.</p>
+    </li>
+  </ol>
+</section>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;RAG on a television? Retrieval over what?&#8221;
+      <span class="tell">The first question every time, because the word RAG sets an expectation of documents. The answer reframes the whole bullet.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Over the device's own function catalogue. It has more than fifty functions, each with a description and typed parameters, and all of that together is far more than a small on-device model can hold alongside the user's sentence. So the request is embedded, matched against the function descriptions, and only the nearest few go into the prompt. The corpus is the capabilities rather than any content.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;What happens when it picks the wrong function?&#8221;
+      <span class="tell">The question that decides the conversation. The strong answer distinguishes two different failures before answering.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>First I would separate two cases, because they need different fixes. Either the right function never reached the shortlist, which is a retrieval recall failure and no model quality recovers it. Or the shortlist was correct and the model chose badly, which is selection and it is exactly where quantization hurts. Then the response depends on reversibility: a wrong brightness change is trivially undone, and anything destructive should have required a confirmation regardless of confidence.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Why not just fine-tune a classifier over fifty intents?&#8221;
+      <span class="tell">A fair challenge with a genuinely strong alternative. Dismissing it is the weak move.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It is a strong baseline and it would be smaller and faster. The argument against it is change rather than accuracy. Every new function means retraining, and a television's catalogue grows with every firmware release. With retrieval, adding a function is writing a description and embedding it. It also generalises better to phrasings nobody anticipated, which a classifier trained on a fixed set handles poorly.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;How do you stop it doing something destructive by mistake?&#8221;
+      <span class="tell">Looking for whether safety is a threshold or a property. The threshold answer is the common one and it is weaker.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>By making reversibility a property of each function rather than a confidence cutoff. Anything destructive gets a confirmation step even when the model is confident, because a confident wrong answer is precisely the case that hurts. Anything trivially reversible acts immediately with a visible undo. A single global confidence threshold treats deleting a recording and changing brightness identically, which is the wrong design.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Someone asks for something the TV cannot do. What happens?&#8221;
+      <span class="tell">Tests whether you know top-k always returns k. Most candidates assume a relevance filter that is not there.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Without a similarity floor, retrieval returns the nearest few anyway and the model confidently performs the closest available action. That is worse than failing, because the person did not get what they asked for and something else changed. The fix is a distance threshold below which the honest answer is that the television cannot do it. Nothing in a top-k pipeline offers &#8220;none of these&#8221; unless you build it.</p>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="recall">
+  <details>
+    <summary>Chapter 0010 explains why quantization damage is uneven. Apply that to this system and say what it implies for evaluation.</summary>
+    <p class="answer">Fluency survives low bit widths and precise discrimination does not. This system's core task is discriminating between similar functions, so the damage lands directly on what it exists to do, while the model still emits confident well-formed calls. That means a general benchmark or a perplexity delta is useless here. The evaluation has to be the function-selection task itself, split into retrieval recall and selection accuracy.</p>
+    <span class="from"><a href="0010-model-optimization.html">Chapter 0010 &#183; uneven damage</a></span>
+  </details>
+  <details>
+    <summary>Chapters 0001 and 0005 both use a typed schema as a safety mechanism. State the shared guarantee and the shared limit.</summary>
+    <p class="answer">The guarantee is structural: a claim cannot be emitted without a sources array, a debug solution's action cannot be a hedge, and here a function name cannot be one that does not exist. The shared limit is that a schema constrains shape and never value. A cited URL may not be in the evidence, and a valid function call may be the wrong function. In all three systems the schema removes one class of failure entirely and leaves correctness to be measured separately.</p>
+    <span class="from"><a href="0001-vendor-evaluation-platform.html">Chapter 0001 &#183; grounding is a schema property</a></span>
+  </details>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">The lessons behind this chapter</span>
+  <p>System Design School teaches these mechanisms from first principles and breaks them in a lab. This chapter defends what you did with them. An interviewer moves between those two registers without warning.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0008-kv-cache-and-prefix-caching.html">SDS 0008 &#183; KV cache and prefix caching</a>
+      <span class="bridge-why">Fifty function definitions in a small context is a prefix-cache and memory-ceiling problem before it is anything else.</span>
+    </li>
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0004-eviction-and-why-lru-is-wrong.html">SDS 0004 &#183; Eviction, and why LRU is wrong</a>
+      <span class="bridge-why">On-device memory is fixed and shared, so what gets evicted under pressure is a design decision rather than a default.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0031 &#183; RAG retrieval as a system &#8212; not yet built</span>
+      <span class="bridge-why">Tool retrieval is retrieval, and the shortlist size here is exactly the k this lesson teaches you to measure rather than guess.</span>
+    </li>
+  </ol>
+</div>
+
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0012-rag-and-evaluation.html">&#8592; 0012 &#183; RAG and evaluation</a></span>
+  <span><span class="dir">Next</span><a href="0014-agentic-journaling.html">0014 &#183; Agentic journaling and semantic routing &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

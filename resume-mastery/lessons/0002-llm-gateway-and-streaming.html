@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>The Gateway and the Move to Streaming</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0002">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">R&#233;sum&#233; Mastery</a>
+    <span class="sep">/</span>
+    <span>Batch A &#183; CloudSufi</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Chapter 0002</span>
+  </div>
+  <h1>The gateway, and the move to streaming</h1>
+  <p class="standfirst">This is the bullet with numbers in it, which makes it the one an interviewer goes to first. It is also the bullet where the wording is ahead of the code in two places. Both are survivable &#8212; but only if you get there before they do.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Own the latency conversation instead of defending it: name every hop, know which one you deliberately made <em>slower</em> and why, and have the p95 ready before it is asked.</p>
+</div>
+
+<div class="claim-line">
+  <span class="callout-label">The line being defended</span>
+  <blockquote>&#8220;Built its custom <strong>OpenAI-compatible LLM gateway</strong>, then moved the inference path from REST to streaming Gemini Live, cutting end-to-end turn latency <strong>47%</strong> at p50 (4.1&#8239;s to 2.2&#8239;s) and <strong>52%</strong> at p90 (5.1&#8239;s to 2.4&#8239;s), with zero mid-interview session drops.&#8221;</blockquote>
+  <span class="whose">CloudSufi &#183; bullet 2 of 4</span>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">A spoken answer to <em>&#8220;you cut turn latency by nearly half &#8212; what did you actually do?&#8221;</em> The version below volunteers both r&#233;sum&#233; corrections early, on purpose: said first they are candour, said last they are damage control.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">The avatar platform calls us once per utterance and expects an OpenAI-shaped reply. The first version waited for the whole answer before sending anything.</p>
+      <p class="line">So the avatar stood silent for the entire generation. In a conversation, the pause before someone starts talking is the thing people actually feel.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">So I moved it to streaming. Two corrections I would rather make myself than have pulled out of me.</p>
+      <p class="line">It is <b>server-sent events over Gemini's OpenAI-compatible REST endpoint</b>, not the bidirectional Live API. My r&#233;sum&#233; overstates that. And the before-and-after pair is <b>my own measurement</b>, not a benchmark in the repo.</p>
+      <p class="line">The mechanism is nicer than it sounds. The Host asks for a JSON object with the <b>reply field declared first</b>.</p>
+      <p class="line">Under a strict schema its characters come out first, and an incremental extractor forwards them as they land. It never advances past a fragment it cannot fully decode.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">Alongside that, I split one retry policy into <b>three failure classes</b> at the model call. Model gone, our payload wrong, or spurious.</p>
+      <p class="line">That came out of an incident where model aliases plus a substring test meant <b>every single turn</b> was misdiagnosed as an outage, and silently retried.</p>
+      <p class="line"><strong>236 warnings, a hundred percent of turns, and no alert</strong>, for four days.</p>
+      <p class="line">Where it stands now, measured over 86 host turns: <b>p50 two and a half seconds, p90 4.5, p95 4.7</b>, nothing above 5.7.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">Two things. I made part of this path <b>deliberately slower</b>. The settle beat went from half a second to two, so a vendor who is only pausing mid-thought does not get interrupted.</p>
+      <p class="line">It is the second-largest bar in the whole breakdown. It is inside every number I just quoted, and I could improve my median tomorrow by deleting it.</p>
+      <p class="line">And streaming gives up the ability to take words back. The buffered path could discard a bad reply. Once the avatar is speaking, it is speaking.</p>
+      <p class="line">Separately, &#8220;zero session drops&#8221; is true of <b>sessions</b>. In the same period four of six interviews failed to score, which is a different layer and was fixed separately.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;We moved to streaming Gemini Live and cut latency 47%.&#8221;</span> This is the r&#233;sum&#233; line said out loud, and it fails on one question &#8212; <em>&#8220;so you're holding a bidirectional session to the model?&#8221;</em> &#8212; because the honest answer is no, it is SSE over the OpenAI-compatible REST endpoint. Correcting your own wording unprompted reads as precision. Being corrected reads as either carelessness or something worse, and the interviewer cannot tell which, so they assume the worse one.</p>
+  <p>The second trap is quieter: <span class="quoted">&#8220;we got the median down to 2.2 seconds.&#8221;</span> Any median quoted against a hard budget summons the tail question instantly, and here the tail is <em>fine</em> &#8212; so leading with p95 costs you nothing and buys the room. The version that lands: <span class="quoted">&#8220;p50 2.5, p95 4.7, nothing above 5.7, and a deliberate two-second wait is inside all of those.&#8221;</span> Volunteering the tail and the self-inflicted delay in one sentence is the whole difference between a number you reported and a system you ran.</p>
+</div>
+
+
+<div class="trace">
+  <span class="callout-label">Walk them through it &#183; one turn, end to end</span>
+  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One conversational turn, followed from the vendor's last syllable to the avatar's first. Every number here is measured. The sentence the vendor says is invented.</p>
+  <p class="tr-case"><b>The picture.</b> A simultaneous interpreter at a conference. They start speaking before the sentence they are translating has finished, because a room that waits for whole paragraphs is a room in silence. The price is that a word already out of their mouth cannot be taken back. That trade is this whole chapter.</p>
+  <p class="tr-case"><b>The case.</b> A vendor has just finished answering a question about their deployment model. Follow that one turn. The avatar is a third-party product we do not own, and it speaks exactly one dialect.</p>
+  <ol>
+    <li class="tr-step">
+      <span class="tr-k">The utterance</span>
+      <p><b>What happens.</b> The avatar platform decides the person has stopped speaking. It sends us their words and asks for a reply.</p>
+      <p><b>Concretely.</b> That request arrives in OpenAI's chat-completions format. The avatar only knows how to talk to that shape, so the gateway wears it.</p>
+      <p><b>If they ask why.</b> We do not control the avatar and cannot teach it a new protocol. Looking like OpenAI is the cost of using somebody else's face.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The settle beat</span>
+      <p><b>What happens.</b> Before anything is sent to a model, we wait. Two full seconds.</p>
+      <p><b>Concretely.</b> That wait used to be half a second. I raised it to two on purpose, which made my own headline number worse.</p>
+      <p><b>If they ask why.</b> Half a second reads a breath as a finished answer, and the avatar talks over somebody mid-thought. The beat is now the second-largest bar in the latency breakdown. I could improve my median tomorrow by deleting it.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The gateway</span>
+      <p><b>What happens.</b> The request is authenticated, and then the interview logic runs. Which question is next, what has already been asked, what state this session is in.</p>
+      <p><b>Concretely.</b> None of that is visible from outside. The caller sees an OpenAI endpoint and nothing else.</p>
+      <p><b>If they ask why.</b> After that auth check, this service never returns an error. An internal failure becomes a successful response carrying a bland line. An avatar standing silently in front of a vendor is worse than an avatar saying something dull.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The model call</span>
+      <p><b>What happens.</b> The gateway calls Gemini and asks for the answer as a stream rather than as a finished block.</p>
+      <p><b>Concretely.</b> This is server-sent events over Gemini's OpenAI-compatible REST endpoint. It is not the bidirectional Live API, and my r&#233;sum&#233; overstates that. I would rather correct it myself than have it pulled out of me.</p>
+      <p><b>If they ask why.</b> Server-sent events are a one-way stream over ordinary HTTP. Only the server needs to push here, so a full socket buys nothing.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Reply first</span>
+      <p><b>What happens.</b> The model is asked for a JSON object, and the spoken reply is declared as the first field in it.</p>
+      <p><b>Concretely.</b> Under a strict schema the fields come out in the declared order. So the characters we want to speak arrive before anything else does.</p>
+      <p><b>If they ask why.</b> Streaming only helps if the useful part arrives first. Put the reply field third and you have a stream that still makes everyone wait.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The extractor</span>
+      <p><b>What happens.</b> Characters arrive a few at a time. An incremental extractor pulls the reply out of a JSON document that is not finished yet.</p>
+      <p><b>Concretely.</b> It never advances past a fragment it cannot fully decode. A half-arrived escape sequence waits rather than being guessed at.</p>
+      <p><b>If they ask why.</b> Speaking a character you got wrong is unrecoverable. The avatar has already said it.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The avatar talks</span>
+      <p><b>What happens.</b> The first safe characters go back up the stream and the avatar starts speaking. The rest of the answer is still being generated behind it.</p>
+      <p><b>Concretely.</b> Measured over 86 host turns, the median turn now lands at two and a half seconds. p90 is 4.5, p95 is 4.7, and nothing went above 5.7.</p>
+      <p><b>If they ask why.</b> Streaming made nothing faster. The model takes as long as it always did. What changed is when the avatar is allowed to open its mouth.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Barge-in</span>
+      <p><b>What happens.</b> Say the vendor starts talking again while that reply is still generating. The in-flight turn is abandoned rather than raced.</p>
+      <p><b>Concretely.</b> A superseded turn is cancelled and writes nothing to state. It does not get to finish and quietly win.</p>
+      <p><b>If they ask why.</b> Two turns both writing is how a session ends up with a reply to a question nobody asked.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">When it fails</span>
+      <p><b>What happens.</b> Three different things can go wrong on that model call, and all three arrive looking identical. The model is gone, our payload is wrong, or it is spurious.</p>
+      <p><b>Concretely.</b> Telling two of them apart with a substring test is what cost me four days. A pinned alias resolved to a model that refused a parameter we send.</p>
+      <p><b>If they ask why.</b> Every turn was diagnosed as an outage and silently retried on a fallback. A hundred per cent of turns, 236 warnings, no alert. Nobody alerts on warnings, and that is the part I would change first.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The cost</span>
+      <p><b>What happens.</b> The buffered version could look at a finished reply and throw it away. The streaming version cannot.</p>
+      <p><b>Concretely.</b> Once the avatar is speaking, it is speaking. Any guardrail has to run before the first character leaves, not after the last one.</p>
+      <p><b>If they ask why.</b> And the r&#233;sum&#233; line says zero session drops, which is true of sessions. In the same window four interviews out of six failed to score. That is a different layer and it was fixed separately.</p>
+    </li>
+  </ol>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 330" role="img" aria-labelledby="mech0002-t mech0002-d">
+    <defs>
+      <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+      <marker id="ar2b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head-bad"/>
+      </marker>
+      <marker id="ar2g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head-good"/>
+      </marker>
+    </defs>
+    <title id="mech0002-t">One turn through the gateway, with the settle beat drawn to scale</title>
+    <desc id="mech0002-d">An utterance arrives from the avatar platform. The gateway first waits a deliberate settle beat so a vendor who was only pausing can finish; a new fragment arriving during that window cancels the waiting turn. Then the Host builds a prompt and calls Gemini with streaming enabled. Because the reply field is declared first in the strict schema, its characters arrive first and an incremental extractor forwards them as server-sent events, so the avatar begins speaking before generation has finished. After authentication, every error path returns a successful response with a canned reply instead of failing.</desc>
+
+    <rect class="box" x="8" y="20" width="132" height="48" rx="3"/>
+    <text class="lbl strong" x="74" y="41" text-anchor="middle">Avatar platform</text>
+    <text class="lbl-dim" x="74" y="58" text-anchor="middle">posts per utterance</text>
+
+    <path class="flow" marker-end="url(#ar2)" d="M 144 44 H 196"/>
+
+    <rect class="accent" x="200" y="12" width="632" height="200" rx="3"/>
+    <text class="lbl strong ink-accent" x="216" y="32">Gateway &#8212; OpenAI-compatible in, our interview state within</text>
+
+    <rect class="warn" x="216" y="46" width="150" height="70" rx="3"/>
+    <text class="lbl strong ink-warn" x="291" y="68" text-anchor="middle">Settle beat</text>
+    <text class="lbl-dim" x="291" y="86" text-anchor="middle">deliberate wait</text>
+    <text class="lbl-dim" x="291" y="104" text-anchor="middle">latency we CHOSE</text>
+
+    <path class="flow-bad" marker-end="url(#ar2b)" d="M 291 130 V 158"/>
+    <text class="lbl-dim ink-bad" x="216" y="176">new fragment here &#8594;</text>
+    <text class="lbl-dim ink-bad" x="216" y="192">cancel, step aside, touch no state</text>
+
+    <path class="flow" marker-end="url(#ar2)" d="M 370 80 H 406"/>
+
+    <rect class="box" x="410" y="46" width="150" height="70" rx="3"/>
+    <text class="lbl strong" x="485" y="68" text-anchor="middle">Host &#8594; Gemini</text>
+    <text class="lbl-dim" x="485" y="86" text-anchor="middle">stream=true</text>
+    <text class="lbl-dim" x="485" y="104" text-anchor="middle">404 / 400-effort / 400</text>
+
+    <path class="flow" marker-end="url(#ar2)" d="M 564 80 H 600"/>
+
+    <rect class="box-2" x="604" y="46" width="212" height="70" rx="3"/>
+    <text class="lbl strong" x="710" y="68" text-anchor="middle">Extractor &#8594; SSE</text>
+    <text class="lbl-dim" x="710" y="86" text-anchor="middle">&#8220;reply&#8221; declared FIRST</text>
+    <text class="lbl-dim" x="710" y="104" text-anchor="middle">never advance past a partial</text>
+
+    <text class="lbl-dim ink-good" x="410" y="168">after auth the route NEVER fails &#8212;</text>
+    <text class="lbl-dim ink-good" x="410" y="186">any error becomes 200 + a canned reply</text>
+
+    <path class="flow-good" marker-end="url(#ar2g)" d="M 710 124 V 236 H 74 V 76"/>
+    <text class="lbl strong ink-good" x="300" y="254">first characters &#8594; avatar starts speaking</text>
+    <text class="lbl-dim" x="300" y="272">generation is still running</text>
+
+    <text class="lbl-dim" x="8" y="306">Measured, 86 host turns: p50 2504&#8239;ms &#183; p90 4468 &#183; p95 4703 &#183; max 5678. The settle beat is inside all of them.</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">What you say while you draw it</span>
+    <ol class="narrate">
+      <li>&#8220;The avatar platform posts to us once per utterance &#8212; it speaks OpenAI's dialect and knows nothing about interviews.&#8221; Box, left.</li>
+      <li>&#8220;Everything inside this frame is ours.&#8221; Draw the frame.</li>
+      <li>&#8220;First thing we do is <b>wait on purpose</b>.&#8221; Draw the settle beat box, and make it visibly wide &#8212; the size is the point.</li>
+      <li>&#8220;If a new fragment lands in that window, the waiting turn is <b>cancelled and touches no state</b>.&#8221; Draw the branch down.</li>
+      <li>&#8220;Then the Host builds the prompt and calls Gemini with streaming on.&#8221;</li>
+      <li>&#8220;Three failures live at that call and they are not the same thing: model gone, our payload wrong, or nothing at all.&#8221;</li>
+      <li>&#8220;The reply field is <b>declared first</b> in the schema, so its characters come out first.&#8221; This is the mark that makes streaming work rather than merely happen.</li>
+      <li>&#8220;An extractor forwards what it is <b>certain</b> of, and never advances past a partial escape.&#8221;</li>
+      <li>&#8220;Those characters go back as server-sent events and <b>the avatar starts talking</b> &#8212; while generation is still running.&#8221; Draw the long return arrow.</li>
+      <li>&#8220;And after auth this route never fails &#8212; an error becomes a 200 with a canned line, because there is no error page in a conversation.&#8221;</li>
+      <li>&#8220;Measured across 86 host turns: p50 two and a half seconds, p95 four point seven.&#8221;</li>
+      <li>&#8220;And the settle beat is <b>inside</b> every one of those numbers &#8212; I could have a better median tomorrow by deleting it.&#8221; Underline it, and stop.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. The test is whether the settle beat comes out <em>first</em> &#8212; if you draw the Gemini call before the wait, you have drawn somebody else's gateway.</p>
+  <ul>
+    <li>The <b>settle beat drawn wide</b>, with the cancel branch hanging off it.</li>
+    <li><b>&#8220;reply&#8221; declared first</b> &#8212; without this mark, streaming is unexplained magic.</li>
+    <li>The <b>long return arrow</b> to the avatar, crossing under everything, labelled &#8220;starts speaking.&#8221;</li>
+    <li>One real number. <b>p50 2504, p95 4703</b>, and the sentence that the beat is inside both.</li>
+  </ul>
+  <span class="timer">Say &#8220;wait, call, extract, speak&#8221; as you draw. Four words, left to right, and the first one is the one nobody expects.</span>
+</div>
+
+<div class="star">
+  <span class="callout-label">Behavioural &#183; the story for this bullet</span>
+  <p class="frame">For <em>&#8220;tell me about a bug that took you too long to find&#8221;</em> &#8212; and for <em>&#8220;a time you had to argue against a metric someone cared about.&#8221;</em></p>
+  <ol class="rungs">
+    <li class="rung"><span class="rung-k">Decision</span><p>Whether to keep optimising the number, or to spend two seconds of it on something the number would never reward.</p></li>
+    <li class="rung"><span class="rung-k">Situation</span><p>Interviews felt wrong in a way latency did not explain. The Host was cutting vendors off mid-thought &#8212; a pause for breath read as a finished answer. Meanwhile the visible goal was a faster turn, and the obvious move was to shave the wait.</p></li>
+    <li class="rung"><span class="rung-k">Action</span><p>I went the other way and raised the settle beat from half a second to two. Then I measured what it bought, rather than asserting it. In the same period I traced the four-day slowdown. Every turn was silently retrying on a fallback model, because an alias resolved to one that refused a parameter. I replaced the substring test with three explicit failure classes.</p></li>
+    <li class="rung"><span class="rung-k">Result</span><p>Interruptions stopped. The beat is now the second-largest bar in the latency breakdown: visible, named, and defended rather than hidden. The retry fix removed a duplicated model call from a hundred percent of turns.</p></li>
+    <li class="rung"><span class="rung-k">What it cost</span><p>My own headline metric got worse, and I had to explain that a two-second regression was the feature. It also cost four days of not finding a bug that fired on every request. It only ever produced warnings, and nobody alerts on warnings. That is the part I would change. I would have alerted on fallback-model usage long before I needed to.</p></li>
+  </ol>
+</div>
+
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>The avatar on screen is not ours. It is a third-party product that renders a talking face and handles speech. It has one hook. When the person finishes speaking, it sends us their words and asks for a reply. The catch is that it speaks a fixed dialect: the same request format OpenAI uses. So anything we plug in has to look like OpenAI, whatever is actually behind it.</p>
+  <p>That is the gateway. It accepts OpenAI-shaped requests, runs our interview logic, calls Gemini, and returns an OpenAI-shaped reply. <b>The most important property is that after the request is authenticated, it never fails.</b> Any internal error becomes a successful response with a canned line. An avatar standing silently in front of a vendor is worse than an avatar saying something bland.</p>
+  <dl>
+    <dt>Gateway</dt>
+    <dd>A service that presents one API shape while doing something else behind it. Here: OpenAI's chat-completions format on the front, our interview state machine and Gemini behind.</dd>
+
+    <dt>Turn</dt>
+    <dd>One exchange. The vendor speaks, the avatar replies. The budget for the whole thing is measured in seconds, not milliseconds, because a human conversation tolerates a pause.</dd>
+
+    <dt>TTFW / TTFT</dt>
+    <dd>Time to first word, or first token. How long until the avatar <em>starts</em> talking &#8212; which for a conversation matters far more than when it finishes.</dd>
+
+    <dt>Buffered vs streaming</dt>
+    <dd>Buffered waits for the whole reply then sends it. Streaming sends characters as they arrive, so the avatar can begin speaking while the rest is still being generated.</dd>
+
+    <dt>SSE &#8212; server-sent events</dt>
+    <dd>A one-way stream over plain HTTP: the server keeps the response open and pushes chunks. Simpler than a WebSocket and enough when only one side needs to push.</dd>
+
+    <dt>Settle beat</dt>
+    <dd>A deliberate pause after the vendor stops talking, before we call the model, so somebody who was only drawing breath is not interrupted. <b>It makes the number on the r&#233;sum&#233; worse on purpose.</b></dd>
+
+    <dt>Barge-in</dt>
+    <dd>The vendor starts talking again while a reply is being generated. The in-flight turn must be abandoned, not raced.</dd>
+
+    <dt>Superseded turn</dt>
+    <dd>A turn that a newer utterance has replaced. It is cancelled and steps aside without writing anything to state.</dd>
+
+    <dt>Pinned model</dt>
+    <dd>Naming an exact model version rather than an alias like &#8220;latest.&#8221; An alias can quietly start resolving to a model that rejects a parameter you send.</dd>
+  </dl>
+</div>
+
+<div class="primer stack">
+  <span class="callout-label">The technology &#8212; what each named thing is</span>
+  <p>The primer above names the parts of a turn. This one names the wire it travels on, starting from the ground. Every latency claim in this chapter is a claim about one of these.</p>
+  <p>Every entry answers four things. What it actually is, in plain words. Where this system uses it. What it buys, meaning what goes wrong without it. And the follow-up an interviewer asks once you have said the name.</p>
+  <dl>
+    <dt>REST</dt>
+    <dd><i>the shape this moved away from</i>The ordinary way two programs talk over the web. The client sends one request and then waits, doing nothing, until the server sends one complete response back. Everything arrives at once or not at all. <b>In the app.</b> It is what the gateway did first, and it is still the right shape for everything that is not speech. <b>What it buys.</b> Simplicity you should not give up lightly. One request, one response, easy to retry, easy to cache, easy to debug with a single command. <b>The follow-up.</b> Nothing is wrong with REST. It is wrong for speech, and for one reason. The unit of delivery is the finished answer, so an avatar cannot open its mouth until the last token has landed, however fast the model was.</dd>
+
+    <dt>OpenAI-compatible</dt>
+    <dd><i>the <code>/chat/completions</code> contract</i>An agreement about the shape of the JSON, nothing more. A <code>messages</code> array goes in, a <code>choices</code> array and a <code>usage</code> token count come back. Because OpenAI got there first, almost every client library and tool speaks this shape, so serving it makes you a drop-in replacement. It implies nothing at all about which model answers. <b>In the app.</b> The gateway presents this surface, and Google publishes the same shim at <code>generativelanguage.googleapis.com/v1beta/openai/</code>. <b>What it buys.</b> A caller switches to the gateway by changing one base URL. No new SDK, no rewritten call sites, no migration project. That is what makes a gateway adoptable instead of a thing teams route around. <b>The follow-up.</b> Compatible is not identical. The shim covers chat completions and embeddings, and any field a provider has not implemented fails when you call it rather than when you import the library. So the failure arrives in production, from a parameter that worked elsewhere.</dd>
+
+    <dt><code>stream: true</code></dt>
+    <dd><i>the flag that changes the unit</i>One boolean field in the request body. With it set, the server stops sending a finished object and starts sending the answer in pieces as it is generated. The model was always producing text a token at a time. This flag decides whether you are allowed to see that. <b>In the app.</b> It is the whole difference between 4.1 seconds and 2.2 seconds at p50. <b>What it buys.</b> Perceived speed, which for a speaking avatar is the only speed that counts. The total generation time barely changes. What changes is that the first word leaves while the rest is still being written. <b>The follow-up.</b> The last chunk. A stream ends with a terminator and a finish reason, and a client that ignores them treats a stream cut short by an error as a complete, shorter answer. Truncation that looks like brevity is the nastiest bug in this area.</dd>
+
+    <dt>SSE</dt>
+    <dd><i>server-sent events</i>A way of keeping an ordinary HTTP response open and writing to it over time. The server sends text frames, each a line beginning <code>data:</code> and separated by a blank line, for as long as it likes. Traffic goes one way only, server to client. Browsers implement it natively and reconnect on their own. <b>In the app.</b> It carries the token stream for a text turn. <b>What it buys.</b> Streaming without a new protocol. It is still an HTTP response, so existing load balancers, auth headers and logging all keep working, and the client side is a few lines rather than a connection library. <b>The follow-up.</b> Why not WebSocket everywhere. SSE needs no upgrade handshake, passes through proxies that only understand plain HTTP, and gives reconnection for free. Reach for the heavier protocol when you actually need to talk back, not before.</dd>
+
+    <dt>Chunked transfer</dt>
+    <dd><i>HTTP/1.1 chunked transfer encoding</i>HTTP normally announces the size of a response up front in a <code>Content-Length</code> header, which you cannot do if you have not written the response yet. Chunked encoding is the alternative. The body is sent as a series of length-prefixed pieces, ending with a zero-length one. <b>In the app.</b> It is the mechanism beneath SSE, one layer further down than anything the application code touches. <b>What it buys.</b> It is the reason a token can leave the server before the answer exists. Without it, streaming at the HTTP level is not expressible. <b>The follow-up.</b> Every hop has to honour it. One reverse proxy that buffers the body to inspect it turns the stream back into a single response. The page still works, nobody sees an error, and the only symptom is the latency number you were hired to improve.</dd>
+
+    <dt>WebSocket</dt>
+    <dd><i>the two-way one</i>A connection where both sides can send whenever they want, for as long as it stays open. It starts as an HTTP request carrying an upgrade header, and once the handshake completes the protocol switches and both ends exchange frames freely on the same socket. <b>In the app.</b> It carries the voice path, where audio flows in both directions at once. <b>What it buys.</b> Barge-in. The user can start speaking while the model is still speaking, because the upstream channel was never closed. You cannot build an interruptible conversation on a protocol that only lets the server talk. <b>The follow-up.</b> What it costs. An open socket is state living on one specific server, which pins a session to an instance. That single property is what decides whether a deployment target suits the workload, and it is why autoscaling and rolling updates get harder the moment you adopt it.</dd>
+
+    <dt>Gemini Live</dt>
+    <dd><i>the <code>BidiGenerateContent</code> endpoint</i>Most model APIs are stateless. You resend the whole conversation with every turn and the server remembers nothing. Live inverts that. You open a WebSocket, send one setup message naming the model, the output modality and the system instruction, and then stream audio in and receive audio out on that same connection for the rest of the conversation. <b>In the app.</b> It is the voice path, replacing a separate speech-to-text, model and text-to-speech chain. <b>What it buys.</b> The session becomes the unit instead of the request, which removes a round trip and a re-upload of context from every single turn. It also removes two conversions from the middle of the latency budget. <b>The follow-up.</b> Stateful means resumption. If the socket drops, the conversation is gone unless you kept it yourself, and &#8220;zero session drops&#8221; is a claim about precisely that machinery.</dd>
+
+    <dt>PCM</dt>
+    <dd><i>raw pulse-code modulation</i>Sound as plain numbers. Thousands of times a second the waveform's height is measured and stored as an integer, with no compression and no codec. The Live API wants 16-bit little-endian samples at 16&#8239;kHz going up, and returns 24&#8239;kHz coming down. <b>In the app.</b> It is the audio format on both legs of the voice path. <b>What it buys.</b> Zero decode time. Nothing has to be unpacked before the model sees it and nothing has to be unpacked before the speaker plays it, which matters when the whole budget is a few hundred milliseconds. <b>The follow-up.</b> The arithmetic, because an interviewer will ask why you are not compressing. Sixteen thousand samples a second at two bytes each is 32&#8239;kB/s upstream. Compressing saves bandwidth nobody is short of and adds an encode and a decode to a budget that is already tight, which is the wrong trade.</dd>
+
+    <dt>p50 and p90</dt>
+    <dd><i>percentiles, not averages</i>Sort every measured turn from fastest to slowest. p50 is the one in the middle, so half of turns were faster than that. p90 is nine tenths of the way along, so one turn in ten was slower. p50 describes the typical experience and p90 describes the bad days. <b>In the app.</b> The bullet quotes both, because they moved by different amounts, 47% and 52%. <b>What it buys.</b> An honest picture of the tail. Users do not experience an average, they experience their own turn, and the ones who leave are in the tail. <b>The follow-up.</b> Why not the mean. One thirty-second turn drags an average upwards while moving neither percentile, so a mean can hide the exact thing you set out to fix. And any percentile needs a stated time window and sample count before it means anything at all.</dd>
+
+    <dt>Google GenAI SDK</dt>
+    <dd><i><code>genai.live</code></i>The official Python client for Gemini. It covers both the ordinary request and response API and the Live sessions, handling the socket, the setup message and the frame encoding so the application deals in turns rather than in bytes. <b>In the app.</b> The Live path uses it directly rather than through the OpenAI shim, because the shim has no bidirectional session to expose. <b>What it buys.</b> Access to the features that only exist on the native surface. Compatibility layers always trail the API they imitate, and the streaming session is exactly the kind of thing they trail on. <b>The follow-up.</b> Two clients, one gateway. Say plainly that the OpenAI-compatible surface is what callers see, and the SDK is what the streaming path uses internally. Otherwise an interviewer will assume you replaced one with the other and the rest of the answer will not add up.</dd>
+
+    <dt>Token</dt>
+    <dd><i>the unit the model works in</i>A model does not read characters or words. Text is first cut into tokens, each roughly three quarters of a word in English, and every token becomes a number the model consumes. Output is produced the same way, one token at a time. Billing is per token in both directions. <b>In the app.</b> Every latency number here is really a statement about tokens. <b>What it buys.</b> A unit that lets you split latency into two independent halves. Time to first token measures queueing and prefill, the work of reading your prompt. Tokens per second measures generation, everything after. <b>The follow-up.</b> Which of the two a given fix actually moved. Trimming a system prompt shortens prefill and moves TTFT. Changing the model tier usually moves the rate instead. The two appear in completely different places on a latency chart, and conflating them is how a real improvement gets reported as no change.</dd>
+  </dl>
+</div>
+
+
+
+<h2>Why a gateway at all</h2>
+
+<p class="breath">The avatar can only speak to one kind of service, so we built something wearing that shape. Everything interview-specific lives behind it. And once past the login check it never returns an error, because an avatar that freezes is worse than one that stalls.</p>
+
+<p>The avatar vendor's agent posts a standard chat-completions request once per utterance. It does not know about interviews, questionnaires, rubrics or state. So the choice is either to push interview logic into their platform &#8212; which is not on offer &#8212; or to present an endpoint that looks exactly like the one they already speak to.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>The avatar only knows how to talk to one kind of service. So we built something that looks like that kind of service from outside, and is entirely ours inside.</p>
+
+<p>That framing is what makes the next property make sense. <strong>After auth, the route never fails.</strong> Auth failures return real 4xx codes, but past that point every error path produces an HTTP 200 with a canned reply. Not because errors do not matter &#8212; they are logged and metered &#8212; but because the failure mode this protects against is an avatar going silent mid-interview in front of a customer, and there is no error page in a conversation.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>If something breaks, the avatar says something ordinary instead of freezing. A person who says &#8220;sorry, could you repeat that?&#8221; is recoverable. A person who stops moving is not.</p>
+
+<h2>Buffered, then streamed &#8212; and what streaming actually bought</h2>
+
+<p class="breath">Streaming did not make the model faster. It changed when the avatar could start talking. The trick is asking for the spoken part first, then handing over only the characters we are certain of as they arrive.</p>
+
+<p>The first version waited for the whole reply, then handed it over. Streaming changes when the avatar can start speaking, not how fast the model generates. The mechanism is worth stating precisely because it is unusually neat: the Host asks Gemini for a JSON object with two fields, <code>reply</code> and <code>answer_complete</code>, and <strong><code>reply</code> is declared first</strong>. Under a strict schema, that guarantees the reply string is the first value emitted &#8212; so its characters arrive before anything else and can be spoken immediately.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>We ask for the answer in a set order. The part the avatar has to say comes first. So it can start talking while the rest is still being written.</p>
+
+<p>The hard part is that those characters land wrapped in JSON and chopped at arbitrary byte boundaries. An incremental extractor decodes the reply value as characters become unambiguously available and never advances past a fragment it cannot fully decode &#8212; a half-written escape sequence at a chunk boundary simply waits for the next chunk. And if the object turns out malformed <em>after</em> the reply, the reply characters were already emitted correctly: the caller speaks them and leaves state unchanged, matching the buffered path's soft-fail exactly.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>The text arrives in pieces, and a piece can split in the middle of a letter. So we only hand over what we are certain of. We never guess.</p>
+
+<h2>Three failures that look identical and are not</h2>
+
+<p class="breath">Three different things can go wrong on a model call. All three arrive looking the same. Telling two of them apart wrongly made every turn do its work twice, for four days, while every request still returned success.</p>
+
+<p>The single best story in this chapter is a diagnostic one. Every call to Gemini can fail in three ways that all present as an HTTP error, and conflating two of them cost four days of every interview running slow with nothing to show why.</p>
+
+<p>A <strong>404</strong> means the model is gone &#8212; retry once on a pinned fallback. A <strong>400 naming the thinking level</strong> means our payload is wrong for this model; replay once with the effort lowered, and log at ERROR, because no retry fixes a misconfiguration &#8212; somebody has to change a value. <strong>Any other 400</strong> may be nothing at all: Gemini returns 400 spuriously and the identical payload succeeds on replay.</p>
+
+<p>What went wrong is the part to tell. The models were aliases like &#8220;latest,&#8221; on the reasoning that a fallback would catch an alias that stopped resolving. But an alias can also start resolving to a model that <em>refuses a parameter you send</em> &#8212; and the substring test standing in for &#8220;model error&#8221; (a 400 whose body mentioned the word &#8220;model&#8221;) matched Gemini's own wording for exactly that. So every Host turn was diagnosed as a model outage, silently retried on the fallback, and still returned 200. <strong>236 warnings, 100% of turns, and no alert.</strong></p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Everything looked fine from outside, because every request succeeded. It just quietly did the work twice, every single time. And nothing was watching the one number that would have shown it.</p>
+
+
+
+<section class="qset" id="toolbox">
+  <h2>Toolbox</h2>
+  <p class="qset-note">Every noun in the bullet, defined out loud, from the ground up. This chapter argues about transports, and an interviewer will stop the argument to ask what one of them is. Each answer says what the thing is, what it does here, and what you would lose without it.</p>
+  <ul class="qa-index">
+    <li><a href="#c02-t1">What OpenAI-compatible means</a></li>
+    <li><a href="#c02-t2">Why REST is the wrong shape</a></li>
+    <li><a href="#c02-t3">SSE against WebSocket</a></li>
+    <li><a href="#c02-t4">What Gemini Live is</a></li>
+    <li><a href="#c02-t5">What streaming needs end to end</a></li>
+    <li><a href="#c02-t6">What p50 and p90 mean</a></li>
+    <li><a href="#c02-t7">Why the audio is raw</a></li>
+    <li><a href="#c02-t8">What TTFT measures</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c02-t1">
+      <p class="qa-q">What does &#8220;OpenAI-compatible&#8221; actually mean?</p>
+      <p class="qa-a">It is an agreement about the shape of the JSON, and nothing more. A client posts to <code>/chat/completions</code> with a messages array and gets back a choices array and a token count. Because OpenAI got there first, almost every client library and tool speaks that shape. Serving it makes you a drop-in replacement. Nothing about the model behind it is implied. Google publishes the same shim, so our gateway and Gemini's own endpoint accept the same body. The value is that a caller switches to us by changing one base URL. No new SDK, no rewritten call sites, no migration project. That is what makes a gateway adoptable rather than a thing teams route around.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating it as a statement about the model. It is a statement about the envelope, and the whole point is that the envelope outlives the model inside it.</p>
+    </li>
+    <li class="qa-item" id="c02-t2">
+      <p class="qa-q">What is REST here, and why is it the wrong shape for a spoken turn?</p>
+      <p class="qa-a">REST here means one request and one complete response. The client sends, then waits doing nothing, then gets the whole answer at once. It is a good default and you should not give it up lightly. One request and one response is easy to retry, easy to cache and easy to debug with a single command. It is right for a form and wrong for speech, and for one reason. The unit of delivery is the finished answer, so nothing can be said aloud until the last token lands. Streaming changes the unit from the answer to the token. The first word leaves while the rest is still being generated.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling REST slow. It is not slower. It delivers later, which is a different fault and the one that matters here.</p>
+    </li>
+    <li class="qa-item" id="c02-t3">
+      <p class="qa-q">What is SSE, and when would you reach for a WebSocket instead?</p>
+      <p class="qa-a">Server-sent events is a way of keeping an ordinary HTTP response open and writing to it over time. The server sends text frames, each a line starting with <code>data:</code>, for as long as it likes. Traffic goes one way only. Browsers implement it natively and reconnect on their own. What it buys is streaming without a new protocol. It is still an HTTP response, so load balancers, auth headers and logging all keep working. A WebSocket is two-way and needs an upgrade handshake to switch protocols. Use SSE when only the server talks. Use a WebSocket when the client must also send mid-turn, which is what audio does.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;WebSocket because it is real-time.&#8221; Both are real-time. Direction is the deciding property, and half-duplex is cheaper to operate.</p>
+    </li>
+    <li class="qa-item" id="c02-t4">
+      <p class="qa-q">What is the Gemini Live API, and what is underneath it?</p>
+      <p class="qa-a">Most model APIs are stateless. You resend the whole conversation every turn and the server remembers nothing. Live inverts that. It is a stateful session with the model over a WebSocket, at the <code>BidiGenerateContent</code> endpoint. You open it and send one setup message, naming the model and the output modality. After that you stream input and receive output on the same socket for the whole conversation. Audio goes up as 16-bit PCM at 16&#8239;kHz and comes back at 24&#8239;kHz. The session is the unit, not the request. That removes a round trip and a re-upload of context from every turn, and it removes two format conversions from the middle of the budget.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing it as &#8220;streaming Gemini&#8221; and leaving it there. Stateful is the word that matters, because state is what you have to recover after a drop.</p>
+    </li>
+    <li class="qa-item" id="c02-t5">
+      <p class="qa-q">What has to be true for streaming to work all the way to the client?</p>
+      <p class="qa-a">Every hop has to forward bytes as they arrive. The model streams to the gateway. The gateway streams to the client. Nothing in between buffers a whole response. HTTP normally announces a response's size up front, which you cannot do if you have not written it yet. Chunked transfer encoding is the alternative, sending length-prefixed pieces ending with a zero-length one. That is the mechanism that lets a token leave before the answer exists. Without it, streaming is not expressible at the HTTP level at all. A proxy that buffers the body for inspection quietly turns the whole thing back into REST. The page still works, nobody sees an error, and the latency win is gone.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Claiming the win without naming the hops. The number is a property of the whole path, and any one buffer in it is enough to erase the result.</p>
+    </li>
+    <li class="qa-item" id="c02-t6">
+      <p class="qa-q">What do p50 and p90 mean, and why quote both?</p>
+      <p class="qa-a">Sort every measured turn from fastest to slowest. p50 is the one in the middle, so half of turns were faster. p90 is nine tenths along, so one turn in ten was slower. p50 describes the typical experience and p90 describes the bad days. What percentiles buy you is an honest view of the tail. Nobody experiences an average. They experience their own turn, and the people who give up are in the tail. Quote both because they move for different reasons. A better median usually means the common path got shorter. A better p90 usually means a retry, a timeout or a queue got fixed.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Quoting an average. One long turn drags the mean and moves neither percentile, so the mean hides the thing you were fixing.</p>
+    </li>
+    <li class="qa-item" id="c02-t7">
+      <p class="qa-q">Why is the audio raw PCM, and what does that cost?</p>
+      <p class="qa-a">PCM is sound stored as plain numbers. Thousands of times a second the waveform's height is measured and kept as an integer, with no codec involved. So nothing has to be decoded before the model sees it, and nothing has to be decoded before the speaker plays it. That is zero decode time on both legs. At 16&#8239;kHz and 16 bits it costs 32 kilobytes a second going up. Compressed audio would be smaller on the wire and would add an encode and a decode to the path. On a turn budget measured in hundreds of milliseconds, bandwidth is the cheaper thing to spend.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Assuming smaller is better. On this path the expensive resource is time, and compression buys bytes with milliseconds.</p>
+    </li>
+    <li class="qa-item" id="c02-t8">
+      <p class="qa-q">What is a token, and what exactly is time to first token measuring?</p>
+      <p class="qa-a">A model does not read characters or words. Text is cut into tokens first, each roughly three quarters of a word in English, and each becomes a number the model consumes. Output comes out the same way, one token at a time. Billing is per token in both directions. What the unit buys you is a way to split latency into two independent halves. Time to first token is the gap between sending the request and the first one arriving. It measures the queue and the prefill, the work of reading your prompt. Everything after that is governed by tokens per second. Trimming a system prompt moves the first number. Changing model tier usually moves the second.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Using it as a single latency number. It splits the budget in two, and a fix moves one half or the other, never both.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="fundamentals">
+  <h2>Fundamentals</h2>
+  <p class="qset-note">The warm-up. Answer each in under a minute, and do not reach for a number before the interviewer asks for one.</p>
+  <ul class="qa-index">
+    <li><a href="#c02-f1">What a gateway is</a></li>
+    <li><a href="#c02-f2">Why OpenAI-compatible</a></li>
+    <li><a href="#c02-f3">Never failing after auth</a></li>
+    <li><a href="#c02-f4">Buffered vs streaming</a></li>
+    <li><a href="#c02-f5">Why SSE not WebSocket</a></li>
+    <li><a href="#c02-f6">What TTFW measures</a></li>
+    <li><a href="#c02-f7">The turn budget</a></li>
+    <li><a href="#c02-f8">Why pin the model</a></li>
+    <li><a href="#c02-f9">What the settle beat is</a></li>
+    <li><a href="#c02-f10">Where state lives</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c02-f1">
+      <p class="qa-q">What does this gateway actually do?</p>
+      <p class="qa-a">It presents an OpenAI-compatible chat-completions endpoint to the avatar platform. Behind that it runs our interview logic: questionnaire state, the Host agent, the Gemini call. It returns a reply in the shape the avatar expects. The avatar posts once per utterance and knows nothing about interviews.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it a proxy. A proxy forwards; this one holds conversation state and decides what to say, which is the whole job.</p>
+    </li>
+    <li class="qa-item" id="c02-f2">
+      <p class="qa-q">Why build to OpenAI's API shape rather than your own?</p>
+      <p class="qa-a">Because we do not control the caller. The avatar platform speaks one dialect, and offers a hook for a custom endpoint in that dialect. Conforming to it is what let us keep all the interview logic on our side. Pushing that logic into their platform was never on offer.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Presenting it as a portability decision. Portability is a nice side effect; the reason is that the integration contract was fixed by someone else.</p>
+    </li>
+    <li class="qa-item" id="c02-f3">
+      <p class="qa-q">You said the route never fails after auth. Is that not hiding errors?</p>
+      <p class="qa-a">It hides them from the vendor, deliberately, and from nobody else. Every path is logged and metered. The reasoning is that a conversation has no error page. An avatar that goes silent mid-interview in front of a customer is worse than one that says something bland while we fix it. Auth failures still return real 4xx.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying errors are swallowed. If you cannot immediately say where they surface instead, it sounds like an accident rather than a decision.</p>
+    </li>
+    <li class="qa-item" id="c02-f4">
+      <p class="qa-q">What is the difference between the buffered and streaming paths?</p>
+      <p class="qa-a">Buffered waits for the entire reply, then sends it. The avatar is silent for the full generation. Streaming sends content deltas as they arrive, so the avatar starts speaking on the first characters. The model generates at the same rate either way. What changes is when speech begins.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying streaming made generation faster. It did not. It moved the start, and being precise about that is the difference between having measured it and having assumed it.</p>
+    </li>
+    <li class="qa-item" id="c02-f5">
+      <p class="qa-q">Why SSE rather than a WebSocket?</p>
+      <p class="qa-a">Only one side needs to push. The caller sends one request per utterance and then listens. There is no stream of client messages to carry back. SSE is plain HTTP, so it inherits the auth, the proxying and the middleware we already have. A WebSocket would need its own path through all three.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;WebSockets are faster.&#8221; They are not, for one-way token delivery, and the follow-up will ask what bidirectional traffic you actually had.</p>
+    </li>
+    <li class="qa-item" id="c02-f6">
+      <p class="qa-q">What exactly does time-to-first-word measure here?</p>
+      <p class="qa-a">From the utterance arriving at our gateway to the first spoken character going back. That spans the settle beat, our own state work, the Gemini call's own first token, and the extraction. It is the metric that matters for a conversation. The perceived pause ends when the avatar starts talking, not when it stops.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Measuring to the first network byte instead of the first token. Those differ, sometimes by seconds, and confusing them is a classic instrumentation bug.</p>
+    </li>
+    <li class="qa-item" id="c02-f7">
+      <p class="qa-q">What is the per-turn budget, and where does it come from?</p>
+      <p class="qa-a">Seconds, not milliseconds, and it comes from conversation rather than from engineering. A human interviewer pauses before replying. The tolerable pause is a product constraint, which we then budget hop by hop. Everything on the server side has to fit inside it, alongside a deliberate wait we chose to spend.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Quoting a budget without saying where it came from. If the number has no source, it is a target somebody made up.</p>
+    </li>
+    <li class="qa-item" id="c02-f8">
+      <p class="qa-q">Why pin an exact model version instead of using a &#8220;latest&#8221; alias?</p>
+      <p class="qa-a">Because an alias can start resolving to a model that refuses a parameter we send. We originally used aliases, reasoning that a fallback would catch one that stopped resolving. But the failure that actually happened was the other kind. It presented as a model error rather than a payload error.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;For reproducibility.&#8221; True but generic. The specific failure is much more convincing and you have it.</p>
+    </li>
+    <li class="qa-item" id="c02-f9">
+      <p class="qa-q">What is the settle beat?</p>
+      <p class="qa-a">A deliberate pause after an utterance arrives, before we call the model, so a vendor who was only pausing mid-thought gets to finish. A fragment landing inside that window supersedes the waiting turn, which steps aside without touching state. A human interviewer does exactly the same thing.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Not volunteering that it is added latency. It is the most interesting thing in the chapter precisely because it makes the headline number worse.</p>
+    </li>
+    <li class="qa-item" id="c02-f10">
+      <p class="qa-q">Where does conversation state live between turns?</p>
+      <p class="qa-a">Server-side, keyed by interview, because the caller sends one independent request per utterance and carries nothing between them. That is what makes the service stateful in the way that matters for deploys and load balancing. A turn is short, but a session is long.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing it as a stateless REST service. It looks like one per request and behaves like a session, and that gap is where the deploy questions live.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="deep-dive">
+  <h2>Deep dive</h2>
+  <p class="qset-note">Where this bullet is won or lost. Two of these &#8212; the wording on Gemini Live and the before/after numbers &#8212; you should raise yourself rather than wait for.</p>
+  <ul class="qa-index">
+    <li><a href="#c02-d1">What &#8220;Gemini Live&#8221; means</a></li>
+    <li><a href="#c02-d2">Give me p95</a></li>
+    <li><a href="#c02-d3">The deliberate slowdown</a></li>
+    <li><a href="#c02-d4">Schema field order</a></li>
+    <li><a href="#c02-d5">Partial escapes</a></li>
+    <li><a href="#c02-d6">Three failure classes</a></li>
+    <li><a href="#c02-d7">236 warnings, no alert</a></li>
+    <li><a href="#c02-d8">Barge-in and cancellation</a></li>
+    <li><a href="#c02-d9">Flag off in code, on in prod</a></li>
+    <li><a href="#c02-d10">Streaming's soft-fail</a></li>
+    <li><a href="#c02-d11">Stateful deploys</a></li>
+    <li><a href="#c02-d12">Where the time actually goes</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c02-d1">
+      <p class="qa-q">Walk me through the streaming integration. What is the transport to the model?</p>
+      <p class="qa-a">Server-sent events over Gemini's OpenAI-compatible endpoint with <code>stream: true</code>. So it is SSE streaming over REST, not the bidirectional Live API. I would correct my own r&#233;sum&#233; wording there. &#8220;Gemini Live&#8221; overstates it, and the accurate description is buffered REST to streaming REST. The live-media piece in the product is the avatar vendor's SDK on the frontend, not our inference path.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Defending &#8220;Gemini Live&#8221; as written. One question about a bidi session or a WebSocket handshake ends it, and the recovery is much worse than the correction.</p>
+    </li>
+    <li class="qa-item" id="c02-d2">
+      <p class="qa-q">You quoted p50 and p90. Give me p95 and p99.</p>
+      <p class="qa-a">p95 4703&#8239;ms and p99 5205, with a max of 5678&#8239;ms. Those sit against p50 2504 and p90 4468, measured over 86 Host turns across six interviews in one dev window. I would flag the denominator myself. That is a dev-window sample, not a month of production. The honest framing is that the distribution is healthy, not that the number is settled.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Not having the tail. Quoting a median against a hard budget invites this question immediately &#8212; it is the most predictable follow-up on the whole r&#233;sum&#233;.</p>
+    </li>
+    <li class="qa-item" id="c02-d3">
+      <p class="qa-q">Is there anything in this path you made deliberately slower?</p>
+      <p class="qa-a">Yes, and it is the best part. The settle beat went from half a second to two seconds. That is the second-largest bar in the whole latency breakdown, and it is pure added delay, chosen. It buys something real. It stops the Host interrupting a vendor mid-thought, and we have the record of what interruptions cost when it was too short. I could improve my headline median tomorrow by deleting it, and the product would be worse.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Presenting the latency work as monotonic optimisation. Every strong latency story has something the engineer chose to spend, and not having one suggests you never faced the tradeoff.</p>
+    </li>
+    <li class="qa-item" id="c02-d4">
+      <p class="qa-q">The model returns JSON but you need to speak it. How does streaming work at all?</p>
+      <p class="qa-a">Field order. The Host asks for an object with <code>reply</code> and <code>answer_complete</code>, with <code>reply</code> declared first. A strict schema then guarantees the reply string is the first value emitted. So the characters the avatar needs arrive before anything else. An incremental extractor pulls them out of the partial JSON as they land. The trailing field is parsed once the object completes.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying you stream plain text and parse later. Then you have given up the structured output that the rest of the turn logic depends on, and the interviewer will ask what happened to it.</p>
+    </li>
+    <li class="qa-item" id="c02-d5">
+      <p class="qa-q">A chunk boundary splits a unicode escape in half. What does your extractor do?</p>
+      <p class="qa-a">Nothing &#8212; it waits. It never advances past a fragment it cannot fully decode, so a dangling escape at a delta boundary just holds until the next feed. That is the rule that makes the whole thing safe: emit only what is unambiguously decodable, never what is probably fine. It also deliberately does not recombine surrogate pairs in the paths whose callers only need an index.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>&#8220;We decode what we have and fix it up later.&#8221; These characters go straight to text-to-speech; there is no later.</p>
+    </li>
+    <li class="qa-item" id="c02-d6">
+      <p class="qa-q">You get an HTTP error from the model provider. What do you do?</p>
+      <p class="qa-a">It depends which of three it is, and keeping them apart is the whole job. A 404 means the model is gone, so retry once on a pinned fallback. A 400 naming the thinking level means our payload is wrong for this model. Replay once with the effort lowered, and log at ERROR. No retry fixes a misconfiguration. Somebody has to change a value. Any other 400 may be spurious, and the identical payload often succeeds on replay.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>One retry policy for all errors. That is exactly how the four-day incident happened, and it is the most common design in the wild.</p>
+    </li>
+    <li class="qa-item" id="c02-d7">
+      <p class="qa-q">Tell me about a production incident you took too long to find.</p>
+      <p class="qa-a">Four days where every interview ran slow and nothing showed why. We used model aliases rather than pinned versions. The test standing in for a model error was a 400 whose body contained the word &#8220;model&#8221; anywhere in it. That is also the provider's own wording for a model that refuses a parameter. So every turn was diagnosed as an outage, silently retried on the fallback, and still returned a 200 response. That is <strong>236 warnings, 100% of turns, no alert</strong>. The fix was pinning the models and replacing the substring test with three explicit classes.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Telling it as a bug story. The lesson is about observability &#8212; a 100% failure rate that produces only warnings is invisible, and that is a monitoring design flaw, not a coding one.</p>
+    </li>
+    <li class="qa-item" id="c02-d8">
+      <p class="qa-q">The vendor starts talking again while you are generating. What happens?</p>
+      <p class="qa-a">The newer fragment cancels the in-flight turn before contending for the turn lock. Cancellation unwinds the loser out of the lock, so it is free immediately rather than after another model call completes. The abandoned turn touches no state. Ordering matters: cancel first, then acquire. Otherwise the new utterance waits behind work nobody wants any more.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Letting both turns finish and picking one. You have then paid for two model calls and the avatar may speak the stale one.</p>
+    </li>
+    <li class="qa-item" id="c02-d9">
+      <p class="qa-q">The streaming flag defaults to off in code but is on in both deployed environments. Why?</p>
+      <p class="qa-a">So that production behaviour is unchanged by merging the code. Turning it on is a separate, revertible act in config. It is a rollout pattern rather than an accident. The code ships dark, the values files enable it per environment, and rollback is a value change rather than a deploy. The honest cost is that the default in the source no longer describes what runs. The source is misleading to a new reader unless they check the chart.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Not knowing the deployed value differs from the code default. That is the sort of gap that suggests you shipped it and stopped watching.</p>
+    </li>
+    <li class="qa-item" id="c02-d10">
+      <p class="qa-q">The JSON is malformed &#8212; but only after the reply field. What does the vendor experience?</p>
+      <p class="qa-a">Nothing wrong. The reply characters were already emitted correctly and have been spoken. Finalize raises, the caller leaves state unchanged, and that matches the buffered path's soft-fail exactly. It is a deliberate property. The streaming path degrades to the same behaviour as the path it replaced, rather than inventing a new failure mode.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Discarding the turn because parsing failed. The words are already out of the avatar's mouth; pretending otherwise desynchronises state from what the vendor heard.</p>
+    </li>
+    <li class="qa-item" id="c02-d11">
+      <p class="qa-q">How do you deploy a new version while interviews are live?</p>
+      <p class="qa-a">This is the genuinely hard one. A turn is short but a session is long, and state is server-side per interview. The honest answer is that session draining is the requirement. Stop admitting new interviews to a pod, let existing ones finish, then cycle it. A migration job running to completion before the new version serves is already part of the release. Version pinning per session is the pattern I would reach for next.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating it like a stateless rolling update. It looks stateless per request, which is exactly what makes this trap easy to fall into.</p>
+    </li>
+    <li class="qa-item" id="c02-d12">
+      <p class="qa-q">Break the turn down. Where does the time actually go?</p>
+      <p class="qa-a">Server-side it is essentially two things: one model call, and the deliberate two-second wait. That is the useful shape, because it says immediately where the remaining headroom is and where it is not. There is no third mystery hop to go hunting in. The rest of the perceived turn lives in the avatar vendor's speech pipeline, which we do not own.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Not separating what you own from what you do not. End-to-end perceived latency includes speech recognition and rendering you have no control over, and conflating them makes every number unfalsifiable.</p>
+    </li>
+  </ol>
+</section>
+
+<div class="quiz" data-quiz-id="0002-q1">
+  <p class="q">Why can the avatar start speaking before the model has finished generating?</p>
+  <ol class="options">
+    <li data-correct="true">The reply field is declared first, so its characters emerge first</li>
+    <li>The extractor predicts the remaining characters out of a partial object</li>
+    <li>The gateway sends a canned opening line while generation still runs</li>
+    <li>The model returns the plain text first and structured fields afterwards</li>
+  </ol>
+  <div class="why">
+    <p>Field order in the strict schema. <code>reply</code> is declared before <code>answer_complete</code>, so the reply string is the first value emitted and its characters can be forwarded as they land. That is a design decision in the prompt's output schema, not a property of streaming.</p>
+    <p>The prediction answer is worth rejecting explicitly, because it describes something no correct system does: the extractor deliberately never advances past a fragment it cannot fully decode. Waiting is the safety property. And the canned line is real, but it belongs to the error path &#8212; it is what makes the route never fail after auth, not what makes streaming work.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0002-q2">
+  <p class="q">Every turn silently retries on the fallback model and still returns 200. What made this invisible?</p>
+  <ol class="options">
+    <li data-correct="true">A 100% failure rate produced only warnings, which nothing alerted on</li>
+    <li>A rare race condition appeared only under peak concurrent interview load</li>
+    <li>The fallback model returned answers that looked wrong to human reviewers</li>
+    <li>The logs were written at debug level and dropped before ingestion</li>
+  </ol>
+  <div class="why">
+    <p>Severity, not volume. 236 warnings across 100% of turns is a total failure wearing a non-critical label, and no alert fires on a warning. The lesson generalises past this incident: <strong>a failure that every request experiences can be quieter than one that happens rarely</strong>, because rare failures get investigated and universal ones become the baseline.</p>
+    <p>The race-condition answer is the instinctive one and it is wrong in an instructive way &#8212; this was perfectly deterministic. It reproduced on every single request, which is the easiest kind of bug to find <em>once you are looking</em>, and the entire difficulty was that nothing pointed anyone at it.</p>
+  </div>
+</div>
+
+<section class="qset" id="edges">
+  <h2>Edge and exception</h2>
+  <p class="qset-note">The failure modes. Note that two of these &#8212; the session-drop wording and the before/after numbers &#8212; are r&#233;sum&#233; risks rather than system risks, and they are handled the same way: say it first.</p>
+  <ul class="qa-index">
+    <li><a href="#c02-e1">Zero session drops</a></li>
+    <li><a href="#c02-e2">Where 4.1s came from</a></li>
+    <li><a href="#c02-e3">Model stalls mid-stream</a></li>
+    <li><a href="#c02-e4">Stacked timeouts</a></li>
+    <li><a href="#c02-e5">First byte vs first token</a></li>
+    <li><a href="#c02-e6">Fragment storms</a></li>
+    <li><a href="#c02-e7">The canned reply's cost</a></li>
+    <li><a href="#c02-e8">A million concurrent</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c02-e1">
+      <p class="qa-q">&#8220;Zero mid-interview session drops&#8221; &#8212; is that exactly true?</p>
+      <p class="qa-a">It is true of <em>sessions</em>, and I would immediately narrow it to that. In the same period we had a reliability problem one layer over. In one analysed window, four of six interviews were never scored. That included a complete ten-minute run lost to three stacked sixty-second model timeouts. The conversation held. The post-interview scoring did not. Those were found and fixed, and the telemetry that made mid-interview problems visible at all came out of that work.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Letting &#8220;zero drops&#8221; stand unqualified. If they ask &#8220;so nothing was ever lost?&#8221; and you say no, the correction later is fatal rather than merely awkward.</p>
+    </li>
+    <li class="qa-item" id="c02-e2">
+      <p class="qa-q">Where do the before-and-after latency figures come from?</p>
+      <p class="qa-a">The gateway emits per-turn timing on every request: time to first token, utterance duration, total elapsed. So percentiles are reconstructable from logs, and that is the basis for the comparison. What I would say plainly is that the before/after pair is my own measurement. It is not a benchmark committed to the repo. The reproducible artefact is the current distribution, not the delta.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Implying a committed benchmark exists. If they ask to see the harness, the answer has to already have been &#8220;it was a measurement, not a checked-in benchmark.&#8221;</p>
+    </li>
+    <li class="qa-item" id="c02-e3">
+      <p class="qa-q">The model stops emitting tokens halfway through a sentence. What does the vendor hear?</p>
+      <p class="qa-a">Half a sentence, and that is the real cost of streaming. You have committed to words you cannot take back. The buffered path could discard a bad reply wholesale. The streaming path cannot. So the design keeps state unchanged on a late failure and matches the buffered soft-fail, but the audio already happened. That asymmetry is the honest price of starting to speak early.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Claiming you can roll back. Once the characters are spoken they are spoken; the only question is whether your state agrees with what was heard.</p>
+    </li>
+    <li class="qa-item" id="c02-e4">
+      <p class="qa-q">Three sixty-second timeouts stacked and cost you a whole interview's scorecard. What is the lesson?</p>
+      <p class="qa-a">That a retry ladder's worst case is the number that matters, not its typical case. Three attempts at a minute each is three minutes. If nothing above it enforces a ceiling, the ladder <em>is</em> the deadline. The fix pattern is the one used elsewhere in this system. An outer deadline with a catch-all, sized so the inner ladder provably fits inside it. And a test pinning the arithmetic, rather than a comment asserting it.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Reducing retries as the fix. That trades one failure for another; the structural answer is that somebody must own the ceiling.</p>
+    </li>
+    <li class="qa-item" id="c02-e5">
+      <p class="qa-q">How would you know your latency instrument is measuring the right thing?</p>
+      <p class="qa-a">By checking it measures the first <em>token</em> and not the first <em>byte</em>. Those diverge whenever anything sits in front of the stream. A compression header or a proxy's first flush arrives long before any content does. An instrument timing that reports a number nobody cares about. It is the single easiest way to accidentally report a great result.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Assuming the instrument is right because the number looks plausible. Plausible is exactly what a wrong instrument produces.</p>
+    </li>
+    <li class="qa-item" id="c02-e6">
+      <p class="qa-q">A vendor speaks in many short fragments. What breaks?</p>
+      <p class="qa-a">Each fragment cancels the previous turn during the settle window. So a stuttering speaker can supersede repeatedly. If any fragment escapes the window, it starts a model call that is then abandoned. The beat collapses most of that, which is why a longer beat is worth more than it costs. The tail is wasted calls. That is the case I would instrument before raising the beat any further.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Assuming cancellation is free. An abandoned call still consumed a request and possibly tokens; the cost moved, it did not vanish.</p>
+    </li>
+    <li class="qa-item" id="c02-e7">
+      <p class="qa-q">What does never failing after auth cost you?</p>
+      <p class="qa-a">Observability pressure, and it is the same shape as the four-day incident. If every response is a 200, then error rate is structurally blind to this service. And error rate is the metric every dashboard defaults to. You have to alert on internal signals instead: canned-reply rate, retry rate, fallback-model usage. Choosing to always succeed means choosing to build your own definition of failure.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Naming it as purely a resilience win. It is a trade, and the thing traded away is the industry's default alerting signal.</p>
+    </li>
+    <li class="qa-item" id="c02-e8">
+      <p class="qa-q">One million concurrent avatar interviews. What breaks first?</p>
+      <p class="qa-a">Do the conversion <em>before</em> the architecture. A million concurrent <em>sessions</em> is not a million concurrent generations. At roughly eight seconds a turn against thirty seconds of human speech, that is on the order of 267 thousand in-flight decodes. That number, not the pod count, is what the design has to answer. At that point KV cache is the wall: smaller models, quantised cache, prefix caching on the shared preamble, and cache-aware routing. Our gateway becomes the bottleneck before the accelerators do, because it holds a stateful session per interview.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying &#8220;add replicas and a queue.&#8221; Say the 267 thousand first. Naming the number before naming a technology is the entire test.</p>
+    </li>
+  </ol>
+</section>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;You said 2.2&#8239;s median. Give me p95 and p99.&#8221;
+      <span class="tell">The most predictable follow-up on your entire r&#233;sum&#233;. A median quoted against a hard budget is what people say when the tail embarrasses them &#8212; and here it does not, so leading with the tail is free.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>p95 4703&#8239;ms, p99 5205, max 5678, against p50 2504 and p90 4468 &#8212; 86 Host turns across six interviews. And the honest caveats, both of which I would rather give you than have you find: that is a dev-window sample, and a deliberate two-second settle beat is inside every one of those numbers.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Walk me through the Gemini Live integration.&#8221;
+      <span class="tell">Asked innocently, and there is no good improvised answer if you let the r&#233;sum&#233;'s wording stand. Correct it in the first sentence.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>I should correct my own wording &#8212; it is SSE over Gemini's OpenAI-compatible REST endpoint with stream set true, not the bidirectional Live API. The change was buffered REST to streaming REST. The live-media piece in the product is the avatar vendor's SDK on the frontend, which is a different layer from our inference path.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Is there anything in this system you made deliberately slower?&#8221;
+      <span class="tell">Rare and extremely revealing. Most candidates have nothing. You have the best possible answer, so do not let this one pass.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The settle beat, from half a second to two. It stops the Host interrupting a vendor who was only pausing mid-thought. It is the second-largest bar in the latency breakdown, it is inside every number I quote, and deleting it tomorrow would improve my median and make the product worse.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;Tell me about a bug that took too long to find.&#8221;
+      <span class="tell">Tell it as an observability failure, not a coding one. The insight &#8212; that a 100% failure rate can be quieter than a rare one &#8212; is what makes it a senior answer.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Four days of every interview running slow. Model aliases plus a substring test meant every turn was misdiagnosed as a model outage, silently retried on the fallback, and still returned 200. 236 warnings, a hundred percent of turns, no alert &#8212; because nothing alerts on warnings. I pinned the models and split one retry policy into three explicit failure classes, and I would now alert on fallback-model usage directly.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;How do you ship a new version with live interviews in progress?&#8221;
+      <span class="tell">The stateful-deploy question. The trap is that this service looks stateless per request, so the wrong answer is very natural.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>A turn is short but a session is long and state is server-side per interview, so a plain rolling update drops conversations. The requirement is session draining &#8212; stop admitting new interviews to a pod, let the in-flight ones finish, then cycle. The migrate job already gates the release on schema, and version pinning per session is the next thing I would add.</p>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="recall">
+  <details>
+    <summary>You chose SSE over a WebSocket for token delivery. Which lesson measured that tradeoff, and what did it find actually breaks a token stream?</summary>
+    <p class="answer">Lesson 0007, and the result was the opposite of the received wisdom. Buffering does <em>not</em> break SSE &#8212; stock nginx proxy buffering costs about 3&#8239;ms, and buffers larger than the whole response cost 2. What breaks it is <strong>gzip</strong>: 393&#8239;ms to 3796, with status 200 and every frame correct, defended only by a non-standard header the gateway already happened to set. Worth knowing precisely, because it is the failure that looks like a code bug and is a compression setting.</p>
+    <span class="from"><a href="../../system-design-school/lessons/0007-sse-vs-websocket-for-tokens.html">SDS 0007 &#183; SSE vs WebSocket for tokens</a></span>
+  </details>
+  <details>
+    <summary>&#8220;Scale it to a million concurrent&#8221; is the standard escalation on this bullet. What is the arithmetic you must produce before naming any technology?</summary>
+    <p class="answer">A million concurrent <em>sessions</em> is not a million concurrent generations. At roughly eight seconds a turn against thirty seconds of human speech, in-flight decodes are about <strong>267 thousand</strong> &#8212; and then KV cache arithmetic says what that costs: bytes per token is two times layers times <em>kv</em> heads times head dimension times dtype bytes, and the trap is using attention heads instead of kv heads, which is a fourfold error. Say the number before you say Kubernetes.</p>
+    <span class="from"><a href="../../system-design-school/lessons/0008-kv-cache-and-prefix-caching.html">SDS 0008 &#183; KV cache and prefix caching</a></span>
+  </details>
+  <details>
+    <summary>Your per-turn timing is reported as a median. Which lesson exists because of what that hides, and what is the specific instrumentation bug it found?</summary>
+    <p class="answer">Lesson 0002 &#8212; and its own lab produced the instrumentation bug that applies directly here: an instrument timing the first <em>network</em> chunk reported 14&#8239;ms for a path whose first token arrived at 3796, because a compression header arrives before any content. That is exactly the first-byte-versus-first-token error to check in your own gateway metrics before quoting any time-to-first-word figure.</p>
+    <span class="from"><a href="../../system-design-school/lessons/0002-p50-is-a-lie.html">SDS 0002 &#183; p50 is a lie</a></span>
+  </details>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">The lessons behind this chapter</span>
+  <p>This is the bullet with the numbers in it, so it is the one that leans hardest on System Design School. The lessons teach the mechanism and give you the vocabulary; this chapter is where you defend your own measurements of it.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0007-sse-vs-websocket-for-tokens.html">SDS 0007 &#183; SSE vs WebSocket for tokens</a>
+      <span class="bridge-why">Why the tokens go over SSE rather than a socket, what the envelope costs, and the compression result that contradicts the folklore.</span>
+    </li>
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0002-p50-is-a-lie.html">SDS 0002 &#183; p50 is a lie</a>
+      <span class="bridge-why">The bullet claims a p50 and a p90 improvement. This is the lesson that decides whether either number means anything.</span>
+    </li>
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0001-latency-budget-arithmetic.html">SDS 0001 &#183; Latency budget arithmetic</a>
+      <span class="bridge-why">The per-hop budget behind the latency claim, including the one beat you made deliberately slower and have to justify.</span>
+    </li>
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0008-kv-cache-and-prefix-caching.html">SDS 0008 &#183; KV cache and prefix caching</a>
+      <span class="bridge-why">The other half of why a first token arrives when it does, and the half that lives inside the model server rather than your code.</span>
+    </li>
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0009-cache-aware-routing.html">SDS 0009 &#183; Cache-aware routing</a>
+      <span class="bridge-why">A stateful session has to land somewhere, and round-robin throws away the win the previous lesson just bought you.</span>
+    </li>
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0005-stampede-penetration-avalanche.html">SDS 0005 &#183; Stampede, penetration, avalanche</a>
+      <span class="bridge-why">Put a cache in front of this gateway and a popular vendor gives you a stampede, while one nobody has written about gives you penetration.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0012 &#183; Timeout budgets and deadline propagation &#8212; not yet built</span>
+      <span class="bridge-why">The per-turn budget is enforced at the edge and nowhere below it, which is a thing to say before it is found.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0035 &#183; Metrics and logs at volume &#8212; not yet built</span>
+      <span class="bridge-why">236 warnings on every turn for four days with nothing watching. This is the lesson about which number would have caught it.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0043 &#183; Your gateway is an API gateway &#8212; not yet built</span>
+      <span class="bridge-why">You built one without calling it one. Naming the pattern is worth more in an interview than describing it longhand.</span>
+    </li>
+  </ol>
+</div>
+
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0001-vendor-evaluation-platform.html">&#8592; 0001 &#183; Owning a vendor-evaluation platform</a></span>
+  <span><span class="dir">Next</span><a href="0003-multi-agent-schematization.html">0003 &#183; Five-stage multi-agent schematization &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

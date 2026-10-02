@@ -1,0 +1,548 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>Latency Budget Arithmetic</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+  <script src="../assets/latency-calc.js"></script>
+</head>
+<body data-lesson-id="0001">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">System Design School</a>
+    <span class="sep">/</span>
+    <span>Tier 1 · Caching &amp; latency</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Lesson 0001</span>
+    <span class="sep">/</span>
+    <span>no Docker needed</span>
+  </div>
+  <h1>Latency Budget Arithmetic</h1>
+  <p class="standfirst">You already ship a system with a hard <em>8 s per-turn budget</em> and a measured <em>2.1 s median</em>. This lesson turns those two numbers into a table you can defend hop by hop — because in a design review the ceiling and the measurement are never the question. The question is always <em>which hop owns which milliseconds</em>.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>By the end you will have a per-hop budget for one interview turn, know which single hop owns the largest share, and be able to say what your remaining headroom is actually for.</p>
+</div>
+
+<div class="anchor-box">
+  <span class="callout-label">Why you, specifically</span>
+  <blockquote>“Built a custom OpenAI-compatible LLM gateway powering those interviews at ~2.1 s median time-to-first-word under a hard 8 s per-turn budget.”</blockquote>
+  <p>That sentence is doing a lot of work with two numbers and no decomposition. An interviewer will read it and ask for the breakdown — not to catch you out, but because the breakdown is the engineering. Right now the bullet proves you <em>measured</em>. This lesson is about being able to prove you <em>designed</em>.</p>
+  <p>That sentence is defended in full in <a href="../../resume-mastery/lessons/0001-vendor-evaluation-platform.html">chapter 0001 of R&#233;sum&#233; Mastery</a> &#8212; this lesson is where the mechanism underneath it gets built and broken.</p>
+</div>
+
+<div class="primer">
+  <span class="callout-label">Start here — the plain version</span>
+  <p>Someone finishes speaking and then waits for the avatar to answer. That wait is not one
+  thing; it is six or eight separate steps happening one after another. A <b>latency budget</b> is
+  nothing more than that list of steps written down with a millisecond figure next to each one,
+  and a total at the bottom you are not allowed to exceed.</p>
+  <p>That is the whole idea. The reason it is worth a lesson is that once the list exists, three
+  questions answer themselves: which step should you optimise, which steps are not yours to fix,
+  and how much spare time you have when something goes wrong.</p>
+  <dl>
+    <dt>Latency</dt>
+    <dd>How long one thing takes, start to finish. Usually milliseconds (ms); 1000 ms = 1 second.</dd>
+
+    <dt>Hop</dt>
+    <dd>One step in the path a request travels — “look up documents”, “call the model”,
+    “send audio to the browser”. Each hop spends part of the budget.</dd>
+
+    <dt>Budget</dt>
+    <dd>The total time you have promised, divided up across the hops. Yours is <b>8 seconds per
+    turn</b>.</dd>
+
+    <dt>Serial vs parallel</dt>
+    <dd>Steps that must wait for each other <b>add up</b>. Steps that run side by side cost only
+    the slowest one. Confusing these two is the most common arithmetic error in a design review.</dd>
+
+    <dt>Critical path</dt>
+    <dd>The chain of steps that actually decides the total. Work happening off to the side, that
+    nothing waits for, is free.</dd>
+
+    <dt>Headroom</dt>
+    <dd>Budget minus what you actually spend. The spare time that absorbs a slow day. A system
+    whose typical time equals its limit fails about half the time.</dd>
+
+    <dt>Floor</dt>
+    <dd>A hop you cannot make faster because it is not yours — the speed of light across a
+    network, or a timer waiting to be sure the speaker has stopped. Worth marking, so you stop
+    trying.</dd>
+  </dl>
+</div>
+<h2>A budget is arithmetic, not a target</h2>
+
+<p>“8 seconds per turn” is not a goal you aim at. It is a quantity you <em>spend</em>, and every hop in the path takes a cut. Written down, a budget does three things a single median cannot:</p>
+
+<ul>
+  <li>It tells you the <strong>largest consumer</strong>, which is the only hop worth optimising first.</li>
+  <li>It separates <strong>what you control</strong> from what you do not. A TLS handshake and a silence threshold are floors; your retrieval step is a choice.</li>
+  <li>It exposes <strong>headroom</strong>, which is what absorbs the tail. A system whose median exactly equals its ceiling fails roughly half the time.</li>
+</ul>
+
+<p>The last point is the one that matters most for your platform, and it is the whole of <a href="0002-p50-is-a-lie.html">lesson 0002</a>. Hold it lightly for now.</p>
+
+<h3>Serial hops add; parallel hops take the maximum</h3>
+
+<p>This sounds obvious and is the most common arithmetic error in a design review. If retrieval takes 165 ms and ASR finalisation takes 300 ms, then:</p>
+
+<ul>
+  <li>Run them one after the other and you spend <span class="num">465 ms</span>.</li>
+  <li>Run them concurrently and you spend <span class="num">300 ms</span> — the slower of the two, not the sum.</li>
+</ul>
+
+<p>Whenever a hop does not need the previous hop's output, it does not belong on the critical path. Half of all latency work is noticing that.</p>
+
+<h2>Your turn, decomposed</h2>
+
+<p>Below is a plausible decomposition of one live avatar interview turn — from the moment the candidate stops speaking to the moment the avatar starts. The two hops marked as floors are not yours to tune: a voice-activity detector has to wait out a silence window before it can conclude the turn ended, and light takes as long as it takes to reach the client.</p>
+
+<div class="latency-calc"
+     data-budget-ms="8000"
+     data-label="hard per-turn ceiling"
+     data-hops='[
+       {"name":"VAD end-of-speech","ms":250,"note":"silence window before the turn is declared over","fixed":true},
+       {"name":"ASR final transcript","ms":300,"note":"partial-to-final commit"},
+       {"name":"Gateway ingress","ms":12,"note":"auth, validation, routing"},
+       {"name":"Retrieval","ms":165,"note":"embed the query, then vector search"},
+       {"name":"LLM time-to-first-token","ms":880,"note":"prefill, then the first decode step"},
+       {"name":"TTS first audio chunk","ms":350,"note":"voice synthesis warm-up"},
+       {"name":"Avatar first video frame","ms":90,"note":"render and encode"},
+       {"name":"Network to client","ms":55,"note":"WebRTC path","fixed":true}
+     ]'></div>
+
+<div class="note">
+  <span class="callout-label">Do this now</span>
+  <p>Set <strong>LLM time-to-first-token</strong> to <code>2400</code> — a bad tail day on a cold model. Watch the ceiling marker appear on the bar. Then set <strong>Retrieval</strong> to <code>0</code>, as if you had cached it perfectly, and notice how little that buys you. Optimising the wrong hop is expensive and feels productive.</p>
+</div>
+
+<p>Two observations worth writing down before you move on. First, the LLM hop is <span class="num">~42%</span> of the turn on its own; nothing else comes close, so nothing else deserves your attention first. Second, the whole turn lands near <span class="num">2.1 s</span> against an <span class="num">8 s</span> ceiling — which sounds like enormous headroom and is the exact reason the next lesson exists.</p>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 402" role="img" aria-labelledby="mech0001-t mech0001-d">
+    <title id="mech0001-t">The critical path, and why overlapping hops buys less than shrinking the big one</title>
+    <desc id="mech0001-d">Eight serial hops sum to 2102 milliseconds. Overlapping retrieval with ASR and the avatar render with speech synthesis removes 267 milliseconds. Halving the largest hop, time to first token, removes 440 milliseconds on its own.</desc>
+    <defs>
+      <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+    </defs>
+
+    <!-- 0.30 px per ms, so 2102 ms = 631 px. Every bar below is to scale. -->
+
+    <!-- MARK 1 · as built: everything serial -->
+    <text x="20" y="24" class="strong">as built &#8212; every hop waits for the one before it</text>
+    <rect x="20"  y="36" width="75"  height="30" class="box"/>
+    <rect x="95"  y="36" width="90"  height="30" class="box"/>
+    <rect x="185" y="36" width="4"   height="30" class="box-2"/>
+    <rect x="189" y="36" width="50"  height="30" class="warn"/>
+    <rect x="239" y="36" width="264" height="30" class="bad"/>
+    <rect x="503" y="36" width="105" height="30" class="box"/>
+    <rect x="608" y="36" width="27"  height="30" class="good"/>
+    <rect x="635" y="36" width="16"  height="30" class="box-2"/>
+    <text x="663" y="56" class="num strong">2102 ms</text>
+
+    <text x="20" y="86" class="mono">VAD 250 &#183; ASR 300 &#183; ingress 12 &#183; <tspan class="ink-warn">retrieval 165</tspan> &#183; <tspan class="ink-bad strong">TTFT 880</tspan> &#183; TTS 350 &#183; <tspan class="ink-good">avatar 90</tspan> &#183; net 55</text>
+    <text x="20" y="108" class="lbl ink-bad"><tspan class="strong">One hop is 42 % of the turn.</tspan> The two hops you own outright &#8212; ingress and the network &#8212; are 3 % between them.</text>
+
+    <!-- MARK 2 · overlap what does not need to wait -->
+    <text x="20" y="180" class="strong">overlap the hops that do not need the previous output</text>
+    <rect x="20"  y="192" width="75"  height="30" class="box"/>
+    <rect x="95"  y="192" width="90"  height="30" class="box"/>
+    <rect x="95"  y="226" width="54"  height="14" class="warn"/>
+    <rect x="185" y="192" width="264" height="30" class="bad"/>
+    <rect x="449" y="192" width="105" height="30" class="box"/>
+    <rect x="449" y="226" width="27"  height="14" class="good"/>
+    <rect x="554" y="192" width="16"  height="30" class="box-2"/>
+    <text x="582" y="212" class="num strong">1835 ms</text>
+    <text x="582" y="230" class="num ink-good">&#8722; 267</text>
+    <text x="95"  y="258" class="mono ink-warn">retrieval and the avatar frame moved off the critical path (drawn below the bar)</text>
+    <text x="95"  y="276" class="lbl">Legal because neither consumes the previous hop's output &#8212; ASR does not need the vector, and the renderer does not need the audio.</text>
+
+    <!-- MARK 3 · or shrink the one that matters -->
+    <text x="20" y="304" class="strong">or leave the shape alone and halve the largest hop</text>
+    <rect x="20"  y="316" width="75"  height="30" class="box"/>
+    <rect x="95"  y="316" width="90"  height="30" class="box"/>
+    <rect x="185" y="316" width="4"   height="30" class="box-2"/>
+    <rect x="189" y="316" width="50"  height="30" class="warn"/>
+    <rect x="239" y="316" width="132" height="30" class="good"/>
+    <rect x="371" y="316" width="105" height="30" class="box"/>
+    <rect x="476" y="316" width="27"  height="30" class="good"/>
+    <rect x="503" y="316" width="16"  height="30" class="box-2"/>
+    <text x="547" y="336" class="num strong">1662 ms</text>
+    <text x="547" y="354" class="num ink-good">&#8722; 440</text>
+    <text x="20" y="370" class="mono ink-good">TTFT 880 &#8594; 440 &#183; nothing else moved</text>
+    <text x="20" y="388" class="lbl">More saved than both overlaps together, from one change, with the shape of the turn left alone.</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">Say this while you draw it</span>
+    <ol class="narrate">
+      <li>One bar, split into hops <b>to scale</b>. Drawing it to scale is the entire trick: the moment the widths are honest, the argument is unarguable.</li>
+      <li>Point at the big block and say the number: <b>time to first token is 880 ms, 42&#8239;% of the turn on its own.</b> Nothing else comes close.</li>
+      <li>Point at the two slivers &#8212; gateway ingress and the network &#8212; and say <b>3&#8239;% together</b>. These are the hops people optimise because they are the ones people own.</li>
+      <li>Second bar: <b>slide retrieval under ASR, and the avatar render under TTS</b>, because neither needs the other's output. That is a genuine win and it is <b>267 ms</b>.</li>
+      <li>Third bar: <b>halve the big hop instead. 440 ms.</b> More than both overlaps combined, from one change, without restructuring anything.</li>
+      <li>Land it: <b>a budget is arithmetic.</b> Optimising the wrong hop feels productive and shows up as a rounding error, and you can only tell which is which once the bar is drawn to scale.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds, and this one is really three bars of the same length with different splits. Draw it in an interview and you have answered &#8220;where does the time go&#8221; and &#8220;what would you fix first&#8221; in one move.</p>
+  <ul>
+    <li>Hops <b>to scale</b>. Equal-width boxes make every hop look equally worth fixing, which is precisely the mistake.</li>
+    <li>The <b>largest hop marked and named</b>, with its share of the total. If you remember one number from this lesson, 42&#8239;% is it.</li>
+    <li>Which hops <b>can overlap</b>, and the one-line reason: they do not consume the previous hop's output.</li>
+    <li>Both savings side by side &#8212; <b>267 against 440</b> &#8212; because the comparison is the point, not either number.</li>
+  </ul>
+  <span class="timer">The 8-second ceiling is deliberately not on this diagram. 2102 of 8000 is 26 %, which looks like enormous headroom and is exactly why lesson 0002 exists.</span>
+</div>
+
+<h2>Lab — prove the anchor repo works</h2>
+
+<div class="lab">
+  <header>
+    <span class="kicker">Lab 0001</span>
+    <span class="est">~4 minutes</span>
+    <h3>Run the gateway self-test</h3>
+  </header>
+  <div class="body">
+    <div class="prereq">
+      <span>Needs:</span>
+      <span class="chip">uv</span>
+      <span class="chip">Python 3.12+</span>
+      <span class="chip">no Docker</span>
+      <span class="chip">no API key</span>
+    </div>
+
+    <ol class="steps">
+      <li>
+        <p class="what">Install the anchor repo. This is the small mirror of your CloudSufi platform that every lesson from here on instruments.</p>
+        <pre class="cmd"><span class="prompt">$ </span>cd anchor/vendor-eval-gateway
+<span class="prompt">$ </span>uv sync</pre>
+      </li>
+
+      <li>
+        <p class="what">Confirm it is healthy before you trust a single number it prints.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run pytest -q
+<span class="prompt">$ </span>uv run mypy --strict app/ bench/</pre>
+        <div class="expect">
+          <span class="label">You should see</span>
+          <p><code>23 passed</code> and <code>Success: no issues found in 15 source files</code>. No services are running, and none are needed — the model is fake by design.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Watch one turn arrive token by token. The <code>-N</code> flag is essential; without it curl buffers and the whole point disappears.</p>
+        <pre class="cmd"><span class="prompt">$ </span>uv run uvicorn app.main:app <span class="comment"># terminal 1</span>
+<span class="prompt">$ </span>curl -N -X POST localhost:8000/v1/chat/completions \
+    -H <span class="str">'content-type: application/json'</span> \
+    -d <span class="str">'{"messages":[{"role":"user","content":"score this claim"}],"stream":true}'</span></pre>
+        <pre class="out">data: {"id":"chatcmpl-...","object":"chat.completion.chunk",
+       "choices":[{"delta":{"role":"assistant","content":"the "}}]}
+
+data: {"id":"chatcmpl-...","object":"chat.completion.chunk",
+       "choices":[{"delta":{"content":"vendor "}}]}</pre>
+        <div class="expect">
+          <span class="label">You should see</span>
+          <p>Frames appearing one at a time with a visible pause before the first one, then a faster trickle. That first pause is <code>LLM time-to-first-token</code> from the table above. Everything after it is decode.</p>
+        </div>
+      </li>
+
+      <li>
+        <p class="what">Read the gateway's own timing line in terminal 1.</p>
+        <pre class="out">gateway.ttfw     ms=354.6  id=chatcmpl-f683fe...
+gateway.complete ms=472.7  id=chatcmpl-f683fe...</pre>
+        <div class="expect">
+          <span class="label">You should see</span>
+          <p>Two lines per request, and <code>ttfw</code> considerably smaller than <code>complete</code>. Those are two different metrics and conflating them is a common résumé error — one is when the user starts hearing something, the other is when the turn ends.</p>
+        </div>
+      </li>
+    </ol>
+  </div>
+</div>
+
+<div class="caution">
+  <span class="callout-label">One thing to notice</span>
+  <p>The upstream model in this repo is fake, and its latency is <em>lognormal</em> — a firm floor, a dense middle, a long right tail. That is not a shortcut, it is the shape real request latency has. A normal distribution would let it sample negative milliseconds and would flatten precisely the tail the next lesson is about. See <code>app/upstream.py</code>.</p>
+</div>
+
+<div class="evidence" data-evidence-for="0001">
+  <header>
+    <span class="callout-label">Your numbers, not mine</span>
+    <span class="hint">saved in this browser as you type</span>
+  </header>
+  <div class="body">
+    <p>The decomposition in the calculator above is <em>plausible</em>, not measured — it is a worked example built to be argued with. This block is where it becomes yours. Anywhere you do not know the real figure, write &#8220;don't know&#8221;: an honest gap you can name beats a number you invented, and it tells you what to go and instrument.</p>
+
+    <div class="rows">
+      <div class="row">
+        <span class="ran">Your <strong>largest single hop</strong>, and its share of the turn. This is the only hop worth attacking first</span>
+        <span class="field"><label for="e1-big">Hop</label><input type="text" id="e1-big" data-field="biggest" placeholder="e.g. LLM TTFT"></span>
+        <span class="field"><label for="e1-share">Its share</label><input type="text" id="e1-share" data-field="share" placeholder="e.g. 42%"></span>
+        <span class="why-row"><label for="e1-bigwhy">Do you actually measure this hop separately today, or is it inferred from the total? If it is inferred, that is the first thing to instrument</label><textarea id="e1-bigwhy" data-field="biggest_why" placeholder="A hop you cannot measure independently is a hop you cannot defend a number for."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Your <strong>irreducible floor</strong>: the hops you cannot make faster because they are not yours</span>
+        <span class="field"><label for="e1-floor">Total floor</label><input type="text" id="e1-floor" data-field="floor" placeholder="e.g. 305 ms"></span>
+        <span class="field"><label for="e1-addr">Addressable</label><input type="text" id="e1-addr" data-field="addressable" placeholder="budget &#8722; floor"></span>
+        <span class="why-row"><label for="e1-floorwhy">Recompute your biggest hop's share against the <em>addressable</em> budget rather than the whole turn &#8212; it goes up, and that is the honest figure</label><textarea id="e1-floorwhy" data-field="floor_why" placeholder="e.g. TTFT is 42% of the turn but 49% of the part I am allowed to touch."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Step 3, the <strong>self-test</strong>: what the gateway logged for one streamed turn</span>
+        <span class="field"><label for="e1-ttfw">gateway.ttfw</label><input type="text" id="e1-ttfw" data-field="ttfw" placeholder="e.g. 397.2 ms"></span>
+        <span class="field"><label for="e1-complete">gateway.complete</label><input type="text" id="e1-complete" data-field="complete" placeholder="ms"></span>
+        <span class="why-row"><label for="e1-ttfwwhy">Which of those two would a candidate in the room actually experience as &#8220;it responded&#8221;? Name it, because your r&#233;sum&#233;'s 2.1 s has to be one or the other</label><textarea id="e1-ttfwwhy" data-field="ttfw_why" placeholder="Time to first word — the avatar starting to speak is the event the human perceives. Time to complete matters for whether they can interrupt."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">Which hops <strong>could overlap</strong> and do not today, with what each would save</span>
+        <span class="field"><label for="e1-ov">Overlap</label><input type="text" id="e1-ov" data-field="overlap" placeholder="e.g. retrieval under ASR"></span>
+        <span class="field"><label for="e1-ovsave">Saves</label><input type="text" id="e1-ovsave" data-field="overlap_save" placeholder="ms"></span>
+        <span class="why-row"><label for="e1-ovwhy">And the test for whether an overlap is legal: does the later hop consume the earlier hop's output? If yes it is on the critical path and no amount of concurrency helps</label><textarea id="e1-ovwhy" data-field="overlap_why" placeholder="Retrieval needs the transcript, so overlapping it with ASR means embedding a partial transcript and re-running on the final one — real work, not a free win."></textarea></span>
+      </div>
+
+      <div class="row">
+        <span class="ran">The headroom question: <strong>what is your remaining budget for</strong>? List the things that have to fit inside it together</span>
+        <span class="field"><label for="e1-head">Headroom</label><input type="text" id="e1-head" data-field="headroom" placeholder="e.g. 5.9 s"></span>
+        <span class="field"><label for="e1-worst">Worst turn seen</label><input type="text" id="e1-worst" data-field="worst" placeholder="ms, or don't know"></span>
+        <span class="why-row"><label for="e1-headwhy">A retry doubles a hop, a stall adds seconds, a cold model adds more. Which of those have you actually observed, and how would you know if one happened last week?</label><textarea id="e1-headwhy" data-field="headroom_why" placeholder="If the answer to 'how would I know' is 'I wouldn't', that is lesson 0002 — and it is the real gap, not the headroom."></textarea></span>
+      </div>
+    </div>
+
+    <div class="earned">
+      <span class="callout-label">The bullet this lesson earns</span>
+      <p>&#8220;Decomposed the per-turn latency budget hop by hop against a hard <span data-fill="headroom" class="placeholder">[fill it in]</span> ceiling, identifying <span data-fill="biggest" class="placeholder">[fill it in]</span> as <span data-fill="share" class="placeholder">[fill it in]</span> of the turn and <span data-fill="floor" class="placeholder">[fill it in]</span> as an irreducible floor &#8212; so optimisation effort went to the one hop that could move the number.&#8221;</p>
+      <p class="caveat">The last clause is what makes this a senior bullet rather than a diligent one. Anyone can list hops. The claim is that the list <em>changed where the effort went</em>, which means you have to be able to say what you stopped working on.</p>
+    </div>
+  </div>
+</div>
+
+<h2 id="underneath-0001">Underneath</h2>
+
+<div class="underneath">
+  <span class="callout-label">One layer down &#183; medians add, tails do not, and neither of them is your budget</span>
+
+  <p>The table above is a budget of <em>medians</em>, and adding medians up is very nearly legitimate. The moment you try the same trick with tails it stops working in both directions at once &#8212; and since your ceiling is a hard one, the tail is the only column that decides whether you breach it.</p>
+
+  <h3>What actually happens when you add eight hops up</h3>
+
+  <p>Here is the same decomposition with a variance assumption on each hop &#8212; lognormal, with the sigma the fake upstream uses for time-to-first-token and smaller ones elsewhere. VAD and the network are held fixed because they are floors, not distributions. 400 000 simulated turns, nearest-rank percentiles:</p>
+
+  <div class="derive">
+    <span class="eq">hop           median      p99
+VAD              250      250
+ASR              300      678
+ingress           12       19
+retrieval        165      331
+TTFT             880     2504
+TTS              350      703
+avatar            90      161
+network           55       55
+&#8212;&#8212;&#8212;&#8212;&#8212;&#8212;&#8212;&#8212;&#8212;&#8212;&#8212;&#8212;&#8212;&#8212;&#8212;&#8212;&#8212;&#8212;&#8212;&#8212;&#8212;&#8212;&#8212;&#8212;&#8212;&#8212;&#8212;&#8212;
+sum of column   2102     4701      &#8592; adding them up
+actual turn     2158   <b>3812</b>      &#8592; the real distribution</span>
+    <p>Two results, and they point in opposite directions. <strong>The medians very nearly add</strong> &#8212; 2102 predicted against 2158 measured, the gap being lognormal skew. <strong>The p99s emphatically do not</strong>: summing the column gives 4701 where the truth is 3812, an <b>overstatement of 1.23&#215;</b>.</p>
+  </div>
+
+  <p>The reason is that summing p99s asks for the probability that every hop is simultaneously in its own tail, and independent hops do not cooperate like that. Formally, medians add because expectation is linear; tails compress because <strong>variances</strong> add rather than standard deviations, so the spread of a sum grows like &#8730;n while its centre grows like n. Add more hops and the turn gets slower faster than it gets less predictable.</p>
+
+  <p>So both of the easy moves are wrong, in useful directions: <em>quoting the median understates your risk, and summing p99s overstates it.</em> Summing p99s is at least the safe error &#8212; it is a genuine upper bound, and if the sum fits your budget you are done and can stop modelling.</p>
+
+  <h3>What the headroom is actually worth</h3>
+
+  <div class="derive">
+    <p>Same simulation, against the 8000&#8239;ms ceiling:</p>
+    <span class="eq">p50    2158 ms    27 % of budget
+p95    3150 ms    39 %
+p99    3812 ms    48 %
+p99.9  4826 ms    60 %
+breach rate over 8000 ms:  <b>0.001 %</b></span>
+    <p>Which reads like enormous safety and is the most dangerous slide in this lesson. Read what it actually says: <strong>if every hop merely varies, you never breach.</strong> One in a hundred thousand turns.</p>
+    <p>Now look at what is not in the model. No retry, which doubles a hop. No upstream stall. No cold model. No queueing at the gateway when concurrency exceeds the provider quota. Lesson 0002 injects a single two-second freeze and takes p99 to 1934&#8239;ms on a hop that models at 149 &#8212; and every one of those two seconds comes straight out of this headroom.</p>
+    <p>That is what the remaining 5.9 seconds is <em>for</em>. It is not slack you failed to spend. It is the room a retry, a stall and a bad tail day all have to fit inside <em>together</em>.</p>
+  </div>
+
+  <h3>Two of your hops are not yours</h3>
+
+  <p>VAD end-of-speech and the network are floors. A voice-activity detector cannot conclude a turn ended until it has waited out a silence window &#8212; shortening it does not make you faster, it makes you interrupt people &#8212; and light takes as long as it takes. Together that is <strong>305&#8239;ms, about 14&#8239;% of the median turn, permanently</strong>.</p>
+
+  <p>Which is worth stating as a number because it reframes the arithmetic: your addressable budget is not 2102&#8239;ms, it is <strong>1797</strong>. And of that addressable portion, time to first token is not 42&#8239;% but <strong>49&#8239;%</strong> &#8212; essentially half of everything you are allowed to touch, sitting in one hop, provided by someone else.</p>
+
+  <p class="lands"><b>Medians add, tails compress, and floors do neither.</b> Quote the median and you understate; sum the p99s and you overstate by about a quarter but stay safe; and either way the model only covers variance. The failure that eats your budget is the one this arithmetic cannot contain &#8212; which is the entire subject of the next lesson.</p>
+</div>
+
+<h2>Check yourself</h2>
+
+<div class="quiz" data-quiz-id="0001-q1">
+  <p class="q">Your ceiling is 8 s and the measured total is 2.1 s. What is that remaining 5.9 s actually for?</p>
+  <ol class="options">
+    <li data-correct="true">Headroom for the tail, retries, and slower hops</li>
+    <li>Nothing at all, because medians hide tail cost</li>
+    <li>Space to append three more sequential model calls</li>
+    <li>Assurance that no turn will ever breach budget</li>
+  </ol>
+  <div class="why">
+    <p>Headroom is not slack you have failed to spend — it is what absorbs variance. A median of 2.1 s against an 8 s ceiling says nothing about how often a turn breaches, because the median is the one statistic guaranteed to ignore the half of the distribution that breaches things. It is also what you draw on when a retry doubles a hop.</p>
+    <p>“Space for three more model calls” is the tempting wrong answer: it treats the budget as capacity to fill rather than variance to absorb, and it is how an 8 s budget quietly becomes a 9 s p99.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0001-q2">
+  <p class="q">Which single change to the table above buys you the most headroom?</p>
+  <ol class="options">
+    <li data-correct="true">Cut time-to-first-token, by far the largest single hop</li>
+    <li>Shave gateway ingress, already the cheapest hop here</li>
+    <li>Shorten the VAD silence window, an external floor</li>
+    <li>Overlap retrieval with ASR, removing one serial hop</li>
+  </ol>
+  <div class="why">
+    <p>The LLM hop is 880 ms of a 2102 ms turn — about 42%. Halving it saves 440 ms. Overlapping retrieval with ASR is a genuinely good idea and it is the <em>second</em> answer, but it can only ever save 165 ms, because that is all retrieval costs. Gateway ingress at 12 ms is not worth an afternoon.</p>
+    <p>The VAD window is a floor, not a hop you own: shortening it makes the detector cut candidates off mid-sentence, which trades a latency number for a product defect.</p>
+  </div>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">A spoken answer to <em>&#8220;walk me from the moment the candidate stops speaking to the moment the avatar starts.&#8221;</em> This is the question your r&#233;sum&#233;'s two numbers invite, and it wants a drawing plus this script.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">We had a hard 8-second per-turn budget on a live avatar interview, and a measured 2.1-second median. Two numbers, and no account at all of which hop owned which milliseconds.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">A budget is not a target you aim at, it is a quantity every hop takes a cut of. So I wrote the cuts down: voice-activity detection to declare the turn over, speech recognition, gateway ingress, retrieval, time to first token, speech synthesis, the first video frame, and the network.</p>
+      <p class="line">Two of those are floors &#8212; the silence window and the speed of light. About 300 milliseconds I will never get back, so my addressable budget is not 2.1 seconds, it is <b>1.8</b>.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">Drawn to scale, one hop is <b>42&#8239;% of the turn</b>: time to first token, 880 milliseconds. Gateway ingress and the network together are <b>3&#8239;%</b> &#8212; and those are the two I own outright, which is exactly why they are tempting.</p>
+      <p class="line">I checked the alternative before committing. Overlapping retrieval under speech recognition and the avatar render under synthesis buys <b>267 milliseconds</b>. Halving the one big hop buys <b>440</b>. So the restructuring work went to the back of the queue.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">Two honest limits. That hop is someone else&#8217;s service. So &#8220;halve it&#8221; means prefix caching, a smaller model, or a different provider. None of them is free, and one is a quality decision rather than a latency one.</p>
+      <p class="line">The budget models <em>variance</em>, not failure. Modelled out, even p99.9 only reaches 60&#8239;% of the ceiling. That looks like safety until you notice the model has no retry and no stall in it. That headroom is not slack. It is the room a retry and a bad tail day have to fit inside together.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;We're at 2.1 seconds against an 8-second budget, so we have plenty of headroom.&#8221;</span> Every word is true and the conclusion invites the one question you least want: <em>what is the p99?</em> A median against a hard ceiling says nothing whatsoever about how often you breach it, because the median is the single statistic guaranteed to ignore the half of the distribution that does the breaching.</p>
+  <p>The other trap is subtler and very common: <span class="quoted">&#8220;each hop is within its budget, so the turn is within budget.&#8221;</span> That holds for medians and fails for tails. Summing the hops' p99s gave 4.7 seconds where the real turn p99 was 3.8 &#8212; so the sum is a genuine upper bound and overstates by about a quarter. Useful, and not the same statement.</p>
+</div>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      “Walk me from the moment the candidate stops speaking to the moment the avatar starts. Give me the millisecond budget for each hop.”
+      <span class="tell">They want the table, not a story. Having it memorised is the difference between sounding like the architect and sounding like a maintainer.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Eight hops. Voice-activity detection has to wait out a silence window before it can conclude the turn ended &#8212; about 250&#8239;ms and not negotiable, because shortening it means interrupting people. Then speech recognition commits a final transcript, 300. Gateway ingress, 12. Retrieval &#8212; embed the query and search &#8212; 165. Time to first token, 880. Speech synthesis to first audio, 350. First video frame, 90. Network to the client, 55.</p>
+        <p>That sums to about 2.1 seconds, and the shape matters more than the total: <strong>one hop is 42&#8239;% of it</strong>, and the two hops I fully own are 3&#8239;% between them.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Which of those did you measure and which did you estimate?&#8221; &#8212; the right answer names them separately, because a hop you cannot measure independently is a hop you cannot defend.</b></span>
+      </details>
+    </li>
+    <li>
+      “Is 2.1 s time-to-first-word or time-to-complete? Which one does the candidate actually experience?”
+      <span class="tell">If you cannot answer instantly, the number stops being evidence. Know which metric your bullet quotes.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The one the candidate experiences is <strong>time to first word</strong> &#8212; the avatar starting to speak is the perceptible event, and after that they are listening rather than waiting. Time to complete matters for something different: whether they can interrupt, and how quickly the next turn can start.</p>
+        <p>So they are two numbers with two purposes, and quoting one figure without saying which is the actual weakness in how I had written it down.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Which one is your 2.1 s?&#8221; &#8212; and if the honest answer is &#8220;I would have to check how that was gathered&#8221;, say that, then say what you would check.</b></span>
+      </details>
+    </li>
+    <li>
+      “You have 5.9 s of headroom. Why not add a second verification pass to every turn?”
+      <span class="tell">The trap is to say yes. Headroom is variance absorption; spending it on mean-case work is how you build something that breaches under load.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Because the headroom is not spare capacity, it is the room reserved for things going wrong. Modelling the turn out, even p99.9 only reaches about 60&#8239;% of the ceiling &#8212; and that model contains no retry, no upstream stall and no cold model. A single retry on the largest hop is nearly another second on its own.</p>
+        <p>A second verification pass would double the hop that is already 42&#8239;% of the turn, and it would do it on <em>every</em> turn to catch a problem on a few. If it is worth doing, it belongs off the critical path or behind a confidence threshold.</p>
+        <span class="invites">Invites &#183; <b>&#8220;When <em>would</em> you spend the headroom?&#8221; &#8212; on a retry with a propagated deadline, which is lesson 0012: spend it on reliability you can bound, not on work you always do.</b></span>
+      </details>
+    </li>
+    <li>
+      “Which of those hops are on the critical path and which could run concurrently?”
+      <span class="tell">Retrieval does not depend on the final ASR transcript — a partial is usually enough to start embedding. Saying so unprompted reads as senior.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>The test is whether a hop consumes the previous hop's output. Recognition needs the audio, retrieval needs the transcript, the model needs the retrieved context &#8212; that chain is genuinely serial and no amount of concurrency touches it.</p>
+        <p>Two things can come off it. The avatar's first frame does not need the synthesised audio, so it can render under synthesis &#8212; about 90&#8239;ms. And retrieval can start on a partial transcript rather than the final one, hiding it under recognition &#8212; about 177. Both together are 267&#8239;ms, against 440 for halving the big hop, which is why I did the arithmetic before the refactor.</p>
+        <span class="invites">Invites &#183; <b>&#8220;Is overlapping retrieval with ASR actually free?&#8221; &#8212; no: it means embedding a partial transcript and possibly re-running on the final one, so it trades wasted work for latency.</b></span>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="primary-source">
+  <span class="callout-label">Read this next — one source, not ten</span>
+  <span class="title"><a href="https://sre.google/sre-book/service-level-objectives/" target="_blank" rel="noopener">Google SRE Book, Chapter 4 — Service Level Objectives</a></span>
+  <p>Jones, Wilkes, Murphy and Smith. Free, and the “A Note on Statistical Fallacies” section is the bridge into the next lesson: <em>“we generally prefer to work with percentiles rather than the mean… percentiles reveal the long tail of data points.”</em> Read to the end of that section and stop; the error-budget material is useful but not yet.</p>
+  <p class="cite">Optional and genuinely fun: <a href="https://colin-scott.github.io/personal_website/research/interactive_latency.html" target="_blank" rel="noopener">Latency Numbers Every Programmer Should Know By Year</a> — the classic table with a slider for the year, which makes the point that these constants are not constant.</p>
+</div>
+
+<h2>Before the next lesson</h2>
+
+<p>No recall block yet — this is the first lesson, so there is nothing behind you. Instead, two questions to answer honestly, because the answers set where lesson 0002 starts:</p>
+
+<div class="recall">
+  <details>
+    <summary>Do you know, right now, whether your 2.1 s figure was gathered from a closed-loop or an open-loop load generator?</summary>
+    <p class="answer">If the answer is “I don't know what that means” — good, that is exactly the gap lesson 0002 closes, and it is the single highest-value thing in Tier 1. If the answer is “closed loop, like most tools”, then your real p99 is probably an order of magnitude worse than what you have been quoting, and you are about to see it happen on your own machine.</p>
+  </details>
+  <details>
+    <summary>Have you ever plotted the <em>distribution</em> of your turn latencies, rather than tracking the median over time?</summary>
+    <p class="answer">Most teams track a median on a dashboard and never look at the shape. A lognormal distribution with a fat tail and a median of 2.1 s can comfortably hide a p99 above 6 s. The dashboard will look flat and healthy throughout.</p>
+  </details>
+</div>
+
+<div class="ask">
+  <p><strong>Stuck, bored, or unconvinced?</strong> Tell me. If this lesson was beneath you, say so and I will raise the floor for the rest of Tier 1 — that calibration is the whole reason we are stopping after lesson 0006. If a hop in that table looks wrong for your actual system, give me your real numbers and we will rebuild it against them.</p>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">Where this lands on the r&#233;sum&#233;</span>
+  <p>This lesson teaches the mechanism from first principles and breaks it in a lab. The chapter opposite defends what you actually did with it, including the number on the r&#233;sum&#233;. An interviewer crosses between those two registers without warning.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../resume-mastery/lessons/0001-vendor-evaluation-platform.html">RM 0001 &#183; Owning a vendor-evaluation platform</a>
+      <span class="bridge-why">The Scout fires three model calls into one shared deadline. The chapter is where you say what that budget is, and what happens the day it is missed.</span>
+    </li>
+    <li class="bridge-row">
+      <a href="../../resume-mastery/lessons/0002-llm-gateway-and-streaming.html">RM 0002 &#183; The gateway and the move to streaming</a>
+      <span class="bridge-why">The median is a sum of hops, and one of those hops was made slower on purpose. That is the part worth defending out loud.</span>
+    </li>
+  </ol>
+</div>
+
+<div class="pager">
+  <span><span class="dir">Index</span><a href="index.html">All lessons</a></span>
+  <span><span class="dir">Next</span><a href="0002-p50-is-a-lie.html">0002 · p50 is a lie →</a></span>
+</div>
+
+</div>
+</body>
+</html>

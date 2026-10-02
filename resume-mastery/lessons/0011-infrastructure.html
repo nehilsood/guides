@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>Infrastructure</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <link rel="stylesheet" href="../assets/lab.css">
+  <link rel="stylesheet" href="../assets/diagram.css">
+  <script src="../assets/store.js"></script>
+  <script src="../assets/theme.js"></script>
+  <script src="../assets/quiz.js"></script>
+  <script src="../assets/evidence.js" defer></script>
+</head>
+<body data-lesson-id="0011">
+
+<div class="page">
+
+<header class="masthead">
+  <div class="crumbs">
+    <a href="index.html">R&#233;sum&#233; Mastery</a>
+    <span class="sep">/</span>
+    <span>Batch B &#183; Technical Skills</span>
+    <span class="sep">/</span>
+    <span class="lesson-no">Chapter 0011</span>
+  </div>
+  <h1>Infrastructure</h1>
+  <p class="standfirst">The strongest infrastructure claim on this r&#233;sum&#233; is that the same team picked two different deployment targets for two services, and can say why. The weakest is everything that is missing: no messaging layer, no cache, one region, one database. Both halves get asked.</p>
+</header>
+
+<div class="win">
+  <span class="label">The win</span>
+  <p>Defend two deployment choices on the property of the workload rather than on preference &#8212; and name the four layers your architecture does not have, before an interviewer draws the diagram and notices.</p>
+</div>
+
+<div class="claim-line">
+  <span class="callout-label">The line being defended</span>
+  <blockquote>&#8220;Python/FastAPI, async SQLAlchemy, PostgreSQL, <strong>GKE</strong>&#8221; &#8212; and the deployment claims distributed across the experience bullets: Cloud Run with IAP, Helm, Terragrunt, Cloud Build, Snowflake, BigQuery.</blockquote>
+  <span class="whose">Drawn from the experience bullets &#183; there is no separate Infrastructure skills line on the current r&#233;sum&#233;</span>
+</div>
+
+<div class="say">
+  <span class="callout-label">Say it out loud &#183; about 75 seconds</span>
+  <p class="frame">For <em>&#8220;walk me through your infrastructure.&#8221;</em> Lead with the two-target decision, because it is genuinely good. Then volunteer the gaps, because an interviewer will draw the diagram and see them anyway.</p>
+  <ol class="beats">
+    <li>
+      <span class="beat">Situation</span>
+      <p class="line">Two services at CloudSufi went to two different places, and the reason is the useful part.</p>
+      <p class="line">The vendor platform is on Kubernetes. The schematization pipeline is on Cloud Run.</p>
+    </li>
+    <li>
+      <span class="beat">Mechanism</span>
+      <p class="line">The deciding property is state. <b>One remembers things between requests and one forgets immediately.</b></p>
+      <p class="line">The platform holds streaming connections and session state per interview. Its Helm release bundles a migration job that must finish before new pods serve.</p>
+      <p class="line">That removes the window where new code meets an old schema.</p>
+      <p class="line">The pipeline runs one request for forty-five seconds and ends, so a proxy does authentication and there is no cluster to own.</p>
+    </li>
+    <li>
+      <span class="beat">What I did</span>
+      <p class="line">Terragrunt provisions the cluster, the managed Postgres and the secret store.</p>
+      <p class="line">Helm carries the deployment, the autoscaler, ingress, external secrets and that job as one release.</p>
+      <p class="line">The predecessor to the platform actually ran on Cloud Run, and what moved it was session lifetime rather than scale.</p>
+    </li>
+    <li>
+      <span class="beat">What it cost</span>
+      <p class="line">Four things this architecture does not have, and I would rather list them myself.</p>
+      <p class="line">No messaging, so post-interview scoring is in-process and lost if the pod dies. No cache, though the blind research pass is identical per vendor.</p>
+      <p class="line">One region and one Postgres with no replicas. And no identity model beyond a proxy and a service key, on a platform that is <b>multi-tenant by nature</b>.</p>
+    </li>
+  </ol>
+</div>
+
+<div class="say-dont">
+  <span class="callout-label">The sentence that sounds fluent and gets you caught</span>
+  <p><span class="quoted">&#8220;It's deployed on GKE with Helm and Terraform.&#8221;</span> True, and it describes a deployment rather than a decision. The follow-up is &#8220;why Kubernetes?&#8221; and the weak answer is scale. The strong answer is session lifetime, and it is available to you because the predecessor was on Cloud Run and moved for exactly that reason.</p>
+  <p>The other trap is answering &#8220;how would you scale this?&#8221; with replicas and pods. For this system the first three bottlenecks are third-party rate limits, the connection pool and the model provider's quota. More pods make the first one worse, and saying so is what separates an answer from a reflex.</p>
+</div>
+
+
+<div class="trace">
+  <span class="callout-label">Walk them through it &#183; one deploy, end to end</span>
+  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One commit, followed to the moment it serves a live interview. Then the layers this architecture does not have, named before anyone draws the diagram.</p>
+  <p class="tr-case"><b>The picture.</b> Two house moves. One is a hotel with guests still asleep in the rooms. The other is a self-storage unit. The lorries are identical and the problem is not, and the difference is whether anything is mid-conversation.</p>
+  <p class="tr-case"><b>The case.</b> A change to the interview platform, which is the hotel. Follow it out. Then contrast it with the schematization pipeline, which is the storage unit, because those two went to different places on purpose.</p>
+  <ol>
+    <li class="tr-step">
+      <span class="tr-k">Underneath</span>
+      <p><b>What happens.</b> Before any code ships, the things it runs on have to exist.</p>
+      <p><b>Concretely.</b> Terragrunt provisions the cluster, the managed Postgres and the secret store, as files rather than as clicks in a console.</p>
+      <p><b>If they ask why.</b> A new environment becomes a directory of values instead of a week of work, and every production change arrives as a diff somebody can review.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The build</span>
+      <p><b>What happens.</b> The commit is built into a container image by Cloud Build.</p>
+      <p><b>Concretely.</b> That image carries the Python version, the libraries and the system packages, so nothing is installed on a machine by hand.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The release</span>
+      <p><b>What happens.</b> A Kubernetes deploy is not one file. It is a deployment, a service, an ingress, an autoscaler, secrets and a job.</p>
+      <p><b>Concretely.</b> Helm bundles all of that into one release. It versions together and it rolls back together.</p>
+      <p><b>If they ask why.</b> One command puts the previous version back. That is the difference between a rollback taking seconds and taking an outage.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The migration</span>
+      <p><b>What happens.</b> Inside that release is a job that runs the database migrations, and it must finish before new pods take traffic.</p>
+      <p><b>Concretely.</b> This is the detail worth having ready. It removes the window where new code meets an old schema.</p>
+      <p><b>If they ask why.</b> A deploy that ships code against the wrong schema fails in a way that is genuinely hard to diagnose. Plain apply has no opinion about ordering. A Helm hook does.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The pods</span>
+      <p><b>What happens.</b> New pods start, take traffic, and the old ones go away.</p>
+      <p><b>Concretely.</b> Credentials are pulled from the secret manager at runtime, so nothing sensitive is in the repository or in the image.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The other one</span>
+      <p><b>What happens.</b> Now the contrast, which is the strongest infrastructure answer on the page.</p>
+      <p><b>Concretely.</b> The schematization pipeline runs on Cloud Run. One request runs for forty-five seconds and ends. A proxy does the authentication and there is no cluster to own.</p>
+      <p><b>If they ask why.</b> The deciding property is state. One service remembers things between requests and one forgets immediately.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">Why it moved</span>
+      <p><b>What happens.</b> The platform's own predecessor ran on Cloud Run quite happily, and what moved it was not scale.</p>
+      <p><b>Concretely.</b> The product version holds a streaming connection for the length of a live interview and keeps session state per interview on the server.</p>
+      <p><b>If they ask why.</b> A long-lived connection and an in-memory session change what a deploy means. They also change what scaling down does to somebody mid-sentence.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The pool</span>
+      <p><b>What happens.</b> One trap in this stack is worth naming before it is asked about.</p>
+      <p><b>Concretely.</b> The connection pool is finite. A request that holds a database connection across a slow model call takes it out of circulation for seconds.</p>
+      <p><b>If they ask why.</b> That is the most likely capacity bug here. The service looks idle and the pool is empty.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">What is missing</span>
+      <p><b>What happens.</b> Four layers this architecture does not have. I would rather list them than have them found.</p>
+      <p><b>Concretely.</b> No messaging, so post-interview scoring runs in-process and is lost if the pod dies. No cache, although the blind research pass is identical for a given vendor.</p>
+      <p><b>If they ask why.</b> One region and one Postgres with no replicas. And no identity model beyond a proxy and a service key, on a platform that is multi-tenant by nature.</p>
+    </li>
+    <li class="tr-step">
+      <span class="tr-k">The price</span>
+      <p><b>What happens.</b> Moving to a cluster was not free either.</p>
+      <p><b>Concretely.</b> It is a cluster to own, which is real operational weight for a service at this volume.</p>
+      <p><b>If they ask why.</b> And the migration ordering is forward-only. Rolling the code back does not roll the schema back, so migrations have to stay compatible with the previous version. That is a discipline rather than a guarantee.</p>
+    </li>
+  </ol>
+</div>
+
+<figure class="mech">
+  <svg viewBox="0 0 840 300" role="img" aria-labelledby="mech0011-t mech0011-d">
+    <defs>
+      <marker id="ar11" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" class="head"/>
+      </marker>
+    </defs>
+    <title id="mech0011-t">Two services, two deployment targets, and the four layers that are absent</title>
+    <desc id="mech0011-d">The vendor platform runs on Kubernetes because it holds long-lived streaming connections and server-side session state, and because its release bundles a migration job that must finish before new pods serve. Terragrunt provisions the cluster, the managed Postgres and the secret store beneath it. The schematization pipeline runs on Cloud Run behind an identity-aware proxy, because a request runs for about forty-five seconds and remembers nothing. Below both sits a list of four layers neither architecture has: no messaging, no cache, one region with one database, and no user identity model.</desc>
+
+    <rect class="box-2" x="8" y="16" width="396" height="128" rx="3"/>
+    <text class="lbl strong" x="24" y="40">Vendor platform &#8594; GKE</text>
+    <text class="num ink-accent" x="24" y="62">because it is stateful</text>
+    <text class="lbl-dim" x="24" y="84">long-lived streaming connections during interviews</text>
+    <text class="lbl-dim" x="24" y="102">server-side session state per interview</text>
+    <text class="lbl-dim" x="24" y="120">Helm: deployment &#183; HPA &#183; ingress &#183; secrets &#183; migrate job</text>
+    <text class="lbl-dim" x="24" y="138">Terragrunt: cluster &#183; Cloud SQL &#183; secret manager</text>
+
+    <rect class="box" x="420" y="16" width="412" height="128" rx="3"/>
+    <text class="lbl strong" x="436" y="40">Schematization &#8594; Cloud Run + IAP</text>
+    <text class="num ink-accent" x="436" y="62">because it is not</text>
+    <text class="lbl-dim" x="436" y="84">one request, about 45 seconds, then it ends</text>
+    <text class="lbl-dim" x="436" y="102">nothing remembered between requests</text>
+    <text class="lbl-dim" x="436" y="120">2 vCPU &#183; 4&#8239;GB &#183; 3600&#8239;s timeout &#183; concurrency 80</text>
+    <text class="lbl-dim" x="436" y="138">auth handled by the proxy, not the service</text>
+
+    <path class="flow" marker-end="url(#ar11)" d="M 420 158 V 178"/>
+
+    <rect class="bad" x="8" y="182" width="824" height="102" rx="3"/>
+    <text class="lbl strong ink-bad" x="24" y="206">Four layers neither architecture has &#8212; say these before they are found</text>
+    <text class="lbl-dim" x="24" y="230">No messaging &#8212; background work is in-process and lost if the pod dies</text>
+    <text class="lbl-dim" x="24" y="248">No cache &#8212; the blind pass is identical per vendor and recomputed every time</text>
+    <text class="lbl-dim" x="24" y="266">One region, one Postgres, no replicas &#8212; no read scaling, no failover</text>
+    <text class="lbl-dim" x="436" y="230">No identity model &#8212; a proxy and a service key, no roles</text>
+    <text class="lbl-dim" x="436" y="248">and the platform is multi-tenant by nature</text>
+    <text class="num ink-bad" x="436" y="272">this is the question to have thought about</text>
+  </svg>
+  <figcaption>
+    <span class="callout-label">What you say while drawing it</span>
+    <ol class="narrate">
+      <li>Two boxes, one per service, and the deciding word under each.</li>
+      <li>Left: stateful. Streaming connections and session state, so it needs a cluster.</li>
+      <li>Underneath it, what the Helm release actually contains. That list is what ownership means.</li>
+      <li>Right: not stateful. One request, forty-five seconds, nothing remembered.</li>
+      <li>So Cloud Run, with the proxy doing authentication rather than the service.</li>
+      <li>Then the red band, and say it before anyone asks for it.</li>
+      <li>No messaging, no cache, one region and one database.</li>
+      <li>And no identity model, on a platform that is multi-tenant by nature.</li>
+    </ol>
+  </figcaption>
+</figure>
+
+<div class="redraw">
+  <span class="callout-label">Now cover it and redraw</span>
+  <p>Sixty seconds. Two boxes with one word each, and a band of four absences.</p>
+  <ul>
+    <li>The <b>two services and the deciding property</b>. Stateful and not.</li>
+    <li>The <b>Helm release contents</b>, because that is what turns a platform name into ownership.</li>
+    <li>The <b>four missing layers</b>. The one mark to keep, because it is what you volunteer.</li>
+    <li><b>Multi-tenant with no identity model</b>, which is the sharpest of the four.</li>
+  </ul>
+  <span class="timer">Say &#8220;one remembers, one forgets&#8221; as you draw the two boxes. Four words and both deployment choices are justified.</span>
+</div>
+
+<div class="star">
+  <span class="callout-label">Behavioural &#183; the story for this bullet</span>
+  <p class="frame">For <em>&#8220;tell me about a platform decision you revisited&#8221;</em> or <em>&#8220;a time you moved something and could justify it.&#8221;</em></p>
+  <ol class="rungs">
+    <li class="rung"><span class="rung-k">Decision</span><p>Whether to keep the avatar interview service on Cloud Run, where its predecessor ran happily, or move it onto a cluster.</p></li>
+    <li class="rung"><span class="rung-k">Situation</span><p>The proof of concept ran on Cloud Run, and that was the right call for it. The product version held streaming connections for the length of a live interview. It also kept session state per interview on the server.</p></li>
+    <li class="rung"><span class="rung-k">Action</span><p>I moved it to GKE, and the argument was about lifetime rather than scale. A long-lived connection and an in-memory session change what a deploy means. They also change what scaling down does to a user mid-sentence.</p><p>The release then bundled the deployment, the autoscaler, ingress, external secrets and a migration job that has to finish before any new pod serves traffic.</p></li>
+    <li class="rung"><span class="rung-k">Result</span><p>Deploys stopped being able to cut an interview off or meet the wrong schema. The whole release became one versioned artefact, so rolling back the application is one action rather than a sequence.</p></li>
+    <li class="rung"><span class="rung-k">What it cost</span><p>A cluster to own, which is real operational weight for a service at this volume. And the migration ordering is forward-only, so rolling the code back does not roll the schema back. Migrations still have to stay compatible with the previous version, which is a discipline rather than a guarantee.</p></li>
+  </ol>
+</div>
+
+
+<div class="primer">
+  <span class="callout-label">Start here &#8212; the plain version</span>
+  <p>Every service on this r&#233;sum&#233; is one application talking to one database in one region. That is a completely normal shape. It is also the thing a senior interviewer will probe. The interesting questions are all about what happens when it stops being enough.</p>
+  <p>What is genuinely strong here is that two services went to two different places, for stated reasons. What is worth preparing is the list of layers that are simply absent. Naming them first is far better than having them found.</p>
+  <dl>
+    <dt>GKE</dt>
+    <dd>Google's managed Kubernetes. You get a cluster of machines and describe what should run on it. Worth it when you need control over pods, scaling and lifecycle.</dd>
+
+    <dt>Cloud Run</dt>
+    <dd>Containers without a cluster. It scales to zero, handles one request shape well, and takes most of the operational burden away.</dd>
+
+    <dt>Helm</dt>
+    <dd>Packaging for Kubernetes. One release bundles the deployment, autoscaler, ingress, secrets and any jobs, so they version and roll back together.</dd>
+
+    <dt>Terragrunt</dt>
+    <dd>A wrapper over Terraform for describing the cloud resources underneath: the cluster itself, the managed database, the secret store.</dd>
+
+    <dt>Migrate job</dt>
+    <dd>A Kubernetes job that runs database migrations and must finish before new pods serve traffic. It is what stops a new version meeting an old schema.</dd>
+
+    <dt>HPA</dt>
+    <dd>Horizontal pod autoscaler. Adds and removes pods based on a signal like CPU. Useless for a stateful session unless something keeps the session with its pod.</dd>
+
+    <dt>IAP</dt>
+    <dd>Identity-Aware Proxy. Authentication in front of a service, so the service itself does not implement login. Used on the schematization pipeline.</dd>
+
+    <dt>External secrets</dt>
+    <dd>Pulling credentials from a secret manager into the cluster at runtime, so they are never in the repository or the image.</dd>
+
+    <dt>Connection pool</dt>
+    <dd>A fixed set of database connections shared by requests. Finite, which is why holding one across a slow model call is a capacity problem.</dd>
+
+    <dt>Stateful session</dt>
+    <dd>Work where the server remembers something between requests. It constrains deploys, load balancing and scaling far more than a stateless request does.</dd>
+  </dl>
+</div>
+
+<div class="primer stack">
+  <span class="callout-label">The technology &#8212; what each named thing is</span>
+  <p>The primer above defines the managed products. This one goes a layer down, to the objects and the pipeline those products are made of. An infrastructure claim is the easiest on the r&#233;sum&#233; to test, because the interviewer can simply ask you to name things.</p>
+  <p>Every entry answers four things. What it actually is, in plain words. Where this system uses it. What it buys, meaning what goes wrong without it. And the follow-up an interviewer asks once you have said the name.</p>
+  <dl>
+    <dt>Pod, Deployment, Service</dt>
+    <dd><i>the three you always need</i>Three objects that between them describe almost any running service. A <b>pod</b> is one or more containers that share a network address and can share a disk, and it is the smallest unit Kubernetes will schedule. A <b>Deployment</b> says how many identical pods should exist, recreates them when they die, and replaces them gradually when the image changes. A <b>Service</b> gives that changing set of pods one stable address and spreads traffic across whichever are currently healthy. <b>In the app.</b> This is the minimum vocabulary for describing what the Helm chart installs. <b>What it buys.</b> A separation of concerns you get for free: what runs, how many, and how it is reached are three independent things you can change without touching the others. <b>The follow-up.</b> Pods are disposable and their addresses change every time one is replaced. The Service exists precisely because nothing should ever hold onto a pod's IP address.</dd>
+
+    <dt>Ingress</dt>
+    <dd><i>the way in</i>A Service is reachable inside the cluster, which is not much use on its own. An Ingress is the rule set that maps an external hostname and URL path to a Service, and terminates TLS on the way through. On GKE it is implemented by a real Google load balancer created on your behalf. <b>In the app.</b> It is the object that makes the cluster reachable from the internet at all. <b>What it buys.</b> One load balancer and one certificate serving many services, routed by host and path, instead of a public address per service. <b>The follow-up.</b> Timeouts live here, and this is where a streaming workload dies. A load balancer with a short idle timeout will cut a long-lived connection regardless of what the application is prepared to do, and that is the very first failure a session-based workload runs into.</dd>
+
+    <dt>Namespace and RBAC</dt>
+    <dd><i>the boundaries</i>A namespace is a partition inside one cluster. Names are unique within it rather than across the cluster, and quotas and limits can be set per namespace. RBAC is the permission system: a role is a list of allowed verbs on particular resource types, and a binding attaches that role to a user or a service account. <b>In the app.</b> Together they are what make one cluster safe to share between environments and teams. <b>What it buys.</b> One cluster instead of five, with the operational and cost savings that implies, without every team being able to delete every other team's work. <b>The follow-up.</b> A namespace is not a security boundary on its own. By default pods in one namespace can reach pods in another over the network. Network policy and RBAC are what actually separate them, and neither is enabled by default.</dd>
+
+    <dt>Rollout strategies</dt>
+    <dd><i>rolling, blue-green, canary</i>Three ways to replace a running version. Rolling swaps pods a few at a time, so for a while both versions are serving traffic together. Blue-green stands the entire new version up beside the old one and flips all traffic at once, which makes rollback instant and doubles the resources needed. Canary sends a small percentage to the new version, watches the metrics, and widens only if they hold. <b>In the app.</b> The migrate job exists precisely because rolling means two versions share one database. <b>What it buys.</b> Deployment without a maintenance window, and a defined way back when it goes wrong. <b>The follow-up.</b> Two constraints here, not one. A migration the old version cannot survive rules out plain rolling. A live interview session rules out replacing the pod holding it. Draining connections and expand-then-contract schema changes are the two answers.</dd>
+
+    <dt>Cloud Build</dt>
+    <dd><i><code>cloudbuild-{dev,prod}.yaml</code></i>Google's continuous integration runner. A build is a YAML file listing steps, where each step is a container image with arguments, and every step shares one workspace directory. It triggers on a commit and runs in Google's infrastructure rather than yours. <b>In the app.</b> It is what turns a commit into a container image and then into a Helm release. <b>What it buys.</b> No build servers to own, and native credentials into Artifact Registry and the cluster without secrets being copied around. <b>The follow-up.</b> What the pipeline actually contains, step by step. Build, test, push, deploy is the honest minimum. If there is no test step in it, say so directly rather than letting the word CI imply one that is not there.</dd>
+
+    <dt>Artifact Registry</dt>
+    <dd><i>where images live</i>Google's storage for container images and language packages. The image you built has to be somewhere the cluster can pull it from, and this is that place. Every image has a content-addressed digest, which is its real identity, and any number of human-readable tags pointing at it. <b>In the app.</b> It is the handover point between build and run. <b>What it buys.</b> A single place with access control, vulnerability scanning and retention rules, sitting in the same project as the cluster that pulls from it. <b>The follow-up.</b> Tags against digests. A tag can be moved to point at a different image, so deploying <code>:latest</code> means you genuinely cannot say what is running right now. Pinning the digest is what makes a rollback exact rather than approximate.</dd>
+
+    <dt>Workload Identity</dt>
+    <dd><i>keys you do not have</i>A binding that lets a Kubernetes service account impersonate a Google service account. A pod running under that Kubernetes account asks the node's metadata server for a token, and gets a short-lived credential for the Google account. No key material is ever stored, mounted or transferred. <b>In the app.</b> It is how pods reach Cloud SQL and Secret Manager. <b>What it buys.</b> Credentials that expire on their own and rotate without anybody doing anything. There is nothing to leak, because there is no file. <b>The follow-up.</b> What it replaces, which is the part worth saying. A downloaded JSON key file that never expires, is hard to rotate, ends up in an environment variable or a laptop, and is the single most common route into a compromised cloud account.</dd>
+
+    <dt>Terraform state</dt>
+    <dd><i>the file that matters</i>Terraform's own record of what it believes it has created, mapping each resource in your configuration to a real id in the cloud. Without it, Terraform cannot tell a resource it should update from one it should create. It is normally kept in a bucket rather than on a laptop, with a lock so two people cannot write it at once. <b>In the app.</b> Terragrunt's per-environment layout is largely about keeping these separate and configured once rather than copied. <b>What it buys.</b> Shared truth. Everyone and every CI run plans against the same picture of reality, which is what makes infrastructure a team activity rather than one person's machine. <b>The follow-up.</b> Two people applying at once. Without locking, one overwrites the other's view of what exists, and the recovery is manual import rather than simply running it again.</dd>
+
+    <dt>Redis</dt>
+    <dd><i>the in-memory one</i>A data store that keeps everything in memory, which makes it roughly a thousand times faster than a disk-backed database and means it loses data on restart unless you configure otherwise. It is single-threaded, so operations are atomic without locking, and that is why it is the standard answer for counters, rate limits, queues and distributed locks. <b>In the app.</b> It is the usual answer for state shared between replicas that Postgres should not be asked to hold. <b>What it buys.</b> Coordination between replicas at microsecond cost, which lets stateless services stay stateless. <b>The follow-up.</b> What happens when it restarts. If it is a cache, nothing, the data is refetched. If it is holding sessions or locks, you have just created an outage. Which of the two it is matters far more than the product name.</dd>
+
+    <dt>BigQuery and Snowflake</dt>
+    <dd><i>two warehouses</i>Both are analytical databases, both store data by column rather than by row, both separate storage from compute, and both speak SQL. The difference is what you manage. BigQuery has no cluster at all: you submit a query and Google finds the machines, billing mainly on how many bytes it had to read. Snowflake gives you named warehouses that you size, start and stop, and bills per second that one is running. <b>In the app.</b> This r&#233;sum&#233; touches both. <b>What it buys.</b> Scan-heavy analytics at a speed no transactional database reaches, on data nobody has to shard. <b>The follow-up.</b> The cost lever is different in each. On BigQuery you reduce bytes read, with partitioning and clustering. On Snowflake you shut the compute down when nobody is using it.</dd>
+
+    <dt>Observability</dt>
+    <dd><i>logs, metrics, traces</i>Three signals that answer three different questions. Logs are timestamped events with text, good for detail and expensive at volume. Metrics are numbers sampled over time, cheap to store for years and the right thing to alert on. Traces follow one single request across every service it touched, with timing at each hop, and they are the only one of the three that tells you where the time actually went. <b>In the app.</b> Every latency claim on this r&#233;sum&#233; was measured with one of these. <b>What it buys.</b> The ability to answer questions you did not anticipate, which is the difference between monitoring and observability. <b>The follow-up.</b> Which you would add first to a system that has none. Metrics tell you something is wrong. Traces tell you where. Most systems have the first and not the second, which is why incidents take hours.</dd>
+  </dl>
+</div>
+
+
+
+
+<h2>Two services, two targets, two reasons</h2>
+
+<p class="breath">The vendor platform runs on Kubernetes. The schematization pipeline runs on Cloud Run. That difference is the best infrastructure answer on the page, because it shows the choice was made rather than inherited.</p>
+
+<p>The vendor platform has long-lived streaming connections during interviews, server-side session state per interview, and a migration that must complete before the new version serves. Helm bundles the deployment, the autoscaler, ingress, external secrets and that migrate job into one release. Terragrunt provisions the cluster and the managed database underneath.</p>
+
+<p>The schematization pipeline is the opposite shape. A request arrives, runs for about forty-five seconds, and ends. Nothing is remembered. So it runs on Cloud Run with IAP in front, two vCPU, four gigabytes, a 3600-second timeout and concurrency 80. No cluster to own, authentication handled by the proxy, and it scales to zero.</p>
+
+<p>Say the deciding property rather than the technology. <b>One is stateful and one is not.</b> Everything else follows from that.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>One service remembers things between requests and one forgets immediately. That single difference decides where each one should live.</p>
+
+<h2>The migrate job, which is the detail worth having</h2>
+
+<p class="breath">A deploy that ships new code against an old schema fails in a way that is hard to diagnose. Put the migration inside the release, as a job that must finish first. That removes the race entirely.</p>
+
+<p>Helm's release includes the migrate job alongside the deployment. The job runs to completion before the new pods accept traffic. So there is never a window where a new binary is querying a table that does not have its column yet.</p>
+
+<p>The honest limit is worth volunteering too. This ordering protects the forward direction. It does not make the migration itself reversible, and a rollback of the code does not roll back the schema. That is why migrations have to be written to be compatible with the previous version, not just with the next one.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Change the shape of the database before the new code arrives, not at the same time. And remember that going back is a separate problem.</p>
+
+<h2>The four things that are not there</h2>
+
+<p class="breath">No messaging layer. No cache. One region and one database. No identity system beyond a proxy. Each of those is a real gap and each one has a good answer if you get there first.</p>
+
+<p><b>No messaging.</b> Background work is an in-process background task handed off before the response returns. That works and it means work is lost if the pod dies mid-flight. A queue would make it durable, and the honest framing is that the failure mode was acceptable rather than that the queue was unnecessary.</p>
+
+<p><b>No cache.</b> The blind research pass is identical across interviews with the same vendor and it is recomputed every time. Adding a cache there is the obvious win, and it brings stampede and penetration with it.</p>
+
+<p><b>One region, one Postgres.</b> No replicas, so there is no read scaling and no failover story. That is fine at current volume and it is the first rung of a ladder nobody has climbed.</p>
+
+<p><b>Authentication is a proxy.</b> IAP in front of the schematization pipeline, and a service-to-service key on the gateway. There is no user identity model, no roles, and no per-tenant authorisation, which for a multi-tenant vendor platform is a question worth having an answer to.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Four layers most mature systems have, that these do not. Say them yourself and they read as known trade-offs rather than blind spots.</p>
+
+<h2>The async database trap</h2>
+
+<p class="breath">Async SQLAlchemy over asyncpg is on the r&#233;sum&#233;, and the question it invites is about pooling. A connection held across a model call is the most likely capacity bug in this whole stack.</p>
+
+<p>A pool is a fixed number of connections. A request that takes one, then awaits a model call for several seconds, then releases it, has held a scarce resource for the duration of something that did not need a database at all.</p>
+
+<p>Under load that exhausts the pool, and the symptom is requests queuing for connections rather than for the model. It looks like a database problem and it is a code-structure problem. The fix is to scope the session tightly around the query, not around the handler.</p>
+
+<p>The related rule from chapter 0001 is the other half. Work that outlives its request cannot borrow the request's session, because the middleware has already closed it. Nine places in that codebase open their own for exactly that reason.</p>
+
+<p class="pm"><span class="pm-k">Plain meaning</span>Do not hold a seat at the table while you go and make a phone call. Someone else needed that seat.</p>
+
+
+
+
+<section class="qset" id="toolbox">
+  <h2>Toolbox</h2>
+  <p class="qset-note">Every noun in the claim, defined out loud, from the ground up. Infrastructure is where interviewers ask for vocabulary directly, because naming the objects correctly is the cheapest signal that you have actually operated something.</p>
+  <ul class="qa-index">
+    <li><a href="#c11-t1">The objects a service needs</a></li>
+    <li><a href="#c11-t2">Rolling, blue-green, canary</a></li>
+    <li><a href="#c11-t3">What the build pipeline does</a></li>
+    <li><a href="#c11-t4">Tags against digests</a></li>
+    <li><a href="#c11-t5">What Workload Identity replaces</a></li>
+    <li><a href="#c11-t6">Where Terraform state lives</a></li>
+    <li><a href="#c11-t7">BigQuery against Snowflake</a></li>
+    <li><a href="#c11-t8">What you look at first</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c11-t1">
+      <p class="qa-q">Name the Kubernetes objects a web service needs, and say what each does.</p>
+      <p class="qa-a">A pod is one or more containers sharing a network address, and it is the smallest thing Kubernetes will schedule. A Deployment says how many identical pods should exist, recreates them when they die, and replaces them gradually when the image changes. A Service gives that changing set one stable address and spreads traffic across whichever are healthy. An Ingress maps an external hostname and path to that Service and terminates TLS. What the split buys is independence. What runs, how many, and how it is reached are three things you change separately. Pods are disposable and their addresses change, which is exactly why nothing holds a pod's IP.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying &#8220;we deploy containers to Kubernetes.&#8221; Name the objects. Four nouns is the whole answer and not having them is very visible.</p>
+    </li>
+    <li class="qa-item" id="c11-t2">
+      <p class="qa-q">Rolling, blue-green, canary. What is the difference, and which do you run?</p>
+      <p class="qa-a">Three ways to replace a running version. Rolling swaps pods a few at a time, so for a while both versions serve together. Blue-green stands the entire new version up beside the old one and flips all traffic at once, making rollback instant and doubling the resources. Canary sends a small percentage to the new version, watches the metrics, and widens if they hold. What any of them buys is deployment without a maintenance window, and a defined way back. A Deployment rolls by default, and that default is the problem here. A long session gets cut mid-interview, so old pods are drained rather than replaced.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Reciting the three and not saying which one this workload survives. The overlap window is what the migrate job and the session pinning both exist for.</p>
+    </li>
+    <li class="qa-item" id="c11-t3">
+      <p class="qa-q">What does Cloud Build actually do here?</p>
+      <p class="qa-a">It is Google's continuous integration runner. A build is a YAML file listing steps, where each step is a container image with arguments and every step shares one workspace. It triggers on a commit and runs in Google's infrastructure rather than yours. Here it builds the image, pushes it to Artifact Registry, then deploys, with a file per environment. What it buys is no build servers to own, and native credentials into the registry and the cluster with no secrets copied around. If there is no test step, say so rather than letting the word CI imply one. An honest description of a thin pipeline beats an implied one that does not exist.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying &#8220;we have CI/CD&#8221; and stopping. Both letters are separate claims and the interviewer usually only cares about the second.</p>
+    </li>
+    <li class="qa-item" id="c11-t4">
+      <p class="qa-q">What is deployed, the tag or the digest?</p>
+      <p class="qa-a">The image you built has to live somewhere the cluster can pull it from, and that is Artifact Registry. Every image there has a content-addressed digest, which is its real identity, plus any number of readable tags pointing at it. A tag is a movable label. If you deploy a tag, you cannot say with certainty what is running, and two clusters on the same tag can differ. What pinning the digest buys is an exact rollback rather than an approximate one. It also makes an incident timeline trustworthy, because the version in the log is the version that ran.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Deploying <code>:latest</code> and not flagging it. It is a common shortcut and naming it as one is better than being asked.</p>
+    </li>
+    <li class="qa-item" id="c11-t5">
+      <p class="qa-q">What is Workload Identity, and what does it replace?</p>
+      <p class="qa-a">A binding that lets a Kubernetes service account impersonate a Google one. A pod running under that account asks the node's metadata server for a token and gets a short-lived credential. No key material is ever stored, mounted or transferred. What it buys is credentials that expire on their own and rotate with nobody doing anything. There is nothing to leak, because there is no file. It replaces a downloaded JSON key file. That file never expires, is awkward to rotate, and ends up in an image, an environment variable or a laptop. Leaked static keys are one of the most common routes into a cloud account.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing it as convenience. It is the credential lifetime that matters, and the argument is a security one.</p>
+    </li>
+    <li class="qa-item" id="c11-t6">
+      <p class="qa-q">Where does Terraform state live, and why does it matter?</p>
+      <p class="qa-a">Remotely, in a bucket, with locking. State is Terraform's record of what it believes it created, mapping each resource in your configuration to a real id in the cloud. Without it, Terraform cannot tell a resource it should update from one it should create. What keeping it remote buys is shared truth. Everyone and every CI run plans against the same picture, which is what makes infrastructure a team activity rather than one laptop. It matters because two people applying at once without a lock means one overwrites the other's view of reality. Recovery is manual import, not a rerun. State is also secret, because it holds resource attributes.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Local state, or state with no lock. Both work until the second engineer arrives, which is the moment this question is really about.</p>
+    </li>
+    <li class="qa-item" id="c11-t7">
+      <p class="qa-q">BigQuery and Snowflake are both warehouses. What actually differs?</p>
+      <p class="qa-a">Both are analytical databases storing data by column rather than by row, both separate storage from compute, and both speak SQL. Columnar storage is what makes them fast, because a query reading three columns of two hundred pays for three. The difference is what you manage. BigQuery has no cluster at all. You submit a query, Google finds the machines, and you are billed mainly on bytes read. Snowflake gives you named warehouses that you size, start and stop, billed per second one is running. So the cost lever differs. On BigQuery you read fewer bytes, with partitioning and clustering. On Snowflake you turn the compute off.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Comparing them on speed. They are close enough that the operational and billing models are what you would actually choose on.</p>
+    </li>
+    <li class="qa-item" id="c11-t8">
+      <p class="qa-q">The service is slow. What do you look at first?</p>
+      <p class="qa-a">Three signals answer three different questions. Metrics are numbers sampled over time, cheap to keep for years and the right thing to alert on. They tell you something is wrong and roughly where in the stack. Traces follow one request across every service it touched, with timing at each hop. They are the only one of the three that shows where the time actually went. Logs are events with text, good for detail and expensive at volume. So the order is metrics, then traces, then logs. Most systems have good metrics and no tracing, which is why incidents take hours. That gap is the honest answer if it is yours.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Starting with logs. Grepping is what you do when you already know where to look, and at this point you do not.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="fundamentals">
+  <h2>Fundamentals</h2>
+  <p class="qset-note">Question three is the one that pays. Two deployment choices with stated reasons is a better answer than most candidates have.</p>
+  <ul class="qa-index">
+    <li><a href="#c11-f1">What you actually own</a></li>
+    <li><a href="#c11-f2">Why Kubernetes here</a></li>
+    <li><a href="#c11-f3">Why Cloud Run there</a></li>
+    <li><a href="#c11-f4">Helm and Terragrunt</a></li>
+    <li><a href="#c11-f5">The migrate job</a></li>
+    <li><a href="#c11-f6">Secrets</a></li>
+    <li><a href="#c11-f7">How code ships</a></li>
+    <li><a href="#c11-f8">Which datastores</a></li>
+    <li><a href="#c11-f9">What is missing</a></li>
+    <li><a href="#c11-f10">The riskiest claim</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c11-f1">
+      <p class="qa-q">What infrastructure do you actually own?</p>
+      <p class="qa-a">For the vendor platform, the whole path. Helm charts for the deployment, autoscaler, ingress, secrets and migrate job. Terragrunt for the cluster, the managed Postgres and the secret store. Cloud Build for the pipeline. For the schematization service, a Cloud Run deploy behind IAP.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying &#8220;we deployed to GKE&#8221; and stopping. Naming the chart contents is what turns a platform name into ownership.</p>
+    </li>
+    <li class="qa-item" id="c11-f2">
+      <p class="qa-q">Why Kubernetes for the vendor platform?</p>
+      <p class="qa-a">Long-lived streaming connections during interviews, and server-side session state per interview. Plus a migration that has to complete before the new version serves. Helm gives the deployment, HPA, ingress, external secrets and that job as one release. The predecessor ran on Cloud Run, and session lifetime is what moved it.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Citing scale. The volume does not require a cluster. Session lifetime and release composition do.</p>
+    </li>
+    <li class="qa-item" id="c11-f3">
+      <p class="qa-q">And why Cloud Run for the schematization pipeline?</p>
+      <p class="qa-a">Because it is the opposite shape. A request runs about forty-five seconds and ends, and nothing is remembered between requests. Two vCPU, four gigabytes, a 3600-second timeout, concurrency 80, with IAP handling authentication. There is nothing stateful, so there is nothing a cluster would buy.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Framing it as the simpler option. It is the correct option for a stateless workload, and the reason is the property rather than the effort.</p>
+    </li>
+    <li class="qa-item" id="c11-f4">
+      <p class="qa-q">Helm and Terragrunt do different jobs. Which is which?</p>
+      <p class="qa-a">Terragrunt provisions what is underneath: the cluster, the managed database, the secret store. Helm describes what runs on top of it. The boundary is roughly whether something survives a redeploy of the application. Infrastructure is slow and rare, releases are fast and frequent.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating them as alternatives. They operate at different layers and using both is the normal arrangement.</p>
+    </li>
+    <li class="qa-item" id="c11-f5">
+      <p class="qa-q">Why is the migration a job inside the release?</p>
+      <p class="qa-a">So the schema is ready before any new pod serves traffic. It runs to completion first, which removes the window where new code meets an old schema. The limit worth saying is that it protects the forward direction only. Rolling the code back does not roll the schema back.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Calling it automated migrations. The ordering guarantee is the feature, not the automation.</p>
+    </li>
+    <li class="qa-item" id="c11-f6">
+      <p class="qa-q">How are secrets handled?</p>
+      <p class="qa-a">External secrets pulled from the secret manager into the cluster at runtime, provisioned by Terragrunt. Nothing credential-shaped is in the repository or baked into an image. That also means rotating a secret does not need a rebuild, which is the practical benefit people forget to mention.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Only saying they are not in the repo. Rotation without a rebuild is the operational argument.</p>
+    </li>
+    <li class="qa-item" id="c11-f7">
+      <p class="qa-q">How does code get from a merge to production?</p>
+      <p class="qa-a">Cloud Build, with separate configurations for development and production. It builds the image and rolls the Helm release, which includes the migrate job running first. For the schematization service it is a build and a Cloud Run deploy. Both are one command rather than a runbook.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing CI and CD as one thing. Being able to say what happens between merge and traffic is the answer.</p>
+    </li>
+    <li class="qa-item" id="c11-f8">
+      <p class="qa-q">Which datastores across all this work?</p>
+      <p class="qa-a">PostgreSQL for the vendor platform's relational core. Snowflake as the warehouse the pipeline debugger queries and validates against. BigQuery as the migration target for the lineage work. ChromaDB as the vector store for past incidents. Four stores with four different jobs.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Listing them flat. Naming what each one is for is what shows they were chosen rather than inherited.</p>
+    </li>
+    <li class="qa-item" id="c11-f9">
+      <p class="qa-q">What is missing from this architecture?</p>
+      <p class="qa-a">Four things and I would rather list them than be asked. No messaging layer, so background work is in-process and lost if the pod dies. No cache, though the blind research pass is identical across interviews. One region and one Postgres with no replicas. And no user identity model beyond a proxy and a service key.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Waiting to be asked. Volunteering the gaps is what makes the rest of the answer credible.</p>
+    </li>
+    <li class="qa-item" id="c11-f10">
+      <p class="qa-q">What is the riskiest infrastructure claim?</p>
+      <p class="qa-a">Not a claim but an absence. The vendor platform is multi-tenant by nature, since different buyers evaluate different vendors. There is no per-tenant authorisation model beyond what the application does itself. That is the question I would most want to have thought about before being asked.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Naming a technology you listed. The exposure here is the layer that is absent, not the one that is named.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="qset" id="deep-dive">
+  <h2>Deep dive</h2>
+  <p class="qset-note">Half of these are about the gaps. A senior interviewer spends most of an infrastructure conversation on what is not there.</p>
+  <ul class="qa-index">
+    <li><a href="#c11-d1">Pooling across a model call</a></li>
+    <li><a href="#c11-d2">Sessions that outlive requests</a></li>
+    <li><a href="#c11-d3">Deploying a stateful service</a></li>
+    <li><a href="#c11-d4">HPA on a stateful pod</a></li>
+    <li><a href="#c11-d5">Rolling a migration back</a></li>
+    <li><a href="#c11-d6">Where a queue would go</a></li>
+    <li><a href="#c11-d7">Where a cache would go</a></li>
+    <li><a href="#c11-d8">The scaling ladder</a></li>
+    <li><a href="#c11-d9">Multi-tenancy</a></li>
+    <li><a href="#c11-d10">Config in charts</a></li>
+    <li><a href="#c11-d11">What you would observe</a></li>
+    <li><a href="#c11-d12">The first thing to add</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c11-d1">
+      <p class="qa-q">What happens if a request holds a database connection across a model call?</p>
+      <p class="qa-a">It holds a scarce resource for seconds while doing nothing with it. The pool is fixed, so under load it empties and requests queue for connections rather than for the model. It presents as a database problem and it is a code-structure problem. The fix is to scope the session around the query, not the handler.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Suggesting a bigger pool. That moves the load onto the database and delays the same failure.</p>
+    </li>
+    <li class="qa-item" id="c11-d2">
+      <p class="qa-q">Why can background work not use the request's session?</p>
+      <p class="qa-a">Because the middleware opens one session per request and commits or rolls back when the request ends. A background task is handed off before the response returns, so by the time it writes, that session is closed. Using it is a use-after-free with a friendly error message. Nine places in the vendor codebase open their own.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Treating it as an async quirk. It is lifecycle: the scope ended and the work did not.</p>
+    </li>
+    <li class="qa-item" id="c11-d3">
+      <p class="qa-q">How do you deploy a service holding live interview sessions?</p>
+      <p class="qa-a">Session draining is the requirement. Stop admitting new interviews to a pod, let the existing ones finish, then cycle it. A turn is short but a session is long, so a normal rolling update would cut somebody off mid-interview. Version pinning per session is the next pattern I would reach for.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing a standard rolling update. It is exactly what does not work here, and that is why the question is asked.</p>
+    </li>
+    <li class="qa-item" id="c11-d4">
+      <p class="qa-q">Does the autoscaler help a stateful service?</p>
+      <p class="qa-a">Only for adding capacity, not for removing it. Scaling up gives new sessions somewhere to land. Scaling down kills pods holding live sessions unless something drains them first. So the autoscaler and the session lifetime have to be reconciled, and a pure CPU signal does not know a session exists.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying the HPA handles it. Scale-down is the dangerous direction and a CPU metric is blind to sessions.</p>
+    </li>
+    <li class="qa-item" id="c11-d5">
+      <p class="qa-q">You roll back a deploy. What happens to the migration?</p>
+      <p class="qa-a">Nothing. It already ran, and the code rollback does not undo it. The ordering guarantee is forward-only. So migrations have to be written compatible with the previous version too. In practice that means additive changes first, and destructive changes in a later release once nothing reads the old shape.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Assuming a down migration exists and is safe. Most are not exercised, and running one under pressure is its own incident.</p>
+    </li>
+    <li class="qa-item" id="c11-d6">
+      <p class="qa-q">Where exactly would you put a queue?</p>
+      <p class="qa-a">Between the interview ending and the scoring pipeline starting. Today that is an in-process background task handed off before the response returns, so if the pod dies the scorecard is simply lost. A queue makes it durable and retryable, and it decouples scoring capacity from serving capacity.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Adding a queue everywhere. One specific handoff with a real durability gap is a much better answer.</p>
+    </li>
+    <li class="qa-item" id="c11-d7">
+      <p class="qa-q">And a cache?</p>
+      <p class="qa-a">On the blind research pass, because it is identical across interviews with the same vendor and its miss path is a multi-second web fan-out. That immediately brings two problems. A popular vendor gives a stampede, so it needs single-flight. And a vendor with no public footprint returns empty forever, which is cache penetration.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Proposing the cache without its failure modes. Naming stampede and penetration unprompted is the senior half.</p>
+    </li>
+    <li class="qa-item" id="c11-d8">
+      <p class="qa-q">One Postgres, one region. What is the ladder from here?</p>
+      <p class="qa-a">Read replicas first, since scoring and reporting are read-heavy and can tolerate lag. Then connection pooling in front, because replicas multiply connection pressure. Then partitioning the tables that actually grow, which is evaluations rather than rubrics. Multi-region last, because it changes the consistency story rather than the capacity one.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Starting with sharding. It is the last rung and naming it first suggests the ladder has not been thought about.</p>
+    </li>
+    <li class="qa-item" id="c11-d9">
+      <p class="qa-q">The vendor platform is multi-tenant. How is that enforced?</p>
+      <p class="qa-a">In the application, by scoping every query to a workspace. There are permission and tenancy tests, so it is checked rather than assumed. What does not exist is an enforcement layer below that, like row-level security in the database. So a query written without the filter is a data leak and only a test stands in the way.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying it is handled. Saying where it is enforced, and what would catch a mistake, is the real answer.</p>
+    </li>
+    <li class="qa-item" id="c11-d10">
+      <p class="qa-q">Feature flags live in values files rather than in code defaults. What does that cost?</p>
+      <p class="qa-a">The source stops describing what runs. Streaming defaults to false in code and true in both environments, so a reader of the repository gets the wrong answer. It is a good rollout pattern, because enabling is a config change and rollback is a value change. The price is that the default in the source is misleading.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Only praising the pattern. The misleading default is a real cost and naming it shows you read the charts.</p>
+    </li>
+    <li class="qa-item" id="c11-d11">
+      <p class="qa-q">What would you put on a dashboard for these services?</p>
+      <p class="qa-a">Not error rate, because the gateway always returns success. Internal signals instead: canned-reply rate, fallback-model usage, retry rate, and per-turn latency percentiles. For the pipeline, the fraction of runs exiting on stagnation or exhaustion rather than success. Choosing to always succeed means building your own definition of failure.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Listing standard golden signals. For a service that never returns an error, error rate is structurally blind.</p>
+    </li>
+    <li class="qa-item" id="c11-d12">
+      <p class="qa-q">One thing to add. What and why?</p>
+      <p class="qa-a">The queue for post-interview scoring. It closes a real durability gap, where a scorecard can be lost entirely. It is a well-understood component, and it decouples two capacities that currently scale together. The cache is a bigger performance win, and it carries stampede and penetration with it, so it is second.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Choosing the biggest win. Choosing the one that closes a correctness gap first is the better instinct and easier to defend.</p>
+    </li>
+  </ol>
+</section>
+
+<div class="quiz" data-quiz-id="0011-q1">
+  <p class="q">The vendor platform runs on GKE and the schematization pipeline on Cloud Run. What is the deciding difference?</p>
+  <ol class="options">
+    <li data-correct="true">One holds long sessions, the other is stateless requests</li>
+    <li>One is cheaper to operate at that request volume</li>
+    <li>One was chosen before the other team had migrated</li>
+    <li>One supports containers, and the other only plain code</li>
+  </ol>
+  <div class="why">
+    <p>State. The vendor platform holds long-lived streaming connections and server-side session state per interview, and its release bundles a migration that must finish before new pods serve. The pipeline runs one request for about forty-five seconds and remembers nothing.</p>
+    <p>Cost is not the reason, and both targets run containers. The predecessor to the vendor platform was on Cloud Run, and what moved it was session lifetime rather than scale or price.</p>
+  </div>
+</div>
+
+<div class="quiz" data-quiz-id="0011-q2">
+  <p class="q">The Helm release includes a migration job that runs to completion before new pods serve. What does that guarantee?</p>
+  <ol class="options">
+    <li data-correct="true">The schema is ready before any pod accepts traffic</li>
+    <li>The database is backed up before the rollout begins</li>
+    <li>The old pods drain before new ones are started</li>
+    <li>The migration can be retried without a fresh deploy</li>
+  </ol>
+  <div class="why">
+    <p>Ordering. There is never a window where a new binary queries a table that does not yet have its column, because the job finishes first. That removes a class of deploy failure that is otherwise intermittent and miserable to diagnose.</p>
+    <p>It says nothing about draining, backups, or rollback. In particular the guarantee is forward-only: rolling the code back does not roll the schema back, which is why migrations still have to stay compatible with the previous version.</p>
+  </div>
+</div>
+
+<section class="qset" id="edges">
+  <h2>Edges and exceptions</h2>
+  <p class="qset-note">Almost all of these are failure questions, because that is what an infrastructure interview is.</p>
+  <ul class="qa-index">
+    <li><a href="#c11-e1">A pod dies mid-interview</a></li>
+    <li><a href="#c11-e2">The database is unreachable</a></li>
+    <li><a href="#c11-e3">A migration that fails halfway</a></li>
+    <li><a href="#c11-e4">Sticky sessions</a></li>
+    <li><a href="#c11-e5">Ten times the interviews</a></li>
+    <li><a href="#c11-e6">A leaked tenant boundary</a></li>
+    <li><a href="#c11-e7">Cost</a></li>
+    <li><a href="#c11-e8">What you would change</a></li>
+  </ul>
+  <ol class="qa">
+    <li class="qa-item" id="c11-e1">
+      <p class="qa-q">A pod dies during a live interview. What is lost?</p>
+      <p class="qa-a">The session state for that interview, and any post-interview scoring already handed off in-process. The conversation cannot resume on another pod because nothing external holds the state. That is the cost of keeping session state in memory, and it is the strongest argument for the queue and for externalising session state.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Saying Kubernetes restarts it. A restarted pod does not have the old pod's memory.</p>
+    </li>
+    <li class="qa-item" id="c11-e2">
+      <p class="qa-q">Postgres becomes unreachable. What does the gateway do?</p>
+      <p class="qa-a">Returns a canned reply and a 200, because after authentication the route never fails. So the interview continues and nothing is persisted. That is right for the conversation. It also means a database outage is invisible from the outside. Which is exactly why error rate is useless here and internal signals are not.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Describing a 500. The design deliberately does not do that, and the consequence for monitoring is the interesting part.</p>
+    </li>
+    <li class="qa-item" id="c11-e3">
+      <p class="qa-q">The migrate job fails halfway.</p>
+      <p class="qa-a">New pods do not serve, which is the correct outcome. The old version keeps running against the old schema, assuming the migration is transactional or was partially applied in a compatible direction. The dangerous case is a migration that is neither, leaving a schema that matches neither version.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Assuming all migrations are transactional. Some DDL is not, and that is where the genuinely bad outcome lives.</p>
+    </li>
+    <li class="qa-item" id="c11-e4">
+      <p class="qa-q">Two turns of one interview hit two different pods.</p>
+      <p class="qa-a">The second pod has no session, so the interview breaks. Session state is server-side per interview, so requests have to land consistently. That is a load-balancing constraint the architecture depends on, and it is the thing that would break first behind a naive round-robin balancer.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Assuming the load balancer handles it. It has to be configured to, and knowing that dependency exists is the point.</p>
+    </li>
+    <li class="qa-item" id="c11-e5">
+      <p class="qa-q">Ten times the interviews tomorrow. What breaks first?</p>
+      <p class="qa-a">Not the pods. The outbound research, because every interview fans out to third-party search and fetch APIs. Those have their own rate limits, and nothing limits how many interviews are in flight. After that the connection pool, and then the model provider's quota. Adding replicas helps none of those.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Answering with horizontal scaling. The first three bottlenecks are all external limits that more pods make worse.</p>
+    </li>
+    <li class="qa-item" id="c11-e6">
+      <p class="qa-q">A query ships without its workspace filter.</p>
+      <p class="qa-a">One tenant sees another's data, and only a test stands between that and production. Tenancy is enforced in application code rather than in the database, so there is no second line. Row-level security would make the filter structural rather than conventional, and that is the change I would argue for.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Citing code review. Review catches most of them, and structural enforcement catches all of them.</p>
+    </li>
+    <li class="qa-item" id="c11-e7">
+      <p class="qa-q">Where does the money actually go?</p>
+      <p class="qa-a">Model calls, not infrastructure. A cluster and a managed Postgres at this volume are a rounding error next to per-token costs. That is especially true of the pro-tier scoring pass and the Scout's fan-out. So cost optimisation means caching research and choosing model tiers, not resizing nodes.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Talking about node sizing. For an LLM product the infrastructure bill is usually the small half.</p>
+    </li>
+    <li class="qa-item" id="c11-e8">
+      <p class="qa-q">What would you change, in order?</p>
+      <p class="qa-a">A queue for post-interview scoring, because a scorecard can currently be lost outright. Then row-level security for tenancy, so the boundary is structural. Then a cache on the blind research pass, with single-flight, since that is the biggest cost win. Replicas last, because nothing is read-bound yet.</p>
+      <p class="qa-flag"><span class="qa-flag-k">Red flag</span>Ordering by size of win. Correctness gaps before performance gaps is the easier order to defend.</p>
+    </li>
+  </ol>
+</section>
+
+<h2>Probes to expect</h2>
+
+<div class="probes">
+  <ol>
+    <li>
+      &#8220;Why Kubernetes? It sounds like this would run on Cloud Run.&#8221;
+      <span class="tell">A challenge disguised as a question, and a gift, because the predecessor <em>did</em> run on Cloud Run and moved for a nameable reason.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It did, and the proof of concept stayed there. What moved it was session lifetime. The product holds long-lived streaming connections during an interview and keeps session state per interview on the server, so a deploy or a scale-down can cut somebody off mid-sentence. The release also bundles a migration job that must finish before new pods serve. Our other service, the schematization pipeline, is stateless and is still on Cloud Run for exactly that reason.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;How would you scale this to ten times the traffic?&#8221;
+      <span class="tell">Most candidates answer with replicas. The first three bottlenecks here are all external, and more pods make one of them worse.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Not by adding pods first. The first limit is outbound research: every interview fans out to third-party search and fetch APIs with their own rate limits, and nothing caps how many interviews are in flight, so more pods make that worse. Second is the connection pool, especially anywhere a session is held across a model call. Third is the model provider's quota. Admission control at the pipeline level comes before any horizontal scaling.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;What is missing from your architecture?&#8221;
+      <span class="tell">Sometimes asked directly, more often implied. Having the list ready converts an audit into a conversation.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>Four things. No messaging layer, so post-interview scoring is an in-process background task and it is lost if the pod dies. No cache, although the blind research pass is identical across interviews with the same vendor. One region and one Postgres with no replicas, so no read scaling and no failover. And no identity model beyond a proxy and a service key, on a platform that is multi-tenant by nature. The queue is the one I would add first, because it closes a correctness gap rather than a performance one.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;How is tenant isolation enforced?&#8221;
+      <span class="tell">The sharpest of the four gaps, because the product is inherently multi-tenant and the enforcement is conventional rather than structural.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>In application code, by scoping every query to a workspace, with permission and tenancy tests covering it. What does not exist is enforcement below that, like row-level security in Postgres. So a query written without the filter is a data leak with only a test in the way. I would argue for making the boundary structural rather than conventional, because that is the difference between catching most mistakes and catching all of them.</p>
+      </details>
+    </li>
+    <li>
+      &#8220;What would a deploy look like during a live interview?&#8221;
+      <span class="tell">A specific operational question that a candidate who only deployed once will not have thought about.</span>
+      <details class="model">
+        <summary>Model answer &#8212; say yours first</summary>
+        <p>It needs session draining rather than a rolling update. Stop admitting new interviews to a pod, let the ones in progress finish, then cycle it. A turn is short and a session is long, so a standard rollout terminates somebody mid-interview. The migrate job already handles the schema ordering. What the release does not have is a drain step, and version pinning per session is the pattern I would reach for next.</p>
+      </details>
+    </li>
+  </ol>
+</div>
+
+<div class="recall">
+  <details>
+    <summary>Chapter 0003's pipeline chose Cloud Run and chapter 0001's chose GKE. State the deciding property, and name the one thing that would flip the schematization service onto a cluster.</summary>
+    <p class="answer">The deciding property is state. The vendor platform holds streaming connections and session state per interview, and its release includes a migration that must land first. The schematization service runs one request for about forty-five seconds and remembers nothing. What would flip it is acquiring state or a long-lived connection, most plausibly the WebSocket progress channel becoming a session rather than a per-request stream, or the pipeline needing to resume a partially completed run.</p>
+    <span class="from"><a href="0003-multi-agent-schematization.html">Chapter 0003 &#183; Cloud Run, not GKE</a></span>
+  </details>
+  <details>
+    <summary>Chapter 0002 says error rate is structurally blind for the gateway. What does that imply for what you put on an infrastructure dashboard?</summary>
+    <p class="answer">That the standard golden signals are the wrong ones here. After authentication the gateway never fails, so every response is a 200 and error rate cannot move. The dashboard has to watch internal signals instead: canned-reply rate, fallback-model usage, retry rate and per-turn latency percentiles. Choosing to always succeed means choosing to build your own definition of failure, and that choice is an infrastructure decision as much as an application one.</p>
+    <span class="from"><a href="0002-llm-gateway-and-streaming.html">Chapter 0002 &#183; observability pressure</a></span>
+  </details>
+</div>
+
+<div class="bridge">
+  <span class="callout-label">The lessons behind this chapter</span>
+  <p>System Design School teaches these mechanisms from first principles and breaks them in a lab. This chapter defends what you did with them. An interviewer moves between those two registers without warning.</p>
+  <ol class="bridge-list">
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0009-cache-aware-routing.html">SDS 0009 &#183; Cache-aware routing</a>
+      <span class="bridge-why">A stateful session has to land on the same pod every turn, which is the load-balancing constraint this architecture quietly depends on.</span>
+    </li>
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0003-cache-aside-and-friends.html">SDS 0003 &#183; Cache-aside and friends</a>
+      <span class="bridge-why">Which of the four things in this stack is actually cacheable, and which one should never go near Redis.</span>
+    </li>
+    <li class="bridge-row">
+      <a href="../../system-design-school/lessons/0005-stampede-penetration-avalanche.html">SDS 0005 &#183; Stampede, penetration, avalanche</a>
+      <span class="bridge-why">The cache this architecture does not have would bring both failure modes with it on day one.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0020 &#183; Replicas and the scaling ladder &#8212; not yet built</span>
+      <span class="bridge-why">One Postgres, one region. This is the first rung of a ladder nobody has climbed.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0037 &#183; Terraform from zero &#8212; not yet built</span>
+      <span class="bridge-why">Terragrunt provisions the cluster and the database, and the layer below it is the cheapest claim on the page to make solid.</span>
+    </li>
+    <li class="bridge-row">
+      <span class="bridge-soon">SDS 0041 &#183; Multi-tenant RBAC &#8212; not yet built</span>
+      <span class="bridge-why">Tenancy is enforced in application code with tests behind it, and a structural answer is the obvious next step.</span>
+    </li>
+  </ol>
+</div>
+
+
+<div class="pager">
+  <span><span class="dir">Previous</span><a href="0010-model-optimization.html">&#8592; 0010 &#183; Model optimization</a></span>
+  <span><span class="dir">Next</span><a href="0012-rag-and-evaluation.html">0012 &#183; RAG and evaluation &#8594;</a></span>
+</div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,1289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>The Half-Typed Line</title>
+<script src="../assets/visit.js"></script>
+</head>
+<body>
+<div class="prep-sitebar">
+  <a href="../index.html">&#8592;&#160;Interview prep</a>
+  <span>Guide 0011</span>
+  <span>Question 10 &#183; Deep prep sheet</span>
+</div>
+<style>
+.prep-sitebar{
+  max-width:1060px; margin:0 auto; padding:20px 24px 0;
+  font-family:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:10.5px; font-weight:500; letter-spacing:0.13em; text-transform:uppercase;
+  opacity:0.6; display:flex; gap:12px; flex-wrap:wrap; align-items:baseline;
+}
+.prep-sitebar a{color:inherit; text-decoration:none; border-bottom:1px solid currentColor; padding-bottom:1px}
+.prep-sitebar a:hover{opacity:1}
+.prep-sitebar span::before{content:"/"; margin-right:12px; opacity:0.5}
+</style>
+
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Martian+Mono:wght@400;500;700&family=DM+Mono:wght@300;400;500&display=swap">
+<style>
+/* ==========================================================================
+   0011 - The Half-Typed Line.
+
+   Identity: a text buffer. Cool violet-grey paper, a hairline gutter, a
+   serif for the prose and a wide technical mono for everything the editor
+   itself would draw - the line numbers, the status bar, the labels. The
+   prose is set like a book because it is commentary; the chrome is set
+   like a terminal because it is machinery; the code is set in the thing
+   it actually is.
+
+   One hue, and it means one thing: A BOUNDARY.
+
+   Violet is a cut point - a place the text is allowed to be divided. It is
+   never used on a token, a heading, a quantity or an emphasis. It is used
+   on positions. So when the second tokenizer merges two tokens into one,
+   a violet tick disappears from the page, and the figure argues the thesis
+   without a caption: compression is measured in tokens saved, but what it
+   spends is boundaries, and a boundary you spent is a cursor position you
+   can no longer represent.
+
+   Which makes this the sixth move in the series' running argument about
+   colour. 0006 moved a semantic colour off the accent, 0007 deleted one,
+   0008 replaced the alarm with low contrast, 0009 turned doubt into a width,
+   0010 spent the accent only on the diff. 0011 spends it only on a
+   POSITION - never on a thing. Slate carries the material; violet carries
+   the seams between the material. A page where the violet thins out is a
+   page describing a tokenizer that has stopped being able to stop.
+   ========================================================================== */
+
+:root{
+  --ground:#eae8ee; --card:#f5f3f8; --card-2:#efecf3; --sunk:#ddd9e4;
+  --ink:#171522; --ink-2:#4b4757; --ink-3:#807a8e;
+  --rule:#c4bed0; --rule-2:#dbd6e2;
+  --sig:#73299e; --sig-ink:#5f2185; --sig-soft:#ece0f6;
+  --calm:#4d5a63; --calm-ink:#3b4750; --calm-soft:#e1e5e8;
+  --display:"Newsreader",Georgia,"Times New Roman",serif;
+  --body:"Newsreader",Georgia,"Times New Roman",serif;
+  --chrome:"Martian Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --mono:"DM Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#131118; --card:#1c1a23; --card-2:#232029; --sunk:#0c0b10;
+    --ink:#eae7f0; --ink-2:#b0aabd; --ink-3:#817b8f;
+    --rule:#332f3c; --rule-2:#272430;
+    --sig:#c08ce8; --sig-ink:#cfa3f2; --sig-soft:#2e1c3f;
+    --calm:#9aa9b3; --calm-ink:#aebcc6; --calm-soft:#1a2026;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#131118; --card:#1c1a23; --card-2:#232029; --sunk:#0c0b10;
+  --ink:#eae7f0; --ink-2:#b0aabd; --ink-3:#817b8f;
+  --rule:#332f3c; --rule-2:#272430;
+  --sig:#c08ce8; --sig-ink:#cfa3f2; --sig-soft:#2e1c3f;
+  --calm:#9aa9b3; --calm-ink:#aebcc6; --calm-soft:#1a2026;
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:var(--body); font-size:17.5px; line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1060px; margin:0 auto; padding:0 24px 96px}
+p{margin:0 0 17px}
+a{color:var(--sig-ink); text-decoration:none; border-bottom:1px solid var(--rule)}
+a:hover{border-bottom-color:var(--sig)}
+em{font-style:italic}
+strong{font-weight:600}
+code,kbd{font-family:var(--mono); font-size:0.88em; background:var(--sunk); padding:1px 5px; border-radius:0}
+:focus-visible{outline:2px solid var(--sig); outline-offset:2px}
+@media(prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+
+/* ---------- masthead ---------- */
+.mast{padding:40px 0 0; border-bottom:2px solid var(--ink); margin-bottom:40px}
+.kick{
+  font-family:var(--chrome); font-size:10px; font-weight:500; letter-spacing:0.14em;
+  text-transform:uppercase; color:var(--sig-ink); margin:0 0 22px; line-height:1.6;
+}
+.mast h1{
+  font-family:var(--chrome);
+  font-size:clamp(27px,4.6vw,52px); font-weight:700; line-height:1.14;
+  letter-spacing:-0.045em; margin:0 0 22px; text-wrap:balance; max-width:13ch;
+}
+.mast .sub{font-size:20.5px; line-height:1.5; color:var(--ink-2); max-width:62ch; margin:0}
+.mast .sub b{color:var(--ink); font-weight:600}
+
+.qcard{
+  background:var(--card); border:1px solid var(--rule); border-left:3px solid var(--calm);
+  padding:24px 26px; margin:34px 0 0;
+}
+.qcard .lab{
+  display:block; font-family:var(--chrome); font-size:9.5px; font-weight:500;
+  letter-spacing:0.14em; text-transform:uppercase; color:var(--ink-3); margin-bottom:13px;
+}
+.qcard p{font-family:var(--display); font-size:21px; line-height:1.45; margin:0; font-weight:400}
+.qcard p+p{margin-top:14px}
+
+/* the status bar along the bottom of an editor window. it reports, among
+   other things, exactly where the caret is - which is the one fact this
+   entire question turns on and the one fact the training pipeline never
+   sees. */
+.sbar{
+  display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:0;
+  margin:34px 0 0; border:1px solid var(--rule); border-bottom:0; background:var(--rule);
+}
+@media(max-width:620px){.sbar{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.sbar div{background:var(--card-2); padding:11px 14px; border-right:1px solid var(--rule); margin-bottom:1px}
+.sbar div:last-child{border-right:0}
+.sbar span{
+  display:block; font-family:var(--chrome); font-size:8.5px; font-weight:500;
+  letter-spacing:0.14em; text-transform:uppercase; color:var(--ink-3); margin-bottom:5px;
+}
+.sbar b{font-family:var(--mono); font-size:14px; font-weight:500; color:var(--ink-2)}
+.sbar div.car b{color:var(--sig-ink)}
+
+/* ---------- sections ---------- */
+.part{padding:54px 0 0; border-top:1px solid var(--rule-2); margin-top:54px}
+.part:first-of-type{border-top:0; margin-top:0}
+.parthead{display:flex; gap:18px; align-items:baseline; margin-bottom:8px}
+.pnum{
+  font-family:var(--chrome); font-size:11px; font-weight:500; letter-spacing:0.02em;
+  color:var(--calm); flex:none; padding-top:9px;
+}
+.parthead h2{
+  font-family:var(--display);
+  font-size:clamp(26px,3.4vw,36px); font-weight:600; line-height:1.14;
+  letter-spacing:-0.012em; margin:0; text-wrap:balance; max-width:23ch;
+}
+.lede{font-size:19px; line-height:1.55; color:var(--ink-2); max-width:66ch; margin:0 0 26px 30px}
+.part>p,.part>ul,.part>ol{max-width:68ch; margin-left:30px}
+.part>ul,.part>ol{padding-left:20px}
+.part>ul li,.part>ol li{margin-bottom:9px}
+h3.sub{
+  font-family:var(--chrome); font-size:11px; font-weight:500; letter-spacing:0.13em;
+  text-transform:uppercase; color:var(--ink-3); margin:38px 0 14px 30px;
+}
+.lab{
+  font-family:var(--chrome); font-size:9.5px; font-weight:500; letter-spacing:0.14em;
+  text-transform:uppercase; color:var(--ink-3);
+}
+
+/* ---------- probes ---------- */
+.probes{margin:0 0 0 30px; display:grid; gap:1px; background:var(--rule); border:1px solid var(--rule)}
+.probe{background:var(--card); padding:17px 20px; display:grid; grid-template-columns:3.4em 1fr; gap:0 16px}
+.probe .pk{font-family:var(--chrome); font-size:11px; font-weight:500; color:var(--calm); padding-top:5px}
+.probe p{margin:0; max-width:none}
+.probe p+p{margin-top:7px; color:var(--ink-2); font-size:16.5px}
+
+/* ---------- do / dont ---------- */
+.grid2{display:grid; grid-template-columns:1fr 1fr; gap:18px; margin:26px 0 0 30px}
+@media(max-width:760px){.grid2{grid-template-columns:1fr}}
+.dont,.do{padding:20px 22px; border:1px solid var(--rule); background:var(--card)}
+.dont{border-top:3px solid var(--ink-3)}
+.do{border-top:3px solid var(--calm)}
+.dont .lab{color:var(--ink-3)}
+.do .lab{color:var(--calm-ink)}
+.dont q,.do q{
+  display:block; font-family:var(--display); font-size:18.5px; line-height:1.4;
+  margin:11px 0 12px; quotes:"\201C" "\201D";
+}
+.dont p,.do p{margin:0; font-size:16.5px; line-height:1.55; color:var(--ink-2)}
+.dont p+p,.do p+p{margin-top:10px}
+
+/* ---------- answer lengths ---------- */
+.ans{margin:0 0 0 30px; border-top:1px solid var(--rule)}
+.ans>div{border-bottom:1px solid var(--rule); padding:22px 0; display:grid; grid-template-columns:9.5em 1fr; gap:0 22px}
+@media(max-width:720px){.ans>div{grid-template-columns:1fr; gap:10px 0}}
+.ans .st{padding-top:5px}
+.ans .body{max-width:64ch}
+.ans .body p{margin:0}
+.ans .body p+p{margin-top:12px}
+.ans .body.big p{font-family:var(--display); font-size:21px; line-height:1.45}
+
+/* ---------- spoken ---------- */
+.spoken{margin:34px 0 0 30px; background:var(--card-2); border:1px solid var(--rule); padding:26px 28px}
+.spoken .slab{
+  display:block; font-family:var(--chrome); font-size:9.5px; font-weight:500;
+  letter-spacing:0.14em; text-transform:uppercase; color:var(--calm-ink); margin-bottom:13px;
+}
+.spoken .frame{font-size:16.5px; color:var(--ink-2); max-width:64ch; margin:0 0 20px}
+.sbeats{list-style:none; margin:0; padding:0; display:grid; gap:20px}
+.sbeats>li{display:grid; grid-template-columns:7.8em 1fr; gap:0 20px; align-items:start}
+.sbeats>li>*{grid-column:2}
+.sbeats .beat{
+  grid-column:1; font-family:var(--chrome); font-size:9.5px; font-weight:500;
+  letter-spacing:0.12em; text-transform:uppercase; color:var(--ink-3); padding-top:8px;
+}
+.sbeats .line{
+  margin:0 0 7px; max-width:46ch; font-family:var(--display);
+  font-size:19px; line-height:1.42;
+}
+.sbeats .line:last-child{margin-bottom:0}
+@media(max-width:720px){
+  .sbeats>li{grid-template-columns:1fr; gap:6px 0}
+  .sbeats>li>*{grid-column:1}
+  .sbeats .beat{grid-column:1; padding-top:0}
+}
+
+/* ---------- formula / spec blocks ---------- */
+.formula{
+  margin:24px 0 24px 30px; background:var(--sunk); border-left:3px solid var(--rule);
+  padding:18px 20px; font-family:var(--mono); font-size:13.5px; line-height:1.75;
+  white-space:pre; overflow-x:auto; color:var(--ink-2);
+}
+.formula b{color:var(--ink); font-weight:500}
+.formula i{color:var(--sig-ink); font-style:normal}
+.formula u{color:var(--calm-ink); text-decoration:none}
+
+/* ---------- tables ---------- */
+.twrap{overflow-x:auto; margin:24px 0 8px 30px}
+.tw{border-collapse:collapse; width:100%; font-size:15.5px; min-width:520px}
+.tw th{
+  text-align:left; font-family:var(--chrome); font-size:9px; font-weight:500;
+  letter-spacing:0.12em; text-transform:uppercase; color:var(--ink-3);
+  border-bottom:1.5px solid var(--ink); padding:0 14px 10px 0; vertical-align:bottom; line-height:1.5;
+}
+.tw td{border-bottom:1px solid var(--rule-2); padding:12px 14px 12px 0; vertical-align:top; line-height:1.48}
+.tw tr:last-child td{border-bottom:1.5px solid var(--ink)}
+.tw td.n{font-family:var(--mono); font-variant-numeric:tabular-nums; white-space:nowrap}
+.tw td.m{font-family:var(--mono); font-size:13.5px}
+.tw .sg{color:var(--sig-ink); font-weight:500}
+.tw .pl{color:var(--calm-ink)}
+.cap{font-size:14.5px; color:var(--ink-3); margin:11px 0 0 30px; max-width:66ch}
+.cap b{color:var(--ink-2); font-weight:600}
+
+/* ---------- SIGNATURE FIGURE 1: the four layers ----------
+   A tokenizer is not one object, and only one of its four layers decides
+   which boundaries are even eligible. The change under review is in that
+   layer, which is why the review has to be about boundaries and not about
+   compression. */
+.layers{margin:28px 0 0 30px; border:1px solid var(--rule); background:var(--rule); display:grid; gap:1px}
+.lay{
+  background:var(--card); padding:16px 20px;
+  display:grid; grid-template-columns:11em minmax(0,1fr) 11.5em; gap:0 20px; align-items:start;
+}
+.lay .ln{font-family:var(--chrome); font-size:11px; font-weight:500; color:var(--calm-ink); line-height:1.4; padding-top:2px}
+.lay .ld{margin:0; font-size:16px; line-height:1.5; color:var(--ink-2); max-width:none}
+.lay .ld b{color:var(--ink); font-weight:600}
+.lay .lc{
+  font-family:var(--mono); font-size:12.5px; line-height:1.45; color:var(--ink-3);
+  border-left:1px solid var(--rule-2); padding-left:16px;
+}
+.lay.edited{background:var(--sig-soft)}
+.lay.edited .ln{color:var(--sig-ink); font-weight:700}
+.lay.edited .lc{color:var(--sig-ink); border-left-color:var(--sig)}
+.lay .lflag{
+  display:block; font-family:var(--chrome); font-size:8.5px; font-weight:500;
+  letter-spacing:0.13em; text-transform:uppercase; margin-top:6px; color:var(--sig-ink);
+}
+@media(max-width:860px){
+  .lay{grid-template-columns:1fr; gap:8px 0}
+  .lay .lc{border-left:0; border-top:1px dashed var(--rule); padding-left:0; padding-top:9px}
+}
+
+/* ---------- SIGNATURE FIGURE 2: where you are allowed to cut ----------
+   The same line of Python under two tokenizers. Chips are tokens; the
+   violet ticks between them are the boundaries. The strip underneath has
+   one cell per character offset and marks which of them a cursor can
+   legally occupy. Nothing about this figure needs a caption: the second
+   row has less violet in it, and that is the whole argument. */
+.segwrap{overflow-x:auto; margin:28px 0 0 30px; padding-bottom:4px}
+.seg{min-width:600px}
+.segblock+.segblock{margin-top:26px}
+.seghead{
+  display:flex; gap:14px; flex-wrap:wrap; align-items:baseline; margin-bottom:10px;
+  font-family:var(--chrome); font-size:9.5px; font-weight:500; letter-spacing:0.13em; text-transform:uppercase;
+}
+.seghead .sname{color:var(--ink)}
+.seghead .snote{color:var(--ink-3); letter-spacing:0.1em}
+.segrow{display:grid; grid-template-columns:repeat(36,1fr); border:1px solid var(--rule); background:var(--card)}
+.segrow .t{
+  font-family:var(--mono); font-size:12.5px; line-height:1.3; color:var(--ink);
+  padding:11px 0 11px 5px; white-space:pre; overflow:hidden;
+  border-left:2px solid var(--sig); background:var(--calm-soft);
+}
+.segrow .t:first-child{border-left-width:2px}
+.cbar{display:grid; grid-template-columns:repeat(36,1fr); margin-top:4px}
+.cbar i{display:block; height:11px; background:var(--sunk)}
+.cbar i.ok{background:var(--sig)}
+.cbarlab{
+  margin-top:7px; font-family:var(--chrome); font-size:9px; font-weight:500;
+  letter-spacing:0.12em; text-transform:uppercase; color:var(--ink-3);
+}
+.cbarlab b{color:var(--sig-ink); font-weight:700}
+/* the caret: one character offset, called out on both rows. */
+.caret{display:grid; grid-template-columns:repeat(36,1fr); margin-top:9px}
+.caret u{
+  grid-column:18 / span 19; text-decoration:none; border-top:1px solid var(--sig);
+  padding-top:6px; font-family:var(--chrome); font-size:9px; font-weight:500;
+  letter-spacing:0.12em; text-transform:uppercase; color:var(--sig-ink);
+}
+.segsum{display:grid; grid-template-columns:1fr 1fr 1fr; gap:18px; margin:26px 0 0 30px}
+@media(max-width:760px){.segsum{grid-template-columns:1fr}}
+.segsum div{border:1px solid var(--rule); background:var(--card); padding:16px 18px}
+.segsum div.fell{border-left:3px solid var(--sig)}
+.segsum .sn2{
+  font-family:var(--mono); font-size:26px; font-weight:500; font-variant-numeric:tabular-nums;
+  display:block; line-height:1.1; margin-bottom:6px;
+}
+.segsum div.fell .sn2{color:var(--sig-ink)}
+.segsum p{margin:0; font-size:14.5px; line-height:1.45; color:var(--ink-2); max-width:none}
+.segsum .sl{display:block; font-family:var(--chrome); font-size:8.5px; font-weight:500; letter-spacing:0.13em; text-transform:uppercase; color:var(--ink-3); margin-bottom:9px}
+
+/* ---------- properties / numbered claims ---------- */
+.props{list-style:none; margin:26px 0 0 30px; padding:0; display:grid; gap:1px; background:var(--rule); border:1px solid var(--rule)}
+.props>li{background:var(--card); padding:16px 20px; display:grid; grid-template-columns:9.4em 1fr; gap:0 18px}
+@media(max-width:640px){.props>li{grid-template-columns:1fr; gap:6px 0}}
+.props .pn{font-family:var(--chrome); font-size:10px; font-weight:500; letter-spacing:0.1em; text-transform:uppercase; color:var(--calm-ink); padding-top:5px; line-height:1.5}
+.props p{margin:0; max-width:none; font-size:16.5px; line-height:1.55}
+.props p+p{margin-top:8px; color:var(--ink-2); font-size:15.5px}
+.props .tell{color:var(--sig-ink)}
+
+/* ---------- checks (section 09) ---------- */
+.checks{list-style:none; margin:26px 0 0 30px; padding:0}
+.checks>li{border-left:2px solid var(--calm); padding:0 0 4px 22px; margin-bottom:26px; max-width:70ch}
+.checks>li.must{border-left-color:var(--sig)}
+.checks .ck{
+  display:flex; gap:11px; align-items:baseline; flex-wrap:wrap; font-family:var(--chrome); font-size:10px;
+  font-weight:500; letter-spacing:0.13em; text-transform:uppercase; color:var(--calm-ink); margin-bottom:8px;
+}
+.checks>li.must .ck{color:var(--sig-ink)}
+.checks .ck .ctag{border:1px solid currentColor; padding:2px 6px; font-size:8.5px; letter-spacing:0.1em}
+.checks>li b{display:block; font-family:var(--display); font-size:19.5px; font-weight:600; margin-bottom:6px; line-height:1.3}
+.checks>li p{margin:0; font-size:16.5px; color:var(--ink-2); max-width:none}
+.checks>li p+p{margin-top:9px}
+.checks .obs{font-size:15.5px; color:var(--ink-3); border-top:1px dashed var(--rule); padding-top:9px; margin-top:11px}
+.checks .obs b{display:inline; font-family:var(--chrome); font-size:9px; font-weight:500; letter-spacing:0.12em; text-transform:uppercase; color:var(--ink-3); margin-right:9px}
+
+/* ---------- boxes ---------- */
+.box{border:1px solid var(--rule); background:var(--card); padding:19px 22px; margin:26px 0 26px 30px; max-width:70ch}
+.box>.lab{display:block; margin-bottom:10px}
+.box p{margin:0; max-width:none}
+.box p+p{margin-top:11px}
+.box.sig{border-left:3px solid var(--sig)}
+.box.sig>.lab{color:var(--sig-ink)}
+.box.calm{border-left:3px solid var(--calm); background:var(--calm-soft)}
+.box.calm>.lab{color:var(--calm-ink)}
+/* counter-evidence: framed, not coloured. A result that cuts against the
+   argument is part of the argument, not an alarm. */
+.box.against{border:1px dashed var(--ink-3); background:transparent}
+.box.against>.lab{color:var(--ink); border-bottom:1px solid var(--ink-3); display:inline-block; padding-bottom:3px}
+
+/* ---------- ordered steps ---------- */
+.steps{list-style:none; counter-reset:s; margin:26px 0 0 30px; padding:0}
+.steps>li{counter-increment:s; position:relative; padding:0 0 22px 48px; max-width:68ch}
+.steps>li::before{
+  content:counter(s,decimal-leading-zero); position:absolute; left:0; top:2px;
+  font-family:var(--chrome); font-size:10.5px; font-weight:500; color:var(--calm);
+  border:1px solid var(--rule); padding:3px 6px; background:var(--card);
+}
+.steps>li b{display:block; font-size:18px; font-weight:600; margin-bottom:5px}
+.steps>li p{margin:0; font-size:16.5px; color:var(--ink-2)}
+.steps>li p+p{margin-top:9px}
+
+/* ---------- follow-ups ---------- */
+.fu{border-top:1px solid var(--rule); padding:20px 0 0; margin:0 0 20px 30px; max-width:72ch}
+.fuq{font-family:var(--display); font-size:20px; font-weight:600; line-height:1.33; margin:0 0 9px; display:flex; gap:13px}
+.fuq .fn3{font-family:var(--chrome); font-size:10.5px; font-weight:500; color:var(--calm); flex:none; padding-top:7px}
+.fua{margin:0; color:var(--ink-2); font-size:17px}
+.fua+.fua{margin-top:10px}
+.fua strong{color:var(--ink)}
+
+/* ---------- glossary ---------- */
+.gloss{display:grid; grid-template-columns:minmax(0,15.5em) minmax(0,1fr); gap:0; margin:24px 0 0 30px; border-top:1px solid var(--rule)}
+.gloss dt{
+  font-family:var(--mono); font-size:13px; font-weight:500; color:var(--calm-ink);
+  padding:13px 18px 13px 0; border-bottom:1px solid var(--rule-2); line-height:1.4;
+}
+.gloss dd{margin:0; padding:13px 0; border-bottom:1px solid var(--rule-2); font-size:16px; line-height:1.5; color:var(--ink-2)}
+@media(max-width:640px){
+  .gloss{grid-template-columns:1fr}
+  .gloss dt{border-bottom:0; padding-bottom:2px}
+  .gloss dd{padding-top:0}
+}
+
+/* ---------- sources ---------- */
+.srcs{list-style:none; margin:24px 0 0 30px; padding:0; counter-reset:src}
+.srcs li{counter-increment:src; display:grid; grid-template-columns:2.8em 1fr; gap:0 10px; padding:12px 0; border-bottom:1px solid var(--rule-2); max-width:72ch}
+.srcs li::before{content:"[" counter(src) "]"; font-family:var(--mono); font-size:12.5px; color:var(--ink-3); padding-top:4px}
+.srcs .sn,.srcs .sd{grid-column:2}
+.srcs .sn{font-weight:600; display:block; margin-bottom:2px}
+.srcs .sd{font-size:15.5px; color:var(--ink-2)}
+
+/* ---------- evidence ---------- */
+.evidence{margin:28px 0 0 30px; border:1px solid var(--rule); background:var(--card)}
+.evidence header{
+  display:flex; justify-content:space-between; gap:14px; flex-wrap:wrap; align-items:baseline;
+  padding:15px 22px; border-bottom:1px solid var(--rule); background:var(--card-2);
+}
+.evidence .elab{font-family:var(--chrome); font-size:10px; font-weight:500; letter-spacing:0.14em; text-transform:uppercase; color:var(--calm-ink)}
+.evidence .hint{font-size:13.5px; color:var(--ink-3)}
+.ebody{padding:22px}
+.ebody>p{margin:0 0 15px; max-width:66ch; font-size:16.5px; color:var(--ink-2)}
+.rows{display:grid; gap:20px; margin-top:22px}
+.evidence .row{
+  display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px 18px;
+  padding:18px 0 0; border-top:1px solid var(--rule-2);
+}
+.evidence .ran{grid-column:1/-1; font-weight:600; font-size:17px}
+.evidence .field{display:flex; flex-direction:column; gap:5px}
+.evidence .why-row{grid-column:1/-1; display:flex; flex-direction:column; gap:5px}
+.evidence label{font-family:var(--chrome); font-size:9.5px; font-weight:500; letter-spacing:0.1em; text-transform:uppercase; color:var(--ink-3); line-height:1.5}
+.evidence input,.evidence textarea{
+  font-family:var(--body); font-size:15.5px; color:var(--ink); background:var(--ground);
+  border:1px solid var(--rule); padding:9px 11px; width:100%; border-radius:0;
+}
+.evidence textarea{min-height:88px; resize:vertical; line-height:1.5}
+.evidence input::placeholder,.evidence textarea::placeholder{color:var(--ink-3); opacity:0.85}
+.evidence input.filled,.evidence textarea.filled{border-color:var(--calm); background:var(--card)}
+@media(max-width:640px){.evidence .row{grid-template-columns:1fr}}
+.earned{margin:26px 0 0; padding:20px 22px; background:var(--card-2); border:1px solid var(--rule); border-left:3px solid var(--calm)}
+.earned>.lab{display:block; margin-bottom:10px; color:var(--calm-ink)}
+.earned p{margin:0; font-family:var(--display); font-size:18.5px; line-height:1.5; max-width:64ch}
+.earned .placeholder{
+  font-family:var(--mono); font-size:0.84em; color:var(--sig); border-bottom:1px dashed var(--sig);
+  padding:0 2px; font-style:normal;
+}
+
+/* ---------- misc inline ---------- */
+.cm{color:var(--ink-3)}
+.hi{background:var(--sig-soft); padding:0 3px; box-shadow:0 1px 0 var(--sig)}
+.calm-t{color:var(--calm-ink)}
+.note{font-size:15.5px; color:var(--ink-3); margin:14px 0 0 30px; max-width:66ch}
+.foot{margin-top:70px; padding-top:24px; border-top:2px solid var(--ink); font-size:14px; color:var(--ink-3); display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; font-family:var(--chrome); letter-spacing:0.02em; line-height:1.6}
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <p class="kick">Question 10 &#183; Microsoft &#183; senior AI engineer</p>
+  <h1>The Half-Typed Line</h1>
+  <p class="sub">A teammate retrained the code tokenizer to merge freely across whitespace. Sequences got about 40% shorter and held-out loss improved. Both numbers are real and neither is wrong. They were measured on <b>complete files</b> &#8212; and nobody in your product is ever holding a complete file. The metric got better on the one distribution your users never occupy.</p>
+
+  <div class="qcard">
+    <span class="lab">The question, as asked</span>
+    <p>&#8220;A teammate retrained our code tokenizer to merge freely across whitespace. Sequences got ~40% shorter and held-out loss improved. Why might IDE autocomplete get worse after we ship it, and what do you check before approving?&#8221;</p>
+  </div>
+
+  <div class="sbar">
+    <div class="car"><span>Cursor</span><b>Ln 12, Col 18</b></div>
+    <div><span>Language</span><b>python</b></div>
+    <div><span>Encoding</span><b>utf-8</b></div>
+    <div><span>Line endings</span><b>LF</b></div>
+  </div>
+</header>
+
+<!-- ============================ 00 ============================ -->
+<section class="part">
+  <div class="parthead"><span class="pnum">00</span><h2>What they are actually testing</h2></div>
+  <p class="lede">This is a review question wearing a modelling question&#8217;s clothes. Nobody is asking you to design a tokenizer. They are asking whether you can be handed two improved numbers and still find the thing that got worse &#8212; and whether, when you find it, you reach for a measurement instead of an opinion. Four things sit underneath.</p>
+
+  <div class="probes">
+    <div class="probe">
+      <span class="pk">P1</span>
+      <div>
+        <p>Do you know what a tokenizer is, layer by layer?</p>
+        <p>&#8220;The tokenizer&#8221; is four pieces stacked, and only one of them decides which boundaries are even <em>eligible</em>. &#8220;Merge freely across whitespace&#8221; is not a change to the merge table. It is a deletion from the pre-tokenizer&#8217;s split rule. Until you can name the layer that moved, you cannot name a fix that is narrower than a revert.</p>
+      </div>
+    </div>
+    <div class="probe">
+      <span class="pk">P2</span>
+      <div>
+        <p>Can you tell &#8220;the metric improved&#8221; from &#8220;the metric is comparable&#8221;?</p>
+        <p>Per-token loss has the token count in its denominator. Change the tokenizer and you change the denominator, so the two numbers are not two measurements of one quantity &#8212; they are measurements of two different quantities. Bits-per-byte is the first repair. It is not the last one, and the candidates who stop there are the ones who get the follow-up.</p>
+      </div>
+    </div>
+    <div class="probe">
+      <span class="pk">P3</span>
+      <div>
+        <p>Do you see that this is a <em>sampling</em> gap, not a domain gap?</p>
+        <p>Training and serving here see the same language, the same repositories, the same style. What differs is only <b>where the text was cut</b>. Held-out loss cuts at offset zero, every time. Autocomplete cuts wherever a human stopped typing. A candidate who says &#8220;train/serve skew&#8221; and moves on has named the family without naming the member.</p>
+      </div>
+    </div>
+    <div class="probe">
+      <span class="pk">P4</span>
+      <div>
+        <p>Will you price the mitigation, or just name it?</p>
+        <p>Saying &#8220;token healing fixes it&#8221; fails this question in exactly the same shape as &#8220;ship it&#8221; &#8212; you have accepted a claim without asking for its residual. Healing backs off <em>one</em> token, and nobody knows in general that one is enough. An answer that names healing without naming what healing leaves behind is not a safer answer, only a longer one.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="box calm">
+    <span class="lab">Not the same question as guide 0005</span>
+    <p>0005 also has a tokenizer in it, so keep the seam sharp in case they probe it. <strong>0005</strong> is about the <em>string the tokenizer is handed</em>: does the harness build the exact prompt this model was trained to continue &#8212; the right chat template, the right tool-call markup, the right special tokens. Its failure is a <strong>serialisation</strong> bug, and it kills the call outright.</p>
+    <p><strong>0011</strong> assumes the string is perfect and asks the next question: given the right text, are the <em>cuts</em> in the right places. Its failure is a <strong>segmentation</strong> bug, and it kills nothing &#8212; it degrades quietly, in one slice of traffic, while every dashboard stays green. You can get the template exactly right and the segmentation exactly wrong, and the second one is much harder to see.</p>
+  </div>
+</section>
+
+<!-- ============================ 01 ============================ -->
+<section class="part">
+  <div class="parthead"><span class="pnum">01</span><h2>The answer, at three lengths</h2></div>
+  <p class="lede">Lead with the cut, not the compression. The sentence that does the work is &#8220;those two numbers were measured on text cut at offset zero&#8221; &#8212; everything else in this guide is that sentence with evidence attached.</p>
+
+  <div class="ans">
+    <div>
+      <span class="st lab">One sentence</span>
+      <div class="body big">
+        <p>Compression is measured on finished files and autocomplete lives at a cursor, so the change improved the model on the one cut point &#8212; the start of the file &#8212; that no user is ever standing at.</p>
+      </div>
+    </div>
+    <div>
+      <span class="st lab">Thirty seconds</span>
+      <div class="body">
+        <p>A tokenizer does two jobs. It <em>compresses</em> a document into few tokens, and it <em>segments</em> it, deciding which character offsets are legal places to divide the text. Merging trades the second for the first, and the trade is one-directional: every merge you add deletes a boundary, and a deleted boundary is a cursor position the model can no longer be prompted at. Held-out loss only ever reads whole files, so it cannot see the thing that got worse. Three concrete failures follow &#8212; the cursor lands mid-token and the model is asked to continue from a state the merge table made unreachable in training; the newline fuses into its neighbours so there is no longer a token that means &#8220;stop at the end of the line&#8221;; and in Python the indent fuses into the statement, so scope and content get committed in the same decision.</p>
+      </div>
+    </div>
+    <div>
+      <span class="st lab">Two minutes</span>
+      <div class="body">
+        <p>Everything above, then the honest part: <strong>this was already broken before your teammate touched it.</strong> Under the old tokenizer most cursor positions already fell inside a token &#8212; for Python, published measurements put the mis-segmentation rate around two thirds. The merge did not create the failure, it spent the margin you were living inside. That matters because it changes the decision from &#8220;approve or revert&#8221; to &#8220;how much of a margin do we have left, and what is buying it back worth.&#8221;</p>
+        <p>So what I&#8217;d check, in order. <strong>Bits-per-byte, not per-token loss</strong> &#8212; per-token loss changed its own denominator, so the improvement is partly an artefact of measuring in bigger units. <strong>Cursor-conditioned evaluation</strong> &#8212; cut held-out files at character offsets sampled the way our users actually cut them, mid-identifier, mid-line, just after an indent, and score both tokenizers on exact match and edit similarity. That is the number the decision turns on, and full-file loss is the special case of it with the cut pinned to zero. <strong>Clean-stop rate</strong> &#8212; what fraction of single-line completions end at the line boundary rather than overshooting. <strong>Round-trip fidelity</strong> &#8212; that <code>decode(encode(x)) == x</code> survives tabs, mixed indentation, CRLF and trailing whitespace, on raw text rather than normalised text. And <strong>the mitigation, priced</strong> &#8212; token healing recovers a good part of this, but it is a partial fix with an unknown backoff depth and it runs on every keystroke, so it comes with a residual and a p99, not just a name.</p>
+        <p>And I&#8217;d say what would make me approve: this ships if cursor-conditioned bits-per-byte improves and clean-stop rate does not regress. It does not ship if sequence length is the only number that moved.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="dont">
+      <span class="lab">Don&#8217;t say</span>
+      <q>Shorter sequences plus lower loss means a better model. Ship it.</q>
+      <p>It treats two numbers as one verdict. Shorter sequences and lower per-token loss are not independent confirmations &#8212; the second one is partly <em>caused</em> by the first, because shortening the sequence shrank the denominator the loss is averaged over.</p>
+      <p>The deeper miss is that both numbers were computed by an evaluator that reads files from the beginning. The product never does. You have been shown a strong result about a question nobody asked.</p>
+    </div>
+    <div class="do">
+      <span class="lab">Say instead</span>
+      <q>Both numbers are real. They were measured on text cut at offset zero, and our users cut it somewhere else.</q>
+      <p>This concedes the win immediately, which is what makes the rest credible &#8212; you are not arguing that the teammate&#8217;s work is bad, you are arguing that it has not yet been measured against the product.</p>
+      <p>Then you name the mechanism in one line &#8212; <em>a merge is a deleted boundary, and a deleted boundary is a cursor position</em> &#8212; and go straight to what you would measure. Mechanism, then measurement. Never mechanism, then opinion.</p>
+    </div>
+  </div>
+
+  <div class="spoken">
+    <span class="slab">Say it out loud &#183; about 85 seconds</span>
+    <p class="frame">Four beats: what happened, why, what you did, what it cost. Keep the last beat &#8212; interviewers remember the cost, because it is the part that cannot be read in a blog post.</p>
+    <ol class="sbeats">
+      <li>
+        <span class="beat">Situation</span>
+        <p class="line">We shipped a new code tokenizer.</p>
+        <p class="line">Sequences came out about a third shorter.</p>
+        <p class="line">Every offline number improved.</p>
+        <p class="line">Acceptance rate fell four per cent.</p>
+      </li>
+      <li>
+        <span class="beat">Mechanism</span>
+        <p class="line">The loss had been measured on whole files.</p>
+        <p class="line">Nobody is ever at the start of a file.</p>
+        <p class="line">So we split acceptance by where the caret was.</p>
+        <p class="line">On a token boundary, unchanged.</p>
+        <p class="line">Mid-identifier, down nineteen per cent.</p>
+        <p class="line">Every merge we had added</p>
+        <p class="line">deleted a place the cursor could stand.</p>
+      </li>
+      <li>
+        <span class="beat">What I did</span>
+        <p class="line">Turned on token healing, got about half back.</p>
+        <p class="line">Bought the rest by refusing one class of merge:</p>
+        <p class="line">nothing is allowed to swallow a newline</p>
+        <p class="line">and the indentation after it.</p>
+        <p class="line">Kept the cross-whitespace merges everywhere else.</p>
+      </li>
+      <li>
+        <span class="beat">What it cost</span>
+        <p class="line">Eight per cent of the compression, permanently,</p>
+        <p class="line">and a decoding path we now maintain</p>
+        <p class="line">on every keystroke.</p>
+        <p class="line">And the part I actually think about:</p>
+        <p class="line">that four per cent sat on a dashboard</p>
+        <p class="line">for six weeks before anyone thought</p>
+        <p class="line">to split the metric by cursor position.</p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============================ 02 ============================ -->
+<section class="part">
+  <div class="parthead"><span class="pnum">02</span><h2>A tokenizer is four things, and only one of them moved</h2></div>
+  <p class="lede">Almost every confused answer to this question comes from treating &#8220;the tokenizer&#8221; as a single object that was retrained. It is a stack of four, they do different jobs, and the change under review is in exactly one of them &#8212; the only one whose job is to decide <em>where the text is allowed to be divided</em>. Name that layer and the whole question becomes tractable.</p>
+
+  <div class="layers">
+    <div class="lay">
+      <span class="ln">1 &#183; normaliser</span>
+      <p class="ld">Decides <b>what counts as the same text</b>. Unicode normalisation, sometimes case folding, sometimes whitespace tidying. Runs before anything else sees the string.</p>
+      <span class="lc">the layer that quietly eats your trailing whitespace and your CRLF</span>
+    </div>
+    <div class="lay edited">
+      <span class="ln">2 &#183; pre-tokenizer<span class="lflag">changed</span></span>
+      <p class="ld">Splits the raw text into chunks that merges <b>are not allowed to cross</b>. Usually one regex. Traditionally it splits at whitespace, which is why tokens have historically been words or pieces of words.</p>
+      <span class="lc">decides which boundaries are ELIGIBLE. &#8220;merge freely across whitespace&#8221; is a deletion from this regex</span>
+    </div>
+    <div class="lay">
+      <span class="ln">3 &#183; merge table</span>
+      <p class="ld">The learned part. Byte-pair encoding repeatedly fuses the most frequent adjacent pair in the corpus, <b>strictly inside a pre-token</b>. This is what people mean when they say the tokenizer was &#8220;retrained&#8221;.</p>
+      <span class="lc">decides how many of the eligible boundaries actually get spent</span>
+    </div>
+    <div class="lay">
+      <span class="ln">4 &#183; vocab + decoder</span>
+      <p class="ld">The id&#8596;bytes map, plus byte fallback for anything unseen. Decides whether <b>decode(encode(x)) == x</b> closes, and on what class of input it stops closing.</p>
+      <span class="lc">the layer your round-trip test is actually testing</span>
+    </div>
+  </div>
+  <p class="cap">Four layers, one direction of travel. The load-bearing fact is the one in row 3: <b>BPE cannot invent a boundary the pre-tokenizer refused, and cannot preserve one the pre-tokenizer deleted.</b> The merge table is downstream of the split rule. So a change described as &#8220;we retrained the tokenizer&#8221; may be a layer-3 change, which is a tuning decision &#8212; or a layer-2 change, which is a change to the model&#8217;s input alphabet. This one is layer 2.</p>
+
+  <h3 class="sub">The evidence that this is layer 2 and not layer 3</h3>
+  <p>There is a clean empirical demonstration of it. A 2026 study measured, across production tokenizers, how often a token&#8217;s right edge fails to land on a punctuation boundary in real source files. Three of the tokenizers &#8212; Qwen3, Llama&#160;3 and OLMo&#160;2 &#8212; report the <em>identical</em> figure on Python: <strong>68.08%</strong>. Three different vocabularies, three different training corpora, three different merge tables, one number to four significant figures.</p>
+  <p>They share a pre-tokenizer regex. Gemma, which splits runs of punctuation instead of letting them fuse, comes in at <strong>25.11%</strong> on the same corpus &#8212; less than <em>half</em> of everyone else, with no change to how BPE was trained. The mis-segmentation rate is a property of layer 2, and it is therefore something you can design rather than something you inherit.</p>
+
+  <div class="box sig">
+    <span class="lab">The sentence to have ready</span>
+    <p>&#8220;Your teammate did not retrain the merge table, they widened the pre-tokenizer. That is a change to which boundaries exist at all, and it is the only layer whose output our product depends on directly &#8212; because the product cuts the text, and the cut has to land somewhere the tokenizer admits.&#8221;</p>
+  </div>
+</section>
+
+<!-- ============================ 03 ============================ -->
+<section class="part">
+  <div class="parthead"><span class="pnum">03</span><h2>What the 40% was actually spent on</h2></div>
+  <p class="lede">Here is the mechanism, and it is arithmetic rather than intuition. A tokenizer does two jobs at once and they are in direct opposition. It <em>compresses</em> &#8212; fewer, longer tokens for the same text. And it <em>segments</em> &#8212; it decides which character offsets are legal places to divide the stream. Every merge you add makes the first number better by making the second number worse, because a merge is literally the deletion of a boundary. There is no version of this where you get compression for free.</p>
+
+  <div class="formula"><b>boundary coverage</b>  =  legal cut points  /  character offsets
+
+                =  (tokens - 1) / (characters - 1)
+
+                <i>&#8776;  1 / L</i>          <u>L = mean bytes per token</u>
+
+<span class="cm">so the two numbers your teammate reported are the same number:
+"40% fewer tokens" and "40% fewer places a cursor can stand"
+are one measurement, written twice, with opposite signs.</span></div>
+
+  <p>Take one real line and look at it. This is <code>    return self.cache.get(key, None)</code> &#8212; thirty-six characters including a four-space indent &#8212; segmented first by a pre-tokenizer that splits at whitespace, then by one that does not. The chips are tokens. The violet ticks between them are boundaries. The strip underneath has one cell per character offset and marks the ones a cursor can legally occupy.</p>
+  <div class="segwrap">
+    <div class="seg">
+    <div class="segblock">
+      <div class="seghead"><span class="sname">pre-tokenizer splits at whitespace</span><span class="snote">12 tokens &#183; 3.0 bytes each</span></div>
+      <div class="segrow">
+        <span class="t" style="grid-column:span 4">&#183;&#183;&#183;&#183;</span>
+        <span class="t" style="grid-column:span 6">return</span>
+        <span class="t" style="grid-column:span 5">&#183;self</span>
+        <span class="t" style="grid-column:span 1">.</span>
+        <span class="t" style="grid-column:span 5">cache</span>
+        <span class="t" style="grid-column:span 1">.</span>
+        <span class="t" style="grid-column:span 3">get</span>
+        <span class="t" style="grid-column:span 1">(</span>
+        <span class="t" style="grid-column:span 3">key</span>
+        <span class="t" style="grid-column:span 1">,</span>
+        <span class="t" style="grid-column:span 5">&#183;None</span>
+        <span class="t" style="grid-column:span 1">)</span>
+      </div>
+      <div class="cbar"><i></i><i></i><i></i><i class="ok"></i><i></i><i></i><i></i><i></i><i></i><i class="ok"></i><i></i><i></i><i></i><i></i><i class="ok"></i><i class="ok"></i><i></i><i></i><i></i><i></i><i class="ok"></i><i class="ok"></i><i></i><i></i><i class="ok"></i><i class="ok"></i><i></i><i></i><i class="ok"></i><i class="ok"></i><i></i><i></i><i></i><i></i><i class="ok"></i><i class="ok"></i></div>
+      <p class="cbarlab">one cell per character offset &#183; violet = a cursor can legally stand here &#183; <b>11 of 35</b> interior offsets, <b>31.4%</b></p>
+    </div>
+    <div class="segblock">
+      <div class="seghead"><span class="sname">merges allowed across whitespace</span><span class="snote">7 tokens &#183; 5.1 bytes each</span></div>
+      <div class="segrow">
+        <span class="t" style="grid-column:span 10">&#183;&#183;&#183;&#183;return</span>
+        <span class="t" style="grid-column:span 5">&#183;self</span>
+        <span class="t" style="grid-column:span 6">.cache</span>
+        <span class="t" style="grid-column:span 5">.get(</span>
+        <span class="t" style="grid-column:span 4">key,</span>
+        <span class="t" style="grid-column:span 5">&#183;None</span>
+        <span class="t" style="grid-column:span 1">)</span>
+      </div>
+      <div class="cbar"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="ok"></i><i></i><i></i><i></i><i></i><i class="ok"></i><i></i><i></i><i></i><i></i><i></i><i class="ok"></i><i></i><i></i><i></i><i></i><i class="ok"></i><i></i><i></i><i></i><i class="ok"></i><i></i><i></i><i></i><i></i><i class="ok"></i><i class="ok"></i></div>
+      <p class="cbarlab">one cell per character offset &#183; violet = a cursor can legally stand here &#183; <b>6 of 35</b> interior offsets, <b>17.1%</b></p>
+    </div>
+      <div class="caret"><u>caret at col 18 &#8212; inside a token in both rows</u></div>
+    </div>
+  </div>
+  <p class="cap">The middot stands for a space, the way an editor renders whitespace when you turn it on. <b>Nothing in the lower row is wrong.</b> It is a better compressor by every measure a compressor is judged on. It has simply stopped being able to represent five of the eleven positions the upper row could represent, and one of the five it kept is the end of the line.</p>
+
+  <div class="segsum">
+    <div>
+      <span class="sl">what was reported</span>
+      <span class="sn2">&#8722;41.7%</span>
+      <p>tokens on this line: twelve down to seven. The headline number, and it is true.</p>
+    </div>
+    <div class="fell">
+      <span class="sl">what it was spent from</span>
+      <span class="sn2">31.4 &#8594; 17.1%</span>
+      <p>boundary coverage: the share of interior offsets a prompt is allowed to end on. Eleven down to six.</p>
+    </div>
+    <div>
+      <span class="sl">what the user meets</span>
+      <span class="sn2">68.6 &#8594; 82.9%</span>
+      <p>share of cursor positions that now land <em>inside</em> a token. Five in six, up from two in three.</p>
+    </div>
+  </div>
+
+  <h3 class="sub">Now put a cursor in it</h3>
+  <p>The user has typed <code>    return self.ca</code> and paused. The caret is at column 18, which is not a boundary under either tokenizer &#8212; and that is the first thing worth saying out loud, because it means the failure is a matter of degree rather than of kind.</p>
+  <p>Under the <strong>old</strong> segmentation the prompt encodes as <code>····</code> <code>return</code> <code>·self</code> <code>.</code> <code>ca</code>. That last fragment is a mis-segmentation, but a mild one: <code>ca</code> is a short, common piece, the model has seen plenty of prompts ending in a short identifier fragment, and the natural continuation <code>che</code> is one it can produce. You are off-distribution, but not far.</p>
+  <p>Under the <strong>new</strong> segmentation the prompt encodes as <code>····return</code> <code>·self</code> <code>.ca</code>. The merge table&#8217;s whole purpose is that <code>.cache</code> is one token &#8212; which means during training, in every one of the millions of places that string appeared, it was emitted as <code>.cache</code> and never as <code>.ca</code> followed by something. The state you have just constructed is not rare in the training data. It is <em>absent</em> from it. You are asking the model to continue from a position the tokenizer was specifically trained to make unreachable.</p>
+
+  <div class="box sig">
+    <span class="lab">The analogy, if you want one</span>
+    <p>A phrasebook that lists &#8220;Where is the train station?&#8221; as a single numbered entry is excellent &#8212; it is the shortest possible encoding of a sentence you say constantly. It is worth nothing to a person who has already said &#8220;Where is the tr&#8230;&#8221; and needs the rest. The book got smaller by deleting exactly the thing that lets you join halfway.</p>
+    <p>Then the sentence that makes it an engineering point rather than a metaphor: <strong>the phrasebook is scored on how few pages it has, and the score never involved anybody interrupting.</strong></p>
+  </div>
+</section>
+
+<!-- ============================ 04 ============================ -->
+<section class="part">
+  <div class="parthead"><span class="pnum">04</span><h2>How much it costs, measured by somebody else</h2></div>
+  <p class="lede">You do not have to argue this from first principles in the room. It has a name &#8212; the <em>partial token problem</em> &#8212; and as of February 2026 it has a study behind it, from Washington, Nvidia and AI2, which is recent enough that quoting it is itself a signal.</p>
+
+  <div class="formula"><span class="cm"># the partial token problem, stated exactly</span>
+
+  <b>encode(prompt) + encode(continuation)  &#8800;  encode(prompt + continuation)</b>
+
+<span class="cm"># the two sides are the same text. they are not the same token
+# sequence, because the boundary at the join was forced by where
+# the user stopped rather than chosen by the merge table.
+#
+# the model was trained on the right-hand side.
+# at serving time you hand it the left.</span></div>
+
+  <p>What that costs, on their numbers. On code, across six model families and five to six thousand instances per setting, accuracy on a partial-token continuation task falls by <strong>87.6% to 95.61%</strong> against the aligned baseline. Across all three domains they test, the drop ranges from <strong>60% to 95.6%</strong>, with log-probability reductions of <em>two to four orders of magnitude</em>. Code is the worst of the three, and for a structural reason they name: punctuation occurs in contiguous runs in source, and most pre-tokenizers let punctuation merge freely, so code accumulates exactly the long multi-character tokens that this failure needs.</p>
+
+  <div class="box sig">
+    <span class="lab">The finding that changes what kind of problem this is</span>
+    <p>Bigger models do not fix it. In their scaling figure, larger variants are <em>not</em> more robust to partial tokens, and several of them are <strong>worse</strong>. That is the sentence to carry into the room, because it settles the question of whether this belongs in a review gate or on a backlog.</p>
+    <p>A capability gap closes on its own &#8212; you wait two quarters and the next checkpoint has eaten it. This is not a capability gap. It is a mismatch between two encodings of the same text, and a larger model trained through the same tokenizer inherits the mismatch exactly. Scale is not a mitigation here. Nothing you were already planning to do will make this go away.</p>
+  </div>
+
+  <p>The honest counterweight, which you should volunteer rather than wait for: <strong>this was already broken before your teammate touched anything.</strong> The 68.08% figure from the previous section is the <em>current</em> tokenizer, the one in production, the one your acceptance rate was measured on. Two Python cursor positions in three already failed to land on a boundary. The merge did not introduce the failure. It spent the margin you were living inside without knowing you had one.</p>
+  <p>That reframes the decision, and reframing it is most of what seniority looks like here. The question is not &#8220;does this break autocomplete&#8221; &#8212; autocomplete has always run slightly off-distribution and shipped anyway. The question is <em>how much margin is left, what the remaining margin is worth, and what buying some of it back would cost.</em> Which is a question you answer with two measurements and a price, not with a veto.</p>
+</section>
+
+<!-- ============================ 05 ============================ -->
+<section class="part">
+  <div class="parthead"><span class="pnum">05</span><h2>Autocomplete has two boundaries, not one</h2></div>
+  <p class="lede">Nearly every discussion of this problem &#8212; including the version of it you were handed &#8212; describes a single cut: the prompt ends mid-token. That is right for a chat completion. It is incomplete for an IDE, because IDE completion has not been plain left-to-right continuation since 2022. It is <em>fill-in-the-middle</em>, and fill-in-the-middle cuts the file twice at the same offset.</p>
+
+  <div class="formula"><span class="cm"># what the model is actually handed at Ln 12, Col 18</span>
+
+<b>&#60;|fim_prefix|&#62;</b>def get(self, key):
+    return self<i>.ca</i><b>&#60;|fim_suffix|&#62;</b><i>che</i>.get(key, None)<b>&#60;|fim_middle|&#62;</b>
+                 <i>^ A</i>            <i>^ B</i>
+
+<span class="cm">A   the prefix's right edge. last token is a fragment.
+    this is the boundary everybody discusses, and the one
+    token healing was designed for.
+
+B   the suffix's LEFT edge. the suffix is encoded starting
+    from an arbitrary character offset, so its FIRST token
+    is a fragment too - and healing does not reach it.
+    healing constrains the first token the model EMITS.
+    the suffix is not emitted. it is read.</span></div>
+
+  <p>The two boundaries fail differently, and B is the one worth raising, because raising it is the difference between having read about this problem and having thought about it.</p>
+
+  <ul class="props">
+    <li>
+      <span class="pn">B is quieter</span>
+      <div>
+        <p>A can produce something visibly wrong &#8212; a doubled prefix, a stray space, <code>http: //</code> instead of <code>http://</code>. You can see it in a sampled output.</p>
+        <p>B produces a completion that is perfectly well formed and merely conditioned on slightly corrupted evidence. There is no artefact to find. The only symptom is that the suggestions are a little worse, which is indistinguishable from the model being a little worse.</p>
+      </div>
+    </li>
+    <li>
+      <span class="pn">B sits nearest the hole</span>
+      <div>
+        <p>In the suffix-prefix-middle ordering that several code models prefer, the suffix is placed immediately before the generation point. Its first tokens are the closest context the model has to the thing it is being asked to write.</p>
+        <p class="tell">So the one token that is guaranteed to be mis-segmented is also the one with the most influence over the prediction.</p>
+      </div>
+    </li>
+    <li>
+      <span class="pn">B scales worse</span>
+      <div>
+        <p>The prefix ends wherever the user stopped, which is often at a natural pause &#8212; after a dot, after an open bracket, at the end of a word. Those are positions a word-bounded pre-tokenizer tends to admit.</p>
+        <p>The suffix begins with <em>the remainder of the line the caret is in</em>, which is almost never a natural pause. Cross-whitespace merges reach into exactly that region, so widening the pre-tokenizer damages B strictly harder than it damages A.</p>
+      </div>
+    </li>
+    <li>
+      <span class="pn">B has no good fix</span>
+      <div>
+        <p>You have two moves and both cost something. Snap the suffix forward to the next legal boundary &#8212; which silently deletes the few characters in between, and those characters are the ones the user just typed around. Or accept the fragment and take the degradation.</p>
+        <p class="tell">Every published mitigation targets A. B is not a decoding problem, so no decoder change touches it &#8212; the only lever you have on B is the pre-tokenizer, which is to say, the change under review.</p>
+      </div>
+    </li>
+  </ul>
+
+  <p class="note">Worth saying plainly if you raise this: the second boundary is a consequence of how FIM prompts are built, and how much it costs in a given stack depends on that stack&#8217;s ordering and on whether it already snaps the suffix. It is a thing to go and measure on Monday, not a thing to assert a number for in an interview. Saying it that way is stronger than a number would be.</p>
+</section>
+
+<!-- ============================ 06 ============================ -->
+<section class="part">
+  <div class="parthead"><span class="pnum">06</span><h2>The line ending and the indent</h2></div>
+  <p class="lede">Two more failures, and they are not variations on the first one. The cursor problem is about the <em>start</em> of the generation. These two are about its <em>end</em> and its <em>meaning</em>, and in a Python product the second one is the expensive one.</p>
+
+  <h3 class="sub">There is no longer a token that means &#8220;stop&#8221;</h3>
+  <p>Single-line completion is defined by where it stops: you emit until the line ends. That works because <code>\n</code> is an atom &#8212; a token the model can choose, whose selection means &#8220;this line is finished&#8221; and nothing else. Let the pre-tokenizer fuse a newline with the indentation after it and the first word of the next statement, and that atom is gone. What the model now has is a token meaning <em>&#8220;end this line, indent four spaces, and begin a return statement.&#8221;</em> Ending the line is no longer something it can decide on its own.</p>
+  <p>You get one of two failures and they look unrelated in a bug tracker. Either the model emits the fused token and your single-line completion arrives carrying the first fragment of the next statement &#8212; <strong>overshoot</strong>. Or your serving layer cuts the string at the newline, which lands in the middle of a token you have already sampled and paid for &#8212; <strong>truncation</strong>, with a ragged edge.</p>
+
+  <div class="box sig">
+    <span class="lab">The mismatch worth naming</span>
+    <p>Stop sequences are <strong>strings</strong>. Sampling happens in <strong>tokens</strong>. Every serving stack quietly bridges the two, and the bridge is only invisible while stop strings tend to coincide with token boundaries. Widening the pre-tokenizer widens that gap directly: the more text each token carries, the more often your stop string falls inside one, and the more of each response you are generating only to throw away.</p>
+    <p>This is also why the fix has a natural shape. You do not have to give up cross-whitespace merges. You have to give up one <em>class</em> of them: nothing may swallow a newline. That preserves the atom the product depends on and keeps most of the compression, and it is a four-line change to a regex.</p>
+  </div>
+
+  <h3 class="sub">In Python, whitespace is not whitespace</h3>
+  <p>In most languages indentation is decoration and the compiler ignores it. In Python it is the block structure. So when the indent fuses with the statement that follows it, choosing <em>what</em> to write and choosing <em>where it goes</em> collapse into a single sampling decision with a single probability attached.</p>
+  <p>The model can no longer be confident about the content and uncertain about the scope, which is exactly the epistemic state it is usually in &#8212; &#8220;this is a return, though I am not sure whether it belongs in the <code>if</code> or after it.&#8221; That state has become unrepresentable. Turn the temperature up and you are now sampling over block structure.</p>
+
+  <div class="box calm">
+    <span class="lab">The same change has a different blast radius per language</span>
+    <p>This is worth raising unprompted, because it tells the interviewer you are thinking about the product and not the paper. In a brace language, indent fusion causing a scope error produces a <em>syntax error</em> &#8212; the braces do not match, the compiler complains, the user sees a red squiggle and rejects the suggestion. Loud, cheap, self-correcting.</p>
+    <p>In Python, YAML, Haskell or F#, the same mistake produces <strong>valid code with different behaviour</strong>. Nothing complains. The suggestion gets accepted, and the defect is now in a commit. So the identical tokenizer change has one severity in your Go traffic and another in your Python traffic &#8212; and whether you catch it before shipping depends entirely on the language mix of the eval corpus, which nobody chose with this in mind.</p>
+  </div>
+</section>
+
+<!-- ============================ 07 ============================ -->
+<section class="part">
+  <div class="parthead"><span class="pnum">07</span><h2>Why the metric said yes</h2></div>
+  <p class="lede">&#8220;Held-out loss improved&#8221; is three claims in a trench coat, and the first thing to do is separate them. There is a repair to make to the <em>units</em>, and then a second, larger repair to make to the <em>sampling</em> &#8212; and the second one is where the answer lives, because bits-per-byte alone is a well-known move and the interviewer is waiting to see whether you stop there.</p>
+
+  <h3 class="sub">Ask how the loss was computed, before you agree or object</h3>
+  <p>There is arithmetic here worth doing out loud. Coarser tokens carry more information each, so per-token cross-entropy normally goes <em>up</em> when you compress harder &#8212; the same total surprise divided among fewer terms. On the line in section 03, twelve tokens became seven; for the model to be exactly as good as before, per-token loss would have to <strong>rise by about 71%</strong>.</p>
+  <p>So a per-token loss that <em>fell</em> alongside a 40% shorter sequence is an extraordinary claim, and it has three possible explanations. The model really did get much better, which would be excellent news and is worth confirming. Or the two numbers came from different vocabularies and were compared anyway, which makes them two answers to two different questions. Or &#8212; and check this first, because it is the most common &#8212; the &#8220;loss&#8221; was a <em>sum</em> over the sequence rather than a mean, in which case it fell by 41.7% for free and measures nothing at all.</p>
+
+  <div class="formula"><span class="cm"># three metrics. each one repairs the one above it.</span>
+
+<b>per-token loss</b>   L   =  -(1/T) &#931; log p(t_i)
+                    <span class="cm">T is the token count, and T is what the change moved.
+                    the comparison changed its own denominator.</span>
+
+<b>bits per byte</b>    BPB =  (T &#183; L) / (ln 2 &#183; B)
+                    <span class="cm">B = utf-8 bytes of the SAME text, fixed by the document
+                    and not by the vocabulary. this repairs the units,
+                    and it is where most good answers stop.</span>
+
+<b>cursor BPB</b>       <i>BPB_c = E_c [ BPB( x[c:] | x[:c] ) ]</i>
+                    <span class="cm">c = the character offset the text is cut at, drawn from
+                    the distribution of caret positions in your OWN
+                    telemetry. this repairs the sampling.
+
+                    and the line that makes it land:
+
+                    full-file BPB is BPB_c with c pinned to 0.
+                    it is one point of this distribution, and it is
+                    the only point no user has ever occupied.</span></div>
+
+  <p>Two practical notes on <code>c</code>, because an interviewer may push. Sampling it uniformly over character offsets is a fine first approximation and it is enormously better than zero &#8212; it is an afternoon&#8217;s work against a held-out corpus you already have. But the real distribution is not uniform: people pause after a dot, after an opening bracket, at the end of a word, and just after pressing return. Drawing <code>c</code> from your own telemetry instead costs a day and turns the eval into a simulation of the product rather than an approximation of it. And the second note: report it <em>bucketed</em>, not just averaged. The interesting result is almost never the mean &#8212; it is that the on-boundary bucket did not move and the mid-identifier bucket fell off a cliff.</p>
+
+  <div class="box sig">
+    <span class="lab">The through-line, if you have read the other guides</span>
+    <p>This is the same defect as guide 0009&#8217;s acceptance rate and guide 0008&#8217;s self-written skills, wearing a third costume. In each case a metric was computed correctly and reported honestly, and the thing that was wrong was the <em>distribution it sampled from</em> &#8212; a denominator the agent controlled, a test set derived from the thing under test, an evaluator that cuts every document at offset zero.</p>
+    <p>Which suggests the habit rather than the fact: when someone shows you a number, ask what it was sampled over before you ask whether it went up.</p>
+  </div>
+</section>
+
+<!-- ============================ 08 ============================ -->
+<section class="part">
+  <div class="parthead"><span class="pnum">08</span><h2>Token healing is a mitigation, not a fix</h2></div>
+  <p class="lede">This is the part of the question most candidates get half right. Naming token healing is good &#8212; it shows you know the literature. Treating it as the answer is a repeat of the mistake the question opened with: accepting a claim without asking what it leaves behind.</p>
+
+  <h3 class="sub">What it does</h3>
+  <p>Back the generation up by one token before the end of the prompt, then constrain the first token generated so that it starts with the characters you removed. The model gets to re-choose the boundary instead of being stuck with the one the user&#8217;s keystrokes imposed.</p>
+  <p>It is needed because of a property of vocabularies that is easy to underrate: in a typical model, <strong>about 70% of the ten thousand most common tokens are prefixes of longer tokens.</strong> Which means the last token of almost any prompt is a token that, in training, would usually have grown into something bigger. The canonical demonstration is a URL &#8212; a prompt ending in <code>http:</code> produces <code>http: //www.google.com</code>, with a space, while the same prompt ending in <code>http</code> produces <code>http://</code> correctly. The model is not confused about URLs. It is correctly continuing from a token that, in its experience, only ever appeared in weird places.</p>
+
+  <h3 class="sub">What it leaves</h3>
+  <p>Healing backs off <em>one</em> token. Nobody knows in general that one is enough &#8212; the partial-token study says so directly, that it is not known in advance how far to back off &#8212; and after a cross-whitespace merge, one token can be ten characters of a fused run, so one step may not reach a genuine boundary at all. Their measurements bear it out: healing takes code accuracy to <strong>94.09%</strong> but German to only <strong>83.16%</strong>, and on German it comes out <em>6.29 points below</em> the properly-aligned baseline. Same technique, same model, wildly different residual by domain.</p>
+  <p>The exact alternative in the same table is byte-level resampling: build the tree of all valid token sequences that cover the prompt&#8217;s bytes, sample a path through it, and continue from there rather than assuming a boundary at the end. It reaches <strong>100.00%</strong> on all three domains, at a cost of <strong>0.12 to 1.17 additional forward passes</strong>. That is a real, quotable price, and quoting it is what turns &#8220;we could add healing&#8221; into an engineering decision.</p>
+
+  <ul class="props">
+    <li>
+      <span class="pn">The residual is silent</span>
+      <div>
+        <p>This is the property that makes &#8220;we turned on healing&#8221; an insufficient answer. When healing works you get a good completion. When it fails you get a completion that <em>looks</em> exactly as good and is conditioned on a broken boundary.</p>
+        <p class="tell">So the mitigation and its own failure are indistinguishable from the outside. Until somebody has measured the residual, turning healing on has not reduced your risk &#8212; it has reduced your ability to see it.</p>
+      </div>
+    </li>
+    <li>
+      <span class="pn">It costs on every keystroke</span>
+      <div>
+        <p>Autocomplete latency is a p99 budget in the tens of milliseconds, because the interaction dies if the suggestion arrives after the user has typed the next character. Healing adds constrained-decoding work to every request, and byte-level resampling adds up to roughly one extra forward pass.</p>
+        <p>Both are affordable. Neither is free. Price them in the same document as the compression win, or you are comparing a benefit to nothing.</p>
+      </div>
+    </li>
+    <li>
+      <span class="pn">It does not touch the other two failures</span>
+      <div>
+        <p>Healing is about the boundary the generation <em>starts</em> at. The missing stop atom and the fused indentation are about what the model can emit and what a single emission commits to. No decoding-time repair reaches either.</p>
+        <p class="tell">And it does not reach the suffix boundary from section 05 at all, because the suffix is input. Healing covers one of the four problems on this page.</p>
+      </div>
+    </li>
+  </ul>
+
+  <div class="box against">
+    <span class="lab">The strongest argument on your teammate&#8217;s side, stated fairly</span>
+    <p>Cross-whitespace merging is not a bad idea, and you should say so before anyone accuses you of being the person who blocks things. The published work on superword tokenization takes exactly this approach &#8212; standard byte-pair encoding first, then a second phase with the pre-tokenizer boundary lifted so merges may bridge whitespace &#8212; and reports up to <strong>33% fewer tokens</strong>, <strong>+4.0% absolute across 30 downstream tasks</strong> including <strong>+8.2% on MMLU</strong>, and <strong>27% less inference compute</strong>. Your teammate is reproducing a real result, competently.</p>
+    <p>The disagreement is not about the model. It is about which distribution the benefit was demonstrated on. Those gains are measured on complete prompts, scored on complete answers. Nothing in that evaluation ever ends a prompt inside a token, because nothing in that evaluation has a caret in it. So the right sentence is not &#8220;this is wrong&#8221; &#8212; it is <strong>&#8220;this is a strong result about a workload we do not have, and I want the same result on the workload we do.&#8221;</strong></p>
+  </div>
+</section>
+
+<!-- ============================ 09 ============================ -->
+<section class="part">
+  <div class="parthead"><span class="pnum">09</span><h2>What you check before approving</h2></div>
+  <p class="lede">The second half of the question is the half they are actually scoring, and it wants a list with an order and a veto in it. Four of these are permits &#8212; evidence you want on the page. One of them is a gate: without it the review has not started, and saying which one is a gate is the answer.</p>
+
+  <ol class="checks">
+    <li>
+      <span class="ck">1 &#183; units<span class="ctag">permit</span></span>
+      <b>Bits-per-byte, and say how the old number was computed</b>
+      <p>Per-token loss is not comparable across vocabularies, so normalise by UTF-8 bytes of the same text. But do not stop at &#8220;use BPB&#8221; &#8212; go back and ask how the original figure was produced, because a sum-over-sequence loss falls automatically when the sequence gets shorter and a mean-per-token loss should have <em>risen</em> by around 70% for a model of unchanged quality.</p>
+      <span class="obs"><b>what it rules out</b> a comparison whose denominator moved. Nothing more. Passing this tells you the numbers are numbers; it tells you nothing about the product.</span>
+    </li>
+    <li class="must">
+      <span class="ck">2 &#183; sampling<span class="ctag">gate</span></span>
+      <b>Cursor-position evaluation, bucketed</b>
+      <p>Cut held-out files at character offsets drawn the way your users cut them &#8212; mid-identifier, mid-line, immediately after an indent, after a dot, after an opening bracket &#8212; and score both tokenizers on exact match and edit similarity against the real continuation. Report it split by bucket, never only as a mean.</p>
+      <p>This is the gate because it is the only measurement on the list that samples the product&#8217;s own distribution. Everything else on this page is a proxy for it. If it is not in the document, the reviewer has been shown a model result and asked to make a product decision.</p>
+      <span class="obs"><b>what it rules out</b> approving a change that improves the model everywhere except where it is used. It is also the only check that can <em>approve</em>: if the mid-identifier bucket holds, the rest of this is caution rather than objection.</span>
+    </li>
+    <li>
+      <span class="ck">3 &#183; behaviour<span class="ctag">permit</span></span>
+      <b>Clean-stop rate</b>
+      <p>What percentage of single-line completions end at the line boundary and nowhere else &#8212; not one token early, not carrying the first fragment of the next statement. This is the direct measurement of whether the newline survived as an atom, and it is cheap: you already have the completions.</p>
+      <span class="obs"><b>what it rules out</b> the overshoot-and-truncate failure, which is the one users describe as &#8220;it keeps suggesting too much&#8221; and which nobody ever traces back to a tokenizer.</span>
+    </li>
+    <li>
+      <span class="ck">4 &#183; correctness<span class="ctag">permit</span></span>
+      <b>Round trip, on raw text rather than normalised text</b>
+      <p>That <code>decode(encode(x)) == x</code> holds for tabs, mixed indentation inside one file, trailing whitespace, CRLF, a missing final newline, a byte-order mark, and non-ASCII identifiers. There is a trap in how this is usually tested: the standard lossless-tokenization guarantee is <em>Decode(Encode(Normalize(x))) = Normalize(x)</em> &#8212; it holds over <strong>normalised</strong> text. Feed your test corpus through the same preprocessing the tokenizer uses and you have written a tautology that passes on every input.</p>
+      <span class="obs"><b>what it rules out</b> silent mutation of the user&#8217;s file. In an editor this is not a quality regression, it is data loss, and it is the one item here that can justify a revert on its own.</span>
+    </li>
+    <li>
+      <span class="ck">5 &#183; cost<span class="ctag">permit</span></span>
+      <b>The mitigation, with a residual and a p99</b>
+      <p>If the plan is token healing, then healing needs its own row: how far it backs off and why one token is enough for this vocabulary, what fraction of the cursor-eval gap it closes, and what it adds to p99 latency per keystroke. If the plan is byte-level resampling, the published cost is up to roughly one extra forward pass and the accuracy is exact &#8212; which may well be the better trade, and you will not know unless both are on the page.</p>
+      <span class="obs"><b>what it rules out</b> a mitigation that is named rather than measured. &#8220;We&#8217;ll turn on healing&#8221; is a plan; it is not evidence.</span>
+    </li>
+  </ol>
+
+  <h3 class="sub">The artefact: a tokenizer change request</h3>
+  <p>Every guide in this series ends on a document rather than an opinion, because the reusable part of a good answer is the shape of the thing you would actually write. Here it is a change request with the evidence fields pre-declared, so that the gap between what was measured and what the product does is visible on the page rather than in someone&#8217;s head.</p>
+
+  <div class="formula"><span class="cm"># a tokenizer change is a change to the model's input alphabet.
+# it is not a config tweak, and it does not go in with a config
+# tweak's evidence.</span>
+
+<b>change:</b>  allow merges across whitespace in the code pre-tokenizer
+<b>layer:</b>   2 of 4  <span class="cm">(pre-tokenizer. NOT the merge table.)</span>
+<b>claim:</b>   41% fewer tokens, held-out loss improved
+
+<span class="cm"># ---- where the claim was measured -----------------------------</span>
+<b>measured_at_cut:</b>   <u>offset 0</u>            <span class="cm">complete files</span>
+<b>product_cuts_at:</b>   <i>arbitrary offsets</i>   <span class="cm">wherever a human stopped</span>
+                     <span class="cm">these are the same corpus and the same language.
+                     the ONLY difference is where the text was cut.
+                     every field below exists to close that gap.</span>
+
+<span class="cm"># ---- required before approval ---------------------------------</span>
+<b>bits_per_byte:</b>       old ____   new ____
+  <span class="cm">how_old_loss_was_computed: ____   # sum, mean, or per byte?</span>
+<b>boundary_coverage:</b>    old ____   new ____
+  <span class="cm"># share of character offsets that are legal token
+  # boundaries. this one always falls. record it anyway -
+  # it is the size of the margin you are spending.</span>
+<i><b>cursor_bpb:</b>           old ____   new ____</i>
+  <span class="cm"># THE number. cut point drawn from caret telemetry.
+  # bucketed: on_boundary / mid_identifier / post_indent
+  # / after_dot / after_open_bracket.
+  # if this field is empty the review has not begun.</span>
+<b>clean_stop_rate:</b>      old ____   new ____
+<b>round_trip_raw:</b>       old ____   new ____
+  <span class="cm"># tabs, mixed indent, trailing space, CRLF, no final
+  # newline, BOM, non-ASCII identifiers. RAW, not normalised.</span>
+
+<span class="cm"># ---- the mitigation, priced -----------------------------------</span>
+<b>mitigation:</b>
+  strategy:  ____        <span class="cm">healing / byte resampling / narrower merges</span>
+  residual:  ____%       <span class="cm">of the cursor_bpb gap still open AFTER it</span>
+  latency:   ____ ms     <span class="cm">p99 added, per keystroke</span>
+  scope:     ____        <span class="cm">which of the four failures it touches</span>
+
+<span class="cm"># ---- the decision, written before the numbers arrive ----------</span>
+<b>approve_if:</b>  cursor_bpb improves AND clean_stop_rate holds
+             AND round_trip_raw is unchanged
+<b>reject_if:</b>   sequence length is the only number that moved
+<b>narrow_to:</b>   <i>keep cross-whitespace merges. forbid exactly one
+             class: nothing may swallow a newline.</i>
+             <span class="cm">most of the compression, all of the stop atom,
+             four lines of regex. try this before reverting.</span></div>
+
+  <p class="cap">The two fields that are not in any real change request and should be: <b>measured_at_cut</b> next to <b>product_cuts_at</b>, sitting adjacent so that nobody can read the document without seeing the gap &#8212; and <b>narrow_to</b>, because a review whose only outputs are <em>approve</em> and <em>revert</em> will keep producing the wrong one. The useful answer to this question is almost never either.</p>
+</section>
+
+<!-- ============================ 10 ============================ -->
+<section class="part">
+  <div class="parthead"><span class="pnum">10</span><h2>Twelve follow-ups, with answers</h2></div>
+  <p class="lede">The first four are the ones you will actually get. F6 and F8 are the practical ones &#8212; if you can only rehearse two, rehearse those, because they are the ones where a candidate stops sounding well-read and starts sounding like someone who has shipped a model.</p>
+
+  <div class="fu">
+    <p class="fuq"><span class="fn3">F1</span>&#8220;Fine &#8212; then just turn on token healing and ship it. What&#8217;s your objection?&#8221;</p>
+    <p class="fua">None, in principle. My objection is to shipping it <em>unmeasured</em>, and the reason is specific rather than procedural: healing backs off exactly one token, and after a cross-whitespace merge one token can be ten characters of a fused run, so one step may not reach a real boundary. The published numbers show the residual is uneven &#8212; <strong>94%</strong> on code, <strong>83%</strong> on German, and on German it lands <em>below</em> the aligned baseline.</p>
+    <p class="fua">And the property that makes this more than pedantry: <strong>healing&#8217;s failures look exactly like its successes.</strong> It always returns a fluent completion. So turning it on without measuring the residual does not reduce the risk, it removes the symptom you would have used to detect the risk. One number fixes this &#8212; the cursor-eval gap remaining after healing &#8212; and it takes an afternoon.</p>
+  </div>
+
+  <div class="fu">
+    <p class="fuq"><span class="fn3">F2</span>&#8220;We&#8217;re training a much bigger model next quarter. Won&#8217;t that absorb this?&#8221;</p>
+    <p class="fua">No, and this is the most useful single fact in the area. The partial-token study scales it explicitly and finds larger variants are <strong>not</strong> more robust &#8212; several are <em>worse</em>.</p>
+    <p class="fua">The reason is structural. This is not a gap in what the model knows; it is a mismatch between two encodings of identical text. A larger model trained through the same tokenizer sees the same merged form in training and meets the same fragmented form at serving time, and it has learned the merged form <em>harder</em>. Scale sharpens the prior that makes the fragment unfamiliar. Which is exactly why this needs a gate now rather than a backlog item later: nothing you are already planning to do will touch it.</p>
+  </div>
+
+  <div class="fu">
+    <p class="fuq"><span class="fn3">F3</span>&#8220;We use fill-in-the-middle, so the model sees the code after the cursor. Doesn&#8217;t the suffix rescue the prefix?&#8221;</p>
+    <p class="fua">It helps with the semantics and makes the second boundary worse. FIM cuts the file twice at the same offset: the prefix ends mid-token, and the suffix <em>begins</em> mid-token. Token healing reaches the first and cannot reach the second, because healing is a constraint on the first token the model emits and the suffix is never emitted &#8212; it is read.</p>
+    <p class="fua">The suffix boundary is also the quieter one. A broken prefix boundary can produce visibly malformed output; a broken suffix boundary produces a well-formed completion conditioned on mildly corrupted evidence, which is indistinguishable from the model simply being a bit worse. And in suffix-prefix-middle ordering the suffix sits adjacent to the generation point, so the guaranteed-mis-segmented token is the one with the most influence on the prediction. I&#8217;d want that measured on our stack before I formed a view on the size of it.</p>
+  </div>
+
+  <div class="fu">
+    <p class="fuq"><span class="fn3">F4</span>&#8220;Why is code worse than prose here?&#8221;</p>
+    <p class="fua">Three reasons that compound. Punctuation occurs in contiguous runs in source &#8212; <code>).get(</code>, <code>}});</code>, <code>=&#62;&#160;{</code> &#8212; and most pre-tokenizers let punctuation merge without limit, so code accumulates precisely the long multi-character tokens this failure needs. Published misalignment rates for Python sit near <strong>68%</strong> for the common pre-tokenizer family.</p>
+    <p class="fua">Second, identifiers are long, compound and open-class, so the caret spends most of its life inside one. Third, the cut distribution is adversarial in a way prose&#8217;s is not: a person writing prose pauses at word ends, while a person writing code pauses <em>inside</em> <code>self.cach</code> and waits for the editor to finish it. Autocomplete is a product built specifically around the offsets that are worst for the tokenizer.</p>
+  </div>
+
+  <div class="fu">
+    <p class="fuq"><span class="fn3">F5</span>&#8220;Could we fix this in training instead &#8212; randomly split tokens so the model sees fragments?&#8221;</p>
+    <p class="fua">Yes, and it is the only option on the table that repairs the <em>training</em> distribution rather than patching at decode time. It exists in production: at least one frontier model randomly splits a proportion of multi-punctuation tokens during training. Note how narrow that is &#8212; multi-punctuation specifically, not everything &#8212; which is the design telling you the trade is real.</p>
+    <p class="fua">Because the cost is direct: stochastic tokenization spends the encoding efficiency you just bought, and the study that reports it declines to recommend it broadly for exactly that reason. The practical constraint is scheduling. It requires a pretraining run, so it is not available for <em>this</em> decision. It is the right thing to put in the next tokenizer&#8217;s design document, alongside the note that we will want cursor-conditioned evaluation before that run rather than after it.</p>
+  </div>
+
+  <div class="fu">
+    <p class="fuq"><span class="fn3">F6</span>&#8220;You have one afternoon and a held-out corpus. What do you actually run?&#8221;</p>
+    <p class="fua">Two things, and the first needs no GPU at all. <strong>Boundary coverage</strong>: take a few thousand held-out files, encode each with both tokenizers, and count what fraction of character offsets are token boundaries. That is twenty lines, it runs in seconds, and it gives you the size of the margin being spent before you have asked anyone for inference budget. I would run it first because it cannot fail to produce a result and it decides whether the rest is worth doing.</p>
+    <p class="fua"><strong>Then cursor evaluation.</strong> Same corpus, ten cut offsets per file sampled to match our caret telemetry, generate to end-of-line from each under both tokenizers, and score exact match and edit similarity against the real continuation. Bucket by context &#8212; on boundary, mid-identifier, just after an indent, after a dot. I would expect the on-boundary bucket to be flat or better and the mid-identifier bucket to carry the whole regression, and if that is the shape, the fix is narrow rather than a revert.</p>
+  </div>
+
+  <div class="fu">
+    <p class="fuq"><span class="fn3">F7</span>&#8220;Suppose bits-per-byte also improves. Do you approve then?&#8221;</p>
+    <p class="fua">Not on that alone, and this is the follow-up that separates the two halves of the argument. Bits-per-byte repairs the <em>units</em> &#8212; it stops us comparing a per-token average across two different token counts. It does not repair the <em>sampling</em>. It is still computed on complete files read from the beginning, so an improvement in it is an improvement at cut point zero.</p>
+    <p class="fua">The cleanest way to say it: full-file BPB is cursor-conditioned BPB with the cut pinned to zero. It is one point of the distribution we care about, and the only point no user has ever occupied. So yes, I want BPB, and it is necessary; it is a repair to how we compare, not a measurement of what we ship.</p>
+  </div>
+
+  <div class="fu">
+    <p class="fuq"><span class="fn3">F8</span>&#8220;It went out a month ago. What&#8217;s the fastest way to find out whether it hurt?&#8221;</p>
+    <p class="fua">Re-cut the metric you already have, retroactively, with no new logging. Acceptance rate is already recorded per suggestion, and the prompt prefix is in the request logs &#8212; which means the caret offset is recoverable, and so is whether it landed on a token boundary, under <em>either</em> tokenizer, computed after the fact. Segment historical acceptance by that and compare the before and after windows within each bucket.</p>
+    <p class="fua">The shape to look for is the giveaway: an aggregate that moved a couple of points while the on-boundary bucket held flat and the mid-identifier bucket fell hard. That is this bug&#8217;s signature, and it also explains why nobody caught it &#8212; the aggregate mixes a bucket that did not move with a bucket that collapsed, and the average lands somewhere unremarkable. Cost is a query. If the buckets move together instead, my hypothesis was wrong and something else regressed.</p>
+  </div>
+
+  <div class="fu">
+    <p class="fuq"><span class="fn3">F9</span>&#8220;Why does stop behaviour break? Can&#8217;t we just stop on the newline string?&#8221;</p>
+    <p class="fua">You can, and you should, and it is not sufficient. Stop sequences are strings; sampling is tokens. If the newline has fused into a token that also carries the next line&#8217;s indent and its first word, then stopping on the string means truncating inside a token you already sampled &#8212; so part of what you generated is discarded, and the remainder is a string the model never chose to emit as a unit.</p>
+    <p class="fua">The deeper cost is to the distribution. When a single token means &#8220;end this line <em>and</em> begin a return statement&#8221;, the probability of stopping is entangled with the probability of what comes next, and you can no longer read &#8220;should I stop here&#8221; off the model&#8217;s output at all. That is a vocabulary problem, and no serving-layer change reaches it. It is also why the narrow fix is the right one: forbid merges that swallow a newline, keep everything else.</p>
+  </div>
+
+  <div class="fu">
+    <p class="fuq"><span class="fn3">F10</span>&#8220;Set autocomplete aside. Isn&#8217;t more compression strictly better at fixed compute?&#8221;</p>
+    <p class="fua">No, and there is 2026 work on exactly this. A study training nearly a thousand models from 50M to 7B parameters over a wide range of compression rates finds that parameter count scales with data measured in <strong>bytes</strong>, not in tokens &#8212; which is already a correction to how most people reason about this &#8212; and that the compute-optimal compression rate is <em>not</em> the one byte-pair encoding lands on, and <strong>decreases as compute grows</strong>.</p>
+    <p class="fua">So the optimum is real, it is not at infinity, and it moves in the opposite direction from the intuition. Which makes &#8220;shorter is better&#8221; an unbounded claim about a quantity that has an interior maximum. Even without a single cursor anywhere in the argument, the right question is not how much shorter, it is whether we are on the correct side of the peak.</p>
+  </div>
+
+  <div class="fu">
+    <p class="fuq"><span class="fn3">F11</span>&#8220;Superword tokenization does exactly this and reports +8.2% on MMLU. Is your teammate wrong?&#8221;</p>
+    <p class="fua">Not about the model. That line of work &#8212; standard byte-pair encoding first, then a second phase with the whitespace constraint lifted &#8212; reports up to <strong>33% fewer tokens</strong>, <strong>+4.0% absolute across 30 downstream tasks</strong> including the <strong>+8.2%</strong>, and <strong>27% less inference compute</strong>. It is a good result and I would expect our teammate to reproduce a version of it.</p>
+    <p class="fua">Two things about it, though. Those benchmarks score complete prompts and complete answers; nothing in them ever ends a prompt inside a token, because nothing in them has a caret. And the method itself is a <em>curriculum</em> &#8212; it learns subwords first and only then lifts the constraint &#8212; which is the design conceding that boundary structure is worth building before it is worth spending. &#8220;Merge freely&#8221; is not what that paper did. The honest position is that this is a strong result on a workload we do not have, and I want the same result on the workload we do.</p>
+  </div>
+
+  <div class="fu">
+    <p class="fuq"><span class="fn3">F12</span>&#8220;If there&#8217;s one thing you&#8217;d want a junior engineer to take from this, what is it?&#8221;</p>
+    <p class="fua">That every metric has a sampling distribution hidden inside it, and the name of the metric almost never mentions it. &#8220;Held-out loss&#8221; sounds like it means <em>how surprised is the model by text it has not seen</em>. What it actually means is <em>how surprised is the model by a file it has not seen, read from the beginning, all the way through</em>. The clause that does the damage is the one nobody says out loud.</p>
+    <p class="fua">So the habit is not scepticism about numbers &#8212; scepticism is cheap and it makes you useless in a review. It is one question, asked early and without any edge to it: <strong>where did this metric cut the data, and is that where we cut it?</strong> Here the answer is that the metric always cuts at offset zero and the product never does, and once that sentence is on the table the entire disagreement resolves into an afternoon of work.</p>
+  </div>
+</section>
+
+<!-- ============================ 11 ============================ -->
+<section class="part">
+  <div class="parthead"><span class="pnum">11</span><h2>Your evidence</h2></div>
+  <p class="lede">Everything above is other people&#8217;s numbers. One row of yours outranks all of it, and the bar is lower than it looks: you do not need to have trained a tokenizer. You need to have once approved something on an offline number and later found out where that number was measured.</p>
+
+  <div class="evidence" data-evidence-for="0011">
+  <header>
+    <span class="elab">Your numbers, not mine</span>
+    <span class="hint">saved in this browser as you type</span>
+  </header>
+  <div class="ebody">
+    <p>Row 2 is the one that does the work in a real interview, and it is the one nobody prepares. Every team has at least one headline metric that averages two populations behaving differently, and naming yours &#8212; out loud, unprompted, about your own system &#8212; is the single most senior thing you can do in this conversation.</p>
+    <p>If the honest answer to row 4 is &#8220;we reverted, we never found the narrow version&#8221;, write that. It is a better sentence than an invented fix, and it is exactly the failure mode section 09 exists to prevent.</p>
+    <div class="rows">
+      <div class="row">
+        <span class="ran">A change you approved on an offline number</span>
+        <span class="field"><label for="e11-change">the change</label><input type="text" id="e11-change" data-field="change" placeholder="e.g. swapped the retrieval embedding model"></span>
+        <span class="field"><label for="e11-metric">the number that said yes</label><input type="text" id="e11-metric" data-field="metric" placeholder="e.g. recall@10 on our eval set"></span>
+        <span class="why-row"><label for="e11-cut">What distribution was that number measured on, and where does the product actually sample?</label><textarea id="e11-cut" data-field="cut" placeholder="Be concrete about the gap rather than the metric. Offline sets are usually clean, complete, English, well-formed, and drawn from whatever was convenient to label. Production is usually truncated, half-typed, multilingual, pasted from somewhere, or arriving mid-session with history attached. Name one specific property the eval set has that your traffic does not - and if the answer is that you never checked, write that. 'We never compared the two distributions' is a real finding and it is the one this whole question is about."></textarea></span>
+      </div>
+      <div class="row">
+        <span class="ran">An aggregate of yours that is hiding two populations</span>
+        <span class="field"><label for="e11-agg">the metric</label><input type="text" id="e11-agg" data-field="agg" placeholder="e.g. suggestion acceptance rate"></span>
+        <span class="field"><label for="e11-buckets">the two groups inside it</label><input type="text" id="e11-buckets" data-field="buckets" placeholder="e.g. first suggestion vs. re-triggered"></span>
+        <span class="why-row"><label for="e11-split">What would splitting it show &#8212; and why has nobody split it?</label><textarea id="e11-split" data-field="split" placeholder="The answer to the second half is almost never 'we didn't think of it'. It is usually that the dashboard was built before the two populations diverged, or that the split needs a field nobody logs, or that the aggregate is the number in someone's goals. Say which. Then estimate the shape if you can: does one bucket move while the other sits flat? That pattern - a small aggregate change made of one large change and one non-change - is the signature of this entire class of bug, and having seen it once in your own data is worth more than any paper on this page."></textarea></span>
+      </div>
+      <div class="row">
+        <span class="ran">A latency budget you actually have</span>
+        <span class="field"><label for="e11-surface">the surface</label><input type="text" id="e11-surface" data-field="surface" placeholder="e.g. inline suggestion on keystroke"></span>
+        <span class="field"><label for="e11-p99">the p99 you hold it to</label><input type="text" id="e11-p99" data-field="p99" placeholder="e.g. 180 ms end to end"></span>
+        <span class="why-row"><label for="e11-price">How much of that budget is unspent, and what would you buy with it?</label><textarea id="e11-price" data-field="price" placeholder="This is the row that makes 'price the mitigation' concrete. Roughly what headroom is there between your p99 and the point where users notice? Then spend it on paper: an extra forward pass, a constrained-decoding pass, a second candidate you rerank, a larger retrieved context. Name what you would buy and what you would give up. Engineers who can say 'we had about forty milliseconds and we spent it on X' are immediately more credible than engineers who talk about latency as a constraint without a figure attached."></textarea></span>
+      </div>
+      <div class="row">
+        <span class="ran">A narrow fix you shipped instead of a revert</span>
+        <span class="field"><label for="e11-narrow">the narrow version</label><input type="text" id="e11-narrow" data-field="narrow" placeholder="e.g. kept the new index, pinned one field"></span>
+        <span class="field"><label for="e11-kept">what it let you keep</label><input type="text" id="e11-kept" data-field="kept" placeholder="e.g. most of the latency win"></span>
+        <span class="why-row"><label for="e11-evidence">How did you know the narrow version was enough?</label><textarea id="e11-evidence" data-field="evidence" placeholder="The interesting part is the evidence, not the fix. What did you measure afterwards that would have caught it if the narrowing had been insufficient - and did you agree on that measurement before or after you shipped the narrowing? Before is much stronger and much rarer. If the truthful answer is that you shipped it and watched the dashboard, say that; it is what most teams do, and being clear-eyed about it reads far better than a reconstructed process nobody followed."></textarea></span>
+      </div>
+    </div>
+
+    <div class="earned">
+      <span class="lab">The answer these rows earn</span>
+      <p>&#8220;We approved <span data-fill="change" class="placeholder">[row 1]</span> on <span data-fill="metric" class="placeholder">[row 1]</span>, and what I learned is that <span data-fill="cut" class="placeholder">[row 1]</span>. The same thing is true of <span data-fill="agg" class="placeholder">[row 2]</span> today &#8212; it averages <span data-fill="buckets" class="placeholder">[row 2]</span>, and nobody has split it. So for a tokenizer change I&#8217;d want the cursor-conditioned number bucketed before I&#8217;d sign it, and I&#8217;d price the mitigation against a real budget: on <span data-fill="surface" class="placeholder">[row 3]</span> we hold <span data-fill="p99" class="placeholder">[row 3]</span>. And I&#8217;d look for the narrow fix first &#8212; last time that was <span data-fill="narrow" class="placeholder">[row 4]</span>, which kept <span data-fill="kept" class="placeholder">[row 4]</span>.&#8221;</p>
+    </div>
+  </div>
+  </div>
+</section>
+
+<!-- ============================ 12 ============================ -->
+<section class="part">
+  <div class="parthead"><span class="pnum">12</span><h2>Numbers worth carrying in</h2></div>
+  <p class="lede">Two of these are derived in this guide rather than published, and they are marked. Say so if you use them &#8212; an interviewer who checks will find the published ones and not the others, and being the person who flagged which was which is worth more than either number.</p>
+
+  <div class="twrap">
+  <table class="tw">
+    <thead><tr><th>Figure</th><th>What it is</th><th>Where it comes from</th></tr></thead>
+    <tbody>
+      <tr><td class="n sg">68.08%</td><td>Punctuation-boundary misalignment on Python &#8212; identical to four significant figures for Qwen3, Llama&#160;3 and OLMo&#160;2, because they share a pre-tokenizer</td><td>Partial token problem, Table 1</td></tr>
+      <tr><td class="n">25.11%</td><td>The same measurement for Gemma, which splits runs of punctuation. Less than half, from a layer-2 choice alone</td><td>Partial token problem, Table 1</td></tr>
+      <tr><td class="n sg">&#8722;87.6 to &#8722;95.6%</td><td>Accuracy drop on code continuations that begin inside a token, across six model families</td><td>Partial token problem, Table 3</td></tr>
+      <tr><td class="n">60 to 95.6%</td><td>The same drop across all three domains tested, with log-probability falling two to four orders of magnitude</td><td>Partial token problem</td></tr>
+      <tr><td class="n">94.09 / 83.16%</td><td>Token healing accuracy on code and on German. Same technique, same model &#8212; and on German it lands 6.29 points <em>below</em> the aligned baseline</td><td>Partial token problem, Table 4</td></tr>
+      <tr><td class="n sg">0.12&#8211;1.17</td><td>Additional forward passes for exact byte-level resampling, which reaches 100.00% on all three domains</td><td>Partial token problem, Table 4</td></tr>
+      <tr><td class="n">&#8776;70%</td><td>Share of the ten thousand most common tokens that are prefixes of longer tokens &#8212; why almost any prompt&#8217;s last token is a fragment</td><td>Lundberg, prompt boundaries</td></tr>
+      <tr><td class="n">33%</td><td>Fewer tokens from superword merges at a 200k vocabulary</td><td>SuperBPE</td></tr>
+      <tr><td class="n">+4.0 / +8.2%</td><td>Absolute gain across 30 downstream tasks, and on MMLU specifically &#8212; the number your teammate is reproducing</td><td>SuperBPE</td></tr>
+      <tr><td class="n">27%</td><td>Less inference compute, from the same change</td><td>SuperBPE</td></tr>
+      <tr><td class="n">4.57</td><td>Bytes per token for a standard BPE tokenizer &#8212; the compression rate the scaling study measures against, over 988 models from 50M to 7B</td><td>Compute-optimal tokenization</td></tr>
+      <tr><td class="n pl">31.4 &#8594; 17.1%</td><td><em>Derived here.</em> Boundary coverage on the worked line in section 03, before and after. The share of character offsets a prompt may legally end on</td><td>Section 03, arithmetic</td></tr>
+      <tr><td class="n pl">+71%</td><td><em>Derived here.</em> The rise in per-token loss implied by a 41.7% shorter sequence at unchanged model quality &#8212; the reason a <em>fall</em> is a claim worth interrogating</td><td>Section 07, arithmetic</td></tr>
+      <tr><td class="n pl">1 / L</td><td><em>Derived here.</em> Boundary coverage approximates the reciprocal of mean bytes per token. Compression and boundary loss are one measurement with two signs</td><td>Section 03</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="cap">The one to lead with is <b>68.08% against 25.11%</b>. It is small, verifiable, and it makes an argument by itself: the mis-segmentation rate is not a fact about the model or its training data, it is a design choice in one regex, and a different choice more than halves it.</p>
+</section>
+
+<!-- ============================ 13 ============================ -->
+<section class="part">
+  <div class="parthead"><span class="pnum">13</span><h2>Glossary</h2></div>
+  <p class="lede">Only the terms this question actually needs. The four that get misused most often are <em>pre-tokenizer</em>, <em>held-out loss</em>, <em>token healing</em> and <em>bits-per-byte</em> &#8212; and using those four precisely is most of what makes an answer here sound like it came from someone who has read the code.</p>
+
+  <dl class="gloss">
+    <dt>bits per byte</dt><dd>Cross-entropy normalised by the UTF-8 byte length of the text rather than by the token count. The standard repair when comparing models with different vocabularies, because bytes are a property of the document and tokens are a property of the tokenizer.</dd>
+    <dt>boundary coverage</dt><dd>The share of character offsets in a text that are token boundaries &#8212; the fraction of cursor positions a prompt may legally end on. Approximately the reciprocal of mean bytes per token. Named and derived in this guide; it is not standard terminology, so introduce it as a definition rather than a citation.</dd>
+    <dt>byte fallback</dt><dd>Encoding any character the vocabulary lacks as its individual UTF-8 bytes, so that nothing is unrepresentable. It is what makes a tokenizer total; it is also where round-trip tests usually break, when the decoder does not convert those byte tokens back.</dd>
+    <dt>byte-pair encoding (BPE)</dt><dd>The learned layer. Repeatedly fuse the most frequent adjacent pair in the corpus until the vocabulary is full. Operates strictly inside a pre-token, which is why the pre-tokenizer is upstream of everything it can do.</dd>
+    <dt>clean-stop rate</dt><dd>The share of single-line completions that end exactly at the line boundary &#8212; not early, not carrying part of the next statement. The direct measurement of whether the newline survived as an atom.</dd>
+    <dt>compression rate</dt><dd>Bytes per token, or its inverse, tokens per byte (sometimes &#8220;fertility&#8221;). The number a tokenizer change is usually justified by, and the number this guide argues is only half of the accounting.</dd>
+    <dt>constrained decoding</dt><dd>Restricting which tokens may be sampled at a step so the output satisfies some property &#8212; a grammar, a schema, or in token healing&#8217;s case a required prefix. Costs work at every step it is active.</dd>
+    <dt>cursor-conditioned evaluation</dt><dd>Scoring a model on continuations from cut points sampled the way users cut text, rather than from the start of a document. The measurement this whole question exists to elicit.</dd>
+    <dt>edit similarity</dt><dd>A graded match between generated and reference text, usually from edit distance. Paired with exact match because completion quality is rarely binary &#8212; a suggestion one character off is not the same failure as a suggestion of the wrong statement.</dd>
+    <dt>fill-in-the-middle (FIM)</dt><dd>Training and prompting a left-to-right model to write a span given both what precedes and what follows it, using sentinel tokens to mark the three regions. How IDE completion has worked since 2022, and the reason the cursor creates two boundaries rather than one.</dd>
+    <dt>held-out loss</dt><dd>Cross-entropy on text the model was not trained on. Note the clause that is never said aloud: on <em>complete documents, read from the beginning</em>. That unstated clause is the whole question.</dd>
+    <dt>merge table</dt><dd>The ordered list of pair-fusions BPE learned. Applying it deterministically to a pre-token is what produces a canonical segmentation &#8212; and what makes the fragment at a cursor a state the model rarely saw.</dd>
+    <dt>normaliser</dt><dd>The first layer: Unicode normalisation and any tidying applied before splitting. Convenient for prose, lossy for code, and the reason a round-trip test has to run on raw text.</dd>
+    <dt>partial token problem</dt><dd>The formal name for the failure in this question: <code>encode(prompt) + encode(continuation)</code> does not equal <code>encode(prompt + continuation)</code>, because the join was forced by where the user stopped rather than chosen by the merge table.</dd>
+    <dt>pre-token</dt><dd>One chunk produced by the pre-tokenizer &#8212; the unit inside which merges are permitted. Historically a word or a run of punctuation; under the change in this question, potentially several words and the spaces between them.</dd>
+    <dt>pre-tokenizer</dt><dd>The regex-shaped layer that splits raw text before BPE sees it. It decides which boundaries are eligible, it is the layer this question&#8217;s change edits, and it is the layer whose properties survive into serving.</dd>
+    <dt>prompt boundary problem</dt><dd>The older, informal name for the same failure, from the prompt-engineering literature. Useful because it names the location rather than the artefact, and the location is what you fix.</dd>
+    <dt>PSM / SPM</dt><dd>Prefix-suffix-middle and suffix-prefix-middle: the two orderings for laying out a FIM prompt. In SPM the suffix sits next to the generation point, which is why its first &#8212; mis-segmented &#8212; token has the most influence.</dd>
+    <dt>round-trip fidelity</dt><dd>Whether <code>decode(encode(x)) == x</code>. The usual guarantee is weaker than it sounds: it holds over <em>normalised</em> text, so it says nothing about tabs, CRLF or trailing whitespace unless you test the raw bytes.</dd>
+    <dt>sentinel token</dt><dd>A reserved vocabulary entry with a structural rather than linguistic meaning &#8212; the FIM markers, end-of-text, chat-role tags. They exist precisely because some boundaries are too important to leave to the merge table.</dd>
+    <dt>stochastic tokenization</dt><dd>Deliberately splitting some tokens at random during training so the model sees non-canonical segmentations. The only mitigation on this page that repairs the training distribution rather than patching at decode time, and it spends encoding efficiency to do it.</dd>
+    <dt>stop sequence</dt><dd>A <em>string</em> whose appearance ends generation. Sampling produces <em>tokens</em>. The gap between the two is invisible until stop strings stop coinciding with token boundaries.</dd>
+    <dt>superword</dt><dd>A token spanning more than one whitespace-separated word. What &#8220;merging freely across whitespace&#8221; produces, and a live research direction with real reported gains &#8212; on workloads that never cut a prompt mid-token.</dd>
+    <dt>token healing</dt><dd>Back the generation up one token, then constrain the first generated token to start with the characters removed. A mitigation for the prefix boundary only, with an unknown backoff depth and a residual that has to be measured because its failures look like its successes.</dd>
+    <dt>vocabulary</dt><dd>The id-to-bytes map. Its <em>size</em> gets all the attention in tokenizer discussions; its <em>shape</em> &#8212; which strings are atoms and therefore which boundaries survive &#8212; is what this question is about.</dd>
+  </dl>
+</section>
+
+<!-- ============================ 14 ============================ -->
+<section class="part">
+  <div class="parthead"><span class="pnum">14</span><h2>Sources</h2></div>
+  <p class="lede">Read the first two. The 2026 partial-token study is where nearly every number in this guide comes from and it is recent enough that citing it is itself a signal; Lundberg&#8217;s piece is the clearest explanation of the mechanism and takes ten minutes. The third is the argument on the other side, which is the one you will be asked about.</p>
+
+  <ol class="srcs">
+    <li><span class="sn">Are you going to finish that? A Practical Study of the Partial Token Problem</span><span class="sd">Xu, Liu, Hayase, Choi and Smith &#8212; Washington, Nvidia and AI2, February 2026. The misalignment table, the degradation numbers, the scaling result, and the healing-versus-exact-resampling comparison. Sections 04 and 08 are built on it. <a href="https://arxiv.org/abs/2601.23223">arXiv:2601.23223</a></span></li>
+    <li><span class="sn">The Art of Prompt Design: Prompt Boundaries and Token Healing</span><span class="sd">Scott Lundberg. The original clear statement of the mechanism, the &#8776;70% prefix statistic, and the <code>http:</code> demonstration that makes it concrete in one screenful. <a href="https://guidance.readthedocs.io/en/latest/example_notebooks/art_of_prompt_design/prompt_boundaries_and_token_healing.html">guidance docs</a></span></li>
+    <li><span class="sn">SuperBPE: Space Travel for Language Models</span><span class="sd">The strongest published case for exactly the change under review &#8212; a two-phase curriculum that lifts the whitespace constraint after learning subwords. Up to 33% fewer tokens, +4.0% across 30 tasks, 27% less inference compute. Read it so you can concede the model argument properly. <a href="https://arxiv.org/abs/2503.13423">arXiv:2503.13423</a></span></li>
+    <li><span class="sn">Compute Optimal Tokenization</span><span class="sd">988 models from 50M to 7B across a wide range of compression rates. Parameters scale with data measured in bytes, not tokens, and the optimal compression rate is not BPE&#8217;s and decreases with compute. The answer to &#8220;isn&#8217;t shorter always better&#8221;. <a href="https://arxiv.org/abs/2605.01188">arXiv:2605.01188</a></span></li>
+    <li><span class="sn">Efficient Training of Language Models to Fill in the Middle</span><span class="sd">Bavarian et al., OpenAI. The paper that made FIM standard, including the PSM and SPM orderings and the sentinel-token layout. Background for section 05. <a href="https://arxiv.org/abs/2207.14255">arXiv:2207.14255</a></span></li>
+    <li><span class="sn">TokSuite: Measuring the Impact of Tokenizer Choice on Language Model Behavior</span><span class="sd">A systematic evaluation showing tokenizer <em>design</em> often matters more than vocabulary size or model scale for robustness to perturbed input. Useful when someone proposes solving this with a bigger vocabulary. <a href="https://arxiv.org/abs/2512.20757">arXiv:2512.20757</a></span></li>
+    <li><span class="sn">Getting the most out of your tokenizer for pre-training and domain adaptation</span><span class="sd">On tokenizer choice for code specifically &#8212; compression, fertility, and what changing the tokenizer does to a model you have already trained. The practical background to the change request in section 09. <a href="https://arxiv.org/abs/2402.01035">arXiv:2402.01035</a></span></li>
+    <li><span class="sn">SentencePiece: a simple and language independent subword tokenizer and detokenizer</span><span class="sd">Kudo and Richardson. Read it for one sentence: lossless tokenization is defined as <em>Decode(Encode(Normalize(text))) = Normalize(text)</em>. That qualifier is the round-trip trap in section 09. <a href="https://arxiv.org/abs/1808.06226">arXiv:1808.06226</a></span></li>
+    <li><span class="sn">Constrained Decoding for Fill-in-the-Middle Code Language Models</span><span class="sd">Left and right quotienting of context-sensitive grammars &#8212; what it takes to constrain generation properly when the text on <em>both</em> sides of the hole is fixed. The rigorous version of the section 05 problem. <a href="https://arxiv.org/abs/2402.17988">arXiv:2402.17988</a></span></li>
+    <li><span class="sn">Token healing, implemented</span><span class="sd">The forty-line reference implementation and the transformers issue tracking it. Worth reading before you propose it, because the code makes the one-token backoff limitation obvious in a way the description does not. <a href="https://github.com/huggingface/transformers/issues/28346">huggingface/transformers#28346</a></span></li>
+  </ol>
+
+  <div class="foot">
+    <span>Guide 0011 &#183; Question 10 &#183; the metric cuts at offset zero, the product never does</span>
+    <span>Interview prep</span>
+  </div>
+</section>
+<script>
+/* evidence.js, inlined - each guide is a standalone published page, so it
+   cannot rely on a sibling asset file. Markup contract: every input and
+   textarea carries data-field; anything with data-fill="<field>" is replaced
+   by that field's value as it is typed. Guarded throughout: a private window
+   or blocked storage returns nothing and the block still reads correctly. */
+(function(){
+  "use strict";
+  var KEY = "prep:v1:evidence";
+  function read(){ try { var r = localStorage.getItem(KEY); return r ? JSON.parse(r) : {}; } catch (e) { return {}; } }
+  function write(o){ try { localStorage.setItem(KEY, JSON.stringify(o)); return true; } catch (e) { return false; } }
+  /* An emptied field is a deletion, not an empty string: it has to read as
+     "not measured yet" in the earned answer, which refuses to render it. */
+  function save(id, field, val){
+    var all = read(), g = all[id] || {};
+    if (!val) { delete g[field]; } else { g[field] = val; }
+    if (!Object.keys(g).length) { delete all[id]; } else { all[id] = g; }
+    write(all);
+  }
+  function paintFill(block, field, val){
+    Array.prototype.slice.call(block.querySelectorAll('[data-fill="' + field + '"]')).forEach(function (t) {
+      if (t.dataset.prompt === undefined) { t.dataset.prompt = t.textContent; }
+      if (val) { t.textContent = val; t.classList.remove("placeholder"); }
+      else { t.textContent = t.dataset.prompt; t.classList.add("placeholder"); }
+    });
+  }
+  function wire(block){
+    var id = block.dataset.evidenceFor;
+    if (!id) return;
+    var saved = read()[id] || {};
+    Array.prototype.slice.call(block.querySelectorAll("input[data-field],textarea[data-field]")).forEach(function (el) {
+      var f = el.dataset.field;
+      if (saved[f] !== undefined && saved[f] !== null) { el.value = saved[f]; }
+      var v = el.value.trim();
+      if (v) { el.classList.add("filled"); }
+      paintFill(block, f, v);
+      /* input rather than change: typed numbers should survive closing the
+         tab mid-sentence, which is exactly when it happens. */
+      el.addEventListener("input", function () {
+        var cur = el.value.trim();
+        save(id, f, cur);
+        el.classList.toggle("filled", !!cur);
+        paintFill(block, f, cur);
+      });
+    });
+  }
+  function init(){
+    Array.prototype.slice.call(document.querySelectorAll(".evidence[data-evidence-for]")).forEach(wire);
+  }
+  if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", init); }
+  else { init(); }
+})();
+</script>
+
+</div>
+
+</body>
+</html>
