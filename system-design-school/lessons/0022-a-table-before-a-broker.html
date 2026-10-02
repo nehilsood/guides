@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
   <title>A Table Before a Broker</title>
@@ -433,10 +434,10 @@ t4     commit              -                   id &gt; 2: nothing      reads 1, 
 <div class="quiz" data-quiz-id="0022-q1">
   <p class="q">During a 1.5&#8239;s broker stall, publishing the job first and committing the run second lost nothing, while committing first lost 20 to 24 runs. Why is publishing first still not safe?</p>
   <ol class="options">
-    <li data-correct="true">A producer dying between publish and commit leaves orphan jobs</li>
-    <li>The broker delivers the job after its stall has ended</li>
+    <li data-correct="true">A producer dying between publish and commit orphans its job</li>
+    <li>The broker delivers the job once its stall has finished</li>
     <li>The run's transaction holds a lock the consumer waits on</li>
-    <li>Publishing first doubles the load on the whole database server</li>
+    <li>Publishing first doubles the load on the whole of Postgres</li>
   </ol>
   <div class="why">
     <p>Each order has a window after its first write. Publishing first survives a broker failure because a failed publish can roll the run back, but a producer killed after its publish and before its commit leaves a job for a run that never existed: 2 to 6 of them in twelve kills across four runs. Swapping the order moves the window; it does not remove it.</p>
@@ -448,7 +449,7 @@ t4     commit              -                   id &gt; 2: nothing      reads 1, 
   <p class="q">A reader tails a log table with <code>WHERE id &gt; :last ORDER BY id</code> while several producers commit concurrently. It raises no errors and never read <strong>583 of 2&#8239;000</strong> events. What happened to them?</p>
   <ol class="options">
     <li data-correct="true">They committed after rows with higher ids were already read</li>
-    <li>They were rolled back and their ids were then reused</li>
+    <li>They were rolled back and their ids were reused afterwards</li>
     <li>They were removed by vacuum before the reader ever arrived</li>
     <li>They exceeded the batch size limit and were quietly dropped</li>
   </ol>

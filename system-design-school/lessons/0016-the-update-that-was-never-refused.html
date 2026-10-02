@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
   <title>The Update That Was Never Refused</title>
@@ -462,9 +463,9 @@ REPEATABLE READ + loop    8        8     0        0   the loop, eight times</spa
   <p class="q">Eight concurrent writers each add 1 to the same score at READ COMMITTED. The final value is 1. How many errors did the application see?</p>
   <ol class="options">
     <li data-correct="true">None at all; every writer reported complete success</li>
-    <li>Seven, because that many writers were refused outright</li>
+    <li>Seven, since that many writers were refused outright</li>
     <li>One, raised when the final writer tried committing</li>
-    <li>Eight, one from every writer touching that row</li>
+    <li>Eight, one from every writer touching that score</li>
   </ol>
   <div class="why">
     <p>Zero. Every writer read a value, added one to it and wrote the result, and every one of those writes succeeded. Seven of them were then overwritten by a value that had been computed before they landed. <strong>There is no error to catch, because nothing went wrong from the database's point of view.</strong></p>
@@ -476,9 +477,9 @@ REPEATABLE READ + loop    8        8     0        0   the loop, eight times</spa
   <p class="q">REPEATABLE READ stopped the non-repeatable read and the phantom in the measured grid. Why did it not stop the write skew?</p>
   <ol class="options">
     <li data-correct="true">It only compares what you wrote, never what you read</li>
-    <li>Both writers picked rows that nobody else had touched yet</li>
-    <li>Postgres cannot detect this one without taking a table lock</li>
-    <li>The gap between the two reads was simply too short</li>
+    <li>Both writers chose rows that nobody else had touched yet</li>
+    <li>Postgres cannot see this one without taking a table lock</li>
+    <li>The time between the two reads was simply too short</li>
   </ol>
   <div class="why">
     <p>Because it is snapshot isolation, and snapshot isolation resolves conflicts on <em>writes</em>. The two evaluators each read the same total, each concluded there was room, and each wrote to a different row &#8212; so there is no write-write conflict anywhere for it to find. The invariant ended at 1.2 against a limit of 1.0, with no error raised.</p>

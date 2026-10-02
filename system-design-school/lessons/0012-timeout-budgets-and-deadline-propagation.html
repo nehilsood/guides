@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
   <title>Timeout Budgets and Deadline Propagation</title>
@@ -414,7 +415,7 @@ bulkhead    concurrent calls     any duration at all</span>
     <li data-correct="true">Nothing; a per-call limit cannot bound a request</li>
     <li>The stage timeouts, which should each be 1600ms</li>
     <li>The retry policy, which doubled every stage timeout</li>
-    <li>The budget, which was set unrealistically low throughout</li>
+    <li>The turn budget, which was set unrealistically low</li>
   </ol>
   <div class="why">
     <p>Nothing is misconfigured, and that is the finding rather than a dodge. Every stage stayed inside its own limit and every retry was permitted. A timeout measures a <em>call</em> and the budget is a property of the <em>request</em>, so no set of per-call limits composes into a per-request guarantee &#8212; five 5&#8239;s timeouts with one retry each permit a 50&#8239;s ceiling, and 11&#8239;880&#8239;ms is just where the distribution landed.</p>
@@ -425,10 +426,10 @@ bulkhead    concurrent calls     any duration at all</span>
 <div class="quiz" data-quiz-id="0012-q2">
   <p class="q">Propagating one deadline capped the worst turn at 8&#8239;001&#8239;ms and dropped completions from 200 of 200 to 174 of 200. What happened to those 26 turns?</p>
   <ol class="options">
-    <li data-correct="true">They finished late before and now fail on time</li>
+    <li data-correct="true">They finished late before; now they fail on time</li>
     <li>They were refused by the retry budget token bucket</li>
-    <li>They hit the per-stage timeout instead of the deadline</li>
-    <li>They completed faster and stopped appearing in the tail</li>
+    <li>They hit the stage timeout instead of the deadline</li>
+    <li>They completed faster and dropped out of the tail</li>
   </ol>
   <div class="why">
     <p>They used to return an answer at nine, ten or eleven seconds, to a user promised eight and to a client that had quite possibly given up. Now they fail at the budget. <strong>A deadline converts overruns into failures</strong> &#8212; it does not make slow work fast, and any claim that it improved things without this sentence attached is incomplete.</p>

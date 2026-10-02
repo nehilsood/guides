@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
   <title>Stuck or Twice</title>
@@ -412,7 +413,7 @@ job id as the key, producer retried the same insert          no, but the key is 
   <ol class="options">
     <li data-correct="true">The kill lands after the order and before the record</li>
     <li>The check reads a stale snapshot of the processed table</li>
-    <li>The lease expires before the check has fully been completed</li>
+    <li>The lease runs out before the check has fully completed</li>
     <li>Two workers both insert the same processed row at once</li>
   </ol>
   <div class="why">
@@ -427,7 +428,7 @@ job id as the key, producer retried the same insert          no, but the key is 
     <li data-correct="true">Keeps it, because the session still looks alive</li>
     <li>Releases it once the TCP keepalive probes fail</li>
     <li>Releases it when the deadlock detector runs next</li>
-    <li>Hands the job to a waiting worker instead</li>
+    <li>Hands the job to another waiting worker instead</li>
   </ol>
   <div class="why">
     <p>It keeps it. A stopped process keeps its sockets open and the kernel keeps acknowledging on its behalf, so the session is simply idle in a transaction, which is also what a worker waiting on a slow model call looks like. In the lab the job waited <strong>5.3&#8239;s</strong> for a five-second pause and was applied once.</p>

@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
   <title>Eviction, and Why LRU Is Wrong</title>
@@ -472,8 +473,8 @@ C. <code>DEL</code> one key, <em>then</em> SET, still at 116 MB  &#8594;  <b>the
 <div class="quiz" data-quiz-id="0004-q1">
   <p class="q">Redis hits <code>maxmemory</code> under the default policy. What does your service observe?</p>
   <ol class="options">
-    <li data-correct="true">Writes start failing while reads keep on working normally</li>
-    <li>Reads and writes both fail until memory frees up</li>
+    <li data-correct="true">Writes begin to fail while reads keep working normally</li>
+    <li>Reads and writes alike fail until memory is released</li>
     <li>The oldest keys are dropped and nothing visibly changes</li>
     <li>Redis restarts itself and comes back with nothing stored</li>
   </ol>
@@ -486,10 +487,10 @@ C. <code>DEL</code> one key, <em>then</em> SET, still at 116 MB  &#8594;  <b>the
 <div class="quiz" data-quiz-id="0004-q2">
   <p class="q">A nightly batch embeds 20,000 unique texts. Which policy protects your interactive hot set?</p>
   <ol class="options">
-    <li data-correct="true">LFU, because each swept key is used just once</li>
+    <li data-correct="true">LFU, because every swept key is used just once</li>
     <li>LRU, because the batch keys are the most recent</li>
-    <li>Random, because it treats all stored keys the same</li>
-    <li>TTL, because the batch entries expire before the others</li>
+    <li>Random, because it treats all the keys the same</li>
+    <li>TTL, because the batch keys expire before the rest</li>
   </ol>
   <div class="why">
     <p>LFU. Every swept key has a frequency counter of one, making them the first candidates for eviction, so your hot interactive entries survive the sweep. Under LRU the swept keys are the <em>most</em> recently used and therefore the best protected — the batch job flushes the cache that your 8-second-budget path depends on.</p>

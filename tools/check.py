@@ -50,9 +50,18 @@ SITE_PHRASES = [
 FORBIDDEN = [
     ("claude.ai link", re.compile(r"claude\.ai/")),
     ("local path", re.compile(r"/Users/|file://")),
+    ("page without an icon", re.compile(r"\A(?![\s\S]*rel=\"icon\")[\s\S]*<html", re.I)),
     ("work email", re.compile(r"[\w.+-]+@cloudsufi\.com", re.I)),
 ]
 RESUME_FORBIDDEN = ("résumé ledger", re.compile(r"ledger", re.I))
+
+# GitHub Pages serves no /favicon.ico for a project site, so every page asks for one and
+# logs a 404. An inline icon answers the request without another file to keep in sync.
+ICON = ('<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 '
+        'viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E'
+        '%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 '
+        'fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">')
+CHARSET = re.compile(r'<meta charset="[^"]*">\n?', re.I)
 
 REF = re.compile(r'(?:href|src)\s*=\s*"([^"]*)"')
 EXTERNAL = re.compile(r"^(?:[a-z][a-z0-9+.-]*:|//|#)", re.I)
@@ -103,6 +112,8 @@ def rewrite(page: Path) -> bool:
     new = ARTIFACT_LINK.sub(link, new)
     for old, replacement in SITE_PHRASES:
         new = new.replace(old, replacement)
+    if 'rel="icon"' not in new:
+        new = CHARSET.sub(lambda m: m.group(0).rstrip("\n") + "\n" + ICON + "\n", new, count=1)
     if is_resume(page):
         new = drop_divs(drop_divs(new, PRIVATE_DIVS), PRIVATE_NOTE)
         new = PRIVATE_ENTRY.sub("", new)
@@ -124,7 +135,7 @@ def guard(site: Path) -> list[str]:
         for label, pattern in rules:
             for m in pattern.finditer(text):
                 line = text.count("\n", 0, m.start()) + 1
-                problems.append(f"{path.relative_to(site)}:{line}: {label}: {m.group(0)}")
+                problems.append(f"{path.relative_to(site)}:{line}: {label}: {m.group(0)[:60]}")
     return problems
 
 
