@@ -40,6 +40,7 @@ PRIVATE_PHRASES = [
      "the walk-through and the redraw checklist"),
     ("go deeper, the 80 ledger sentences, and\n  the diagram checklist", "go deeper, and\n  the diagram checklist"),
     ("reduced to the six things", "reduced to the five things"),
+    ("<h2>Five sheets built from the chapters</h2>", "<h2>Four sheets built from the chapters</h2>"),
 ]
 
 # Wording that points at the private copies, which this site replaces.

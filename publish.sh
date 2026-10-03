@@ -14,8 +14,16 @@ DRY=0
 
 sync() { rsync -a --delete --exclude .DS_Store "$@"; }
 
+echo "check: flowcharts are current in all three workspaces"
+for ws in interview-prep system-design-school resume-mastery; do
+  python3 "$SRC/$ws/build_flowcharts.py" --check || {
+    echo "flowcharts in $ws are stale; run python3 build_flowcharts.py there, then publish again" >&2
+    exit 1
+  }
+done
+
 echo "sync: interview-prep, system-design-school, resume-mastery"
-sync --exclude README.md "$SRC/interview-prep/" "$SITE/interview-prep/"
+sync --exclude README.md --exclude docs/ --exclude flows/ --exclude '*.py' --exclude .superpowers/ --exclude .git/ --exclude .gitignore "$SRC/interview-prep/" "$SITE/interview-prep/"
 for course in system-design-school resume-mastery; do
   for dir in lessons reference assets; do
     mkdir -p "$SITE/$course"
