@@ -14,13 +14,14 @@ DRY=0
 
 sync() { rsync -a --delete --exclude .DS_Store "$@"; }
 
-echo "check: flowcharts are current in all three workspaces"
+echo "check: every guide has a current flowchart in all three workspaces"
 for ws in interview-prep system-design-school resume-mastery; do
-  python3 "$SRC/$ws/build_flowcharts.py" --check || {
-    echo "flowcharts in $ws are stale; run python3 build_flowcharts.py there, then publish again" >&2
+  python3 "$SRC/$ws/build_flowcharts.py" --check --require-all || {
+    echo "flowcharts in $ws are stale or missing; draw any missing flows/NNNN.flow, run python3 build_flowcharts.py there, then publish again" >&2
     exit 1
   }
 done
+python3 "$SITE/tools/flow_privacy.py" "$SRC/resume-mastery"
 
 echo "sync: interview-prep, system-design-school, resume-mastery"
 sync --exclude README.md --exclude docs/ --exclude flows/ --exclude '*.py' --exclude .superpowers/ --exclude .git/ --exclude .gitignore "$SRC/interview-prep/" "$SITE/interview-prep/"
