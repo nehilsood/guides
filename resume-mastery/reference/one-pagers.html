@@ -116,84 +116,14 @@
 </div>
 
 <div class="trace">
-  <span class="callout-label">Walk them through it &#183; one vendor, end to end</span>
-  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One vendor, followed from the first minute of the call to the number on the scorecard. The vendor is invented. Everything the system does to them is not.</p>
+  <span class="callout-label">Explain it &#183; one picture</span>
   <p class="tr-case"><b>The picture.</b> A job interview where the panel also runs a background check. One person asks the questions. A second looks the candidate up, both before the interview and after it. A third grades the answers against a written marking scheme. Nobody grades while the candidate is still talking.</p>
-  <p class="tr-case"><b>The case.</b> Northwind Analytics is being evaluated for a security-heavy purchase. Security is thirty per cent of this rubric. During the call they say they are SOC 2 certified. Follow that one sentence all the way to the score it produces.</p>
-  <ol>
-    <li class="tr-step">
-      <span class="tr-k">The call</span>
-      <p><b>What happens.</b> An on-screen avatar runs the interview. It asks a fixed list of questions, and that list comes from the rubric rather than from the interviewer. Nothing is scored while the vendor is speaking.</p>
-      <p><b>Concretely.</b> Northwind gets the security topic's four questions. On the third one they say they are SOC 2 Type II certified.</p>
-      <p><b>If they ask why.</b> Live scoring sounds better and is worse. A grade handed out in minute one cannot use what gets said in minute forty.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The handoff</span>
-      <p><b>What happens.</b> The call ends and the transcript is saved. Only then does the scoring pipeline start, as a background task.</p>
-      <p><b>Concretely.</b> The web request that finalised the interview has already returned its response. The pipeline is still running after it.</p>
-      <p><b>If they ask why.</b> That is the reason the pipeline opens its own database session. The request's session is closed the moment the response is sent, and the work outlives the response.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Blind pass</span>
-      <p><b>What happens.</b> The Scout researches Northwind before it has read a word of the transcript. It finds the company website, runs industry-neutral searches, looks for the person who attended, and checks whether we have dealt with them before.</p>
-      <p><b>Concretely.</b> One of those searches is <code>Northwind Analytics controversies</code>. It survived a cull that deleted three other queries, because it is the one that finds what nobody volunteered.</p>
-      <p><b>If they ask why.</b> If the only research is aimed at what the vendor said, the vendor picks the entire evidence base. What they never mention is never checked. The blind pass is the half that cannot be steered.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Targeted pass</span>
-      <p><b>What happens.</b> Now the Scout reads the transcript. It pulls out the factual claims and fires one search per claim.</p>
-      <p><b>Concretely.</b> &#8220;We are SOC 2 Type II certified&#8221; becomes one search. The claims are capped at ten, and all ten searches go out at once inside a single gather.</p>
-      <p><b>If they ask why.</b> Run one after another, those searches would blow the deadline on their own. The concurrency here is load-bearing rather than a tidy-up.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">In parallel</span>
-      <p><b>What happens.</b> Three separate model calls then run over the same gathered sources. A written summary, a structured claims report, and a check on the representative who attended.</p>
-      <p><b>Concretely.</b> None of the three needs another one's output, so all three run concurrently and each carries the same retry ladder.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The record</span>
-      <p><b>What happens.</b> The claims report is not free text. Every claim comes back as a fixed record. A status, the claim itself, a note, and an array of sources with name, URL and quoted text.</p>
-      <p><b>Concretely.</b> Northwind's SOC 2 claim returns as <code>PARTIAL</code>. The evidence is an audit page dated 2019 and nothing after it. The other three statuses are verified, contradicted and no data.</p>
-      <p><b>If they ask why.</b> The model is never asked to cite its sources. The output format has no shape for a claim without them. That is the whole difference between grounding as advice and grounding as a rule.</p>
-      <p><b>The limit, said first.</b> A schema constrains shape and never string values. Nothing stops a URL appearing in that array that was not in the evidence. The failure has a name here and a measured rate, and it is called a bad cite.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The scoring</span>
-      <p><b>What happens.</b> The Evaluator reads the transcript and the Scout's verdicts together. It scores each question against that question's own written anchor.</p>
-      <p><b>Concretely.</b> The security question has three anchors written out as prose, for low, medium and high. Northwind's answer plus a partial verdict matches the medium anchor, which describes a vendor claiming a certification it cannot currently evidence.</p>
-      <p><b>If they ask why.</b> The model makes exactly one judgment. Which of these three paragraphs does this answer look like. That is a reading task, and reading is the thing these models are actually good at.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The arithmetic</span>
-      <p><b>What happens.</b> The model proposes a band and a number. My code decides what the number is.</p>
-      <p><b>Concretely.</b> The code clamps the number into the band the model itself picked. It drops questions that were never asked. It excludes an unanswered question rather than scoring it zero. Then it computes every total in Python.</p>
-      <p><b>If they ask why.</b> A vendor can lose a contract over this page. A score somebody argues with has to be arithmetic you can put in front of them.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The weights</span>
-      <p><b>What happens.</b> Question scores average into their topic. Topics are then weighted into the total.</p>
-      <p><b>Concretely.</b> Security is thirty per cent. That number lives on the topic row inside one specific rubric version. The buyer set it, we never invent one, and the model never sees it.</p>
-      <p><b>If they ask why.</b> An earlier design kept a single weight row shared across every domain. Change security's weighting for a healthcare buyer and you changed it for the retail one too.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Soft-fail</span>
-      <p><b>What happens.</b> The Scout sits inside a deadline and a catch-all. If search is slow or down, the scorecard is still produced.</p>
-      <p><b>Concretely.</b> The price is that a total search outage looks exactly like a vendor with no public footprint. The report comes back confident and empty.</p>
-      <p><b>If they ask why.</b> Losing an interview's scorecard because a third-party search API had a bad afternoon is the worse failure. Saying the cost out loud is what makes it a decision rather than a discovery.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The argument</span>
-      <p><b>What happens.</b> A Coordinator turns all of it into a recommended follow-up, and the buyer reads the scorecard.</p>
-      <p><b>Concretely.</b> Northwind can be shown that its security score came from one question, one written anchor, and one audit page dated 2019.</p>
-      <p><b>If they ask why.</b> A disagreement is now about one question's anchor prose. That is a conversation two people can actually have, instead of an argument about the system as a whole.</p>
-    </li>
-  </ol>
 </div>
 
 
 <div class="redraw">
   <span class="callout-label">Now cover it and redraw</span>
-  <p>Sixty seconds. Twelve marks. If you can produce this from memory you can answer &#8220;tell me about the platform&#8221; without a tour, which is the single highest-value ninety seconds in the whole loop.</p>
+  <p>Sixty seconds. If you can produce this from memory you can answer &#8220;tell me about the platform&#8221; without a tour, which is the single highest-value ninety seconds in the whole loop.</p>
   <ul>
     <li>The three agents <b>in a frame</b>, with &#8220;agents never call each other&#8221; written inside it.</li>
     <li>The Scout's <b>two passes</b> and its deadline. Without the deadline it is a diagram of a happy path.</li>
@@ -257,72 +187,8 @@
 </div>
 
 <div class="trace">
-  <span class="callout-label">Walk them through it &#183; one turn, end to end</span>
-  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One conversational turn, followed from the vendor's last syllable to the avatar's first. Every number here is measured. The sentence the vendor says is invented.</p>
+  <span class="callout-label">Explain it &#183; one picture</span>
   <p class="tr-case"><b>The picture.</b> A simultaneous interpreter at a conference. They start speaking before the sentence they are translating has finished, because a room that waits for whole paragraphs is a room in silence. The price is that a word already out of their mouth cannot be taken back. That trade is this whole chapter.</p>
-  <p class="tr-case"><b>The case.</b> A vendor has just finished answering a question about their deployment model. Follow that one turn. The avatar is a third-party product we do not own, and it speaks exactly one dialect.</p>
-  <ol>
-    <li class="tr-step">
-      <span class="tr-k">The utterance</span>
-      <p><b>What happens.</b> The avatar platform decides the person has stopped speaking. It sends us their words and asks for a reply.</p>
-      <p><b>Concretely.</b> That request arrives in OpenAI's chat-completions format. The avatar only knows how to talk to that shape, so the gateway wears it.</p>
-      <p><b>If they ask why.</b> We do not control the avatar and cannot teach it a new protocol. Looking like OpenAI is the cost of using somebody else's face.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The settle beat</span>
-      <p><b>What happens.</b> Before anything is sent to a model, we wait. Two full seconds.</p>
-      <p><b>Concretely.</b> That wait used to be half a second. I raised it to two on purpose, which made my own headline number worse.</p>
-      <p><b>If they ask why.</b> Half a second reads a breath as a finished answer, and the avatar talks over somebody mid-thought. The beat is now the second-largest bar in the latency breakdown. I could improve my median tomorrow by deleting it.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The gateway</span>
-      <p><b>What happens.</b> The request is authenticated, and then the interview logic runs. Which question is next, what has already been asked, what state this session is in.</p>
-      <p><b>Concretely.</b> None of that is visible from outside. The caller sees an OpenAI endpoint and nothing else.</p>
-      <p><b>If they ask why.</b> After that auth check, this service never returns an error. An internal failure becomes a successful response carrying a bland line. An avatar standing silently in front of a vendor is worse than an avatar saying something dull.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The model call</span>
-      <p><b>What happens.</b> The gateway calls Gemini and asks for the answer as a stream rather than as a finished block.</p>
-      <p><b>Concretely.</b> This is server-sent events over Gemini's OpenAI-compatible REST endpoint. It is not the bidirectional Live API, and my r&#233;sum&#233; overstates that. I would rather correct it myself than have it pulled out of me.</p>
-      <p><b>If they ask why.</b> Server-sent events are a one-way stream over ordinary HTTP. Only the server needs to push here, so a full socket buys nothing.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Reply first</span>
-      <p><b>What happens.</b> The model is asked for a JSON object, and the spoken reply is declared as the first field in it.</p>
-      <p><b>Concretely.</b> Under a strict schema the fields come out in the declared order. So the characters we want to speak arrive before anything else does.</p>
-      <p><b>If they ask why.</b> Streaming only helps if the useful part arrives first. Put the reply field third and you have a stream that still makes everyone wait.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The extractor</span>
-      <p><b>What happens.</b> Characters arrive a few at a time. An incremental extractor pulls the reply out of a JSON document that is not finished yet.</p>
-      <p><b>Concretely.</b> It never advances past a fragment it cannot fully decode. A half-arrived escape sequence waits rather than being guessed at.</p>
-      <p><b>If they ask why.</b> Speaking a character you got wrong is unrecoverable. The avatar has already said it.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The avatar talks</span>
-      <p><b>What happens.</b> The first safe characters go back up the stream and the avatar starts speaking. The rest of the answer is still being generated behind it.</p>
-      <p><b>Concretely.</b> Measured over 86 host turns, the median turn now lands at two and a half seconds. p90 is 4.5, p95 is 4.7, and nothing went above 5.7.</p>
-      <p><b>If they ask why.</b> Streaming made nothing faster. The model takes as long as it always did. What changed is when the avatar is allowed to open its mouth.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Barge-in</span>
-      <p><b>What happens.</b> Say the vendor starts talking again while that reply is still generating. The in-flight turn is abandoned rather than raced.</p>
-      <p><b>Concretely.</b> A superseded turn is cancelled and writes nothing to state. It does not get to finish and quietly win.</p>
-      <p><b>If they ask why.</b> Two turns both writing is how a session ends up with a reply to a question nobody asked.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">When it fails</span>
-      <p><b>What happens.</b> Three different things can go wrong on that model call, and all three arrive looking identical. The model is gone, our payload is wrong, or it is spurious.</p>
-      <p><b>Concretely.</b> Telling two of them apart with a substring test is what cost me four days. A pinned alias resolved to a model that refused a parameter we send.</p>
-      <p><b>If they ask why.</b> Every turn was diagnosed as an outage and silently retried on a fallback. A hundred per cent of turns, 236 warnings, no alert. Nobody alerts on warnings, and that is the part I would change first.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The cost</span>
-      <p><b>What happens.</b> The buffered version could look at a finished reply and throw it away. The streaming version cannot.</p>
-      <p><b>Concretely.</b> Once the avatar is speaking, it is speaking. Any guardrail has to run before the first character leaves, not after the last one.</p>
-      <p><b>If they ask why.</b> And the r&#233;sum&#233; line says zero session drops, which is true of sessions. In the same window four interviews out of six failed to score. That is a different layer and it was fixed separately.</p>
-    </li>
-  </ol>
 </div>
 
 
@@ -387,70 +253,8 @@
 </div>
 
 <div class="trace">
-  <span class="callout-label">Walk them through it &#183; one dataset, end to end</span>
-  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One spreadsheet, followed from the moment it lands to the draft an engineer opens. The dataset is a stand-in. The numbers and the failures are measured.</p>
+  <span class="callout-label">Explain it &#183; one picture</span>
   <p class="tr-case"><b>The picture.</b> Translating a form into a language whose dictionary is fixed and published. You cannot coin a word. And there is one way to know your translation works. You hand it to the machine that reads that language and see whether anything comes out.</p>
-  <p class="tr-case"><b>The case.</b> A state statistics office publishes a crime table. Eleven columns, names like <code>TOT_IPC_2019</code>, and no documentation. Before anyone can compare it with another state, each column has to be said in a shared vocabulary.</p>
-  <ol>
-    <li class="tr-step">
-      <span class="tr-k">The spreadsheet</span>
-      <p><b>What happens.</b> The file arrives with no explanation. An engineer would open it, read the column names, and start looking things up in documentation.</p>
-      <p><b>Concretely.</b> That hand work runs about three hours for one dataset. It is one column at a time, against a vocabulary nobody has memorised.</p>
-      <p><b>If they ask why.</b> I should flag that the three-hour figure is a field estimate rather than something I instrumented. It is the kind of number an interviewer is right to push on.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Sample it</span>
-      <p><b>What happens.</b> Stage one reads a sample of the actual rows rather than just the header.</p>
-      <p><b>Concretely.</b> A column called <code>TOT_IPC_2019</code> means very little. The values under it mean a lot more.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Pick the vocabulary</span>
-      <p><b>What happens.</b> Stage two chooses which part of the shared vocabulary this dataset belongs to, out of seven categories.</p>
-      <p><b>Concretely.</b> That vocabulary is Data Commons, a public knowledge graph with a fixed set of properties. You can only map a column to a property that already exists in it.</p>
-      <p><b>If they ask why.</b> Get this stage wrong and every stage after it is wasted. The mapping will be internally consistent and pointed at the wrong half of the graph.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Write the map</span>
-      <p><b>What happens.</b> Stage three writes the actual file, which says this column means this property with these values.</p>
-      <p><b>Concretely.</b> That file is the PVMAP, a property-value map. It is the artefact the whole pipeline exists to produce.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Run it</span>
-      <p><b>What happens.</b> Stage four does not read the mapping and form an opinion about it. It runs the mapping.</p>
-      <p><b>Concretely.</b> <code>stat_var_processor.py</code> is launched as a subprocess against the real data. Its exit code is the verdict, and the question is whether data rows came out.</p>
-      <p><b>If they ask why.</b> This is the part I would defend hardest. A model asked whether its own output looks right will say yes. A program that runs it either produces rows or does not.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The feedback</span>
-      <p><b>What happens.</b> If the run failed, the real error text goes back into the next prompt.</p>
-      <p><b>Concretely.</b> The model is not asked to try again. It is handed the named failure and asked to fix that.</p>
-      <p><b>If they ask why.</b> Stages three and four sit inside a loop for this reason. Writing a map and checking it is the part you do repeatedly, so it is the part that gets a loop around it.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Three exits</span>
-      <p><b>What happens.</b> The loop stops three ways. The answer is acceptable, the score has stopped improving, or the attempts have run out.</p>
-      <p><b>Concretely.</b> Ten sub-agents run in order inside that loop, and three of them can raise the stop signal, for three different reasons.</p>
-      <p><b>If they ask why.</b> Stopping when the score stops moving is what keeps one hopeless dataset from costing as much as forty good ones. Succeeding is the least interesting of the three exits.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The handover</span>
-      <p><b>What happens.</b> Stage five scores the result, and the engineer opens a draft rather than a blank file.</p>
-      <p><b>Concretely.</b> The review pass runs about thirty minutes against the three hours it replaced. They refine rather than author, and the evidence for each mapping is attached.</p>
-      <p><b>If they ask why.</b> Knowing which exit fired is what tells them whether they are reviewing a solved dataset or an abandoned one.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Where it fails</span>
-      <p><b>What happens.</b> Accuracy is very uneven between domains, and I would rather say so than be asked.</p>
-      <p><b>Concretely.</b> Census datasets average 39.3 per cent. Crime datasets average 2.6. That is the same pipeline on both.</p>
-      <p><b>If they ask why.</b> The team assumed wide or messy tables were the cause, so the proposed fix was prompt work. I pulled all 49 benchmark datasets and tested seven structural features. Every structural hypothesis failed.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The answer key</span>
-      <p><b>What happens.</b> The real driver turned out to be vocabulary coverage in the target schema, which no amount of prompting moves.</p>
-      <p><b>Concretely.</b> While checking that, I ran the hand-written answer key through the same processor. Only 28 of 49 produced valid output.</p>
-      <p><b>If they ask why.</b> We were partly measuring against broken answers. I reported that in the same memo as our results, which made them harder to present and made the roadmap correct.</p>
-    </li>
-  </ol>
 </div>
 
 
@@ -517,71 +321,8 @@
 </div>
 
 <div class="trace">
-  <span class="callout-label">Walk them through it &#183; one document, end to end</span>
-  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One legacy document, followed from the file share to a row in the lineage graph. The object names are real in shape. The document is a stand-in for the five.</p>
+  <span class="callout-label">Explain it &#183; one picture</span>
   <p class="tr-case"><b>The picture.</b> Two people reading a departed engineer's handover notes. One copies the tables out exactly, because a table is already an answer. The other reads the prose around them and works out what the writer meant. You would never let the second person rewrite the tables.</p>
-  <p class="tr-case"><b>The case.</b> A client is moving off SAP BW onto BigQuery and nobody remembers how the old warehouse is wired. What exists is a pile of Word documents. Follow one of them, and one mapping row inside it.</p>
-  <ol>
-    <li class="tr-step">
-      <span class="tr-k">The document</span>
-      <p><b>What happens.</b> The document describes one warehouse object in prose, and buried inside it is a mapping table.</p>
-      <p><b>Concretely.</b> That table lists source column, target column and transformation. Across the five documents there are 516 such rows, and they are the valuable part.</p>
-      <p><b>If they ask why.</b> Object level lineage tells you which system feeds which. Field level tells you which column feeds which column. Only the second one lets you walk backwards from a wrong number.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The fork</span>
-      <p><b>What happens.</b> The whole design is one decision, made once. Code where there is a right answer, the model where there is a judgment.</p>
-      <p><b>Concretely.</b> That line is written down in the source file's own docstring rather than living in somebody's head.</p>
-      <p><b>If they ask why.</b> A mapping table is structured, so parsing it is solved. A parsed row cannot be invented. A generated row can.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Parse the tables</span>
-      <p><b>What happens.</b> The deterministic half reads the mapping tables with ordinary code and extracts every row.</p>
-      <p><b>Concretely.</b> The 516 field mappings are extracted, not generated. No model sees that path, so no model can hallucinate a column into it.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Read the prose</span>
-      <p><b>What happens.</b> The model handles the part that genuinely needs an opinion. Which object is this, and is this mention of another object really a data flow?</p>
-      <p><b>Concretely.</b> There are two model stages here, not ten. One parses documents into sections. One merges everything into a graph.</p>
-      <p><b>If they ask why.</b> Saying the real number is stronger than implying a swarm. Two sequential agents is the honest answer and it invites a better conversation.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Guardrails</span>
-      <p><b>What happens.</b> Every name the model produces has to get past rules before it reaches the graph.</p>
-      <p><b>Concretely.</b> SAP objects have machine-shaped names like <code>0WBS_ELEMT</code>, so a regular expression can reject anything that does not look like one. Self-loops are rejected. So is a generic word like TABLE offered as an object name.</p>
-      <p><b>If they ask why.</b> That denylist is a two-line fix for a whole class of wrong answer. The model was returning the name of a category instead of the name of an object.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The silent bug</span>
-      <p><b>What happens.</b> Some runs produced a complete-looking graph with zero field mappings in it. No exception and no warning.</p>
-      <p><b>Concretely.</b> The model was occasionally calling merge before the deterministic extraction had run. Tool-calling order is the model's choice, and sometimes it chose wrong.</p>
-      <p><b>If they ask why.</b> This is the best story in the chapter, and it is worth slowing down for.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The callback</span>
-      <p><b>What happens.</b> The obvious fix is clearer prompt wording, and it would have worked most of the time. I used a before-tool callback instead.</p>
-      <p><b>Concretely.</b> If merge is called and the extractions are not in state, the hook runs them first. The order stops being something the model gets to decide.</p>
-      <p><b>If they ask why.</b> A prompt lowers a failure rate. A precondition removes the failure. This one was invisible when it fired, which is exactly the kind you cannot afford to merely reduce.</p>
-      <p><b>The cost, said first.</b> It adds a hidden step. Somebody reading <code>agent.py</code> could reasonably be surprised that extraction runs without an explicit call, and a docstring is a weak mitigation.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The graph</span>
-      <p><b>What happens.</b> The merge stage assembles everything into the lineage graph the client actually wanted.</p>
-      <p><b>Concretely.</b> One row now says this SAP column becomes that BigQuery column, with this transformation, sourced from this document.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The 99.2</span>
-      <p><b>What happens.</b> The headline number needs its caveat, and I would rather give it than have it pulled out of me.</p>
-      <p><b>Concretely.</b> It is a weighted composite of four dimensions. Node and edge are a quarter each, fields are 0.30, structure is 0.20.</p>
-      <p><b>If they ask why.</b> Inside that field term, most of the weight is count accuracy and a distribution cosine. So it is not 99.2 per cent of columns checked one by one, and the r&#233;sum&#233; wording implies more than the metric delivers.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The sample</span>
-      <p><b>What happens.</b> The other limit is how much was measured.</p>
-      <p><b>Concretely.</b> Five documents, with the answers hand-written by a person who can also be wrong.</p>
-      <p><b>If they ask why.</b> That is enough to catch a regression. It is not enough to claim a general accuracy figure, and saying so is cheaper than being caught assuming it.</p>
-    </li>
-  </ol>
 </div>
 
 
@@ -647,69 +388,8 @@
 </div>
 
 <div class="trace">
-  <span class="callout-label">Walk them through it &#183; one failure, end to end</span>
-  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One failed pipeline, followed from the log line to the moment it runs again. The failure is a stand-in. Every gate it passes through is real, and so are the defaults.</p>
+  <span class="callout-label">Explain it &#183; one picture</span>
   <p class="tr-case"><b>The picture.</b> A hospital triage nurse. Almost nobody walking through the door needs a surgeon. The nurse does not treat anyone. The whole job is deciding who gets treated and how urgently, and that decision costs a minute rather than an afternoon.</p>
-  <p class="tr-case"><b>The case.</b> At two in the morning a nightly job fails. Its log ends in a Snowflake error about a column that does not exist. Twenty other jobs failed in the same window. Follow this one.</p>
-  <ol>
-    <li class="tr-step">
-      <span class="tr-k">The failure</span>
-      <p><b>What happens.</b> A scheduled job dies and the jobs downstream of it start failing too. Somebody on call would read the log and decide whether it matters.</p>
-      <p><b>Concretely.</b> Most nightly failures are timeouts, auth blips, or a file that never arrived. Most of them are not interesting.</p>
-      <p><b>If they ask why.</b> The obvious build is one agent that reads a log and debugs it. That works in a demo. In production it means paying full price for every uninteresting failure.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The screener</span>
-      <p><b>What happens.</b> A cheap screener runs first. It reads the log and retrieves the five most similar past incidents from a vector store.</p>
-      <p><b>Concretely.</b> That store finds text by meaning rather than by keyword, so a new log matches old ones that read similarly even when the wording differs.</p>
-      <p><b>If they ask why.</b> The screener is built with DSPy rather than CrewAI, and that is deliberate. It has a typed signature, so the decision comes back as a named category instead of prose somebody has to parse.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Three buckets</span>
-      <p><b>What happens.</b> The screener returns one of three answers. Retry it, overlook it, or investigate it.</p>
-      <p><b>Concretely.</b> Two of those cost almost nothing. Everything expensive in this system sits behind the third branch, and the third branch is the rare one.</p>
-      <p><b>If they ask why.</b> That triage is the whole idea. It is what made the expensive path affordable enough to leave running unattended.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The flow</span>
-      <p><b>What happens.</b> Our failure comes back as investigate, and routing takes it down that branch.</p>
-      <p><b>Concretely.</b> This is a CrewAI Flow, which is a state machine. Named steps, explicit routers, and one readable control path in one class.</p>
-      <p><b>If they ask why.</b> It is not agents chatting until they agree. When it makes a wrong call, you can see which branch it took and why. That property is what makes it debuggable at all.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The specialists</span>
-      <p><b>What happens.</b> Now the investigation runs. There are specialists for SQL, Python, file and infrastructure faults.</p>
-      <p><b>Concretely.</b> My r&#233;sum&#233; says they run in parallel. On the default path they do not. One lead manager holds them as five tools and reasons through them in sequence.</p>
-      <p><b>If they ask why.</b> The parallel branch exists and it is behind a flag that is off. I would rather correct that myself than have it found.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The proposal</span>
-      <p><b>What happens.</b> The investigation produces a proposed solution, and that solution carries an action field.</p>
-      <p><b>Concretely.</b> For our case it proposes a column rename in the query and sets the action to apply.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The gates</span>
-      <p><b>What happens.</b> This is the part worth pushing on, because the next step can rerun a production pipeline with nobody watching.</p>
-      <p><b>Concretely.</b> Four separate things have to agree. The screener must escalate. The action field must say apply. A router must agree. And a feature flag with a hard retry threshold must allow it.</p>
-      <p><b>If they ask why.</b> Being able to name all four is the difference between an interviewer feeling comfortable and feeling alarmed.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The retrigger</span>
-      <p><b>What happens.</b> All four agree, the fix is applied, and the pipeline runs again unattended.</p>
-      <p><b>Concretely.</b> That single action is what makes every other design decision in this system matter.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Its own retries</span>
-      <p><b>What happens.</b> The response reviewer catches its own errors and retries three times with exponential backoff.</p>
-      <p><b>Concretely.</b> That is sensible for a flaky model call. It is also where a small mistake turns into an expensive one, because a bad proposal gets three attempts rather than one.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The asymmetry</span>
-      <p><b>What happens.</b> The screener can be wrong, and the two ways it is wrong are not equally bad.</p>
-      <p><b>Concretely.</b> A wrong retry is self-correcting, because the job simply fails again. A wrong overlook closes a real failure and nobody ever hears about it.</p>
-      <p><b>If they ask why.</b> If I were measuring one thing here it would be overlook precision, and we were not measuring it separately. The validation layer that proves a fix before applying it also defaults to off. That is the first thing I would change.</p>
-    </li>
-  </ol>
 </div>
 
 
@@ -776,71 +456,8 @@
 </div>
 
 <div class="trace">
-  <span class="callout-label">Walk them through it &#183; one generated fix, end to end</span>
-  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One model-written fix, followed from the prompt to the moment it is allowed near production. The fix is a stand-in. The layers and the defaults are not.</p>
+  <span class="callout-label">Explain it &#183; one picture</span>
   <p class="tr-case"><b>The picture.</b> Proofreading a letter written in a language you half speak. A spellchecker proves every word is a real word. A grammar checker proves the sentences parse. Neither of them can tell you the letter says something true. That gap is the whole chapter.</p>
-  <p class="tr-case"><b>The case.</b> The debugger has decided a failed job needs a query changed. A model is about to write SQL that will run against a production warehouse. Follow that query through every gate between the model and the data.</p>
-  <ol>
-    <li class="tr-step">
-      <span class="tr-k">Before it writes</span>
-      <p><b>What happens.</b> The cheapest validation is the one that stops the mistake being made at all. Before the model writes anything, the real schemas go into its context.</p>
-      <p><b>Concretely.</b> The live Snowflake definitions for the tables that query mentions. Actual column names, actual types.</p>
-      <p><b>If they ask why.</b> This is prevention rather than detection, and it is by far the cheapest of the three layers. A model that has been shown the column does not have to guess it.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The allowlist</span>
-      <p><b>What happens.</b> The query comes back and is checked against what it is permitted to be.</p>
-      <p><b>Concretely.</b> There is a keyword denylist with things like DROP and TRUNCATE on it. There is also an allowlist permitting only SELECT and EXPLAIN.</p>
-      <p><b>If they ask why.</b> My r&#233;sum&#233; says table-name checks close the injection path. That is not what is implemented and I would rather say so. The allowlist is the strong control here, and a denylist only protects against what somebody thought of.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">EXPLAIN it</span>
-      <p><b>What happens.</b> The check on the query itself is one line. Put EXPLAIN in front of it and send it to Snowflake.</p>
-      <p><b>Concretely.</b> The database returns a plan without executing anything. If a plan comes back, the query parsed and every table and column in it exists.</p>
-      <p><b>If they ask why.</b> That second half is called binding. A query can be perfect grammar and still fail, because it mentions a column nobody has.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The limit</span>
-      <p><b>What happens.</b> This is the sentence most candidates never say, so say it before you are asked.</p>
-      <p><b>Concretely.</b> EXPLAIN proves the sentence is grammatical and every word in it is real. It does not prove the sentence is true.</p>
-      <p><b>If they ask why.</b> A query can join the wrong two tables, filter on the wrong date, and plan perfectly. Every layer here rules out a different way of being wrong. None of them proves being right.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The Python</span>
-      <p><b>What happens.</b> Some fixes are Python rather than SQL. That code gets parsed, never executed.</p>
-      <p><b>Concretely.</b> It goes through parso rather than the standard library's ast, with error recovery switched on.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Why parso</span>
-      <p><b>What happens.</b> Generated code usually comes back with more than one problem in it.</p>
-      <p><b>Concretely.</b> With ast the first syntax error raises and you learn nothing about the rest. The model fixes that one thing, resubmits, and the next error appears.</p>
-      <p><b>If they ask why.</b> parso keeps parsing after a mistake and returns every error at once. The argument I made was about round trips rather than about parsing. Four errors together is one correction cycle instead of four.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">What it costs</span>
-      <p><b>What happens.</b> That is a third-party parser in place of the standard library, and a reviewer was right to ask about it.</p>
-      <p><b>Concretely.</b> It also only catches structure. Imports and runtime behaviour are separate checks and are not covered by this layer.</p>
-      <p><b>If they ask why.</b> A list of checks in a bullet implies one thing proves another. Saying which layer proves what is the answer that survives a follow-up.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The suite</span>
-      <p><b>What happens.</b> Behind all of it sits an offline evaluation suite of 368 recorded scenarios with ideal answers.</p>
-      <p><b>Concretely.</b> They are scored by cosine similarity, which compares meaning. Nothing is run, and no threshold is published.</p>
-      <p><b>If they ask why.</b> Regression-tested is a generous word for that, and I would rather use the accurate one. Offline evaluation and a test suite are different things.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The gap</span>
-      <p><b>What happens.</b> The thing that bothers me most is in the harness rather than in the system.</p>
-      <p><b>Concretely.</b> It scores generated code by how similar it reads, when the production path already has a validator that could run it.</p>
-      <p><b>If they ask why.</b> Similarity to an ideal answer is a reasonable design for free text. For code it measures the wrong property, and the better measure was already sitting there.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The flag</span>
-      <p><b>What happens.</b> One fact matters more than the rest and it belongs at the end rather than hidden.</p>
-      <p><b>Concretely.</b> The feature flag gating this whole validation layer defaults to off.</p>
-      <p><b>If they ask why.</b> So the honest statement is that the layers are built, tested and not on by default. Volunteering that is worth more than any of the layers.</p>
-    </li>
-  </ol>
 </div>
 
 
@@ -906,70 +523,8 @@
 </div>
 
 <div class="trace">
-  <span class="callout-label">Walk them through it &#183; one pipeline, end to end</span>
-  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One pipeline, followed from its run history to its place on today's plan. The dates are illustrative. The arithmetic and the defect are exactly as shipped.</p>
+  <span class="callout-label">Explain it &#183; one picture</span>
   <p class="tr-case"><b>The picture.</b> Working out when the bin lorry comes by writing down when it actually came, rather than by reading the council's timetable. The timetable says what somebody intended. The notebook says what happened. When the two disagree, the notebook is right.</p>
-  <p class="tr-case"><b>The case.</b> A pipeline called <code>daily_sales_load</code> has run on and off for months. Its declared schedule is either missing or not trusted. Today is Tuesday. The question is whether it belongs on today's plan.</p>
-  <ol>
-    <li class="tr-step">
-      <span class="tr-k">The history</span>
-      <p><b>What happens.</b> We do not read the pipeline's declared schedule. We read the record of when it actually ran.</p>
-      <p><b>Concretely.</b> The distinct days it ran, not every execution row. A retry storm on one morning is still one day.</p>
-      <p><b>If they ask why.</b> Configuration drifts and history does not. Using distinct dates is also what stops a burst of retries producing gaps of zero days.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The gaps</span>
-      <p><b>What happens.</b> Those dates get differenced into intervals, which is the number of days between consecutive runs.</p>
-      <p><b>Concretely.</b> Say the recent gaps come out as three, two, two, one. The whole forecast is built from that series and nothing else.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The average</span>
-      <p><b>What happens.</b> We take an exponentially weighted mean of those gaps rather than a plain average.</p>
-      <p><b>Concretely.</b> Alpha is 0.5. The newest gap carries half the weight, the one before it a quarter, the one before that an eighth.</p>
-      <p><b>If they ask why.</b> Alpha is the only tuning parameter and it decides how fast the forecast forgets. At a half it adapts to a real change in cadence within a few runs, and it is noisy.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The date</span>
-      <p><b>What happens.</b> Add that weighted mean to the last run date. That is the prediction.</p>
-      <p><b>Concretely.</b> Five lines of work in total. Distinct days, difference them, weight them, add, compare.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Due or not</span>
-      <p><b>What happens.</b> If today is on or past that predicted date, the pipeline is due.</p>
-      <p><b>Concretely.</b> The test is greater than or equal rather than equal. That detail matters more than it looks.</p>
-      <p><b>If they ask why.</b> With a strict equality, anything missed yesterday silently drops off forever. Overdue work has to stay on the plan until it runs.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The parent</span>
-      <p><b>What happens.</b> Before it goes on the plan, one more question. Does anything trigger this pipeline when it finishes?</p>
-      <p><b>Concretely.</b> If its parent is already on today's plan, the child is dropped from the list. The parent will trigger it anyway.</p>
-      <p><b>If they ask why.</b> Without that lookup the child runs twice. Once because its parent finished and once because the plan said so.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The plan</span>
-      <p><b>What happens.</b> What comes out is a generated list of what should run today.</p>
-      <p><b>Concretely.</b> That list replaced a hand-maintained spreadsheet across thousands of pipelines.</p>
-      <p><b>If they ask why.</b> The real win is not accuracy. It is that the errors became measurable against execution history instead of living invisibly in a spreadsheet.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Where it breaks</span>
-      <p><b>What happens.</b> Here is the limitation, and I would rather raise it than be asked.</p>
-      <p><b>Concretely.</b> An interval has no calendar inside it. A weekday job gives gaps of one, one, one, one, three.</p>
-      <p><b>If they ask why.</b> Those gaps give a weighted mean of roughly one and a half days. So after a Friday run it predicts Saturday. That job has never once run on a Saturday.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The word Prophet</span>
-      <p><b>What happens.</b> Calendars and seasonality are exactly what Prophet exists to handle, and my bullet names it.</p>
-      <p><b>Concretely.</b> Prophet is a strategy branch in the design with no implementation behind it. EWMA is what runs.</p>
-      <p><b>If they ask why.</b> A strategy pattern makes interchangeable algorithms easy, and it also makes it easy to ship a branch that dispatches to a method nobody wrote.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The trade</span>
-      <p><b>What happens.</b> I knew about the weekday defect when I shipped it, so the honest framing is a choice rather than an oversight.</p>
-      <p><b>Concretely.</b> The replacement for a spreadsheet had to exist before it could be good. The interface for fixing it properly is in place and still unused.</p>
-      <p><b>If they ask why.</b> That is what I would say plainly. I left a known defect behind an interface designed to fix it, and nobody has filled the slot.</p>
-    </li>
-  </ol>
 </div>
 
 
@@ -1034,69 +589,8 @@
 </div>
 
 <div class="trace">
-  <span class="callout-label">Walk them through it &#183; one skills line, read the way they read it</span>
-  <p class="frame">This line has no project to walk through, so the thing to trace is the interviewer. They read three words, pick one, and ask. Follow that, in the order it actually happens, and the whole exchange stops being a surprise.</p>
+  <span class="callout-label">Explain it &#183; one picture</span>
   <p class="tr-case"><b>The picture.</b> A menu with three dishes on it. Nobody asks about the one the place is famous for. They ask about the third one, because that is where you find out whether the menu is honest.</p>
-  <p class="tr-case"><b>The case.</b> The line reads Python, SQL, C++. Your interviewer has the rest of the page in front of them at the same time. Follow their eye.</p>
-  <ol>
-    <li class="tr-step">
-      <span class="tr-k">The scan</span>
-      <p><b>What happens.</b> They read the three words and then look at the experience section to see which ones it evidences.</p>
-      <p><b>Concretely.</b> Python is on every bullet. SQL appears through Postgres and Snowflake. C++ appears nowhere on the page.</p>
-      <p><b>If they ask why.</b> Nobody asks about the language you obviously use all day. Scanning for the least supported item is the cheapest way to test whether a page is honest.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Python first</span>
-      <p><b>What happens.</b> They usually open with the safe one, to set a baseline.</p>
-      <p><b>Concretely.</b> What backs it is async services on FastAPI, async SQLAlchemy over asyncpg, pydantic on every model boundary, and pandas in the forecasting layer.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The real one</span>
-      <p><b>What happens.</b> Nobody senior asks whether you know Python. They ask what happens when CPU work runs inside an async function.</p>
-      <p><b>Concretely.</b> The answer is that it holds the event loop. Every other request in that process waits behind it, because nothing yields until that function hits an await.</p>
-      <p><b>If they ask why.</b> That question tells them whether you have run an async service or read about one. Everything I build waits on something, so the whole design is about not holding the loop.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The follow-up</span>
-      <p><b>What happens.</b> The natural next question is why threads do not fix it.</p>
-      <p><b>Concretely.</b> The global interpreter lock means one thread runs Python bytecode at a time. Threads help with waiting and do nothing for computation.</p>
-      <p><b>If they ask why.</b> Concurrency is interleaving many things. Parallelism is doing them at the same instant. Async buys the first, and only a separate process buys the second.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">SQL next</span>
-      <p><b>What happens.</b> They move to the second item and it is worth being specific rather than broad.</p>
-      <p><b>Concretely.</b> It is narrower than Python and deep in two places, across two very different engines.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The SQL one</span>
-      <p><b>What happens.</b> The question that separates people is about NULL.</p>
-      <p><b>Concretely.</b> NULL is not a value, it is the absence of one. Comparing with it returns unknown rather than true or false, and a WHERE clause only keeps rows where the condition is true.</p>
-      <p><b>If they ask why.</b> Most SQL bugs that survive review are a version of forgetting that. A row you expected disappears and nothing anywhere reports an error.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">In Postgres</span>
-      <p><b>What happens.</b> Now give them something specific rather than a list of features.</p>
-      <p><b>Concretely.</b> Partial unique indexes enforce rules the application would otherwise race on. One live version per rubric, one draft per rubric.</p>
-      <p><b>If they ask why.</b> A check-then-insert in application code can be passed by two requests at once. An index is a rule the engine refuses to break, for every writer.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">In Snowflake</span>
-      <p><b>What happens.</b> The second specific, and it is an unusual use worth naming.</p>
-      <p><b>Concretely.</b> I use EXPLAIN as a correctness gate rather than as a performance tool. A generated query gets planned, and the plan coming back is proof that it binds.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The third item</span>
-      <p><b>What happens.</b> This is the one they were always going to ask about, so get there before they do.</p>
-      <p><b>Concretely.</b> C++ is from academic and on-device work rather than production services. It is at the level of reading and modifying, not designing.</p>
-      <p><b>If they ask why.</b> The answer has three parts. Where it came from, what level it is honestly at, and the one concept I do own. That is RAII, which is the same idea as a Python context manager.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The close</span>
-      <p><b>What happens.</b> Then hand the decision back rather than defending the line.</p>
-      <p><b>Concretely.</b> If the role is C++ heavy, that is worth knowing now. If it is not, the honest version of the line is Python and SQL.</p>
-      <p><b>If they ask why.</b> Volunteering a limit turns it from something found into something disclosed, and those two land completely differently in a room. The only thing it gives up is looking broader than I am, and that option pays out only if nobody asks.</p>
-    </li>
-  </ol>
 </div>
 
 
@@ -1162,69 +656,8 @@
 </div>
 
 <div class="trace">
-  <span class="callout-label">Walk them through it &#183; one tool call, end to end</span>
-  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One trip round an agent loop, followed from the model's first note to the answer. Then the boundary that matters more than the loop does.</p>
+  <span class="callout-label">Explain it &#183; one picture</span>
   <p class="tr-case"><b>The picture.</b> Somebody very well read, locked in a room with a letterbox. They cannot look anything up and cannot do anything at all. They can write a note asking for one specific thing, and you slide the answer back through the slot. That loop is the whole of what people call an agent.</p>
-  <p class="tr-case"><b>The case.</b> A vendor has claimed something during an interview and the Scout needs to check it. Follow one round of the loop, then look at what is deliberately not allowed to happen.</p>
-  <ol>
-    <li class="tr-step">
-      <span class="tr-k">The model alone</span>
-      <p><b>What happens.</b> A language model produces text. That is the entire capability and everything else is built on top of it.</p>
-      <p><b>Concretely.</b> It cannot search, read a database, or call an API. Left by itself it can only write something that looks like an answer.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The tools</span>
-      <p><b>What happens.</b> We hand it a list of functions it is allowed to ask for, each with typed parameters.</p>
-      <p><b>Concretely.</b> One of them is a web search taking a query string. The model does not run it. It returns a request to run it.</p>
-      <p><b>If they ask why.</b> The description of each tool is part of the interface, not a comment. The description is how the model decides whether to reach for that tool at all.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The note</span>
-      <p><b>What happens.</b> The model replies with a request to call search, and the query it wants.</p>
-      <p><b>Concretely.</b> My code is what executes it. The model never touches the network, and that is the security property rather than a detail of plumbing.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Back through the slot</span>
-      <p><b>What happens.</b> The result goes back into the conversation and the model reads it.</p>
-      <p><b>Concretely.</b> Now it either answers or asks for another tool. Reason, act, observe, and round again.</p>
-      <p><b>If they ask why.</b> That shape is sequential by construction. Each action depends on the previous observation, which is why an agent loop cannot simply be parallelised.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The definition</span>
-      <p><b>What happens.</b> That is the whole thing, and it is worth saying plainly because most definitions of agent do not survive a follow-up.</p>
-      <p><b>Concretely.</b> A model, a list of tools, and a loop. Without the loop and the tools it is a prompt, not an agent.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The restriction</span>
-      <p><b>What happens.</b> Now the part I would actually defend, and it is a restriction rather than a capability.</p>
-      <p><b>Concretely.</b> In the vendor platform the three agents never call each other. They are plain functions, and exactly one file composes them.</p>
-      <p><b>If they ask why.</b> The natural design is for the Evaluator to ask the Scout for more evidence when it wants some. That is what the frameworks encourage and what every demo looks like.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">What it buys</span>
-      <p><b>What happens.</b> The research step can be wrapped in a hard deadline and a catch-all, in one place.</p>
-      <p><b>Concretely.</b> Research failing never costs an interview its scorecard, and there is one file that says so.</p>
-      <p><b>If they ask why.</b> With delegation, a Scout timeout surfaces as an Evaluator problem. No file anywhere says which stage owned the budget.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">What it costs</span>
-      <p><b>What happens.</b> The orchestrator knows all three signatures, so it changes whenever any stage's interface changes.</p>
-      <p><b>Concretely.</b> That is real coupling and it is the honest price of the design.</p>
-      <p><b>If they ask why.</b> I would pay it again. It buys the one thing an autonomous design gives up, which is being able to answer why the system did what it did.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Routing</span>
-      <p><b>What happens.</b> Semantic routing shows up on the same line and deserves its own warning.</p>
-      <p><b>Concretely.</b> It chooses a branch by meaning rather than by keyword. A router reads the input and returns which path it belongs on.</p>
-      <p><b>If they ask why.</b> It is retrieval with a consequence attached. An ordinary bad retrieval gives a worse answer. A bad routing decision sends the request down the wrong branch entirely.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The line itself</span>
-      <p><b>What happens.</b> Six of the ten items on that skills line have a specific project behind them. Two do not, and I would rather name them.</p>
-      <p><b>Concretely.</b> GPT means I built an OpenAI-compatible gateway. I know that API contract well, and behind it I was calling Gemini.</p>
-      <p><b>If they ask why.</b> Llama has no project behind it at all. It should either earn a bullet or come off the line.</p>
-    </li>
-  </ol>
 </div>
 
 
@@ -1289,71 +722,8 @@
 </div>
 
 <div class="trace">
-  <span class="callout-label">Walk them through it &#183; one model onto one device</span>
-  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One model, followed from a size that does not fit to one that does. Do the arithmetic out loud. That is what turns this from a vocabulary answer into an engineering one.</p>
+  <span class="callout-label">Explain it &#183; one picture</span>
   <p class="tr-case"><b>The picture.</b> Fitting a library into a suitcase. You can reprint the books in smaller type. You can leave some volumes behind. Or you can write a shorter book that says most of the same things. Three different operations, and people use one word for all three.</p>
-  <p class="tr-case"><b>The case.</b> A small language model has to run on a television and pick the right action from over fifty functions, given something said out loud. The memory ceiling is fixed and shared with everything else on the device.</p>
-  <ol>
-    <li class="tr-step">
-      <span class="tr-k">The budget</span>
-      <p><b>What happens.</b> On a device the whole design is a memory budget, so start there rather than with a technique.</p>
-      <p><b>Concretely.</b> Weight memory is the parameter count times the bytes per parameter. That is the entire formula.</p>
-      <p><b>If they ask why.</b> Saying the numbers out loud turns a vague on-device conversation into a concrete one. Most people reach for a technique before they have worked out what has to fit.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The arithmetic</span>
-      <p><b>What happens.</b> Do it for a model with a billion parameters and the choice makes itself.</p>
-      <p><b>Concretely.</b> At sixteen-bit that is two gigabytes. At eight-bit it is one. At four-bit it is half a gigabyte.</p>
-      <p><b>If they ask why.</b> Scale it up and the point lands harder. A seven-billion-parameter model is a data-centre card at full precision and a laptop at four-bit.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The cache</span>
-      <p><b>What happens.</b> Weights are not the whole bill. The keys and values for tokens already processed get stored so they are not recomputed.</p>
-      <p><b>Concretely.</b> That cache grows while the person keeps talking. On a device it often costs more than the weights do.</p>
-      <p><b>If they ask why.</b> The trap here is sizing it with attention heads instead of key-value heads. On a model using grouped attention that overstates the cache fourfold.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Smaller numbers</span>
-      <p><b>What happens.</b> Quantization was the lever. Each number is stored in fewer bits, and the model is unchanged in shape.</p>
-      <p><b>Concretely.</b> Doing it after training is cheap. Simulating the lost precision during training holds accuracy better and costs a training run.</p>
-      <p><b>If they ask why.</b> The reason naive quantization hurts is outliers. One weight far from the rest of its group stretches the scale for everything else in it.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Also faster</span>
-      <p><b>What happens.</b> Smaller weights are not only smaller. They are quicker, and the reason is the interesting part.</p>
-      <p><b>Concretely.</b> Generating one token reads essentially every weight in the model. The chip computes far faster than it can be fed.</p>
-      <p><b>If they ask why.</b> So the speed-up is a memory bandwidth effect rather than an arithmetic one. Knowing that distinction is usually the question being asked.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">What it costs</span>
-      <p><b>What happens.</b> The damage from quantization is uneven, and knowing where it lands is what makes the answer good.</p>
-      <p><b>Concretely.</b> Fluency survives. Precise recall does not. The model still sounds right while getting specific things wrong.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The measurement</span>
-      <p><b>What happens.</b> So the evaluation cannot be a general benchmark. It has to be the function-selection task itself.</p>
-      <p><b>Concretely.</b> Choosing between fifty similar functions depends on small differences in the output distribution. That is exactly the resolution quantization spends.</p>
-      <p><b>If they ask why.</b> A general score barely moved, and that is not reassurance. It is a ruler that does not look where the damage is.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The other two</span>
-      <p><b>What happens.</b> Pruning and distillation get confused with each other constantly, so separate them plainly.</p>
-      <p><b>Concretely.</b> Pruning removes whole transformer blocks from a trained model. Distillation trains a new smaller model to imitate a big one's output distribution.</p>
-      <p><b>If they ask why.</b> One is surgery and one is teaching. Only the second needs a training run, and only the first can be done in an afternoon.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">A near miss</span>
-      <p><b>What happens.</b> Zeroing scattered individual weights sounds like the same move as pruning and is not.</p>
-      <p><b>Concretely.</b> It shrinks a model on paper and usually does not make it faster, because ordinary hardware still multiplies the zeros.</p>
-      <p><b>If they ask why.</b> Removing whole blocks is structured, which is why it actually speeds things up. That is the distinction worth volunteering.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The line</span>
-      <p><b>What happens.</b> Two of the four items on that skills line need qualifying, and I would rather do it myself.</p>
-      <p><b>Concretely.</b> Layer pruning I presented to the engineering division rather than deployed. Knowledge distillation I have not shipped at all.</p>
-      <p><b>If they ask why.</b> There is a near miss to separate it from. The 150 GB preprocessing pipeline distilled data, not a model. Same word, different thing.</p>
-    </li>
-  </ol>
 </div>
 
 
@@ -1421,70 +791,8 @@
 </div>
 
 <div class="trace">
-  <span class="callout-label">Walk them through it &#183; one deploy, end to end</span>
-  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One commit, followed to the moment it serves a live interview. Then the layers this architecture does not have, named before anyone draws the diagram.</p>
+  <span class="callout-label">Explain it &#183; one picture</span>
   <p class="tr-case"><b>The picture.</b> Two house moves. One is a hotel with guests still asleep in the rooms. The other is a self-storage unit. The lorries are identical and the problem is not, and the difference is whether anything is mid-conversation.</p>
-  <p class="tr-case"><b>The case.</b> A change to the interview platform, which is the hotel. Follow it out. Then contrast it with the schematization pipeline, which is the storage unit, because those two went to different places on purpose.</p>
-  <ol>
-    <li class="tr-step">
-      <span class="tr-k">Underneath</span>
-      <p><b>What happens.</b> Before any code ships, the things it runs on have to exist.</p>
-      <p><b>Concretely.</b> Terragrunt provisions the cluster, the managed Postgres and the secret store, as files rather than as clicks in a console.</p>
-      <p><b>If they ask why.</b> A new environment becomes a directory of values instead of a week of work, and every production change arrives as a diff somebody can review.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The build</span>
-      <p><b>What happens.</b> The commit is built into a container image by Cloud Build.</p>
-      <p><b>Concretely.</b> That image carries the Python version, the libraries and the system packages, so nothing is installed on a machine by hand.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The release</span>
-      <p><b>What happens.</b> A Kubernetes deploy is not one file. It is a deployment, a service, an ingress, an autoscaler, secrets and a job.</p>
-      <p><b>Concretely.</b> Helm bundles all of that into one release. It versions together and it rolls back together.</p>
-      <p><b>If they ask why.</b> One command puts the previous version back. That is the difference between a rollback taking seconds and taking an outage.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The migration</span>
-      <p><b>What happens.</b> Inside that release is a job that runs the database migrations, and it must finish before new pods take traffic.</p>
-      <p><b>Concretely.</b> This is the detail worth having ready. It removes the window where new code meets an old schema.</p>
-      <p><b>If they ask why.</b> A deploy that ships code against the wrong schema fails in a way that is genuinely hard to diagnose. Plain apply has no opinion about ordering. A Helm hook does.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The pods</span>
-      <p><b>What happens.</b> New pods start, take traffic, and the old ones go away.</p>
-      <p><b>Concretely.</b> Credentials are pulled from the secret manager at runtime, so nothing sensitive is in the repository or in the image.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The other one</span>
-      <p><b>What happens.</b> Now the contrast, which is the strongest infrastructure answer on the page.</p>
-      <p><b>Concretely.</b> The schematization pipeline runs on Cloud Run. One request runs for forty-five seconds and ends. A proxy does the authentication and there is no cluster to own.</p>
-      <p><b>If they ask why.</b> The deciding property is state. One service remembers things between requests and one forgets immediately.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Why it moved</span>
-      <p><b>What happens.</b> The platform's own predecessor ran on Cloud Run quite happily, and what moved it was not scale.</p>
-      <p><b>Concretely.</b> The product version holds a streaming connection for the length of a live interview and keeps session state per interview on the server.</p>
-      <p><b>If they ask why.</b> A long-lived connection and an in-memory session change what a deploy means. They also change what scaling down does to somebody mid-sentence.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The pool</span>
-      <p><b>What happens.</b> One trap in this stack is worth naming before it is asked about.</p>
-      <p><b>Concretely.</b> The connection pool is finite. A request that holds a database connection across a slow model call takes it out of circulation for seconds.</p>
-      <p><b>If they ask why.</b> That is the most likely capacity bug here. The service looks idle and the pool is empty.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">What is missing</span>
-      <p><b>What happens.</b> Four layers this architecture does not have. I would rather list them than have them found.</p>
-      <p><b>Concretely.</b> No messaging, so post-interview scoring runs in-process and is lost if the pod dies. No cache, although the blind research pass is identical for a given vendor.</p>
-      <p><b>If they ask why.</b> One region and one Postgres with no replicas. And no identity model beyond a proxy and a service key, on a platform that is multi-tenant by nature.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The price</span>
-      <p><b>What happens.</b> Moving to a cluster was not free either.</p>
-      <p><b>Concretely.</b> It is a cluster to own, which is real operational weight for a service at this volume.</p>
-      <p><b>If they ask why.</b> And the migration ordering is forward-only. Rolling the code back does not roll the schema back, so migrations have to stay compatible with the previous version. That is a discipline rather than a guarantee.</p>
-    </li>
-  </ol>
 </div>
 
 
@@ -1549,75 +857,8 @@
 </div>
 
 <div class="trace">
-  <span class="callout-label">Walk them through it &#183; one answer, and how we knew</span>
-  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One retrieval, then the harder half. How you find out whether the answer was any good, which is where this r&#233;sum&#233; is unusually strong.</p>
+  <span class="callout-label">Explain it &#183; one picture</span>
   <p class="tr-case"><b>The picture.</b> Marking two exam papers. One is arithmetic, so you can do the sum yourself and the answer is simply the answer. The other is an essay, which you can only mark against a standard, and two markers will disagree. Nearly every evaluation mistake is marking an arithmetic paper like an essay.</p>
-  <p class="tr-case"><b>The case.</b> A question goes in, some documents come back, and a model answers from them. Follow the retrieval first. Then ask the only question that matters afterwards, which is whether anything can tell us it was right.</p>
-  <ol>
-    <li class="tr-step">
-      <span class="tr-k">The embedding</span>
-      <p><b>What happens.</b> The question is turned into a list of numbers arranged so that similar meanings sit close together.</p>
-      <p><b>Concretely.</b> Every document was turned into one of those lists already. Everything else in retrieval is built on that one idea.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The search</span>
-      <p><b>What happens.</b> We find the nearest stored vectors to the question's vector and take the top few.</p>
-      <p><b>Concretely.</b> It is fast and approximate, and it always returns the number you asked for. It has no way to tell you that none of them were relevant.</p>
-      <p><b>If they ask why.</b> That property surprises people. An empty result is not something vector search produces, so the emptiness check has to be yours.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">What is absent</span>
-      <p><b>What happens.</b> Two items on that r&#233;sum&#233; line belong to this step and are not implemented anywhere.</p>
-      <p><b>Concretely.</b> Hybrid search would add keyword matching alongside the vectors. An exact term like an error code then stops being lost in a space that does not care about spelling. Re-ranking would use a second, costlier model to reorder the candidates.</p>
-      <p><b>If they ask why.</b> They are also the two an interviewer is most likely to probe on a retrieval line. I would take them off rather than defend them.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The real question</span>
-      <p><b>What happens.</b> Now the half that matters. Every evaluation decision I make starts from one question.</p>
-      <p><b>Concretely.</b> Does something exist that can decide correctness without holding an opinion? A compiler, a query planner, a subprocess that either produces rows or does not.</p>
-      <p><b>If they ask why.</b> If one exists, use it and do not ask a model. If none exists, you are down to judgment and comparison, and those have failure modes worth naming out loud.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Where there is one</span>
-      <p><b>What happens.</b> Three of my systems have an oracle and use it.</p>
-      <p><b>Concretely.</b> A subprocess running the real statistics processor. A query planner asked to explain generated SQL. A parser reading mapping tables instead of a model reading them.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Where there is not</span>
-      <p><b>What happens.</b> One case correctly has no oracle, and that is where a model judging a model is the right tool.</p>
-      <p><b>Concretely.</b> Scoring an interview answer against written anchor prose. Nothing can run that and return a verdict, so a judge is honest rather than lazy.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Experiment one</span>
-      <p><b>What happens.</b> Most people answer a question about evaluation with a methodology. Answer it with experiments instead.</p>
-      <p><b>Concretely.</b> A model bake-off. One fixed evidence payload replayed through the real code path with only the model swapped, scored on label-free metrics.</p>
-      <p><b>If they ask why.</b> Holding the evidence fixed is the whole design. Otherwise you are comparing two models and two different sets of sources at the same time.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Experiment two</span>
-      <p><b>What happens.</b> An A/B on how much conversation history to give the model.</p>
-      <p><b>Concretely.</b> Transcript windows of ten, twenty and forty entries, with eight runs per arm.</p>
-      <p><b>If they ask why.</b> Say the run count before you are asked. Eight runs an arm is enough to see a large effect and not enough to claim a small one.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Experiment three</span>
-      <p><b>What happens.</b> The one worth leading with, because it is the uncomfortable one.</p>
-      <p><b>Concretely.</b> I ran the hand-written answer keys through the same processor they were the answer to. Only 28 of 49 produced valid output.</p>
-      <p><b>If they ask why.</b> We were optimising against a ruler nobody had checked. Reporting that in the same memo as our results made them harder to present and made the roadmap correct.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The number</span>
-      <p><b>What happens.</b> One more measurement I would volunteer, because it is the sort of thing people assume rather than check.</p>
-      <p><b>Concretely.</b> The claims report is not reproducible. About one claim in five gets a different verdict on identical evidence, and pinning temperature to zero did not fix it.</p>
-      <p><b>If they ask why.</b> Almost every flip sits on the no-data-versus-partial line. So it is a definition problem in the prompt rather than a sampling one.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">My own rule</span>
-      <p><b>What happens.</b> And one place where I broke the rule I just gave them.</p>
-      <p><b>Concretely.</b> Our 368-scenario harness scores generated code by embedding similarity, when the production path already has a validator that could run it.</p>
-      <p><b>If they ask why.</b> That is an arithmetic paper being marked like an essay. The oracle was already sitting there.</p>
-    </li>
-  </ol>
 </div>
 
 
@@ -1682,70 +923,8 @@
 </div>
 
 <div class="trace">
-  <span class="callout-label">Walk them through it &#183; one spoken request, end to end</span>
-  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One sentence said to a television, followed to the setting that changes. Nothing leaves the room, and that constraint shapes every step.</p>
+  <span class="callout-label">Explain it &#183; one picture</span>
   <p class="tr-case"><b>The picture.</b> A restaurant with a fifty-page menu and a waiter who can only hold three pages in their head. Somebody asks for something warm and spicy. The ma&#238;tre d' hands over the three pages that might match and the waiter picks from those. If the right dish was on page forty, nothing the waiter does can find it.</p>
-  <p class="tr-case"><b>The case.</b> Someone says <em>&#8220;make it warmer&#8221;</em> at a television. The set can do more than fifty things, and the model deciding which one runs on the set itself.</p>
-  <ol>
-    <li class="tr-step">
-      <span class="tr-k">The sentence</span>
-      <p><b>What happens.</b> The words reach a small language model running locally. No network call, so nothing about the room goes anywhere.</p>
-      <p><b>Concretely.</b> Understanding the sentence is not the hard part. Working out which of fifty-odd actions it means is.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The catalogue</span>
-      <p><b>What happens.</b> The obvious approach is to list every function in the prompt and let the model choose.</p>
-      <p><b>Concretely.</b> Each function needs a name, a description and a parameter list. Fifty of those is far more text than a small model can hold alongside the conversation.</p>
-      <p><b>If they ask why.</b> The context window is the binding constraint on a device, and a quantized model has less of everything. This is where the design decision actually comes from.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Retrieval</span>
-      <p><b>What happens.</b> So this becomes a retrieval problem, and the corpus being retrieved from is the catalogue itself.</p>
-      <p><b>Concretely.</b> Embed the request, match it against the function descriptions, and put only the nearest few in the prompt.</p>
-      <p><b>If they ask why.</b> That is the reframing worth defending. It is not a document collection. It is a list of things the device can do, treated as a corpus.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The shortlist</span>
-      <p><b>What happens.</b> Four or five candidate functions go into the prompt along with what the person said.</p>
-      <p><b>Concretely.</b> For &#8220;make it warmer&#8221; that might be colour temperature, picture mode, backlight and room heating if the set controls it.</p>
-      <p><b>If they ask why.</b> Adding a new function is now writing a description rather than retraining anything. That is the second thing this bought.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The choice</span>
-      <p><b>What happens.</b> The model picks one and fills in its parameters from the sentence.</p>
-      <p><b>Concretely.</b> Warmer has to become a named setting and a direction or an amount. That extraction step is where vague words get turned into numbers.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The schema</span>
-      <p><b>What happens.</b> The output is constrained as it is generated, so it has to match the shape of a real call.</p>
-      <p><b>Concretely.</b> The model cannot name a function that does not exist or mistype a parameter. Those are not caught afterwards, they are impossible.</p>
-      <p><b>If they ask why.</b> Be clear about the limit though. A valid call to the wrong function is exactly as valid. The schema protects the shape and never the choice.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Two failures</span>
-      <p><b>What happens.</b> There are two ways this goes wrong and they need different repairs.</p>
-      <p><b>Concretely.</b> The right function never reached the shortlist, which is a recall problem. Or the shortlist was right and the model chose badly from it.</p>
-      <p><b>If they ask why.</b> No model quality recovers the first one. If the right answer was never in the prompt, the best model in the world cannot pick it.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Where it hurts</span>
-      <p><b>What happens.</b> The second failure is where quantization does its damage.</p>
-      <p><b>Concretely.</b> Choosing between similar options depends on small differences in the output distribution. That is exactly the resolution a smaller number format spends.</p>
-      <p><b>If they ask why.</b> So the evaluation has to be function selection rather than a general benchmark. A general score barely moves while this gets worse.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Act or ask</span>
-      <p><b>What happens.</b> Say confidence is low, or nothing matched well. On a device there is no bigger model to escalate to.</p>
-      <p><b>Concretely.</b> That leaves three options. Guess, ask, or do nothing. Each is a product decision with a different cost.</p>
-      <p><b>If they ask why.</b> The rule I would use is reversibility. If the action is easy to undo, act. If it is not, ask first.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The trade</span>
-      <p><b>What happens.</b> Retrieval introduced a failure mode that did not exist before, and I would rather name it than defend it.</p>
-      <p><b>Concretely.</b> A single classifier over a fixed catalogue would never miss the right option. It would also need retraining every time a function changed.</p>
-      <p><b>If they ask why.</b> I would make the same trade again, and I would want retrieval recall reported as its own number rather than folded into an accuracy figure.</p>
-    </li>
-  </ol>
 </div>
 
 
@@ -1809,69 +988,8 @@
 </div>
 
 <div class="trace">
-  <span class="callout-label">Walk them through it &#183; one request over one timeline</span>
-  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One question asked of a journal, followed to the suggestion that comes back. The entries are invented. The relevance problem is the real one.</p>
+  <span class="callout-label">Explain it &#183; one picture</span>
   <p class="tr-case"><b>The picture.</b> A search engine against a friend who has known you for years. The search engine finds whatever is most like what you said. The friend knows that the thing you loved four years ago was four years ago, and that you have mentioned pottery every month since spring.</p>
-  <p class="tr-case"><b>The case.</b> Somebody has kept a journal for four years. They ask what they should do this weekend. Follow that request through the system, and watch what nearly goes wrong.</p>
-  <ol>
-    <li class="tr-step">
-      <span class="tr-k">The router</span>
-      <p><b>What happens.</b> The first decision is not what the request is about. It is what kind of request it is.</p>
-      <p><b>Concretely.</b> Three modes. Asking what happened, asking what to do next, or asking for something planned out.</p>
-      <p><b>If they ask why.</b> It routes between modes rather than topics because each mode needs different retrieval and a different output shape. A recollection cites an entry. A plan is a structured itinerary.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The risk</span>
-      <p><b>What happens.</b> Routing by meaning is retrieval with a consequence attached, so it deserves a warning.</p>
-      <p><b>Concretely.</b> An ordinary bad retrieval gives a slightly worse answer. A bad routing decision sends the whole request down the wrong branch.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The timeline</span>
-      <p><b>What happens.</b> Our request routes to recommendation, so now the history has to be read.</p>
-      <p><b>Concretely.</b> A timeline is ordered, and ordered is the important word. When something happened is part of what it means.</p>
-      <p><b>If they ask why.</b> In a document corpus relevance is about meaning. In a journal it is meaning and time together, and those two can disagree.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The near miss</span>
-      <p><b>What happens.</b> Pure similarity would surface the closest entry regardless of when it was written.</p>
-      <p><b>Concretely.</b> Here that is an enthusiastic entry about a bar in a city this person left three years ago. It is the most similar thing in four years of writing and it is useless.</p>
-      <p><b>If they ask why.</b> This is the part I would defend. The most similar entry can be the least useful one, and a journal spans years of somebody changing.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Recency</span>
-      <p><b>What happens.</b> So recency is part of the relevance function rather than a filter applied afterwards.</p>
-      <p><b>Concretely.</b> It is a decay rather than a cutoff, so nothing vanishes abruptly at some arbitrary age.</p>
-      <p><b>If they ask why.</b> A cutoff makes an entry relevant on Monday and invisible on Tuesday. A decay makes old things quieter, which is how people actually work.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Frequency</span>
-      <p><b>What happens.</b> The third term is how often something comes up, counted over distinct entries.</p>
-      <p><b>Concretely.</b> Pottery appears in eleven entries over the last year. The bar appears in one, at length.</p>
-      <p><b>If they ask why.</b> Counting distinct entries is what stops one long enthusiastic entry looking like a habit. Something mentioned once is a data point. Something mentioned monthly is a preference.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The answer</span>
-      <p><b>What happens.</b> A suggestion comes back, tied to the entries it came from.</p>
-      <p><b>Concretely.</b> Grounding here means the person can see why it was offered rather than being handed a recommendation from nowhere.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The plan branch</span>
-      <p><b>What happens.</b> Had they asked for a weekend planned out, the shape would be different, and this is the honest part.</p>
-      <p><b>Concretely.</b> Only the planning branch is genuinely agentic. It needs preferences, then options, then a schedule, and scheduling feeds back into which options survive.</p>
-      <p><b>If they ask why.</b> A recollection is one retrieval and one answer. Calling that agentic would be overstating it, and overstating it is how the word lost its meaning.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Cold start</span>
-      <p><b>What happens.</b> Everything above assumes a full timeline, and plenty of people do not have one.</p>
-      <p><b>Concretely.</b> A new user has nothing. Somebody who wrote a lot once and then stopped breaks the same assumption in a different way.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The real failure</span>
-      <p><b>What happens.</b> The worst failure in this system is not inaccuracy, and that is worth saying plainly.</p>
-      <p><b>Concretely.</b> A recommendation built on a misread of someone's history reads as intrusion. People stop using things that misunderstand them.</p>
-      <p><b>If they ask why.</b> The decay rate is also a number I chose rather than measured. And no weighting knows which period somebody would rather not revisit. The only honest fix there is user control, which is a product feature rather than a model change.</p>
-    </li>
-  </ol>
 </div>
 
 
@@ -1935,70 +1053,8 @@
 </div>
 
 <div class="trace">
-  <span class="callout-label">Walk them through it &#183; one fact, across three sessions</span>
-  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One thing somebody says, followed into storage, back out as a reminder, and then contradicted. Say prototype early and say it plainly.</p>
+  <span class="callout-label">Explain it &#183; one picture</span>
   <p class="tr-case"><b>The picture.</b> A carer's notebook rather than a carer's memory. The notebook is written in, read back, and sometimes wrong. The whole design question is who is allowed to write in it, because the person it describes cannot check it.</p>
-  <p class="tr-case"><b>The case.</b> On Monday somebody says their daughter is visiting on Tuesday. Follow that sentence into memory, out again as a reminder, and then into the moment on Wednesday when they say she never came.</p>
-  <ol>
-    <li class="tr-step">
-      <span class="tr-k">The window</span>
-      <p><b>What happens.</b> A model has a context window and nothing else. When the conversation ends, everything in it is gone.</p>
-      <p><b>Concretely.</b> MemGPT treats that window the way an operating system treats RAM. What fits stays in and what does not moves to a store outside it.</p>
-      <p><b>If they ask why.</b> Worth knowing both names. The project was renamed Letta in September 2024, and the paper and the pattern are still called MemGPT. An interviewer may only have heard one.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Who writes</span>
-      <p><b>What happens.</b> The distinguishing feature is not the storage. It is who decides what gets stored.</p>
-      <p><b>Concretely.</b> The model calls functions to save a fact, replace a fact, or search for an older one. Retrieval reads. This reads and writes.</p>
-      <p><b>If they ask why.</b> That single change is the whole architecture, and every risk in this chapter comes from it too.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Three stores</span>
-      <p><b>What happens.</b> Calling all of it long-term memory hides the design, so I split it into three.</p>
-      <p><b>Concretely.</b> Stable facts about the person. An append-only record of what happened and when. And the daily routine.</p>
-      <p><b>If they ask why.</b> They differ in who is allowed to write to them, and that is the property worth organising around.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Monday</span>
-      <p><b>What happens.</b> The sentence about Tuesday arrives. Which store does it belong in?</p>
-      <p><b>Concretely.</b> That the daughter exists and is called Sarah is a stable fact. That a visit is expected on Tuesday is an event.</p>
-      <p><b>If they ask why.</b> Splitting one sentence across two stores is the point. They have different truth lifetimes, and merging them is how a one-off becomes a permanent belief.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The write rule</span>
-      <p><b>What happens.</b> The stable fact does not get written just because it was said once.</p>
-      <p><b>Concretely.</b> It needs a second mention in a different session, or a caregiver confirming it.</p>
-      <p><b>If they ask why.</b> A model that can write can write something wrong and then read it back as true. The person present has a failing memory and cannot catch it. Read-mostly is the only safe default here.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The record</span>
-      <p><b>What happens.</b> The event goes into the append-only store with a timestamp.</p>
-      <p><b>Concretely.</b> Nothing in that store is ever rewritten. Asking the same question three times in an afternoon is itself information somebody may need.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Tuesday</span>
-      <p><b>What happens.</b> Eight o'clock comes and a tablet reminder fires. That reminder does not come from memory at all.</p>
-      <p><b>Concretely.</b> The routine is a table and a timer. Whether it is eight o'clock has one right answer, so nothing should be asked about it.</p>
-      <p><b>If they ask why.</b> Only ask a model questions with no deterministic answer. A reminder that depends on what survived summarisation is a reminder that fails silently.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The next session</span>
-      <p><b>What happens.</b> A new conversation opens hours later and has to know what the earlier one learned.</p>
-      <p><b>Concretely.</b> The small block of always-present facts carries who the person is and who the companion is to them. Older detail is searched for rather than carried.</p>
-      <p><b>If they ask why.</b> If the second conversation does not know what the first one learned, none of this was worth building.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Wednesday</span>
-      <p><b>What happens.</b> Now the hard part. They say their daughter never visited, and the record says she did.</p>
-      <p><b>Concretely.</b> Perhaps the record is wrong. Perhaps they are confused. From one sentence, no system can tell those two apart.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">What it does</span>
-      <p><b>What happens.</b> It holds both versions and tells a caregiver. It does not argue and it does not overwrite.</p>
-      <p><b>Concretely.</b> That is deferral rather than a solution, and I would rather call it that than claim the system resolves it.</p>
-      <p><b>If they ask why.</b> The cost is real. The system learns more slowly, which is a genuine loss for a product whose value is knowing the person. I still think deferral is correct here.</p>
-    </li>
-  </ol>
 </div>
 
 
@@ -2062,71 +1118,8 @@
 </div>
 
 <div class="trace">
-  <span class="callout-label">Walk them through it &#183; one export, three passes</span>
-  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One wiki export, followed through three stages to the corpus that comes out. Then the two questions the bullet invites and does not answer.</p>
+  <span class="callout-label">Explain it &#183; one picture</span>
   <p class="tr-case"><b>The picture.</b> Clearing an office before a move. First you bin the obvious rubbish fast, without reading it. Then you notice forty copies of one memo and keep a single copy. Then you go through what is left and pull the pages that say the same thing over and over. Three passes because each answers a different question.</p>
-  <p class="tr-case"><b>The case.</b> About 150 gigabytes of Confluence export. Inside it, a release note that has been copied into forty different spaces, each copy slightly edited. Follow the corpus, and follow that release note.</p>
-  <ol>
-    <li class="tr-step">
-      <span class="tr-k">What arrives</span>
-      <p><b>What happens.</b> Most of a wiki export is not text you want a model to learn from.</p>
-      <p><b>Concretely.</b> Navigation, headers, page templates, empty stubs, and the same announcement copied everywhere.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Stage one</span>
-      <p><b>What happens.</b> The first pass looks at each document on its own and asks whether it is any good.</p>
-      <p><b>Concretely.</b> Is it long enough, does it read like prose, does it look like a navigation page rather than content. Cheap tests, one document at a time.</p>
-      <p><b>If they ask why.</b> The order is the design. The cheap stage that discards the most goes first, so the expensive stage later sees the smallest possible corpus.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Shingles</span>
-      <p><b>What happens.</b> The second pass compares documents to each other, which needs them in a comparable form.</p>
-      <p><b>Concretely.</b> Each document becomes a set of short overlapping runs of words. Then two documents can be compared as sets rather than as text.</p>
-      <p><b>If they ask why.</b> Shared runs divided by total distinct runs gives a similarity between zero and one. Our forty release notes score very high against each other and near zero against anything else.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The trick</span>
-      <p><b>What happens.</b> Comparing every document with every other document is not affordable at this size.</p>
-      <p><b>Concretely.</b> MinHash reduces each document to a short signature. Two signatures agree at any position with a probability equal to the real similarity, which is the whole trick.</p>
-      <p><b>If they ask why.</b> Then you cut the signatures into bands and only compare documents that match on a whole band. That is how candidate pairs get found without the comparison exploding.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Pairs are not decisions</span>
-      <p><b>What happens.</b> What comes out is a pile of statements that two documents are near-copies. This is the part I would defend.</p>
-      <p><b>Concretely.</b> A pair is a fact. It is not an instruction to delete anything, and treating it as one goes wrong quietly.</p>
-      <p><b>If they ask why.</b> Take a chain. A resembles B and B resembles C. Delete everything appearing in a pair and all three vanish. Keep the first one seen and the survivor depends on what order the files were read in.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Groups</span>
-      <p><b>What happens.</b> So the pairs go through union-find, which turns a pile of same-as facts into groups.</p>
-      <p><b>Concretely.</b> Our forty release notes become one group, and one document survives it. The same input now produces the same corpus on every run.</p>
-      <p><b>If they ask why.</b> That reproducibility is what makes it possible to attribute a later model change to anything at all.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Chaining</span>
-      <p><b>What happens.</b> Grouping introduces its own error, and I would rather name it.</p>
-      <p><b>Concretely.</b> A long chain where each document resembles the next collapses to one, even when the two ends share nothing.</p>
-      <p><b>If they ask why.</b> I have no clean fix beyond tightening the threshold, which trades one error for the other. The real gap is that I never measured either rate against a labelled sample.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Stage three</span>
-      <p><b>What happens.</b> The last pass looks inside each surviving document for repetition.</p>
-      <p><b>Concretely.</b> Duplicate lines, one phrase dominating the page, the same paragraph three times over.</p>
-      <p><b>If they ask why.</b> That is a different question from the other two. Stage one judged a document alone, stage two judged it against others, and this one judges it against itself.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">What comes out</span>
-      <p><b>What happens.</b> The first question this bullet invites is what survived, and the bullet does not say.</p>
-      <p><b>Concretely.</b> Retention per stage is the single most informative number about a pipeline like this. Have it ready.</p>
-      <p><b>If they ask why.</b> At this size the corpus is meant for continuing to train an existing model on a domain. It is not a from-scratch pretraining set, and being clear about that is better than letting the word imply it.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">What it misses</span>
-      <p><b>What happens.</b> The second question is about secrets, and the answer is uncomfortable.</p>
-      <p><b>Concretely.</b> Nothing in these three stages removes a password. A credential in a code block is unique, well formed and not repetitive, so every filter keeps it.</p>
-      <p><b>If they ask why.</b> The filters also came from web-crawl work and some are wrong on a wiki. One C4 heuristic drops pages containing curly braces, which here means every code block. That is the content that made the corpus worth using.</p>
-    </li>
-  </ol>
 </div>
 
 
@@ -2190,69 +1183,8 @@
 </div>
 
 <div class="trace">
-  <span class="callout-label">Walk them through it &#183; one session, delivered cold</span>
-  <p class="frame">This bullet is a claim about explaining things, so the test is that they pick a topic and ask you to explain it now. Follow that. Layer pruning, taught in two minutes, then the structure underneath it that works for all three topics.</p>
+  <span class="callout-label">Explain it &#183; one picture</span>
   <p class="tr-case"><b>The picture.</b> Teaching somebody to drive, against telling them the road they take every day has a level crossing on it. Almost nobody in the room needs driving lessons. Everybody benefits from knowing the crossing is there. A division-wide session is the second thing.</p>
-  <p class="tr-case"><b>The case.</b> A mixed engineering audience. A handful might implement any of this and most never will. The interviewer has just said <em>&#8220;so explain layer pruning to me.&#8221;</em></p>
-  <ol>
-    <li class="tr-step">
-      <span class="tr-k">Why care</span>
-      <p><b>What happens.</b> Move one is always the reason, before any mechanism.</p>
-      <p><b>Concretely.</b> Your model is too big and too slow, and the usual answers cost a training run. This one costs an afternoon.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The idea</span>
-      <p><b>What happens.</b> Then the single idea the session exists to leave behind.</p>
-      <p><b>Concretely.</b> The middle of a deep model is doing less than you assume. Consecutive blocks change the hidden state surprisingly little.</p>
-      <p><b>If they ask why.</b> The mechanism is there to make that idea believable. Most people build the talk the other way round, and the mechanism is the part nobody remembers a month later.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The mechanism</span>
-      <p><b>What happens.</b> Now the smallest true version of how it is done.</p>
-      <p><b>Concretely.</b> Measure how little each run of blocks moves the hidden state. Cut the run that moves it least. Then heal with a short low-rank fine-tune to recover what the cut cost.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Why it pays</span>
-      <p><b>What happens.</b> Move three is the contrast that makes it land, because people conflate this with other pruning.</p>
-      <p><b>Concretely.</b> Zeroing individual weights gives you a sparse matrix. Same size, same number of operations.</p>
-      <p><b>If they ask why.</b> You only win there if the hardware can skip the zeros, and usually it cannot. Deleting whole blocks is different. They are never executed, so the speed-up is free.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Where it breaks</span>
-      <p><b>What happens.</b> This is the move that gets skipped, and skipping it is what makes a talk sound like marketing.</p>
-      <p><b>Concretely.</b> Reasoning falls over long before factual recall does. A pruned model still knows things and stops being able to chain them.</p>
-      <p><b>If they ask why.</b> So a benchmark that measures recall will tell you the cut was nearly free, and it will be wrong in exactly the way that matters.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The second talk</span>
-      <p><b>What happens.</b> Same four moves for knowledge-graph retrieval, with a different idea in the middle.</p>
-      <p><b>Concretely.</b> Ordinary retrieval is good at what a corpus says about one thing and bad at how two things connect. That answer sits in no single passage, so there is nothing to retrieve.</p>
-      <p><b>If they ask why.</b> The mechanism is to extract entities and relations, then pre-write summaries of densely connected regions. A broad question is answered from those summaries rather than from chunks.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The third talk</span>
-      <p><b>What happens.</b> And multimodal, which is the one people assume is hardest and is the easiest to explain.</p>
-      <p><b>Concretely.</b> A vision encoder turns the picture into vectors. A small projector maps those into the language model's token space. From there the model cannot tell them apart from words.</p>
-      <p><b>If they ask why.</b> A resampler is a projector that emits a fixed number of tokens whatever the image size. It exists because images are expensive in context, which is the constraint worth remembering.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The room</span>
-      <p><b>What happens.</b> Back to the session itself, because that is what the bullet is really claiming.</p>
-      <p><b>Concretely.</b> Most of the room will never implement any of it. Designing the talk for the few who might is the common mistake, and it loses everyone else inside five minutes.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The evidence</span>
-      <p><b>What happens.</b> Then the question behind the bullet. How do you know anybody took anything away?</p>
-      <p><b>Concretely.</b> The signal I trust is somebody arguing with me about it a month later. That is a lower bar than adoption and it is a real one.</p>
-      <p><b>If they ask why.</b> The questions afterwards were about people's own problems rather than about my slides. That is the outcome I was aiming at.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The limit</span>
-      <p><b>What happens.</b> And what the format cost, which I would rather say than have drawn out.</p>
-      <p><b>Concretely.</b> The engineers who did want to implement it got less than they needed and had to be handed the paper afterwards.</p>
-      <p><b>If they ask why.</b> I also have no clean evidence of adoption. The honest claim is awareness, and I would rather make that claim than imply one I cannot point at.</p>
-    </li>
-  </ol>
 </div>
 
 
@@ -2316,71 +1248,8 @@
 </div>
 
 <div class="trace">
-  <span class="callout-label">Walk them through it &#183; one spoken order, end to end</span>
-  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One sentence said out loud, followed to a placed order. No screen at any point, and that is the constraint every decision here comes from.</p>
+  <span class="callout-label">Explain it &#183; one picture</span>
   <p class="tr-case"><b>The picture.</b> Ordering at a counter, against calling out across a crowded market. The market answers from several stalls over several seconds. On a screen that is fine, because rows appear as they arrive. In a conversation you have to choose a moment and say one sentence.</p>
-  <p class="tr-case"><b>The case.</b> Somebody says <em>&#8220;I need two kilos of atta.&#8221;</em> The catalogue is not one shop. It is ONDC, an open network, so the question goes to a gateway and many sellers answer separately.</p>
-  <ol>
-    <li class="tr-step">
-      <span class="tr-k">Say something</span>
-      <p><b>What happens.</b> The first thing the system does is acknowledge, before it knows anything.</p>
-      <p><b>Concretely.</b> That is natural in conversation and it buys two or three seconds of real network time.</p>
-      <p><b>If they ask why.</b> Time to first sound is the number a listener actually feels, the same way a reader feels first token. Silence is the failure, not slowness.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The parse</span>
-      <p><b>What happens.</b> The spoken sentence has to become a structured search the network will accept.</p>
-      <p><b>Concretely.</b> Atta is flour, two kilos is a quantity and a unit, and the sentence may switch languages halfway through.</p>
-      <p><b>If they ask why.</b> This is what RAG is doing here, and I would say so precisely. It is query understanding rather than answering from documents. Calling it RAG without that sentence invites a confused follow-up.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The broadcast</span>
-      <p><b>What happens.</b> One search goes to the gateway and the gateway broadcasts it to many seller platforms.</p>
-      <p><b>Concretely.</b> The protocol underneath has fixed stages. Search, select, init, confirm, then status and track.</p>
-      <p><b>If they ask why.</b> Everything before confirm is reversible. Confirm is not, and that single asymmetry is where the interesting design lives.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The trickle</span>
-      <p><b>What happens.</b> Answers come back separately over the next few seconds, each as its own callback.</p>
-      <p><b>Concretely.</b> There is no single response to wait for and no list of who was going to reply. So there is literally nothing to wait for.</p>
-      <p><b>If they ask why.</b> A visual storefront renders what it has and adds more. A voice channel gets one sentence and it has to be right.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The deadline</span>
-      <p><b>What happens.</b> So the deadline goes on the request rather than on any seller, and we rank over whatever arrived.</p>
-      <p><b>Concretely.</b> A slow seller platform can no longer hold up a whole turn.</p>
-      <p><b>If they ask why.</b> The honest gap is that sellers answering after the deadline are invisible, and I never measured how often the best result was one of them. Logging late callbacks and scoring them is what that would take.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Three results</span>
-      <p><b>What happens.</b> Now the ranked results are spoken, and the number is not a preference.</p>
-      <p><b>Concretely.</b> A screen shows twenty at a glance and a person scans them in two seconds. Speech delivers about three in ten seconds.</p>
-      <p><b>If they ask why.</b> That is the whole difference and everything else follows. Precision at three barely matters on a screen and it is the only thing that matters here.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Narrowing</span>
-      <p><b>What happens.</b> If the top three are not obviously right, ask rather than read out more.</p>
-      <p><b>Concretely.</b> One narrowing question is cheaper than four more results, in both seconds and patience.</p>
-      <p><b>If they ask why.</b> And they have to be able to interrupt while the system is speaking. Without that, a wrong first result costs the listener the entire sentence.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The address</span>
-      <p><b>What happens.</b> They pick one, and now the order needs things voice is bad at.</p>
-      <p><b>Concretely.</b> An address, a payment and a quantity. Two of those should never be dictated at all.</p>
-      <p><b>If they ask why.</b> The address and the payment come from the profile and get read back for confirmation. Saying they should not be spoken is a stronger answer than describing how you transcribed them.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The read-back</span>
-      <p><b>What happens.</b> Before confirm, the whole state is read back and an explicit yes is required.</p>
-      <p><b>Concretely.</b> The cart is invisible. Reading it back is the only way it becomes checkable.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Confirm once</span>
-      <p><b>What happens.</b> Confirm is the irreversible step, and the last detail is the one nobody volunteers.</p>
-      <p><b>Concretely.</b> It carries an idempotency key, so a repeated request has the same effect as one request.</p>
-      <p><b>If they ask why.</b> A dropped connection on a mobile network otherwise orders twice. The retry is the normal case here, not the exception.</p>
-    </li>
-  </ol>
 </div>
 
 
@@ -2444,67 +1313,8 @@
 </div>
 
 <div class="trace">
-  <span class="callout-label">Walk them through it &#183; one object, photos to browser</span>
-  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One product, followed from a set of photographs to something a person can turn around in a browser. The stage that actually fails is not the one they will expect.</p>
+  <span class="callout-label">Explain it &#183; one picture</span>
   <p class="tr-case"><b>The picture.</b> Not a model of the furniture in a room, but a rule that answers one question. Stand at this spot, look that way, what colour is it and how solid? Answer that for every spot and every direction and you can render the room without ever having built it.</p>
-  <p class="tr-case"><b>The case.</b> Somebody photographs a product from forty or so angles and uploads them. Follow those photographs all the way to a headset.</p>
-  <ol>
-    <li class="tr-step">
-      <span class="tr-k">The old way</span>
-      <p><b>What happens.</b> Before any of this, a person built the model by hand in modelling software.</p>
-      <p><b>Concretely.</b> That is where three weeks went. Be precise about what the number compares. It is a person against a program, not one algorithm against another.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The quiet stage</span>
-      <p><b>What happens.</b> The first thing that has to happen is not learning anything. It is working out where each photograph was taken from.</p>
-      <p><b>Concretely.</b> Nobody recorded that. It is recovered by matching features between the photographs, which needs texture to match on.</p>
-      <p><b>If they ask why.</b> This is the stage that actually fails, and it is the answer worth leading with. A plain surface, a reflection, or photos taken too far apart all produce wrong positions and no error message.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The fit</span>
-      <p><b>What happens.</b> With positions known, a small neural network is fitted to the photographs.</p>
-      <p><b>Concretely.</b> What it learns is a function. Give it a point in space and a direction you are looking from, and it returns a colour and a density.</p>
-      <p><b>If they ask why.</b> Say it without the word geometry. It does not build a shape. And it is fitted per object rather than being a model you reuse on the next one.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Rendering it</span>
-      <p><b>What happens.</b> To make a picture, walk along the ray for each pixel and add up what it passes through.</p>
-      <p><b>Concretely.</b> That is many network evaluations per pixel, which is why the original version was slow to render.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Training fast</span>
-      <p><b>What happens.</b> The first speed problem was how long the fit took, and it was hours.</p>
-      <p><b>Concretely.</b> Instant-NGP moves most of what is learned into lookup tables and leaves the network tiny. That is what turned hours into minutes.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Rendering fast</span>
-      <p><b>What happens.</b> The second speed problem is different and was solved by changing the representation entirely.</p>
-      <p><b>Concretely.</b> Gaussian splatting stores the scene as a few million fuzzy blobs, each with a position, a shape, an opacity and a colour.</p>
-      <p><b>If they ask why.</b> Drawing those is projecting and blending, which is what a graphics card does natively. No network runs at render time at all.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Not versions</span>
-      <p><b>What happens.</b> The common mistake is treating those two as versions of the same idea.</p>
-      <p><b>Concretely.</b> One made training fast. The other made rendering fast. They solve different problems and neither replaces the other.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Into a browser</span>
-      <p><b>What happens.</b> A browser cannot run the original network per pixel, so the field gets baked.</p>
-      <p><b>Concretely.</b> SNeRG bakes a trained radiance field into a sparse grid the browser can render directly.</p>
-      <p><b>If they ask why.</b> Then it has to hold up in a headset. Two eyes, a tight frame budget and no dedicated graphics runtime. That is the real constraint on the whole pipeline.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The number</span>
-      <p><b>What happens.</b> One number in the bullet has no unit on it, and I would rather qualify it than defend it.</p>
-      <p><b>Concretely.</b> Thirty per cent needs a metric attached. On the usual image quality measure, which is decibels on a log scale, a percentage means very little.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The lesson</span>
-      <p><b>What happens.</b> Blurry results looked like a training problem and were not.</p>
-      <p><b>Concretely.</b> Once I looked at the pose stage instead, the failures that had seemed like model problems stopped. What remained were the honestly hard cases like glass and polished metal.</p>
-      <p><b>If they ask why.</b> A protocol only helps if people follow it. A submission with too few photographs still succeeds at pose estimation and fails quietly afterwards. Holding out some views and rendering from them is cheap, and I would build that check first next time.</p>
-    </li>
-  </ol>
 </div>
 
 
@@ -2568,70 +1378,8 @@
 </div>
 
 <div class="trace">
-  <span class="callout-label">Walk them through it &#183; one clip, end to end</span>
-  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One signed clip, followed from the camera to a label. The architecture is one decision, and the interesting part is what that decision throws away.</p>
+  <span class="callout-label">Explain it &#183; one picture</span>
   <p class="tr-case"><b>The picture.</b> Describing a dance by tracking where the dancer's hands are, rather than by filming them. You lose the costume, the lighting and the room, which is mostly a gain. You also lose their face, which is not.</p>
-  <p class="tr-case"><b>The case.</b> Somebody signs one word in front of a phone camera. A low-end phone, not a machine with a graphics card. That target device is the constraint that shaped everything.</p>
-  <ol>
-    <li class="tr-step">
-      <span class="tr-k">The frame</span>
-      <p><b>What happens.</b> The obvious approach is to show the video to a model. This does not do that.</p>
-      <p><b>Concretely.</b> A frame at modest resolution is over a hundred thousand numbers. On the target device a video model was never going to run.</p>
-      <p><b>If they ask why.</b> A tool that does not run is not a tool. The device came first and the architecture followed from it.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The keypoints</span>
-      <p><b>What happens.</b> A separate pose estimator finds the hands in each frame and reports where the joints are.</p>
-      <p><b>Concretely.</b> Twenty-one joints per hand, three coordinates each, two hands. A hundred and twenty-six numbers per frame instead of a hundred thousand.</p>
-      <p><b>If they ask why.</b> That estimator was already optimised for phones by somebody else. Three orders of magnitude are saved before our model runs at all.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Normalising</span>
-      <p><b>What happens.</b> Those coordinates get normalised before anything learns from them.</p>
-      <p><b>Concretely.</b> Where the signer stands and how large they appear in frame both have to go.</p>
-      <p><b>If they ask why.</b> Without it the model learns the camera setup. It will do very well on your recordings and nothing else.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Per frame</span>
-      <p><b>What happens.</b> The same small encoder runs on every frame's keypoints, independently.</p>
-      <p><b>Concretely.</b> One feature vector per frame comes out. The network is shared across time rather than being learned separately per position.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Across frames</span>
-      <p><b>What happens.</b> Then a recurrent layer reads that sequence in order and produces the label.</p>
-      <p><b>Concretely.</b> It carries a fixed-size hidden state forward one step at a time.</p>
-      <p><b>If they ask why.</b> Recurrence because the target streams. The memory cost does not grow with how long the clip is, which matters on a phone more than accuracy arguments do.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">What is gone</span>
-      <p><b>What happens.</b> Now the thing I would say before being asked, because it is the real limitation.</p>
-      <p><b>Concretely.</b> Everything that is not a hand has been discarded. In sign languages that is not a rounding error.</p>
-      <p><b>If they ask why.</b> Eyebrows, head tilt and mouth shape carry grammar. A raised brow turns a statement into a question, and this pipeline cannot represent it.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The scope</span>
-      <p><b>What happens.</b> So the honest claim is narrower than the title.</p>
-      <p><b>Concretely.</b> Recognising signs from hand motion, rather than interpreting sign language.</p>
-      <p><b>If they ask why.</b> Face landmarks are keypoints too. Adding a small subset of them is the change I would make, and it does not break the design.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The split</span>
-      <p><b>What happens.</b> The first of two questions a reviewer should have asked.</p>
-      <p><b>Concretely.</b> Each person's clips have to be entirely in train or entirely in test.</p>
-      <p><b>If they ask why.</b> Split at random and the same signer appears on both sides. Then you are measuring person recognition and reporting it as sign recognition.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The claim</span>
-      <p><b>What happens.</b> The second one is about the phrase sized for mobile.</p>
-      <p><b>Concretely.</b> That needs a device, a latency and a memory figure behind it, or it is an intention rather than a result.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The ceiling</span>
-      <p><b>What happens.</b> And one limit that no amount of training fixes.</p>
-      <p><b>Concretely.</b> The pose estimator is a ceiling on everything downstream. Two-handed signing means the hands constantly cover each other.</p>
-      <p><b>If they ask why.</b> Occlusion is the dominant cause of keypoint failure here. When the joints come back wrong, the model never sees the sign at all.</p>
-    </li>
-  </ol>
 </div>
 
 
@@ -2695,70 +1443,8 @@
 </div>
 
 <div class="trace">
-  <span class="callout-label">Walk them through it &#183; one scan, end to end</span>
-  <p class="frame">The <em>say it out loud</em> block is ninety seconds. This is the ten minutes after that, when they say <em>&#8220;walk me through it.&#8221;</em> One child's scan, followed from the scanner to a prediction. Then the three questions this literature always gets, answered before they are asked.</p>
+  <span class="callout-label">Explain it &#183; one picture</span>
   <p class="tr-case"><b>The picture.</b> Working out who in an office is on the same team by watching who goes for coffee at the same time. Nobody hands you the org chart. You infer the structure from what rises and falls together, over and over, with nothing being asked of anybody.</p>
-  <p class="tr-case"><b>The case.</b> A child lies in a scanner and is asked to do nothing for a few minutes. Follow that scan to a prediction, and then to the reasons a good prediction should worry you.</p>
-  <ol>
-    <li class="tr-step">
-      <span class="tr-k">Doing nothing</span>
-      <p><b>What happens.</b> The person performs no task at all, and that is the point rather than a shortcut.</p>
-      <p><b>Concretely.</b> What gets measured is spontaneous fluctuation rather than a response to anything.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The signal</span>
-      <p><b>What happens.</b> Every couple of seconds the scanner records how much oxygenated blood is in each small cube of brain.</p>
-      <p><b>Concretely.</b> That is an indirect and slow proxy for neural activity. It peaks several seconds after whatever caused it.</p>
-      <p><b>If they ask why.</b> Saying indirect and slow out loud is worth a lot here. It is the difference between having used this data and having read about it.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The atlas</span>
-      <p><b>What happens.</b> Tens of thousands of cubes is too many, so the brain is divided into named regions.</p>
-      <p><b>Concretely.</b> The signal inside each region is averaged over time, giving one time course per region.</p>
-      <p><b>If they ask why.</b> Which atlas you choose changes the numbers, and there is no correct answer. That is a real degree of freedom and it should be stated rather than buried.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The matrix</span>
-      <p><b>What happens.</b> Then correlate every region's time course with every other region's.</p>
-      <p><b>Concretely.</b> Regions whose signals move together are called functionally connected. That whole matrix is the connectome, and it is what the model sees.</p>
-      <p><b>If they ask why.</b> Some groups of regions consistently rise and fall together, like the default mode network. Those are the resting-state networks in the title.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The model</span>
-      <p><b>What happens.</b> Three-dimensional convolutions read each volume and a recurrent layer reads the sequence.</p>
-      <p><b>Concretely.</b> That is the same shape as the hand-pose paper, with a different encoder in front of it.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The arithmetic</span>
-      <p><b>What happens.</b> Now the honest framing, and it comes before any result.</p>
-      <p><b>Concretely.</b> Tens of thousands of voxels times a couple of hundred time points is millions of numbers per subject. There are about three hundred subjects.</p>
-      <p><b>If they ask why.</b> So the model has far more parameters than examples, and almost anything fits. The validation protocol decides the result, not the architecture.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Motion</span>
-      <p><b>What happens.</b> The first confound is the signature problem of this field.</p>
-      <p><b>Concretely.</b> Head motion changes measured connectivity. Children with ADHD move more, so motion carries the label directly.</p>
-      <p><b>If they ask why.</b> A model that learns motion will look exactly like a model that learned something about the brain.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Site</span>
-      <p><b>What happens.</b> The second confound does the same thing through different machinery.</p>
-      <p><b>Concretely.</b> Different hospitals use different scanners and protocols, and they contribute cases in different proportions.</p>
-      <p><b>If they ask why.</b> So sites have to be held out whole. Train on every site but one and test on the one left out. A random split lets the model recognise the scanner instead.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The baseline</span>
-      <p><b>What happens.</b> The third question is the one that decides whether any of this was worth doing.</p>
-      <p><b>Concretely.</b> In the public ADHD imaging competition, an entry using only age, sex, handedness, IQ and site scored at the top. No imaging at all.</p>
-      <p><b>If they ask why.</b> That is the bar any imaging model has to clear, and most do not. Volunteering it is far better than being told it.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The trade</span>
-      <p><b>What happens.</b> Holding sites out whole produces a smaller number, and that is the correct trade in this field.</p>
-      <p><b>Concretely.</b> A smaller claim that survives questioning beats a larger one that collapses on the first question about the split.</p>
-      <p><b>If they ask why.</b> The deeper limit is the label itself. An ADHD diagnosis is a clinical judgement against behavioural criteria, and clinicians disagree. No model can be more consistent than its labels.</p>
-    </li>
-  </ol>
 </div>
 
 
@@ -2822,70 +1508,8 @@
 </div>
 
 <div class="trace">
-  <span class="callout-label">Walk them through it &#183; the résumé, read top to bottom</span>
-  <p class="frame">There is no system to trace here. The thing to follow is the interviewer's eye going down the dates, and the fifteen seconds that decide what the rest of the conversation is about. Two lines below are yours to fill, and they should stay yours.</p>
+  <span class="callout-label">Explain it &#183; one picture</span>
   <p class="tr-case"><b>The picture.</b> A landlord reading a rental history with three addresses in three years. They are not judging the moves and they are not owed an apology. They are estimating one thing, which is whether they will be advertising the place again in eight months.</p>
-  <p class="tr-case"><b>The case.</b> Four employers since January 2023. Twelve months, eighteen months, seven months, and a current role under a year old. The dates are on the page and anybody can add them up.</p>
-  <ol>
-    <li class="tr-step">
-      <span class="tr-k">The scan</span>
-      <p><b>What happens.</b> They read down the right-hand column before they read anything else.</p>
-      <p><b>Concretely.</b> The seven-month role in the middle is what stops them. So is a current role that has not reached a year.</p>
-      <p><b>If they ask why.</b> A senior hire takes months to become worth what it costs. A short tenure is a loss that somebody has to explain internally, which is why this gets asked at all.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The real question</span>
-      <p><b>What happens.</b> What they ask is why you left. What they want to know is different.</p>
-      <p><b>Concretely.</b> Will you still be here in two years, and is there something wrong that I should know about.</p>
-      <p><b>If they ask why.</b> Every part of a good answer exists to lower that estimate. Nothing in it is an apology, and an apology raises the estimate rather than lowering it.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Go first</span>
-      <p><b>What happens.</b> Raise it yourself, in the first few minutes, before anybody has to go looking.</p>
-      <p><b>Concretely.</b> That converts a discovered concern into a handled one, and those land completely differently.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The frame</span>
-      <p><b>What happens.</b> Lead with the thread rather than with the timeline.</p>
-      <p><b>Concretely.</b> Building LLM systems since the start of 2023, across four companies and two peer-reviewed papers. Agents, retrieval, and the evaluation and guardrails around them.</p>
-      <p><b>If they ask why.</b> Set that frame before somebody builds a different one. What follows is then usually a question about the work rather than about the dates.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The arc</span>
-      <p><b>What happens.</b> The moves are not the story. What changed across them is.</p>
-      <p><b>Concretely.</b> Samsung was research, prototypes and papers. Innovaccer was shipping, an agentic debugger tested against a 368-scenario suite. CloudSufi is owning a platform end to end.</p>
-      <p><b>If they ask why.</b> Prototypes, then a shipped system, then something owned. Each move bought more of the outcome rather than more of the task, and that is a trajectory rather than a pattern of leaving.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Three sentences</span>
-      <p><b>What happens.</b> When the direct question comes, the answer has three parts and takes about fifteen seconds.</p>
-      <p><b>Concretely.</b> A fact, a reason, and what you are optimising for now. In that order.</p>
-      <p><b>If they ask why.</b> Then be quiet. Let them ask a follow-up if they want one, and they usually do not.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The fact</span>
-      <p><b>What happens.</b> The first sentence names it without softening it.</p>
-      <p><b>Concretely.</b> The seven months at Innovaccer is the thing to say yourself rather than wait for.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The reason</span>
-      <p><b>What happens.</b> The second sentence is yours to write, and it has to pass one hard test.</p>
-      <p><b>Concretely.</b> [Your one sentence goes here.]</p>
-      <p><b>If they ask why.</b> Say it out loud, then ask whether it would also be true of this job. If it would, you have just described the next departure rather than explaining the last one.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">The forward half</span>
-      <p><b>What happens.</b> The third sentence is the one most people skip, and it is the one that answers the real question.</p>
-      <p><b>Concretely.</b> What I am after now is [the specific thing this role has]. That is the part that takes more than a year, and it is why this conversation.</p>
-      <p><b>If they ask why.</b> It has to be named as something this role actually has. A generic answer is heard as no answer, and it cannot be reused between companies.</p>
-    </li>
-    <li class="tr-step">
-      <span class="tr-k">Then stop</span>
-      <p><b>What happens.</b> Three things will undo all of it, and they are all easy to do by accident.</p>
-      <p><b>Concretely.</b> Overexplaining, because length is read as discomfort. Any criticism of a former employer, because it is heard as a preview of how you will describe this one.</p>
-      <p><b>If they ask why.</b> And inconsistency. Interviewers compare notes, and two different reasons across two rounds is a much bigger problem than one short role. Say the same sentence every time.</p>
-    </li>
-  </ol>
 </div>
 
 

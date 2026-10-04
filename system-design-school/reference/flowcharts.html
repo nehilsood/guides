@@ -1,0 +1,1719 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+  <title>Flowcharts &#183; System Design School</title>
+  <link rel="stylesheet" href="../assets/course.css">
+  <script src="../assets/theme.js"></script>
+<style>
+.fc{--fc-ink:var(--ink,#1b1f24);--fc-muted:var(--ink-3,#6b7280);--fc-surface:var(--surface,var(--card,#fff));--fc-ground:var(--ground,var(--paper,#fff));--fc-rule:var(--rule,#d0d5dc);--fc-break:var(--bad,#b3261e);--fc-fix:var(--good,#2e6b4f);--fc-accent:var(--accent,var(--sig,var(--wire,var(--steel,#1a4f7a))));--fc-font:var(--sans,var(--body,system-ui,sans-serif))}
+figure.fc{margin:30px 0 36px;padding:0;border:0;border-radius:0;box-shadow:none;background:none;max-width:520px;font-family:var(--fc-font);color:var(--fc-ink)}
+.fc [hidden]{display:none!important}
+.fc:focus{outline:none}
+.fc .fc-cap{display:block;margin:0 0 10px;padding:0;border:0;font-family:var(--fc-font);max-width:none}
+.fc .fc-kicker{display:block;font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--fc-muted)}
+.fc .fc-title{display:block;margin-top:2px;font-size:17px;font-weight:600;color:var(--fc-ink)}
+.fc .fc-svg{display:block;width:100%;max-width:calc(var(--fc-cols,3) * 173.33px);height:auto;overflow:visible}
+.fc .fc-box{fill:var(--fc-surface);stroke:var(--fc-rule);stroke-width:1.5}
+.fc .fc-break .fc-box{stroke:var(--fc-break);stroke-dasharray:5 3;fill:color-mix(in srgb,var(--fc-break) 12%,var(--fc-surface))}
+.fc .fc-fix .fc-box{stroke:var(--fc-fix);fill:color-mix(in srgb,var(--fc-fix) 12%,var(--fc-surface))}
+.fc .fc-label{font-family:var(--fc-font);font-size:13.5px;font-weight:500;fill:var(--fc-ink);text-anchor:middle}
+.fc .fc-edge{fill:none;stroke:var(--fc-muted);stroke-width:1.5}
+.fc .fc-back{stroke-dasharray:4 3}
+.fc .fc-to-fix{stroke:var(--fc-fix)}
+.fc .fc-tip{fill:var(--fc-muted)}
+.fc .fc-tip-fix{fill:var(--fc-fix)}
+.fc .fc-elabel{font-family:var(--fc-font);font-size:11.5px;fill:var(--fc-muted);paint-order:stroke;stroke:var(--fc-ground);stroke-width:3px;stroke-linejoin:round}
+.fc .fc-dot{fill:var(--fc-accent)}
+.fc .fc-num{font-family:var(--fc-font);font-size:11.5px;font-weight:700;fill:var(--fc-surface);text-anchor:middle}
+.fc .fc-xdot{fill:var(--fc-break)}
+.fc .fc-x{font-family:var(--fc-font);font-size:11.5px;font-weight:700;fill:var(--fc-surface);text-anchor:middle}
+.fc .fc-steps{margin:14px 0 0;padding-left:1.6em;max-width:60ch;font-size:15px;line-height:1.5;color:var(--fc-ink)}
+.fc .fc-steps li{margin:0 0 4px;padding-left:2px}
+.fc .fc-say{display:block}
+.fc .fc-ask{margin:3px 0 6px;font-size:14px;line-height:1.45;color:var(--fc-ink)}
+.fc .fc-ask summary{cursor:pointer;width:fit-content}
+.fc .fc-ask .fc-ask-k{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--fc-muted)}
+.fc .fc-ask .fc-ask-q{font-weight:600}
+.fc .fc-ask p{margin:4px 0 0;max-width:60ch;color:var(--fc-ink)}
+.fc .fc-has-ask{cursor:pointer}
+.fc .fc-q{margin:4px 0 0;max-width:60ch;font-size:14px;line-height:1.45;color:var(--fc-muted)}
+.fc .fc-prompt{margin:12px 0 0;padding:14px 16px;max-width:60ch;border:1.5px dashed var(--fc-rule);border-radius:10px;font-size:15px;color:var(--fc-muted)}
+.fc.practicing .fc-svg{display:none}
+.fc.presenting{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;max-width:none;margin:0;padding:2vh 2vw;background:var(--fc-ground)}
+.fc.presenting>:not(.fc-svg):not(.fc-controls){display:none!important}
+.fc.presenting .fc-controls{position:fixed;top:12px;right:12px;margin:0}
+.fc.presenting .fc-svg{width:auto;height:auto;max-width:96vw;max-height:96vh;flex:0 1 auto;cursor:pointer}
+.fc .fc-live{margin:10px 0 0;max-width:60ch;font-size:15px;font-weight:600;line-height:1.5;color:var(--fc-ink)}
+.fc .fc-live:empty{margin:0}
+.fc .fc-controls{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0}
+.fc .fc-controls button{min-height:36px;padding:8px 14px;border:1.5px solid var(--fc-accent);border-radius:999px;background:var(--fc-surface);color:var(--fc-ink);font:600 13px/1 var(--fc-font);cursor:pointer}
+.fc .fc-controls button[data-fc-act="walk"]{background:var(--fc-accent);color:var(--fc-surface)}
+.fc .fc-controls button:focus-visible{outline:2px solid var(--fc-accent);outline-offset:2px}
+.fc .fc-node,.fc .fc-edge,.fc .fc-elabel,.fc .fc-steps li{transition:opacity .18s ease}
+.fc.walking .fc-node,.fc.walking .fc-edge,.fc.walking .fc-elabel{opacity:.25}
+.fc.walking .fc-steps li{opacity:.55}
+.fc.walking .is-lit,.fc.walking .fc-steps li.is-lit{opacity:1}
+.fc.walking .fc-steps li.is-lit{font-weight:600}
+@media (prefers-reduced-motion:reduce){.fc *{transition:none!important}}
+@media print{.fc .fc-controls,.fc .fc-live,.fc .fc-q,.fc .fc-prompt{display:none!important}}
+.fc-jump{display:flex;flex-wrap:wrap;gap:6px 14px;margin:0 0 28px;padding:0;list-style:none;font-size:14px}
+.fc-item{margin:0 0 44px;break-inside:avoid}
+.fc-item>h2{margin:0 0 6px}
+.fc-item figure.fc{margin-top:8px}
+@media print{.fc-jump{display:none}.fc-item{margin:0 0 24px}.fc-item:nth-of-type(2n){break-after:page}
+.fc-item figure.fc{display:grid;grid-template-columns:minmax(0,40%) minmax(0,1fr);gap:0 18px;align-items:start;max-width:none;margin:6px 0 0}
+.fc-item .fc-svg{max-width:calc(var(--fc-cols,3) * 33.33%);max-height:420px}
+.fc-item .fc-steps{margin:0;font-size:11px;line-height:1.35}.fc-item .fc-ask{font-size:11px;line-height:1.35}}
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- generated by build_flowcharts.py from flows/*.flow; do not hand-edit -->
+<header class="masthead">
+  <div class="crumbs">
+    <a href="../lessons/index.html">System Design School</a>
+    <span class="sep">/</span>
+    <span>Flowcharts</span>
+  </div>
+  <h1>Flowcharts</h1>
+  <p class="standfirst">One picture per guide: what the system does, where it breaks, and what fixes it, with the steps to say while you draw it. Each title opens the guide, where the same chart can be walked one step at a time.</p>
+</header>
+
+<ul class="fc-jump">
+<li><a href="#fc-0001">0001</a></li>
+<li><a href="#fc-0002">0002</a></li>
+<li><a href="#fc-0003">0003</a></li>
+<li><a href="#fc-0004">0004</a></li>
+<li><a href="#fc-0005">0005</a></li>
+<li><a href="#fc-0006">0006</a></li>
+<li><a href="#fc-0007">0007</a></li>
+<li><a href="#fc-0008">0008</a></li>
+<li><a href="#fc-0009">0009</a></li>
+<li><a href="#fc-0010">0010</a></li>
+<li><a href="#fc-0011">0011</a></li>
+<li><a href="#fc-0012">0012</a></li>
+<li><a href="#fc-0013">0013</a></li>
+<li><a href="#fc-0014">0014</a></li>
+<li><a href="#fc-0015">0015</a></li>
+<li><a href="#fc-0016">0016</a></li>
+<li><a href="#fc-0017">0017</a></li>
+<li><a href="#fc-0018">0018</a></li>
+<li><a href="#fc-0019">0019</a></li>
+<li><a href="#fc-0020">0020</a></li>
+<li><a href="#fc-0021">0021</a></li>
+<li><a href="#fc-0022">0022</a></li>
+</ul>
+
+<section class="fc-item" id="fc-0001">
+<h2><a href="../lessons/0001-latency-budget-arithmetic.html">0001 &#183; Latency Budget Arithmetic</a></h2>
+<figure class="fc" data-fc="0001">
+<svg class="fc-svg" viewBox="0 0 360 316" style="--fc-cols:3" role="img" aria-label="Latency Budget Arithmetic: it breaks at Wrong hop optimised; the fix is Overlap: 267 ms and Halve TTFT: 440 ms.">
+<defs>
+<marker id="fc-tip-0001" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip" d="M0 0L10 5L0 10z"/></marker>
+<marker id="fc-tip-0001-fix" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip-fix" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+<path class="fc-edge fc-to-fix" data-from="scale" data-to="overlap" d="M180 144L180 174" marker-end="url(#fc-tip-0001-fix)"/>
+<path class="fc-edge fc-to-fix" data-from="scale" data-to="big" d="M180 144L180 159L300 159L300 174" marker-end="url(#fc-tip-0001-fix)"/>
+<path class="fc-edge" data-from="turn" data-to="scale" d="M180 68L180 98" marker-end="url(#fc-tip-0001)"/>
+<path class="fc-edge" data-from="scale" data-to="wrong" d="M180 144L180 159L60 159L60 174" marker-end="url(#fc-tip-0001)"/>
+<text class="fc-elabel" data-to="wrong" x="120" y="155" text-anchor="middle">small hops</text>
+<path class="fc-edge" data-from="big" data-to="room" d="M300 220L300 250" marker-end="url(#fc-tip-0001)"/>
+<g class="fc-node" data-node="turn">
+<rect class="fc-box" x="132" y="22" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="41">Eight serial</text>
+<text class="fc-label" x="180" y="58">hops</text>
+<circle class="fc-dot" cx="131" cy="22" r="9"/>
+<text class="fc-num" x="131" y="26">1</text>
+</g>
+<g class="fc-node" data-node="scale">
+<rect class="fc-box" x="132" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="117">Bar drawn to</text>
+<text class="fc-label" x="180" y="134">scale</text>
+<circle class="fc-dot" cx="131" cy="98" r="9"/>
+<text class="fc-num" x="131" y="102">2</text>
+</g>
+<g class="fc-node fc-break" data-node="wrong">
+<rect class="fc-box" x="12" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="60" y="193">Wrong hop</text>
+<text class="fc-label" x="60" y="210">optimised</text>
+<circle class="fc-dot" cx="11" cy="174" r="9"/>
+<text class="fc-num" x="11" y="178">3</text>
+<circle class="fc-xdot" cx="109" cy="220" r="9"/>
+<text class="fc-x" x="109" y="224">&#10007;</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="overlap">
+<rect class="fc-box" x="132" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="193">Overlap:</text>
+<text class="fc-label" x="180" y="210">267 ms</text>
+<circle class="fc-dot" cx="131" cy="174" r="9"/>
+<text class="fc-num" x="131" y="178">5</text>
+</g>
+<g class="fc-node fc-fix" data-node="big">
+<rect class="fc-box" x="252" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="193">Halve TTFT:</text>
+<text class="fc-label" x="300" y="210">440 ms</text>
+<circle class="fc-dot" cx="251" cy="174" r="9"/>
+<text class="fc-num" x="251" y="178">4</text>
+</g>
+<g class="fc-node" data-node="room">
+<rect class="fc-box" x="252" y="250" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="269">Headroom,</text>
+<text class="fc-label" x="300" y="286">not slack</text>
+<circle class="fc-dot" cx="251" cy="250" r="9"/>
+<text class="fc-num" x="251" y="254">6</text>
+</g>
+</svg>
+<ol class="fc-steps">
+<li data-node="turn"><span class="fc-say">Eight hops run one after another and sum to 2102 ms.</span></li>
+<li data-node="scale"><span class="fc-say">To scale, time to first token is 880 ms: 42 % of the turn.</span></li>
+<li data-node="wrong"><span class="fc-say">Ingress and the network are 3 % together; people shave them because they own them.</span></li>
+<li data-node="big"><span class="fc-say">Halve the big hop instead: 440 ms saved from one change.</span></li>
+<li data-node="overlap"><span class="fc-say">Slide retrieval under ASR and the render under TTS: a genuine win, only 267 ms.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Which of those hops are on the critical path and which could run concurrently?</span><p>The test is whether a hop consumes the previous hop’s output. Avatar under synthesis, retrieval on a partial transcript: 267 ms, against 440 for halving the big hop.</p></div></li>
+<li data-node="room"><span class="fc-say">The remaining 5.9 s is room for a retry and a bad tail day.</span></li>
+</ol>
+</figure>
+</section>
+
+<section class="fc-item" id="fc-0002">
+<h2><a href="../lessons/0002-p50-is-a-lie.html">0002 &#183; p50 Is a Lie</a></h2>
+<figure class="fc" data-fc="0002">
+<svg class="fc-svg" viewBox="0 0 360 316" style="--fc-cols:3" role="img" aria-label="p50 Is a Lie: it breaks at Clean p99: 149 ms; the fix is Measure from due time.">
+<defs>
+<marker id="fc-tip-0002" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip" d="M0 0L10 5L0 10z"/></marker>
+<marker id="fc-tip-0002-fix" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip-fix" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+<path class="fc-edge fc-to-fix" data-from="open" data-to="due" d="M300 144L300 174" marker-end="url(#fc-tip-0002-fix)"/>
+<path class="fc-edge" data-from="freeze" data-to="closed" d="M180 68L180 83L60 83L60 98" marker-end="url(#fc-tip-0002)"/>
+<text class="fc-elabel" data-to="closed" x="120" y="79" text-anchor="middle">closed</text>
+<path class="fc-edge" data-from="freeze" data-to="open" d="M180 68L180 83L300 83L300 98" marker-end="url(#fc-tip-0002)"/>
+<text class="fc-elabel" data-to="open" x="240" y="79" text-anchor="middle">open</text>
+<path class="fc-edge" data-from="closed" data-to="bad" d="M60 144L60 174" marker-end="url(#fc-tip-0002)"/>
+<path class="fc-edge" data-from="due" data-to="real" d="M300 220L300 250" marker-end="url(#fc-tip-0002)"/>
+<g class="fc-node" data-node="freeze">
+<rect class="fc-box" x="132" y="22" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="41">Same 2 s</text>
+<text class="fc-label" x="180" y="58">freeze</text>
+<circle class="fc-dot" cx="131" cy="22" r="9"/>
+<text class="fc-num" x="131" y="26">1</text>
+</g>
+<g class="fc-node" data-node="closed">
+<rect class="fc-box" x="12" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="60" y="117">6 workers</text>
+<text class="fc-label" x="60" y="134">wait</text>
+<circle class="fc-dot" cx="11" cy="98" r="9"/>
+<text class="fc-num" x="11" y="102">2</text>
+</g>
+<g class="fc-node" data-node="open">
+<rect class="fc-box" x="252" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="117">Open:</text>
+<text class="fc-label" x="300" y="134">80 req/s</text>
+<circle class="fc-dot" cx="251" cy="98" r="9"/>
+<text class="fc-num" x="251" y="102">4</text>
+</g>
+<g class="fc-node fc-break fc-has-ask" data-node="bad">
+<rect class="fc-box" x="12" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="60" y="193">Clean p99:</text>
+<text class="fc-label" x="60" y="210">149 ms</text>
+<circle class="fc-dot" cx="11" cy="174" r="9"/>
+<text class="fc-num" x="11" y="178">3</text>
+<circle class="fc-xdot" cx="109" cy="220" r="9"/>
+<text class="fc-x" x="109" y="224">&#10007;</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="due">
+<rect class="fc-box" x="252" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="193">Measure from</text>
+<text class="fc-label" x="300" y="210">due time</text>
+<circle class="fc-dot" cx="251" cy="174" r="9"/>
+<text class="fc-num" x="251" y="178">5</text>
+</g>
+<g class="fc-node" data-node="real">
+<rect class="fc-box" x="252" y="250" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="269">p99 reads</text>
+<text class="fc-label" x="300" y="286">1934 ms</text>
+<circle class="fc-dot" cx="251" cy="250" r="9"/>
+<text class="fc-num" x="251" y="254">6</text>
+</g>
+</svg>
+<ol class="fc-steps">
+<li data-node="freeze"><span class="fc-say">An identical two-second freeze hits the same server in both runs.</span></li>
+<li data-node="closed"><span class="fc-say">Each of six workers contributes one bad sample; nothing new is asked during the freeze.</span></li>
+<li data-node="bad"><span class="fc-say">Six bad samples of 1200 is 0.5 %, so p99 reads a clean 149 ms.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">You said 2.1 s median. What is p95, p99, and how did you measure them?</span><p>It depends on the load model; most tools give a number that cannot see your worst minutes. Same freeze: fixed workers read p99 149 ms, rate-scheduled arrival 1934 ms.</p></div></li>
+<li data-node="open"><span class="fc-say">The open loop keeps issuing at 80 requests a second, regardless of replies.</span></li>
+<li data-node="due"><span class="fc-say">Each request is measured from when it was due, not when a worker was free.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">So what is your real p99?</span><p>The open-loop one, and it is the number I would put an SLO on because it includes queueing, which is what the user feels.</p></div></li>
+<li data-node="real"><span class="fc-say">About 160 samples are affected: p99 reads 1934 ms, so the closed loop under-reported 13×.</span></li>
+</ol>
+</figure>
+</section>
+
+<section class="fc-item" id="fc-0003">
+<h2><a href="../lessons/0003-cache-aside-and-friends.html">0003 &#183; Cache-Aside and Friends</a></h2>
+<figure class="fc" data-fc="0003">
+<svg class="fc-svg" viewBox="0 0 360 392" style="--fc-cols:3" role="img" aria-label="Cache-Aside and Friends: it breaks at Black-holed: 5 s wait; the fix is Explicit timeout.">
+<defs>
+<marker id="fc-tip-0003" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip" d="M0 0L10 5L0 10z"/></marker>
+<marker id="fc-tip-0003-fix" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip-fix" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+<path class="fc-edge fc-to-fix" data-from="hang" data-to="tmo" d="M300 296L300 326" marker-end="url(#fc-tip-0003-fix)"/>
+<path class="fc-edge" data-from="gw" data-to="redis" d="M180 68L180 98" marker-end="url(#fc-tip-0003)"/>
+<path class="fc-edge" data-from="redis" data-to="hit" d="M180 144L180 159L60 159L60 174" marker-end="url(#fc-tip-0003)"/>
+<path class="fc-edge" data-from="redis" data-to="miss" d="M180 144L180 174" marker-end="url(#fc-tip-0003)"/>
+<path class="fc-edge" data-from="redis" data-to="down" d="M180 144L180 159L300 159L300 174" marker-end="url(#fc-tip-0003)"/>
+<path class="fc-edge fc-back" data-from="miss" data-to="redis" d="M132 197L125 197L125 121L132 121" marker-end="url(#fc-tip-0003)"/>
+<path class="fc-edge" data-from="down" data-to="hang" d="M300 220L300 250" marker-end="url(#fc-tip-0003)"/>
+<text class="fc-elabel" data-to="hang" x="294" y="239" text-anchor="end">no reply</text>
+<g class="fc-node" data-node="gw">
+<rect class="fc-box" x="132" y="22" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="41">Gateway</text>
+<text class="fc-label" x="180" y="58">retrieve()</text>
+<circle class="fc-dot" cx="131" cy="22" r="9"/>
+<text class="fc-num" x="131" y="26">1</text>
+</g>
+<g class="fc-node" data-node="redis">
+<rect class="fc-box" x="132" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="117">GET</text>
+<text class="fc-label" x="180" y="134">emb:v1:&lt;sha&gt;</text>
+<circle class="fc-dot" cx="131" cy="98" r="9"/>
+<text class="fc-num" x="131" y="102">2</text>
+</g>
+<g class="fc-node" data-node="hit">
+<rect class="fc-box" x="12" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="60" y="201.5">Hit: 47 ms</text>
+<circle class="fc-dot" cx="11" cy="174" r="9"/>
+<text class="fc-num" x="11" y="178">3</text>
+</g>
+<g class="fc-node" data-node="miss">
+<rect class="fc-box" x="132" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="201.5">Miss: 175 ms</text>
+<circle class="fc-dot" cx="131" cy="174" r="9"/>
+<text class="fc-num" x="131" y="178">4</text>
+</g>
+<g class="fc-node" data-node="down">
+<rect class="fc-box" x="252" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="193">Unreachable:</text>
+<text class="fc-label" x="300" y="210">172 ms</text>
+<circle class="fc-dot" cx="251" cy="174" r="9"/>
+<text class="fc-num" x="251" y="178">5</text>
+</g>
+<g class="fc-node fc-break" data-node="hang">
+<rect class="fc-box" x="252" y="250" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="269">Black-holed:</text>
+<text class="fc-label" x="300" y="286">5 s wait</text>
+<circle class="fc-dot" cx="251" cy="250" r="9"/>
+<text class="fc-num" x="251" y="254">6</text>
+<circle class="fc-xdot" cx="349" cy="296" r="9"/>
+<text class="fc-x" x="349" y="300">&#10007;</text>
+</g>
+<g class="fc-node fc-fix" data-node="tmo">
+<rect class="fc-box" x="252" y="326" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="345">Explicit</text>
+<text class="fc-label" x="300" y="362">timeout</text>
+<circle class="fc-dot" cx="251" cy="326" r="9"/>
+<text class="fc-num" x="251" y="330">7</text>
+</g>
+</svg>
+<ol class="fc-steps">
+<li data-node="gw"><span class="fc-say">The gateway asks Redis for the embedding; the cache is consulted, not gone through.</span></li>
+<li data-node="redis"><span class="fc-say">Key it emb:{model_version}:{sha}; drop the version and vectors go silently wrong.</span></li>
+<li data-node="hit"><span class="fc-say">A hit returns the vector in 47 ms and nothing else.</span></li>
+<li data-node="miss"><span class="fc-say">A miss embeds, writes back with a TTL, and returns in 175 ms.</span></li>
+<li data-node="down"><span class="fc-say">Redis stopped: log a warning, compute anyway, answer in about 172 ms.</span></li>
+<li data-node="hang"><span class="fc-say">A black-holed Redis sends nothing: the client waits its 5-second default, most of the turn.</span></li>
+<li data-node="tmo"><span class="fc-say">Set an explicit timeout sized against the budget, smaller than the work it avoids.</span></li>
+</ol>
+</figure>
+</section>
+
+<section class="fc-item" id="fc-0004">
+<h2><a href="../lessons/0004-eviction-and-why-lru-is-wrong.html">0004 &#183; Eviction, and Why LRU Is Wrong</a></h2>
+<figure class="fc" data-fc="0004">
+<svg class="fc-svg" viewBox="0 0 360 392" style="--fc-cols:3" role="img" aria-label="Eviction, and Why LRU Is Wrong: it breaks at LRU keeps 5 of 200; the fix is LFU sorts hit count.">
+<defs>
+<marker id="fc-tip-0004" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip" d="M0 0L10 5L0 10z"/></marker>
+<marker id="fc-tip-0004-fix" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip-fix" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+<path class="fc-edge fc-to-fix" data-from="sort" data-to="lfu" d="M180 220L180 235L300 235L300 250" marker-end="url(#fc-tip-0004-fix)"/>
+<text class="fc-elabel" data-to="lfu" x="240" y="231" text-anchor="middle">hit count</text>
+<path class="fc-edge" data-from="cache" data-to="sweep" d="M180 68L180 98" marker-end="url(#fc-tip-0004)"/>
+<path class="fc-edge" data-from="sweep" data-to="sort" d="M180 144L180 174" marker-end="url(#fc-tip-0004)"/>
+<path class="fc-edge" data-from="sort" data-to="lru" d="M180 220L180 235L60 235L60 250" marker-end="url(#fc-tip-0004)"/>
+<text class="fc-elabel" data-to="lru" x="120" y="231" text-anchor="middle">last touch</text>
+<path class="fc-edge" data-from="lfu" data-to="alive" d="M300 296L300 326" marker-end="url(#fc-tip-0004)"/>
+<g class="fc-node" data-node="cache">
+<rect class="fc-box" x="132" y="22" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="41">8 MB cache,</text>
+<text class="fc-label" x="180" y="58">hot set</text>
+<circle class="fc-dot" cx="131" cy="22" r="9"/>
+<text class="fc-num" x="131" y="26">1</text>
+</g>
+<g class="fc-node" data-node="sweep">
+<rect class="fc-box" x="132" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="125.5">40 MB sweep</text>
+<circle class="fc-dot" cx="131" cy="98" r="9"/>
+<text class="fc-num" x="131" y="102">2</text>
+</g>
+<g class="fc-node" data-node="sort">
+<rect class="fc-box" x="132" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="193">Sorts one</text>
+<text class="fc-label" x="180" y="210">number</text>
+<circle class="fc-dot" cx="131" cy="174" r="9"/>
+<text class="fc-num" x="131" y="178">3</text>
+</g>
+<g class="fc-node fc-break fc-has-ask" data-node="lru">
+<rect class="fc-box" x="12" y="250" width="96" height="46" rx="10"/>
+<text class="fc-label" x="60" y="269">LRU keeps</text>
+<text class="fc-label" x="60" y="286">5 of 200</text>
+<circle class="fc-dot" cx="11" cy="250" r="9"/>
+<text class="fc-num" x="11" y="254">4</text>
+<circle class="fc-xdot" cx="109" cy="296" r="9"/>
+<text class="fc-x" x="109" y="300">&#10007;</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="lfu">
+<rect class="fc-box" x="252" y="250" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="269">LFU sorts</text>
+<text class="fc-label" x="300" y="286">hit count</text>
+<circle class="fc-dot" cx="251" cy="250" r="9"/>
+<text class="fc-num" x="251" y="254">5</text>
+</g>
+<g class="fc-node" data-node="alive">
+<rect class="fc-box" x="252" y="326" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="345">200 of 200</text>
+<text class="fc-label" x="300" y="362">stay</text>
+<circle class="fc-dot" cx="251" cy="326" r="9"/>
+<text class="fc-num" x="251" y="330">6</text>
+</g>
+</svg>
+<ol class="fc-steps">
+<li data-node="cache"><span class="fc-say">A 0.4 MB hot set of 200 keys sits inside an 8 MB cache.</span></li>
+<li data-node="sweep"><span class="fc-say">A one-shot 40 MB sweep arrives: 100× the hot set, 5× the cache.</span></li>
+<li data-node="sort"><span class="fc-say">At the ceiling, the policy reads one number per key and evicts the lowest.</span></li>
+<li data-node="lru"><span class="fc-say">LRU sorts on last touch: 5 of 200 hot keys survive; random left 4.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Batch job runs at 2 a.m.; interactive latency is bad at 8 a.m. Why?</span><p>The 2 a.m. sweep evicted the 8 a.m. hot set. Every key the batch touched looked freshly used to a recency policy, so the morning starts cold.</p></div></li>
+<li data-node="lfu"><span class="fc-say">LFU sorts on hit count: sweep keys sit at 1 and go first.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">What is your Redis eviction policy?</span><p>Depends who provisioned it; I’ve checked. Open-source ships noeviction, Memorystore volatile-lru: both can freeze. LFU kept 200 of 200 hot keys to LRU’s 5, so we run LFU.</p></div></li>
+<li data-node="alive"><span class="fc-say">All 200 of 200 hot keys survive the same 17 000 evictions.</span></li>
+</ol>
+</figure>
+</section>
+
+<section class="fc-item" id="fc-0005">
+<h2><a href="../lessons/0005-stampede-penetration-avalanche.html">0005 &#183; Stampede, Penetration, Avalanche</a></h2>
+<figure class="fc" data-fc="0005">
+<svg class="fc-svg" viewBox="0 0 360 468" style="--fc-cols:3" role="img" aria-label="Stampede, Penetration, Avalanche: it breaks at Stampede: 200 embeds; the fix is Lock per key and Waiters re-check.">
+<defs>
+<marker id="fc-tip-0005" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip" d="M0 0L10 5L0 10z"/></marker>
+<marker id="fc-tip-0005-fix" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip-fix" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+<path class="fc-edge fc-to-fix" data-from="window" data-to="lock" d="M180 144L180 159L300 159L300 174" marker-end="url(#fc-tip-0005-fix)"/>
+<text class="fc-elabel" data-to="lock" x="240" y="155" text-anchor="middle">one lock</text>
+<path class="fc-edge fc-to-fix" data-from="lock" data-to="recheck" d="M300 220L300 250" marker-end="url(#fc-tip-0005-fix)"/>
+<path class="fc-edge" data-from="expire" data-to="window" d="M180 68L180 98" marker-end="url(#fc-tip-0005)"/>
+<path class="fc-edge" data-from="window" data-to="herd" d="M180 144L180 159L60 159L60 174" marker-end="url(#fc-tip-0005)"/>
+<text class="fc-elabel" data-to="herd" x="120" y="155" text-anchor="middle">no lock</text>
+<path class="fc-edge" data-from="recheck" data-to="one" d="M300 296L300 326" marker-end="url(#fc-tip-0005)"/>
+<path class="fc-edge" data-from="one" data-to="jitter" d="M300 372L300 402" marker-end="url(#fc-tip-0005)"/>
+<g class="fc-node" data-node="expire">
+<rect class="fc-box" x="132" y="22" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="41">Hot key</text>
+<text class="fc-label" x="180" y="58">expires</text>
+<circle class="fc-dot" cx="131" cy="22" r="9"/>
+<text class="fc-num" x="131" y="26">1</text>
+</g>
+<g class="fc-node" data-node="window">
+<rect class="fc-box" x="132" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="117">600 ms miss</text>
+<text class="fc-label" x="180" y="134">window</text>
+<circle class="fc-dot" cx="131" cy="98" r="9"/>
+<text class="fc-num" x="131" y="102">2</text>
+</g>
+<g class="fc-node fc-break fc-has-ask" data-node="herd">
+<rect class="fc-box" x="12" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="60" y="193">Stampede:</text>
+<text class="fc-label" x="60" y="210">200 embeds</text>
+<circle class="fc-dot" cx="11" cy="174" r="9"/>
+<text class="fc-num" x="11" y="178">3</text>
+<circle class="fc-xdot" cx="109" cy="220" r="9"/>
+<text class="fc-x" x="109" y="224">&#10007;</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="lock">
+<rect class="fc-box" x="252" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="201.5">Lock per key</text>
+<circle class="fc-dot" cx="251" cy="174" r="9"/>
+<text class="fc-num" x="251" y="178">4</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="recheck">
+<rect class="fc-box" x="252" y="250" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="269">Waiters</text>
+<text class="fc-label" x="300" y="286">re-check</text>
+<circle class="fc-dot" cx="251" cy="250" r="9"/>
+<text class="fc-num" x="251" y="254">5</text>
+</g>
+<g class="fc-node" data-node="one">
+<rect class="fc-box" x="252" y="326" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="345">One embed</text>
+<text class="fc-label" x="300" y="362">call</text>
+<circle class="fc-dot" cx="251" cy="326" r="9"/>
+<text class="fc-num" x="251" y="330">6</text>
+</g>
+<g class="fc-node" data-node="jitter">
+<rect class="fc-box" x="252" y="402" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="421">SET, TTL</text>
+<text class="fc-label" x="300" y="438">±10 %</text>
+<circle class="fc-dot" cx="251" cy="402" r="9"/>
+<text class="fc-num" x="251" y="406">7</text>
+</g>
+</svg>
+<ol class="fc-steps">
+<li data-node="expire"><span class="fc-say">One hot key expires at t = 0, with 200 clients wanting it.</span></li>
+<li data-node="window"><span class="fc-say">Computing the value takes 600 ms, and every arrival inside that window misses.</span></li>
+<li data-node="herd"><span class="fc-say">With no lock, all 200 compute the same vector: embed_calls = 200.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">A popular key expires and 500 requests arrive. Walk me through it.</span><p>All 500 miss for the whole 600 ms compute window, so you get 500 identical computations: 500× the provider bill and a latency spike.</p></div></li>
+<li data-node="lock"><span class="fc-say">One lock per key: one winner computes while the other 199 wait.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">And if the process holding the lock dies?</span><p>The lock needs a timeout longer than p99 of the compute, and the waiters need a decision: compute anyway, serve stale, or shed.</p></div></li>
+<li data-node="recheck"><span class="fc-say">The 199 waiters re-check the cache after getting the lock, and hit.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">You added a lock per key. What is the bug?</span><p>Waiters must re-check the cache after getting the lock. Without it, 200 parallel misses become 200 serial ones: two minutes at 600 ms each.</p></div></li>
+<li data-node="one"><span class="fc-say">embed_calls = 1, measured, down from 200.</span></li>
+<li data-node="jitter"><span class="fc-say">The winner writes back with a ±10 % jittered TTL, so keys don’t expire together.</span></li>
+</ol>
+</figure>
+</section>
+
+<section class="fc-item" id="fc-0006">
+<h2><a href="../lessons/0006-redis-is-not-magic.html">0006 &#183; Redis Is Not Magic</a></h2>
+<figure class="fc" data-fc="0006">
+<svg class="fc-svg" viewBox="0 0 360 468" style="--fc-cols:3" role="img" aria-label="Redis Is Not Magic: it breaks at Lost: CONFIG SET only; the fix is appendonly yes in file and everysec: up to 1 s.">
+<defs>
+<marker id="fc-tip-0006" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip" d="M0 0L10 5L0 10z"/></marker>
+<marker id="fc-tip-0006-fix" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip-fix" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+<path class="fc-edge fc-to-fix" data-from="disk" data-to="cfgfile" d="M180 296L180 311L300 311L300 326" marker-end="url(#fc-tip-0006-fix)"/>
+<text class="fc-elabel" data-to="cfgfile" x="240" y="307" text-anchor="middle">real fix</text>
+<path class="fc-edge fc-to-fix" data-from="cfgfile" data-to="window" d="M300 372L300 402" marker-end="url(#fc-tip-0006-fix)"/>
+<path class="fc-edge" data-from="client" data-to="redis" d="M180 68L180 98" marker-end="url(#fc-tip-0006)"/>
+<path class="fc-edge" data-from="redis" data-to="kernel" d="M180 144L180 174" marker-end="url(#fc-tip-0006)"/>
+<path class="fc-edge" data-from="kernel" data-to="disk" d="M180 220L180 250" marker-end="url(#fc-tip-0006)"/>
+<text class="fc-elabel" data-to="disk" x="186" y="239" text-anchor="start">fsync()</text>
+<path class="fc-edge" data-from="disk" data-to="cfgset" d="M180 296L180 311L60 311L60 326" marker-end="url(#fc-tip-0006)"/>
+<text class="fc-elabel" data-to="cfgset" x="120" y="307" text-anchor="middle">wrong fix</text>
+<g class="fc-node" data-node="client">
+<rect class="fc-box" x="132" y="22" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="49.5">Client: SET</text>
+<circle class="fc-dot" cx="131" cy="22" r="9"/>
+<text class="fc-num" x="131" y="26">1</text>
+</g>
+<g class="fc-node" data-node="redis">
+<rect class="fc-box" x="132" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="117">Redis AOF</text>
+<text class="fc-label" x="180" y="134">buffer</text>
+<circle class="fc-dot" cx="131" cy="98" r="9"/>
+<text class="fc-num" x="131" y="102">2</text>
+</g>
+<g class="fc-node" data-node="kernel">
+<rect class="fc-box" x="132" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="193">Kernel page</text>
+<text class="fc-label" x="180" y="210">cache</text>
+<circle class="fc-dot" cx="131" cy="174" r="9"/>
+<text class="fc-num" x="131" y="178">3</text>
+</g>
+<g class="fc-node" data-node="disk">
+<rect class="fc-box" x="132" y="250" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="269">Disk:</text>
+<text class="fc-label" x="180" y="286">durable</text>
+<circle class="fc-dot" cx="131" cy="250" r="9"/>
+<text class="fc-num" x="131" y="254">4</text>
+</g>
+<g class="fc-node fc-break" data-node="cfgset">
+<rect class="fc-box" x="12" y="326" width="96" height="46" rx="10"/>
+<text class="fc-label" x="60" y="345">Lost: CONFIG</text>
+<text class="fc-label" x="60" y="362">SET only</text>
+<circle class="fc-dot" cx="11" cy="326" r="9"/>
+<text class="fc-num" x="11" y="330">5</text>
+<circle class="fc-xdot" cx="109" cy="372" r="9"/>
+<text class="fc-x" x="109" y="376">&#10007;</text>
+</g>
+<g class="fc-node fc-fix" data-node="cfgfile">
+<rect class="fc-box" x="252" y="326" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="345">appendonly</text>
+<text class="fc-label" x="300" y="362">yes in file</text>
+<circle class="fc-dot" cx="251" cy="326" r="9"/>
+<text class="fc-num" x="251" y="330">6</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="window">
+<rect class="fc-box" x="252" y="402" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="421">everysec:</text>
+<text class="fc-label" x="300" y="438">up to 1 s</text>
+<circle class="fc-dot" cx="251" cy="402" r="9"/>
+<text class="fc-num" x="251" y="406">7</text>
+</g>
+</svg>
+<ol class="fc-steps">
+<li data-node="client"><span class="fc-say">A SET travels from the client into Redis’s AOF buffer.</span></li>
+<li data-node="redis"><span class="fc-say">It sits inside the process, so kill -9 loses anything still here.</span></li>
+<li data-node="kernel"><span class="fc-say">write() returns once it is in the page cache; losing the machine loses that too.</span></li>
+<li data-node="disk"><span class="fc-say">fsync() is the only thing that crosses the last boundary.</span></li>
+<li data-node="cfgset"><span class="fc-say">CONFIG SET turns AOF on, but a restart reads the file: appendonly no, value gone.</span></li>
+<li data-node="cfgfile"><span class="fc-say">Change the file, not the server, and recreate the container so it reads it.</span></li>
+<li data-node="window"><span class="fc-say">everysec is free but leaves a window of up to 1 s; always costs 3.8×.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Would you put the rubric scores in Redis?</span><p>No. They are the output of record and belong in Postgres, where you have transactions and a durability story you can audit.</p></div></li>
+</ol>
+</figure>
+</section>
+
+<section class="fc-item" id="fc-0007">
+<h2><a href="../lessons/0007-sse-vs-websocket-for-tokens.html">0007 &#183; SSE vs WebSocket for Tokens</a></h2>
+<figure class="fc" data-fc="0007">
+<svg class="fc-svg" viewBox="120 0 240 392" style="--fc-cols:2" role="img" aria-label="SSE vs WebSocket for Tokens: it breaks at Gzip holds frames; the fix is Gateway header.">
+<defs>
+<marker id="fc-tip-0007" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip" d="M0 0L10 5L0 10z"/></marker>
+<marker id="fc-tip-0007-fix" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip-fix" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+<path class="fc-edge fc-to-fix" data-from="lump" data-to="header" d="M228 273L252 273" marker-end="url(#fc-tip-0007-fix)"/>
+<path class="fc-edge" data-from="gw" data-to="frames" d="M180 68L180 98" marker-end="url(#fc-tip-0007)"/>
+<path class="fc-edge" data-from="frames" data-to="proxy" d="M180 144L180 174" marker-end="url(#fc-tip-0007)"/>
+<path class="fc-edge" data-from="proxy" data-to="lump" d="M180 220L180 250" marker-end="url(#fc-tip-0007)"/>
+<path class="fc-edge" data-from="header" data-to="first" d="M300 296L300 326" marker-end="url(#fc-tip-0007)"/>
+<g class="fc-node" data-node="gw">
+<rect class="fc-box" x="132" y="22" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="41">Gateway</text>
+<text class="fc-label" x="180" y="58">streams</text>
+<circle class="fc-dot" cx="131" cy="22" r="9"/>
+<text class="fc-num" x="131" y="26">1</text>
+</g>
+<g class="fc-node" data-node="frames">
+<rect class="fc-box" x="132" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="117">182 SSE</text>
+<text class="fc-label" x="180" y="134">frames</text>
+<circle class="fc-dot" cx="131" cy="98" r="9"/>
+<text class="fc-num" x="131" y="102">2</text>
+</g>
+<g class="fc-node" data-node="proxy">
+<rect class="fc-box" x="132" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="193">Nginx with</text>
+<text class="fc-label" x="180" y="210">gzip</text>
+<circle class="fc-dot" cx="131" cy="174" r="9"/>
+<text class="fc-num" x="131" y="178">3</text>
+</g>
+<g class="fc-node fc-break fc-has-ask" data-node="lump">
+<rect class="fc-box" x="132" y="250" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="269">Gzip holds</text>
+<text class="fc-label" x="180" y="286">frames</text>
+<circle class="fc-dot" cx="131" cy="250" r="9"/>
+<text class="fc-num" x="131" y="254">4</text>
+<circle class="fc-xdot" cx="229" cy="296" r="9"/>
+<text class="fc-x" x="229" y="300">&#10007;</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="header">
+<rect class="fc-box" x="252" y="250" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="269">Gateway</text>
+<text class="fc-label" x="300" y="286">header</text>
+<circle class="fc-dot" cx="251" cy="250" r="9"/>
+<text class="fc-num" x="251" y="254">5</text>
+</g>
+<g class="fc-node" data-node="first">
+<rect class="fc-box" x="252" y="326" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="345">First word</text>
+<text class="fc-label" x="300" y="362">393 ms</text>
+<circle class="fc-dot" cx="251" cy="326" r="9"/>
+<text class="fc-num" x="251" y="330">6</text>
+</g>
+</svg>
+<ol class="fc-steps">
+<li data-node="gw"><span class="fc-say">SSE is enough one-way; WebSocket isn’t faster. First word 390 ms against 3 774.</span></li>
+<li data-node="frames"><span class="fc-say">182 frames, one per token plus stop and [DONE]: 37 655 bytes against 1 461.</span></li>
+<li data-node="proxy"><span class="fc-say">Stock nginx buffering costs about 3 ms; compression is the real risk.</span></li>
+<li data-node="lump"><span class="fc-say">With compression on and the header gone, all frames leave together at 3 796 ms.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Responses hang, then dump at once. Where do you look?</span><p>Walk the hops: our handler, any proxy, the client. Compression before buffering: buffering cost 3 ms, while gzip took first word from 393 ms to 3 796 ms.</p></div></li>
+<li data-node="header"><span class="fc-say">One line in the gateway, X-Accel-Buffering: no, switches off the postponing chain.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Twenty-six times the bytes sounds bad. Would you stop streaming?</span><p>No, because compression takes it back: 37 655 bytes became 2 588, under twice the non-streaming size, for a first word nine and a half times sooner.</p></div></li>
+<li data-node="first"><span class="fc-say">Frames arrive 19 ms apart again and the first word lands at 393 ms.</span></li>
+</ol>
+</figure>
+</section>
+
+<section class="fc-item" id="fc-0008">
+<h2><a href="../lessons/0008-kv-cache-and-prefix-caching.html">0008 &#183; KV Cache and Prefix Caching</a></h2>
+<figure class="fc" data-fc="0008">
+<svg class="fc-svg" viewBox="0 0 360 316" style="--fc-cols:3" role="img" aria-label="KV Cache and Prefix Caching: it breaks at Typo: all blocks cold; the fix is Identical prefix first.">
+<defs>
+<marker id="fc-tip-0008" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip" d="M0 0L10 5L0 10z"/></marker>
+<marker id="fc-tip-0008-fix" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip-fix" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+<path class="fc-edge fc-to-fix" data-from="chain" data-to="same" d="M180 144L180 159L300 159L300 174" marker-end="url(#fc-tip-0008-fix)"/>
+<text class="fc-elabel" data-to="same" x="240" y="155" text-anchor="middle">after</text>
+<path class="fc-edge" data-from="prompt" data-to="chain" d="M180 68L180 98" marker-end="url(#fc-tip-0008)"/>
+<path class="fc-edge" data-from="prompt" data-to="cap" d="M228 45L252 45" marker-end="url(#fc-tip-0008)"/>
+<path class="fc-edge" data-from="chain" data-to="edit" d="M180 144L180 159L60 159L60 174" marker-end="url(#fc-tip-0008)"/>
+<text class="fc-elabel" data-to="edit" x="120" y="155" text-anchor="middle">before</text>
+<path class="fc-edge" data-from="edit" data-to="cold" d="M60 220L60 250" marker-end="url(#fc-tip-0008)"/>
+<path class="fc-edge" data-from="same" data-to="warm" d="M300 220L300 250" marker-end="url(#fc-tip-0008)"/>
+<g class="fc-node" data-node="prompt">
+<rect class="fc-box" x="132" y="22" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="41">Prompt in</text>
+<text class="fc-label" x="180" y="58">blocks</text>
+<circle class="fc-dot" cx="131" cy="22" r="9"/>
+<text class="fc-num" x="131" y="26">1</text>
+</g>
+<g class="fc-node" data-node="cap">
+<rect class="fc-box" x="252" y="22" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="41">60 per</text>
+<text class="fc-label" x="300" y="58">80 GiB card</text>
+<circle class="fc-dot" cx="251" cy="22" r="9"/>
+<text class="fc-num" x="251" y="26">2</text>
+</g>
+<g class="fc-node" data-node="chain">
+<rect class="fc-box" x="132" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="117">Chained</text>
+<text class="fc-label" x="180" y="134">block hash</text>
+<circle class="fc-dot" cx="131" cy="98" r="9"/>
+<text class="fc-num" x="131" y="102">3</text>
+</g>
+<g class="fc-node" data-node="edit">
+<rect class="fc-box" x="12" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="60" y="193">Typo at the</text>
+<text class="fc-label" x="60" y="210">top</text>
+<circle class="fc-dot" cx="11" cy="174" r="9"/>
+<text class="fc-num" x="11" y="178">4</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="same">
+<rect class="fc-box" x="252" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="193">Identical</text>
+<text class="fc-label" x="300" y="210">prefix first</text>
+<circle class="fc-dot" cx="251" cy="174" r="9"/>
+<text class="fc-num" x="251" y="178">6</text>
+</g>
+<g class="fc-node fc-break fc-has-ask" data-node="cold">
+<rect class="fc-box" x="12" y="250" width="96" height="46" rx="10"/>
+<text class="fc-label" x="60" y="269">Typo: all</text>
+<text class="fc-label" x="60" y="286">blocks cold</text>
+<circle class="fc-dot" cx="11" cy="250" r="9"/>
+<text class="fc-num" x="11" y="254">5</text>
+<circle class="fc-xdot" cx="109" cy="296" r="9"/>
+<text class="fc-x" x="109" y="300">&#10007;</text>
+</g>
+<g class="fc-node" data-node="warm">
+<rect class="fc-box" x="252" y="250" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="277.5">Warm: 97 ms</text>
+<circle class="fc-dot" cx="251" cy="250" r="9"/>
+<text class="fc-num" x="251" y="254">7</text>
+</g>
+</svg>
+<ol class="fc-steps">
+<li data-node="prompt"><span class="fc-say">The prompt is 16-token blocks: 2 048 shared tokens, then 48 for this turn.</span></li>
+<li data-node="cap"><span class="fc-say">128 KiB a token, one gibibyte a conversation, sixty conversations a card.</span></li>
+<li data-node="chain"><span class="fc-say">Each block’s hash covers its parent’s, so a prefix is shared, a suffix never.</span></li>
+<li data-node="edit"><span class="fc-say">Someone fixes one character in the first line of the shared system prompt.</span></li>
+<li data-node="cold"><span class="fc-say">Every later block dies: 97 ms becomes 817 ms, healing on the next call.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">A typo fix at the top of the shared prompt: what happens to the cache?</span><p>All of it. Each block’s hash covers its parent’s, so changing block one changes every block after it. Then the edited prefix becomes the cached one.</p></div></li>
+<li data-node="same"><span class="fc-say">Keep the prefix byte-identical and put anything that varies after it.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Your system prompt is 2 000 tokens. Isn’t that wasteful?</span><p>Not on a hit: its blocks are already resident, so prefill covers only what differs. The condition is byte-identical and at the front.</p></div></li>
+<li data-node="warm"><span class="fc-say">On a hit only the 48 new tokens prefill, so first word is 97 ms.</span></li>
+</ol>
+</figure>
+</section>
+
+<section class="fc-item" id="fc-0009">
+<h2><a href="../lessons/0009-cache-aware-routing.html">0009 &#183; Cache-Aware Routing</a></h2>
+<figure class="fc" data-fc="0009">
+<svg class="fc-svg" viewBox="0 0 360 240" style="--fc-cols:3" role="img" aria-label="Cache-Aware Routing: it breaks at Round-robin: 47 % hit; the fix is Hash ends in history.">
+<defs>
+<marker id="fc-tip-0009" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip" d="M0 0L10 5L0 10z"/></marker>
+<marker id="fc-tip-0009-fix" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip-fix" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+<path class="fc-edge fc-to-fix" data-from="spans" data-to="window" d="M180 68L180 83L300 83L300 98" marker-end="url(#fc-tip-0009-fix)"/>
+<text class="fc-elabel" data-to="window" x="240" y="79" text-anchor="middle">after</text>
+<path class="fc-edge" data-from="spans" data-to="rr" d="M180 68L180 83L60 83L60 98" marker-end="url(#fc-tip-0009)"/>
+<text class="fc-elabel" data-to="rr" x="120" y="79" text-anchor="middle">before</text>
+<path class="fc-edge" data-from="spans" data-to="short" d="M180 68L180 98" marker-end="url(#fc-tip-0009)"/>
+<path class="fc-edge" data-from="window" data-to="result" d="M300 144L300 174" marker-end="url(#fc-tip-0009)"/>
+<g class="fc-node" data-node="spans">
+<rect class="fc-box" x="132" y="22" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="41">Three prompt</text>
+<text class="fc-label" x="180" y="58">spans</text>
+<circle class="fc-dot" cx="131" cy="22" r="9"/>
+<text class="fc-num" x="131" y="26">1</text>
+</g>
+<g class="fc-node fc-break fc-has-ask" data-node="rr">
+<rect class="fc-box" x="12" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="60" y="117">Round-robin:</text>
+<text class="fc-label" x="60" y="134">47 % hit</text>
+<circle class="fc-dot" cx="11" cy="98" r="9"/>
+<text class="fc-num" x="11" y="102">2</text>
+<circle class="fc-xdot" cx="109" cy="144" r="9"/>
+<text class="fc-x" x="109" y="148">&#10007;</text>
+</g>
+<g class="fc-node" data-node="short">
+<rect class="fc-box" x="132" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="117">Too short:</text>
+<text class="fc-label" x="180" y="134">one replica</text>
+<circle class="fc-dot" cx="131" cy="98" r="9"/>
+<text class="fc-num" x="131" y="102">3</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="window">
+<rect class="fc-box" x="252" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="117">Hash ends in</text>
+<text class="fc-label" x="300" y="134">history</text>
+<circle class="fc-dot" cx="251" cy="98" r="9"/>
+<text class="fc-num" x="251" y="102">4</text>
+</g>
+<g class="fc-node" data-node="result">
+<rect class="fc-box" x="252" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="193">78 % hit,</text>
+<text class="fc-label" x="300" y="210">172 ms p99</text>
+<circle class="fc-dot" cx="251" cy="174" r="9"/>
+<text class="fc-num" x="251" y="178">5</text>
+</g>
+</svg>
+<ol class="fc-steps">
+<li data-node="spans"><span class="fc-say">One bar, three spans: shared by everyone, shared within one conversation, never repeats.</span></li>
+<li data-node="rr"><span class="fc-say">Round-robin splits evenly, blind to cached prefixes: 47 % hit, 396 ms p99.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Your sessions are stateful and you have four replicas. What is the load balancer doing?</span><p>By default, the wrong thing. Each replica holds its own prefix cache, and round-robin equalises request counts, which was the right objective only while replicas were interchangeable.</p></div></li>
+<li data-node="short"><span class="fc-say">Stop the hash in the preamble and it is a constant: one replica takes everything.</span></li>
+<li data-node="window"><span class="fc-say">Hash up to the end of the history: constant per conversation, so that is affinity.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Why not just route to whichever replica has the best cache for the request?</span><p>I tried it: the highest hit rate, 79.6 %, and all 192 requests on one replica. That replica holds the shared preamble, so it wins every match forever.</p></div></li>
+<li data-node="result"><span class="fc-say">Hit rate 78 %, p99 172 ms; load spread worsens from 43–53 to 35–55.</span></li>
+</ol>
+</figure>
+</section>
+
+<section class="fc-item" id="fc-0010">
+<h2><a href="../lessons/0010-backoff-with-jitter.html">0010 &#183; Backoff with Jitter</a></h2>
+<figure class="fc" data-fc="0010">
+<svg class="fc-svg" viewBox="120 0 240 392" style="--fc-cols:2" role="img" aria-label="Backoff with Jitter: it breaks at Gives up at 2507 ms; the fix is Raise cap or attempts and Retry budget.">
+<defs>
+<marker id="fc-tip-0010" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip" d="M0 0L10 5L0 10z"/></marker>
+<marker id="fc-tip-0010-fix" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip-fix" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+<path class="fc-edge fc-to-fix" data-from="short" data-to="cap" d="M180 296L180 326" marker-end="url(#fc-tip-0010-fix)"/>
+<path class="fc-edge fc-to-fix" data-from="adds" data-to="budget" d="M180 144L180 159L300 159L300 174" marker-end="url(#fc-tip-0010-fix)"/>
+<path class="fc-edge" data-from="stages" data-to="adds" d="M180 68L180 98" marker-end="url(#fc-tip-0010)"/>
+<path class="fc-edge" data-from="adds" data-to="jitter" d="M180 144L180 174" marker-end="url(#fc-tip-0010)"/>
+<path class="fc-edge" data-from="jitter" data-to="short" d="M180 220L180 250" marker-end="url(#fc-tip-0010)"/>
+<g class="fc-node" data-node="stages">
+<rect class="fc-box" x="132" y="22" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="41">Five stages</text>
+<text class="fc-label" x="180" y="58">in a row</text>
+<circle class="fc-dot" cx="131" cy="22" r="9"/>
+<text class="fc-num" x="131" y="26">1</text>
+</g>
+<g class="fc-node" data-node="adds">
+<rect class="fc-box" x="132" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="117">Serial: 3×,</text>
+<text class="fc-label" x="180" y="134">not 243×</text>
+<circle class="fc-dot" cx="131" cy="98" r="9"/>
+<text class="fc-num" x="131" y="102">2</text>
+</g>
+<g class="fc-node" data-node="jitter">
+<rect class="fc-box" x="132" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="201.5">Full jitter</text>
+<circle class="fc-dot" cx="131" cy="174" r="9"/>
+<text class="fc-num" x="131" y="178">3</text>
+</g>
+<g class="fc-node fc-break fc-has-ask" data-node="short">
+<rect class="fc-box" x="132" y="250" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="269">Gives up at</text>
+<text class="fc-label" x="180" y="286">2507 ms</text>
+<circle class="fc-dot" cx="131" cy="250" r="9"/>
+<text class="fc-num" x="131" y="254">4</text>
+<circle class="fc-xdot" cx="229" cy="296" r="9"/>
+<text class="fc-x" x="229" y="300">&#10007;</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="cap">
+<rect class="fc-box" x="132" y="326" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="345">Raise cap or</text>
+<text class="fc-label" x="180" y="362">attempts</text>
+<circle class="fc-dot" cx="131" cy="326" r="9"/>
+<text class="fc-num" x="131" y="330">5</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="budget">
+<rect class="fc-box" x="252" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="201.5">Retry budget</text>
+<circle class="fc-dot" cx="251" cy="174" r="9"/>
+<text class="fc-num" x="251" y="178">6</text>
+</g>
+</svg>
+<ol class="fc-steps">
+<li data-node="stages"><span class="fc-say">Five stages in a row, each retrying three times.</span></li>
+<li data-node="adds"><span class="fc-say">Serial stages add: 15 calls, 3 in practice; 243× needs five nested layers.</span></li>
+<li data-node="jitter"><span class="fc-say">Full jitter spreads clients out and takes the peak from 490/s to 320/s.</span></li>
+<li data-node="short"><span class="fc-say">The 2507 ms window ends before the 4000 ms outage: 3 of 49 finish.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Why jitter? Isn’t exponential backoff already spreading the load out?</span><p>Backoff relocates contention; jitter cut the peak from 490/s to 320/s. The cost is the window: 5000 ms to 2507 ms, so completions fell from 49 of 49 to 3.</p></div></li>
+<li data-node="cap"><span class="fc-say">Raise the attempt count or the cap to restore the window.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">How did you pick the attempt count?</span><p>From the outage length I want to survive, then checked it fits the per-stage budget.</p></div></li>
+<li data-node="budget"><span class="fc-say">Only a shared token bucket at 10 % bounds the total; it doesn’t rescue requests.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">What stops retries taking the provider down when it is already struggling?</span><p>A token bucket per dependency, refilling at about 10 % of real request rate. It does not rescue the request.</p></div></li>
+</ol>
+</figure>
+</section>
+
+<section class="fc-item" id="fc-0011">
+<h2><a href="../lessons/0011-the-breaker-you-have-to-defend.html">0011 &#183; The Breaker You Have to Defend</a></h2>
+<figure class="fc" data-fc="0011">
+<svg class="fc-svg" viewBox="0 0 360 392" style="--fc-cols:3" role="img" aria-label="The Breaker You Have to Defend: it breaks at No gate: 1 call opens; the fix is Min-sample gate and Slow counts as failure.">
+<defs>
+<marker id="fc-tip-0011" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip" d="M0 0L10 5L0 10z"/></marker>
+<marker id="fc-tip-0011-fix" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip-fix" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+<path class="fc-edge fc-to-fix" data-from="states" data-to="gate" d="M180 220L180 235L300 235L300 250" marker-end="url(#fc-tip-0011-fix)"/>
+<text class="fc-elabel" data-to="gate" x="240" y="231" text-anchor="middle">gated</text>
+<path class="fc-edge fc-to-fix" data-from="gate" data-to="slow" d="M300 296L300 326" marker-end="url(#fc-tip-0011-fix)"/>
+<path class="fc-edge" data-from="calls" data-to="est" d="M180 68L180 98" marker-end="url(#fc-tip-0011)"/>
+<path class="fc-edge" data-from="est" data-to="states" d="M180 144L180 174" marker-end="url(#fc-tip-0011)"/>
+<path class="fc-edge" data-from="states" data-to="nogate" d="M180 220L180 235L60 235L60 250" marker-end="url(#fc-tip-0011)"/>
+<text class="fc-elabel" data-to="nogate" x="120" y="231" text-anchor="middle">ungated</text>
+<g class="fc-node" data-node="calls">
+<rect class="fc-box" x="132" y="22" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="41">Calls to a</text>
+<text class="fc-label" x="180" y="58">dependency</text>
+<circle class="fc-dot" cx="131" cy="22" r="9"/>
+<text class="fc-num" x="131" y="26">1</text>
+</g>
+<g class="fc-node" data-node="est">
+<rect class="fc-box" x="132" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="117">Failure</text>
+<text class="fc-label" x="180" y="134">estimator</text>
+<circle class="fc-dot" cx="131" cy="98" r="9"/>
+<text class="fc-num" x="131" y="102">2</text>
+</g>
+<g class="fc-node" data-node="states">
+<rect class="fc-box" x="132" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="201.5">Three states</text>
+<circle class="fc-dot" cx="131" cy="174" r="9"/>
+<text class="fc-num" x="131" y="178">3</text>
+</g>
+<g class="fc-node fc-break fc-has-ask" data-node="nogate">
+<rect class="fc-box" x="12" y="250" width="96" height="46" rx="10"/>
+<text class="fc-label" x="60" y="269">No gate: 1</text>
+<text class="fc-label" x="60" y="286">call opens</text>
+<circle class="fc-dot" cx="11" cy="250" r="9"/>
+<text class="fc-num" x="11" y="254">4</text>
+<circle class="fc-xdot" cx="109" cy="296" r="9"/>
+<text class="fc-x" x="109" y="300">&#10007;</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="gate">
+<rect class="fc-box" x="252" y="250" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="269">Min-sample</text>
+<text class="fc-label" x="300" y="286">gate</text>
+<circle class="fc-dot" cx="251" cy="250" r="9"/>
+<text class="fc-num" x="251" y="254">5</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="slow">
+<rect class="fc-box" x="252" y="326" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="345">Slow counts</text>
+<text class="fc-label" x="300" y="362">as failure</text>
+<circle class="fc-dot" cx="251" cy="326" r="9"/>
+<text class="fc-num" x="251" y="330">6</text>
+</g>
+</svg>
+<ol class="fc-steps">
+<li data-node="calls"><span class="fc-say">Calls to one dependency go through a breaker.</span></li>
+<li data-node="est"><span class="fc-say">A sliding window over recent outcomes produces one failure rate.</span></li>
+<li data-node="states"><span class="fc-say">Closed, open, half-open compare that rate to a threshold set from the error budget.</span></li>
+<li data-node="nogate"><span class="fc-say">One failed call out of one reads 100 %, opens it, refuses 100 healthy requests.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Have you ever seen one misfire?</span><p>Yes, the ungated one, and it refused a hundred healthy requests.</p></div></li>
+<li data-node="gate"><span class="fc-say">Open only when the rate reaches the threshold and samples reach the minimum.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">What window size?</span><p>Really, how many failures you absorb before opening. The gate that stops false opens also sets that number.</p></div></li>
+<li data-node="slow"><span class="fc-say">Slow successes never trip it; count over-budget as failure and 99 are refused instantly.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Your upstream is three times slower than usual. What does your breaker do?</span><p>By default, nothing: a slow success is a success. I measured 100 calls over the stage budget and the breaker never moved.</p></div></li>
+</ol>
+</figure>
+</section>
+
+<section class="fc-item" id="fc-0012">
+<h2><a href="../lessons/0012-timeout-budgets-and-deadline-propagation.html">0012 &#183; Timeout Budgets and Deadline Propagation</a></h2>
+<figure class="fc" data-fc="0012">
+<svg class="fc-svg" viewBox="0 0 360 392" style="--fc-cols:3" role="img" aria-label="Timeout Budgets and Deadline Propagation: it breaks at Turn ends at 11 880 ms; the fix is One absolute deadline and Stage 4 gets what’s left.">
+<defs>
+<marker id="fc-tip-0012" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip" d="M0 0L10 5L0 10z"/></marker>
+<marker id="fc-tip-0012-fix" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip-fix" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+<path class="fc-edge fc-to-fix" data-from="stages" data-to="deadline" d="M180 144L180 159L300 159L300 174" marker-end="url(#fc-tip-0012-fix)"/>
+<text class="fc-elabel" data-to="deadline" x="240" y="155" text-anchor="middle">after</text>
+<path class="fc-edge fc-to-fix" data-from="deadline" data-to="left" d="M300 220L300 250" marker-end="url(#fc-tip-0012-fix)"/>
+<path class="fc-edge" data-from="edge" data-to="stages" d="M180 68L180 98" marker-end="url(#fc-tip-0012)"/>
+<path class="fc-edge" data-from="stages" data-to="own" d="M180 144L180 159L60 159L60 174" marker-end="url(#fc-tip-0012)"/>
+<text class="fc-elabel" data-to="own" x="120" y="155" text-anchor="middle">before</text>
+<path class="fc-edge" data-from="own" data-to="over" d="M60 220L60 250" marker-end="url(#fc-tip-0012)"/>
+<path class="fc-edge" data-from="left" data-to="wall" d="M300 296L300 326" marker-end="url(#fc-tip-0012)"/>
+<g class="fc-node" data-node="edge">
+<rect class="fc-box" x="132" y="22" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="41">Edge: 8 s</text>
+<text class="fc-label" x="180" y="58">budget</text>
+<circle class="fc-dot" cx="131" cy="22" r="9"/>
+<text class="fc-num" x="131" y="26">1</text>
+</g>
+<g class="fc-node" data-node="stages">
+<rect class="fc-box" x="132" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="117">Five stages</text>
+<text class="fc-label" x="180" y="134">in turn</text>
+</g>
+<g class="fc-node" data-node="own">
+<rect class="fc-box" x="12" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="60" y="193">Each its own</text>
+<text class="fc-label" x="60" y="210">5 s timeout</text>
+<circle class="fc-dot" cx="11" cy="174" r="9"/>
+<text class="fc-num" x="11" y="178">2</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="deadline">
+<rect class="fc-box" x="252" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="193">One absolute</text>
+<text class="fc-label" x="300" y="210">deadline</text>
+<circle class="fc-dot" cx="251" cy="174" r="9"/>
+<text class="fc-num" x="251" y="178">4</text>
+</g>
+<g class="fc-node fc-break fc-has-ask" data-node="over">
+<rect class="fc-box" x="12" y="250" width="96" height="46" rx="10"/>
+<text class="fc-label" x="60" y="269">Turn ends at</text>
+<text class="fc-label" x="60" y="286">11 880 ms</text>
+<circle class="fc-dot" cx="11" cy="250" r="9"/>
+<text class="fc-num" x="11" y="254">3</text>
+<circle class="fc-xdot" cx="109" cy="296" r="9"/>
+<text class="fc-x" x="109" y="300">&#10007;</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="left">
+<rect class="fc-box" x="252" y="250" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="269">Stage 4 gets</text>
+<text class="fc-label" x="300" y="286">what’s left</text>
+<circle class="fc-dot" cx="251" cy="250" r="9"/>
+<text class="fc-num" x="251" y="254">5</text>
+</g>
+<g class="fc-node" data-node="wall">
+<rect class="fc-box" x="252" y="326" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="345">Stops at</text>
+<text class="fc-label" x="300" y="362">8 001 ms</text>
+<circle class="fc-dot" cx="251" cy="326" r="9"/>
+<text class="fc-num" x="251" y="330">6</text>
+</g>
+</svg>
+<ol class="fc-steps">
+<li data-node="edge"><span class="fc-say">The edge promises an 8-second turn; nothing below the edge knows it.</span></li>
+<li data-node="own"><span class="fc-say">Each of five stages honours its own 5-second timeout.</span></li>
+<li data-node="over"><span class="fc-say">Two slow stages: the turn ends at 11 880 ms, no timeout violated.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">You promised an 8-second turn. What enforces it?</span><p>Only the edge. Each of five stages had its own timeout, so the worst case reached 11 880 ms with no timeout violated anywhere.</p></div></li>
+<li data-node="deadline"><span class="fc-say">Pass one absolute deadline down instead of a fresh timeout per hop.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Why not give each stage a fifth of the budget?</span><p>I measured it: 1 600 ms each kept every turn inside the budget but failed 53 of 200. A deadline lets a long stage leave less for the next.</p></div></li>
+<li data-node="left"><span class="fc-say">Stage 4 gets the 2.2 seconds that remain, not a fresh five.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">So what do you do when a stage runs out?</span><p>Fail fast with a distinct error, or degrade, but never extend. The price is 26 turns of 200 that used to finish late.</p></div></li>
+<li data-node="wall"><span class="fc-say">The maximum lands on 8 001 ms every run; it costs 26 turns of 200.</span></li>
+</ol>
+</figure>
+</section>
+
+<section class="fc-item" id="fc-0013">
+<h2><a href="../lessons/0013-admit-queue-or-shed.html">0013 &#183; Admit, Queue, or Shed</a></h2>
+<figure class="fc" data-fc="0013">
+<svg class="fc-svg" viewBox="0 0 360 316" style="--fc-cols:3" role="img" aria-label="Admit, Queue, or Shed: it breaks at Unbounded: 8 s waits; the fix is Bounded queue: 16 and Fast 429, Retry-After.">
+<defs>
+<marker id="fc-tip-0013" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip" d="M0 0L10 5L0 10z"/></marker>
+<marker id="fc-tip-0013-fix" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip-fix" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+<path class="fc-edge fc-to-fix" data-from="sem" data-to="bound" d="M180 144L180 159L300 159L300 174" marker-end="url(#fc-tip-0013-fix)"/>
+<text class="fc-elabel" data-to="bound" x="240" y="155" text-anchor="middle">after</text>
+<path class="fc-edge fc-to-fix" data-from="bound" data-to="door" d="M300 220L300 250" marker-end="url(#fc-tip-0013-fix)"/>
+<path class="fc-edge" data-from="load" data-to="sem" d="M180 68L180 98" marker-end="url(#fc-tip-0013)"/>
+<path class="fc-edge" data-from="sem" data-to="unb" d="M180 144L180 159L60 159L60 174" marker-end="url(#fc-tip-0013)"/>
+<text class="fc-elabel" data-to="unb" x="120" y="155" text-anchor="middle">before</text>
+<g class="fc-node" data-node="load">
+<rect class="fc-box" x="132" y="22" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="49.5">Offered load</text>
+</g>
+<g class="fc-node" data-node="sem">
+<rect class="fc-box" x="132" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="117">Semaphore,</text>
+<text class="fc-label" x="180" y="134">8 slots</text>
+<circle class="fc-dot" cx="131" cy="98" r="9"/>
+<text class="fc-num" x="131" y="102">1</text>
+</g>
+<g class="fc-node fc-break fc-has-ask" data-node="unb">
+<rect class="fc-box" x="12" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="60" y="193">Unbounded:</text>
+<text class="fc-label" x="60" y="210">8 s waits</text>
+<circle class="fc-dot" cx="11" cy="174" r="9"/>
+<text class="fc-num" x="11" y="178">2</text>
+<circle class="fc-xdot" cx="109" cy="220" r="9"/>
+<text class="fc-x" x="109" y="224">&#10007;</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="bound">
+<rect class="fc-box" x="252" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="193">Bounded</text>
+<text class="fc-label" x="300" y="210">queue: 16</text>
+<circle class="fc-dot" cx="251" cy="174" r="9"/>
+<text class="fc-num" x="251" y="178">3</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="door">
+<rect class="fc-box" x="252" y="250" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="269">Fast 429,</text>
+<text class="fc-label" x="300" y="286">Retry-After</text>
+<circle class="fc-dot" cx="251" cy="250" r="9"/>
+<text class="fc-num" x="251" y="254">4</text>
+</g>
+</svg>
+<ol class="fc-steps">
+<li data-node="sem"><span class="fc-say">Requests reach a semaphore with eight slots; everything else waits, no length limit.</span></li>
+<li data-node="unb"><span class="fc-say">Overloaded, goodput falls to 44 % while the upstream’s failure rate stays at zero.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Now scale it to a million concurrent.</span><p>Today it queues, and nobody chose the limit. At roughly twice capacity goodput fell to 44 %, the queue reached 345 deep, and the upstream’s failure rate was zero.</p></div></li>
+<li data-node="bound"><span class="fc-say">Cap the queue at 16: goodput unchanged, p99 from 7 991 to 1 711 ms.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">How did you choose the queue depth?</span><p>From Little’s law: depth over drain rate. At about 21 a second, 16 deep is 762 ms of queueing. It is a p99 knob, not a capacity knob.</p></div></li>
+<li data-node="door"><span class="fc-say">329 of 576 are refused at once with a 429, not eight seconds later.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">What do you shed first?</span><p>Ordering does not change how many you serve, only who. The live interview turn is protected; batch re-scoring and retries go first.</p></div></li>
+</ol>
+</figure>
+</section>
+
+<section class="fc-item" id="fc-0014">
+<h2><a href="../lessons/0014-idempotency-is-a-key-and-a-clock.html">0014 &#183; Idempotency Is a Key and a Clock</a></h2>
+<figure class="fc" data-fc="0014">
+<svg class="fc-svg" viewBox="0 0 360 392" style="--fc-cols:3" role="img" aria-label="Idempotency Is a Key and a Clock: it breaks at 16 of 16 applied; the fix is Insert first and Unique index decides.">
+<defs>
+<marker id="fc-tip-0014" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip" d="M0 0L10 5L0 10z"/></marker>
+<marker id="fc-tip-0014-fix" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip-fix" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+<path class="fc-edge fc-to-fix" data-from="dup" data-to="insert" d="M180 68L180 83L300 83L300 98" marker-end="url(#fc-tip-0014-fix)"/>
+<text class="fc-elabel" data-to="insert" x="240" y="79" text-anchor="middle">after</text>
+<path class="fc-edge fc-to-fix" data-from="insert" data-to="index" d="M300 144L300 174" marker-end="url(#fc-tip-0014-fix)"/>
+<path class="fc-edge" data-from="dup" data-to="check" d="M180 68L180 83L60 83L60 98" marker-end="url(#fc-tip-0014)"/>
+<text class="fc-elabel" data-to="check" x="120" y="79" text-anchor="middle">before</text>
+<path class="fc-edge" data-from="check" data-to="all" d="M60 144L60 174" marker-end="url(#fc-tip-0014)"/>
+<path class="fc-edge" data-from="index" data-to="once" d="M300 220L300 250" marker-end="url(#fc-tip-0014)"/>
+<path class="fc-edge" data-from="once" data-to="clock" d="M300 296L300 326" marker-end="url(#fc-tip-0014)"/>
+<g class="fc-node" data-node="dup">
+<rect class="fc-box" x="132" y="22" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="41">16</text>
+<text class="fc-label" x="180" y="58">duplicates</text>
+<circle class="fc-dot" cx="131" cy="22" r="9"/>
+<text class="fc-num" x="131" y="26">1</text>
+</g>
+<g class="fc-node" data-node="check">
+<rect class="fc-box" x="12" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="60" y="117">Check, then</text>
+<text class="fc-label" x="60" y="134">act</text>
+<circle class="fc-dot" cx="11" cy="98" r="9"/>
+<text class="fc-num" x="11" y="102">2</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="insert">
+<rect class="fc-box" x="252" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="125.5">Insert first</text>
+<circle class="fc-dot" cx="251" cy="98" r="9"/>
+<text class="fc-num" x="251" y="102">4</text>
+</g>
+<g class="fc-node fc-break fc-has-ask" data-node="all">
+<rect class="fc-box" x="12" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="60" y="193">16 of 16</text>
+<text class="fc-label" x="60" y="210">applied</text>
+<circle class="fc-dot" cx="11" cy="174" r="9"/>
+<text class="fc-num" x="11" y="178">3</text>
+<circle class="fc-xdot" cx="109" cy="220" r="9"/>
+<text class="fc-x" x="109" y="224">&#10007;</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="index">
+<rect class="fc-box" x="252" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="193">Unique index</text>
+<text class="fc-label" x="300" y="210">decides</text>
+<circle class="fc-dot" cx="251" cy="174" r="9"/>
+<text class="fc-num" x="251" y="178">5</text>
+</g>
+<g class="fc-node" data-node="once">
+<rect class="fc-box" x="252" y="250" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="269">1 of 16</text>
+<text class="fc-label" x="300" y="286">applied</text>
+<circle class="fc-dot" cx="251" cy="250" r="9"/>
+<text class="fc-num" x="251" y="254">6</text>
+</g>
+<g class="fc-node" data-node="clock">
+<rect class="fc-box" x="252" y="326" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="345">Clock: key</text>
+<text class="fc-label" x="300" y="362">lifetime</text>
+<circle class="fc-dot" cx="251" cy="326" r="9"/>
+<text class="fc-num" x="251" y="330">7</text>
+</g>
+</svg>
+<ol class="fc-steps">
+<li data-node="dup"><span class="fc-say">Sixteen concurrent duplicates of one request arrive with the same key.</span></li>
+<li data-node="check"><span class="fc-say">The textbook version reads the key, then writes it: two statements.</span></li>
+<li data-node="all"><span class="fc-say">Every caller reads before any writes, so the side effect applies 16 of 16.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">How likely is that race really? Surely it needs heavy load.</span><p>Two callers is enough. I swept 2, 4, 8, 16, 32 duplicates and applies track the caller count; there is no concurrency below which it is safe.</p></div></li>
+<li data-node="insert"><span class="fc-say">Write the key first and handle the collision; the check and write are one statement.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">What does the loser see?</span><p>In-progress or the stored response, which is why there are three record states.</p></div></li>
+<li data-node="index"><span class="fc-say">The unique index accepts one writer; insert-first expects the rest, so no 500s.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Could you do this without the database, in Redis or in memory?</span><p>In memory no, an event loop hides the bug. Redis yes: SET key value NX is one atomic conditional write where the loser is told.</p></div></li>
+<li data-node="once"><span class="fc-say">One apply, and the loser is told in progress: 1 of 16.</span></li>
+<li data-node="clock"><span class="fc-say">The index can’t catch a pruned key: lifetime must outlive the longest retry window.</span></li>
+</ol>
+</figure>
+</section>
+
+<section class="fc-item" id="fc-0015">
+<h2><a href="../lessons/0015-the-wait-no-timeout-can-see.html">0015 &#183; The Wait No Timeout Can See</a></h2>
+<figure class="fc" data-fc="0015">
+<svg class="fc-svg" viewBox="0 0 360 392" style="--fc-cols:3" role="img" aria-label="The Wait No Timeout Can See: it breaks at Queue before query; the fix is Size by Little’s law and Bound on what’s left.">
+<defs>
+<marker id="fc-tip-0015" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip" d="M0 0L10 5L0 10z"/></marker>
+<marker id="fc-tip-0015-fix" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip-fix" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+<path class="fc-edge fc-to-fix" data-from="pool" data-to="size" d="M180 144L180 159L300 159L300 174" marker-end="url(#fc-tip-0015-fix)"/>
+<text class="fc-elabel" data-to="size" x="240" y="155" text-anchor="middle">sized</text>
+<path class="fc-edge fc-to-fix" data-from="size" data-to="bound" d="M300 220L300 250" marker-end="url(#fc-tip-0015-fix)"/>
+<path class="fc-edge" data-from="req" data-to="pool" d="M180 68L180 98" marker-end="url(#fc-tip-0015)"/>
+<path class="fc-edge" data-from="pool" data-to="wait" d="M180 144L180 159L60 159L60 174" marker-end="url(#fc-tip-0015)"/>
+<text class="fc-elabel" data-to="wait" x="120" y="155" text-anchor="middle">default</text>
+<path class="fc-edge" data-from="bound" data-to="proxy" d="M300 296L300 326" marker-end="url(#fc-tip-0015)"/>
+<text class="fc-elabel" data-to="proxy" x="294" y="315" text-anchor="end">more replicas</text>
+<g class="fc-node" data-node="req">
+<rect class="fc-box" x="132" y="22" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="41">Forty</text>
+<text class="fc-label" x="180" y="58">requests in</text>
+<circle class="fc-dot" cx="131" cy="22" r="9"/>
+<text class="fc-num" x="131" y="26">1</text>
+</g>
+<g class="fc-node" data-node="pool">
+<rect class="fc-box" x="132" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="117">Pool:</text>
+<text class="fc-label" x="180" y="134">default 5</text>
+<circle class="fc-dot" cx="131" cy="98" r="9"/>
+<text class="fc-num" x="131" y="102">2</text>
+</g>
+<g class="fc-node fc-break fc-has-ask" data-node="wait">
+<rect class="fc-box" x="12" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="60" y="193">Queue before</text>
+<text class="fc-label" x="60" y="210">query</text>
+<circle class="fc-dot" cx="11" cy="174" r="9"/>
+<text class="fc-num" x="11" y="178">3</text>
+<circle class="fc-xdot" cx="109" cy="220" r="9"/>
+<text class="fc-x" x="109" y="224">&#10007;</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="size">
+<rect class="fc-box" x="252" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="193">Size by</text>
+<text class="fc-label" x="300" y="210">Little’s law</text>
+<circle class="fc-dot" cx="251" cy="174" r="9"/>
+<text class="fc-num" x="251" y="178">4</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="bound">
+<rect class="fc-box" x="252" y="250" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="269">Bound on</text>
+<text class="fc-label" x="300" y="286">what’s left</text>
+<circle class="fc-dot" cx="251" cy="250" r="9"/>
+<text class="fc-num" x="251" y="254">5</text>
+</g>
+<g class="fc-node" data-node="proxy">
+<rect class="fc-box" x="252" y="326" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="345">Proxy that</text>
+<text class="fc-label" x="300" y="362">forgets</text>
+<circle class="fc-dot" cx="251" cy="326" r="9"/>
+<text class="fc-num" x="251" y="330">6</text>
+</g>
+</svg>
+<ol class="fc-steps">
+<li data-node="req"><span class="fc-say">Async code puts forty concurrent requests on the database.</span></li>
+<li data-node="pool"><span class="fc-say">SQLAlchemy’s default pool is 5, a number nobody chose.</span></li>
+<li data-node="wait"><span class="fc-say">The median request spends 363 ms queueing and 91 ms querying; no timeout sees it.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Request latency is up but every query is fast. Where do you look?</span><p>Between them: the pool, a proxy, or the event loop. Measure checkout time directly, because nothing measures it by default.</p></div></li>
+<li data-node="size"><span class="fc-say">Little’s law: the ceiling is pool ÷ hold time, 55/s predicted, 53 measured.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">So why not make it enormous?</span><p>Every connection is a Postgres backend process, and the limit is shared across replicas.</p></div></li>
+<li data-node="bound"><span class="fc-say">Bound the wait at what is left of the deadline, not thirty seconds.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Would you bound the wait for a connection, and at what?</span><p>At what is left of the request deadline, not the budget. At half a second the run refused 130 of 160 requests.</p></div></li>
+<li data-node="proxy"><span class="fc-say">A transaction pooler breaks prepared statements; fix it in the driver or the proxy.</span></li>
+</ol>
+</figure>
+</section>
+
+<section class="fc-item" id="fc-0016">
+<h2><a href="../lessons/0016-the-update-that-was-never-refused.html">0016 &#183; The Update That Was Never Refused</a></h2>
+<figure class="fc" data-fc="0016">
+<svg class="fc-svg" viewBox="120 0 120 544" style="--fc-cols:1" role="img" aria-label="The Update That Was Never Refused: it breaks at Lost update, no error; the fix is REPEATABLE READ and Retry loop.">
+<defs>
+<marker id="fc-tip-0016" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip" d="M0 0L10 5L0 10z"/></marker>
+<marker id="fc-tip-0016-fix" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip-fix" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+<path class="fc-edge fc-to-fix" data-from="lost" data-to="rr" d="M180 220L180 250" marker-end="url(#fc-tip-0016-fix)"/>
+<path class="fc-edge fc-to-fix" data-from="rr" data-to="retry" d="M180 296L180 326" marker-end="url(#fc-tip-0016-fix)"/>
+<path class="fc-edge" data-from="writers" data-to="rmw" d="M180 68L180 98" marker-end="url(#fc-tip-0016)"/>
+<path class="fc-edge" data-from="rmw" data-to="lost" d="M180 144L180 174" marker-end="url(#fc-tip-0016)"/>
+<path class="fc-edge" data-from="retry" data-to="budget" d="M180 372L180 402" marker-end="url(#fc-tip-0016)"/>
+<path class="fc-edge" data-from="budget" data-to="serial" d="M180 448L180 478" marker-end="url(#fc-tip-0016)"/>
+<g class="fc-node" data-node="writers">
+<rect class="fc-box" x="132" y="22" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="41">Eight</text>
+<text class="fc-label" x="180" y="58">writers</text>
+<circle class="fc-dot" cx="131" cy="22" r="9"/>
+<text class="fc-num" x="131" y="26">1</text>
+</g>
+<g class="fc-node" data-node="rmw">
+<rect class="fc-box" x="132" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="117">Read, add</text>
+<text class="fc-label" x="180" y="134">one, write</text>
+<circle class="fc-dot" cx="131" cy="98" r="9"/>
+<text class="fc-num" x="131" y="102">2</text>
+</g>
+<g class="fc-node fc-break fc-has-ask" data-node="lost">
+<rect class="fc-box" x="132" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="193">Lost update,</text>
+<text class="fc-label" x="180" y="210">no error</text>
+<circle class="fc-dot" cx="131" cy="174" r="9"/>
+<text class="fc-num" x="131" y="178">3</text>
+<circle class="fc-xdot" cx="229" cy="220" r="9"/>
+<text class="fc-x" x="229" y="224">&#10007;</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="rr">
+<rect class="fc-box" x="132" y="250" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="269">REPEATABLE</text>
+<text class="fc-label" x="180" y="286">READ</text>
+<circle class="fc-dot" cx="131" cy="250" r="9"/>
+<text class="fc-num" x="131" y="254">4</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="retry">
+<rect class="fc-box" x="132" y="326" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="353.5">Retry loop</text>
+<circle class="fc-dot" cx="131" cy="326" r="9"/>
+<text class="fc-num" x="131" y="330">5</text>
+</g>
+<g class="fc-node" data-node="budget">
+<rect class="fc-box" x="132" y="402" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="421">Budget ≥</text>
+<text class="fc-label" x="180" y="438">writers</text>
+<circle class="fc-dot" cx="131" cy="402" r="9"/>
+<text class="fc-num" x="131" y="406">6</text>
+</g>
+<g class="fc-node" data-node="serial">
+<rect class="fc-box" x="132" y="478" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="497">Write skew:</text>
+<text class="fc-label" x="180" y="514">SERIALIZABLE</text>
+<circle class="fc-dot" cx="131" cy="478" r="9"/>
+<text class="fc-num" x="131" y="482">7</text>
+</g>
+</svg>
+<ol class="fc-steps">
+<li data-node="writers"><span class="fc-say">Eight writers each add one to the same score.</span></li>
+<li data-node="rmw"><span class="fc-say">Each reads the current score, adds one and writes it back.</span></li>
+<li data-node="lost"><span class="fc-say">The final value is one; every writer reports success and nothing raises an error.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Two workers read a row, modify it, and write it back. What happens?</span><p>One wins and the other is silently overwritten. Eight writers produced a final value of one, with zero errors and every writer reporting success.</p></div></li>
+<li data-node="rr"><span class="fc-say">REPEATABLE READ still ends at one, but seven writers now fail with 40001.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">What is write skew, and which level catches it?</span><p>Two transactions each check a rule, find room, and write different rows. REPEATABLE READ only compares writes, so it misses it; SERIALIZABLE tracks read-write dependencies.</p></div></li>
+<li data-node="retry"><span class="fc-say">Run the whole transaction again on 40001, and all eight land.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">How many times would you retry, and where does that number come from?</span><p>At least the number of writers contending for one row. Sixteen writers against a budget of eight left exactly eight surviving, on every run.</p></div></li>
+<li data-node="budget"><span class="fc-say">Sixteen writers against a budget of eight: exactly eight survive. Size it from contention.</span></li>
+<li data-node="serial"><span class="fc-say">An invariant across two rows needs serializable, because write skew is invisible to repeatable read.</span></li>
+</ol>
+</figure>
+</section>
+
+<section class="fc-item" id="fc-0017">
+<h2><a href="../lessons/0017-the-await-inside-the-transaction.html">0017 &#183; The Await Inside the Transaction</a></h2>
+<figure class="fc" data-fc="0017">
+<svg class="fc-svg" viewBox="0 0 360 392" style="--fc-cols:3" role="img" aria-label="The Await Inside the Transaction: it breaks at Lock + pool held; the fix is Short transaction and Atomic or versioned.">
+<defs>
+<marker id="fc-tip-0017" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip" d="M0 0L10 5L0 10z"/></marker>
+<marker id="fc-tip-0017-fix" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip-fix" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+<path class="fc-edge fc-to-fix" data-from="callfirst" data-to="short" d="M300 144L300 174" marker-end="url(#fc-tip-0017-fix)"/>
+<path class="fc-edge fc-to-fix" data-from="short" data-to="atomic" d="M300 220L300 250" marker-end="url(#fc-tip-0017-fix)"/>
+<path class="fc-edge" data-from="turn" data-to="opens" d="M180 68L180 83L60 83L60 98" marker-end="url(#fc-tip-0017)"/>
+<text class="fc-elabel" data-to="opens" x="120" y="79" text-anchor="middle">before</text>
+<path class="fc-edge" data-from="turn" data-to="callfirst" d="M180 68L180 83L300 83L300 98" marker-end="url(#fc-tip-0017)"/>
+<text class="fc-elabel" data-to="callfirst" x="240" y="79" text-anchor="middle">after</text>
+<path class="fc-edge" data-from="opens" data-to="held" d="M60 144L60 174" marker-end="url(#fc-tip-0017)"/>
+<path class="fc-edge" data-from="atomic" data-to="fast" d="M300 296L300 326" marker-end="url(#fc-tip-0017)"/>
+<g class="fc-node" data-node="turn">
+<rect class="fc-box" x="132" y="22" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="49.5">Turn path</text>
+</g>
+<g class="fc-node" data-node="opens">
+<rect class="fc-box" x="12" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="60" y="117">Transaction</text>
+<text class="fc-label" x="60" y="134">opens</text>
+<circle class="fc-dot" cx="11" cy="98" r="9"/>
+<text class="fc-num" x="11" y="102">1</text>
+</g>
+<g class="fc-node" data-node="callfirst">
+<rect class="fc-box" x="252" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="117">Model call</text>
+<text class="fc-label" x="300" y="134">first</text>
+<circle class="fc-dot" cx="251" cy="98" r="9"/>
+<text class="fc-num" x="251" y="102">3</text>
+</g>
+<g class="fc-node fc-break fc-has-ask" data-node="held">
+<rect class="fc-box" x="12" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="60" y="193">Lock + pool</text>
+<text class="fc-label" x="60" y="210">held</text>
+<circle class="fc-dot" cx="11" cy="174" r="9"/>
+<text class="fc-num" x="11" y="178">2</text>
+<circle class="fc-xdot" cx="109" cy="220" r="9"/>
+<text class="fc-x" x="109" y="224">&#10007;</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="short">
+<rect class="fc-box" x="252" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="193">Short</text>
+<text class="fc-label" x="300" y="210">transaction</text>
+<circle class="fc-dot" cx="251" cy="174" r="9"/>
+<text class="fc-num" x="251" y="178">4</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="atomic">
+<rect class="fc-box" x="252" y="250" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="269">Atomic or</text>
+<text class="fc-label" x="300" y="286">versioned</text>
+<circle class="fc-dot" cx="251" cy="250" r="9"/>
+<text class="fc-num" x="251" y="254">5</text>
+</g>
+<g class="fc-node" data-node="fast">
+<rect class="fc-box" x="252" y="326" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="353.5">5.5 turns/s</text>
+<circle class="fc-dot" cx="251" cy="326" r="9"/>
+<text class="fc-num" x="251" y="330">6</text>
+</g>
+</svg>
+<ol class="fc-steps">
+<li data-node="opens"><span class="fc-say">The transaction opens first, then the code awaits the model inside it.</span></li>
+<li data-node="held"><span class="fc-say">The await frees neither lock nor connection: 0.9 turns/s, 17 of 24 over budget.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">If every worker writes a different row, does the problem go away?</span><p>It removes half. A row each gave 4.0 instead of 5.5; the pool still saturates, because a transaction pins a connection for its whole life.</p></div></li>
+<li data-node="callfirst"><span class="fc-say">Make the model call first, holding nothing.</span></li>
+<li data-node="short"><span class="fc-say">The transaction covers only the lock, the write and the commit.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">You moved the model call out of the transaction. What did that break?</span><p>Atomicity of the read and the write. It reopens lesson 0016’s lost update, so the write must not depend on a remembered value.</p></div></li>
+<li data-node="atomic"><span class="fc-say">Write a single statement or a version check, not a remembered value.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Single statement or version check: which would you pick?</span><p>The single statement, unless the new value is not expressible as a function of the old one.</p></div></li>
+<li data-node="fast"><span class="fc-say">Seventeen of 24 turns over eight seconds becomes none, at 5.5 turns a second.</span></li>
+</ol>
+</figure>
+</section>
+
+<section class="fc-item" id="fc-0018">
+<h2><a href="../lessons/0018-lock-retry-or-dont-read.html">0018 &#183; Lock, Retry, or Don’t Read</a></h2>
+<figure class="fc" data-fc="0018">
+<svg class="fc-svg" viewBox="0 0 360 240" style="--fc-cols:3" role="img" aria-label="Lock, Retry, or Don’t Read: it breaks at Naive: final 1 of 16; the fix is Atomic: no read and Row lock: 0.70 s.">
+<defs>
+<marker id="fc-tip-0018" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip" d="M0 0L10 5L0 10z"/></marker>
+<marker id="fc-tip-0018-fix" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip-fix" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+<path class="fc-edge fc-to-fix" data-from="writers" data-to="atomic" d="M180 68L180 83L300 83L300 98" marker-end="url(#fc-tip-0018-fix)"/>
+<text class="fc-elabel" data-to="atomic" x="240" y="79" text-anchor="middle">delete</text>
+<path class="fc-edge fc-to-fix" data-from="gap" data-to="lock" d="M180 144L180 174" marker-end="url(#fc-tip-0018-fix)"/>
+<path class="fc-edge" data-from="writers" data-to="gap" d="M180 68L180 98" marker-end="url(#fc-tip-0018)"/>
+<path class="fc-edge" data-from="gap" data-to="naive" d="M180 144L180 159L60 159L60 174" marker-end="url(#fc-tip-0018)"/>
+<text class="fc-elabel" data-to="naive" x="120" y="155" text-anchor="middle">ignore</text>
+<path class="fc-edge" data-from="gap" data-to="opt" d="M180 144L180 159L300 159L300 174" marker-end="url(#fc-tip-0018)"/>
+<text class="fc-elabel" data-to="opt" x="240" y="155" text-anchor="middle">redo</text>
+<g class="fc-node" data-node="writers">
+<rect class="fc-box" x="132" y="22" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="41">16 writers,</text>
+<text class="fc-label" x="180" y="58">one row</text>
+<circle class="fc-dot" cx="131" cy="22" r="9"/>
+<text class="fc-num" x="131" y="26">1</text>
+</g>
+<g class="fc-node" data-node="gap">
+<rect class="fc-box" x="132" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="117">Read, the</text>
+<text class="fc-label" x="180" y="134">gap, write</text>
+<circle class="fc-dot" cx="131" cy="98" r="9"/>
+<text class="fc-num" x="131" y="102">2</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="atomic">
+<rect class="fc-box" x="252" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="117">Atomic: no</text>
+<text class="fc-label" x="300" y="134">read</text>
+<circle class="fc-dot" cx="251" cy="98" r="9"/>
+<text class="fc-num" x="251" y="102">6</text>
+</g>
+<g class="fc-node fc-break fc-has-ask" data-node="naive">
+<rect class="fc-box" x="12" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="60" y="193">Naive: final</text>
+<text class="fc-label" x="60" y="210">1 of 16</text>
+<circle class="fc-dot" cx="11" cy="174" r="9"/>
+<text class="fc-num" x="11" y="178">3</text>
+<circle class="fc-xdot" cx="109" cy="220" r="9"/>
+<text class="fc-x" x="109" y="224">&#10007;</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="lock">
+<rect class="fc-box" x="132" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="193">Row lock:</text>
+<text class="fc-label" x="180" y="210">0.70 s</text>
+<circle class="fc-dot" cx="131" cy="174" r="9"/>
+<text class="fc-num" x="131" y="178">4</text>
+</g>
+<g class="fc-node" data-node="opt">
+<rect class="fc-box" x="252" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="193">Optimistic:</text>
+<text class="fc-label" x="300" y="210">redo it</text>
+<circle class="fc-dot" cx="251" cy="174" r="9"/>
+<text class="fc-num" x="251" y="178">5</text>
+</g>
+</svg>
+<ol class="fc-steps">
+<li data-node="writers"><span class="fc-say">Sixteen writers each add one to the same row.</span></li>
+<li data-node="gap"><span class="fc-say">Between the read and the write is the gap; three strategies answer it.</span></li>
+<li data-node="naive"><span class="fc-say">Naive: both read, both write, one update is gone, and it is the fastest row.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">How would a load test have caught that?</span><p>It would not. Naive was ten times faster, 0.07 s against 0.70, and raised no errors. Assert the invariant: sixteen writers each adding one should leave sixteen.</p></div></li>
+<li data-node="lock"><span class="fc-say">Lock: writer two waits out the whole gap. Correct, at 0.70 s.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Surely optimistic wins when contention is low?</span><p>It did not reproduce. Optimistic was equal at best across five contention levels. Holding a connection for the gap is the cost, and both strategies pay it.</p></div></li>
+<li data-node="opt"><span class="fc-say">Optimistic: the loser redoes the whole transaction. 136 transactions for 16 writes.</span></li>
+<li data-node="atomic"><span class="fc-say">Atomic: no read, so no gap. Same answer, 16 of 16, in 0.06 s.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Would SKIP LOCKED help here?</span><p>Not for a contended score. It changes which row a worker takes; it does not protect a value. It bought throughput on a work table, not correctness.</p></div></li>
+</ol>
+</figure>
+</section>
+
+<section class="fc-item" id="fc-0019">
+<h2><a href="../lessons/0019-the-snapshot-nobody-closed.html">0019 &#183; The Snapshot Nobody Closed</a></h2>
+<figure class="fc" data-fc="0019">
+<svg class="fc-svg" viewBox="0 0 360 316" style="--fc-cols:3" role="img" aria-label="The Snapshot Nobody Closed: it breaks at Idle session holds line; the fix is Idle in tx timeout and Partition by time.">
+<defs>
+<marker id="fc-tip-0019" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip" d="M0 0L10 5L0 10z"/></marker>
+<marker id="fc-tip-0019-fix" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip-fix" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+<path class="fc-edge fc-to-fix" data-from="cutoff" data-to="timeout" d="M180 144L180 159L300 159L300 174" marker-end="url(#fc-tip-0019-fix)"/>
+<text class="fc-elabel" data-to="timeout" x="240" y="155" text-anchor="middle">bound idle</text>
+<path class="fc-edge fc-to-fix" data-from="timeout" data-to="part" d="M300 220L300 250" marker-end="url(#fc-tip-0019-fix)"/>
+<text class="fc-elabel" data-to="part" x="294" y="239" text-anchor="end">pages stay</text>
+<path class="fc-edge" data-from="dead" data-to="cutoff" d="M180 68L180 98" marker-end="url(#fc-tip-0019)"/>
+<path class="fc-edge" data-from="cutoff" data-to="idle" d="M180 144L180 159L60 159L60 174" marker-end="url(#fc-tip-0019)"/>
+<text class="fc-elabel" data-to="idle" x="120" y="155" text-anchor="middle">one session</text>
+<path class="fc-edge" data-from="idle" data-to="bloat" d="M60 220L60 250" marker-end="url(#fc-tip-0019)"/>
+<g class="fc-node" data-node="dead">
+<rect class="fc-box" x="132" y="22" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="41">Dead row</text>
+<text class="fc-label" x="180" y="58">versions</text>
+<circle class="fc-dot" cx="131" cy="22" r="9"/>
+<text class="fc-num" x="131" y="26">1</text>
+</g>
+<g class="fc-node" data-node="cutoff">
+<rect class="fc-box" x="132" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="117">Removable</text>
+<text class="fc-label" x="180" y="134">cutoff</text>
+<circle class="fc-dot" cx="131" cy="98" r="9"/>
+<text class="fc-num" x="131" y="102">2</text>
+</g>
+<g class="fc-node fc-break fc-has-ask" data-node="idle">
+<rect class="fc-box" x="12" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="60" y="193">Idle session</text>
+<text class="fc-label" x="60" y="210">holds line</text>
+<circle class="fc-dot" cx="11" cy="174" r="9"/>
+<text class="fc-num" x="11" y="178">3</text>
+<circle class="fc-xdot" cx="109" cy="220" r="9"/>
+<text class="fc-x" x="109" y="224">&#10007;</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="timeout">
+<rect class="fc-box" x="252" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="193">Idle in tx</text>
+<text class="fc-label" x="300" y="210">timeout</text>
+<circle class="fc-dot" cx="251" cy="174" r="9"/>
+<text class="fc-num" x="251" y="178">5</text>
+</g>
+<g class="fc-node" data-node="bloat">
+<rect class="fc-box" x="12" y="250" width="96" height="46" rx="10"/>
+<text class="fc-label" x="60" y="269">7 213 pages,</text>
+<text class="fc-label" x="60" y="286">same plan</text>
+<circle class="fc-dot" cx="11" cy="250" r="9"/>
+<text class="fc-num" x="11" y="254">4</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="part">
+<rect class="fc-box" x="252" y="250" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="269">Partition by</text>
+<text class="fc-label" x="300" y="286">time</text>
+<circle class="fc-dot" cx="251" cy="250" r="9"/>
+<text class="fc-num" x="251" y="254">6</text>
+</g>
+</svg>
+<ol class="fc-steps">
+<li data-node="dead"><span class="fc-say">Every eval run leaves one dead row version for vacuum to remove.</span></li>
+<li data-node="cutoff"><span class="fc-say">The oldest open snapshot is the removable cutoff; nothing newer is removed.</span></li>
+<li data-node="idle"><span class="fc-say">One idle session under asyncpg holds the line: 499 900 rows not removable.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">It’s only a SELECT. How can it block vacuum?</span><p>Vacuum respects the snapshot, not locks. asyncpg’s extended protocol leaves a portal open and the portal keeps its snapshot; a simple query destroys it.</p></div></li>
+<li data-node="bloat"><span class="fc-say">Pages 143 to 7 213 and stay; same plan, BUFFERS shows fetches 0 to 40.</span></li>
+<li data-node="timeout"><span class="fc-say">An idle-in-transaction timeout lets vacuum reclaim all 4 999; the held turn fails.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Would you set idle_in_transaction_session_timeout? To what?</span><p>Yes, on the application’s own connections, above the longest await we hold a transaction across: something like ten seconds. The held turn fails with connection is closed.</p></div></li>
+<li data-node="part"><span class="fc-say">Vacuum keeps the pages, so partition the table by time and drop partitions.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">The table is already bloated. How do you get the space back?</span><p>Plain vacuum will not. VACUUM FULL rewrites it under an ACCESS EXCLUSIVE lock. For a table that only grows, I would partition it by time.</p></div></li>
+</ol>
+</figure>
+</section>
+
+<section class="fc-item" id="fc-0020">
+<h2><a href="../lessons/0020-the-read-that-beat-its-own-write.html">0020 &#183; The Read That Beat Its Own Write</a></h2>
+<figure class="fc" data-fc="0020">
+<svg class="fc-svg" viewBox="0 0 360 316" style="--fc-cols:3" role="img" aria-label="The Read That Beat Its Own Write: it breaks at Stale read beats replay; the fix is Write waits for replay and Token after commit.">
+<defs>
+<marker id="fc-tip-0020" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip" d="M0 0L10 5L0 10z"/></marker>
+<marker id="fc-tip-0020-fix" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip-fix" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+<path class="fc-edge fc-to-fix" data-from="read" data-to="syncw" d="M180 144L180 174" marker-end="url(#fc-tip-0020-fix)"/>
+<path class="fc-edge fc-to-fix" data-from="read" data-to="token" d="M180 144L180 159L300 159L300 174" marker-end="url(#fc-tip-0020-fix)"/>
+<path class="fc-edge" data-from="commit" data-to="read" d="M180 68L180 98" marker-end="url(#fc-tip-0020)"/>
+<path class="fc-edge" data-from="read" data-to="stale" d="M180 144L180 159L60 159L60 174" marker-end="url(#fc-tip-0020)"/>
+<text class="fc-elabel" data-to="stale" x="120" y="155" text-anchor="middle">no wait</text>
+<path class="fc-edge" data-from="token" data-to="wait" d="M300 220L300 250" marker-end="url(#fc-tip-0020)"/>
+<g class="fc-node" data-node="commit">
+<rect class="fc-box" x="132" y="22" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="41">Commit</text>
+<text class="fc-label" x="180" y="58">returns</text>
+<circle class="fc-dot" cx="131" cy="22" r="9"/>
+<text class="fc-num" x="131" y="26">1</text>
+</g>
+<g class="fc-node" data-node="read">
+<rect class="fc-box" x="132" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="117">Read hits</text>
+<text class="fc-label" x="180" y="134">replica</text>
+<circle class="fc-dot" cx="131" cy="98" r="9"/>
+<text class="fc-num" x="131" y="102">2</text>
+</g>
+<g class="fc-node fc-break fc-has-ask" data-node="stale">
+<rect class="fc-box" x="12" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="60" y="193">Stale read</text>
+<text class="fc-label" x="60" y="210">beats replay</text>
+<circle class="fc-dot" cx="11" cy="174" r="9"/>
+<text class="fc-num" x="11" y="178">3</text>
+<circle class="fc-xdot" cx="109" cy="220" r="9"/>
+<text class="fc-x" x="109" y="224">&#10007;</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="syncw">
+<rect class="fc-box" x="132" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="193">Write waits</text>
+<text class="fc-label" x="180" y="210">for replay</text>
+<circle class="fc-dot" cx="131" cy="174" r="9"/>
+<text class="fc-num" x="131" y="178">6</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="token">
+<rect class="fc-box" x="252" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="193">Token after</text>
+<text class="fc-label" x="300" y="210">commit</text>
+<circle class="fc-dot" cx="251" cy="174" r="9"/>
+<text class="fc-num" x="251" y="178">4</text>
+</g>
+<g class="fc-node" data-node="wait">
+<rect class="fc-box" x="252" y="250" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="269">Read waits</text>
+<text class="fc-label" x="300" y="286">for replay</text>
+<circle class="fc-dot" cx="251" cy="250" r="9"/>
+<text class="fc-num" x="251" y="254">5</text>
+</g>
+</svg>
+<ol class="fc-steps">
+<li data-node="commit"><span class="fc-say">The commit returns on the primary before the replica has the change.</span></li>
+<li data-node="read"><span class="fc-say">A read arrives at the replica in between, ahead of replay.</span></li>
+<li data-node="stale"><span class="fc-say">Idle: 0 of 500 stale through SQLAlchemy, 493 through raw asyncpg; loaded, most reads miss.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Your replica is a fraction of a millisecond behind. Why would anybody see stale data?</span><p>It is a race between replay and the caller’s next statement. With 0.2 ms of lag, raw asyncpg missed its own write 493 times in 500.</p></div></li>
+<li data-node="token"><span class="fc-say">The fix: take a token after the commit, not one statement earlier.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">How do you give a user read-your-writes with a replica in the path?</span><p>A token taken after the commit; the read waits until replay passes it. Taken inside the transaction, it was stale 5 to 54 times in 500, only under load.</p></div></li>
+<li data-node="wait"><span class="fc-say">The read waits until replay passes the token: zero stale, 26–52 ms p99 loaded.</span></li>
+<li data-node="syncw"><span class="fc-say">remote_apply works too, and puts the wait on every write instead.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Why not use synchronous replication and make the problem go away?</span><p>Every write pays: p99 29 to 54 ms against 4 to 12. Replica down, writes stop, and a client that gives up gets an error for a committed write.</p></div></li>
+</ol>
+</figure>
+</section>
+
+<section class="fc-item" id="fc-0021">
+<h2><a href="../lessons/0021-stuck-or-twice.html">0021 &#183; Stuck or Twice</a></h2>
+<figure class="fc" data-fc="0021">
+<svg class="fc-svg" viewBox="0 0 360 392" style="--fc-cols:3" role="img" aria-label="Stuck or Twice: it breaks at Lost, twice or stuck; the fix is Same transaction and Seller refuses key.">
+<defs>
+<marker id="fc-tip-0021" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip" d="M0 0L10 5L0 10z"/></marker>
+<marker id="fc-tip-0021-fix" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip-fix" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+<path class="fc-edge fc-to-fix" data-from="dies" data-to="same" d="M180 296L180 311L60 311L60 326" marker-end="url(#fc-tip-0021-fix)"/>
+<path class="fc-edge fc-to-fix" data-from="dies" data-to="key" d="M180 296L180 311L300 311L300 326" marker-end="url(#fc-tip-0021-fix)"/>
+<path class="fc-edge" data-from="claim" data-to="order" d="M180 68L180 98" marker-end="url(#fc-tip-0021)"/>
+<path class="fc-edge" data-from="order" data-to="ack" d="M180 144L180 174" marker-end="url(#fc-tip-0021)"/>
+<path class="fc-edge" data-from="ack" data-to="dies" d="M180 220L180 250" marker-end="url(#fc-tip-0021)"/>
+<path class="fc-edge" data-from="ack" data-to="lease" d="M180 220L180 235L300 235L300 250" marker-end="url(#fc-tip-0021)"/>
+<text class="fc-elabel" data-to="lease" x="240" y="231" text-anchor="middle">no crash</text>
+<g class="fc-node" data-node="claim">
+<rect class="fc-box" x="132" y="22" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="49.5">Claim job</text>
+<circle class="fc-dot" cx="131" cy="22" r="9"/>
+<text class="fc-num" x="131" y="26">1</text>
+</g>
+<g class="fc-node" data-node="order">
+<rect class="fc-box" x="132" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="117">Seller</text>
+<text class="fc-label" x="180" y="134">places order</text>
+<circle class="fc-dot" cx="131" cy="98" r="9"/>
+<text class="fc-num" x="131" y="102">2</text>
+</g>
+<g class="fc-node" data-node="ack">
+<rect class="fc-box" x="132" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="193">Ack: delete</text>
+<text class="fc-label" x="180" y="210">row</text>
+<circle class="fc-dot" cx="131" cy="174" r="9"/>
+<text class="fc-num" x="131" y="178">3</text>
+</g>
+<g class="fc-node fc-break fc-has-ask" data-node="dies">
+<rect class="fc-box" x="132" y="250" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="269">Lost, twice</text>
+<text class="fc-label" x="180" y="286">or stuck</text>
+<circle class="fc-dot" cx="131" cy="250" r="9"/>
+<text class="fc-num" x="131" y="254">4</text>
+<circle class="fc-xdot" cx="229" cy="296" r="9"/>
+<text class="fc-x" x="229" y="300">&#10007;</text>
+</g>
+<g class="fc-node" data-node="lease">
+<rect class="fc-box" x="252" y="250" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="269">Lease under</text>
+<text class="fc-label" x="300" y="286">slow tail</text>
+<circle class="fc-dot" cx="251" cy="250" r="9"/>
+<text class="fc-num" x="251" y="254">5</text>
+</g>
+<g class="fc-node fc-fix" data-node="same">
+<rect class="fc-box" x="12" y="326" width="96" height="46" rx="10"/>
+<text class="fc-label" x="60" y="345">Same</text>
+<text class="fc-label" x="60" y="362">transaction</text>
+<circle class="fc-dot" cx="11" cy="326" r="9"/>
+<text class="fc-num" x="11" y="330">7</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="key">
+<rect class="fc-box" x="252" y="326" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="345">Seller</text>
+<text class="fc-label" x="300" y="362">refuses key</text>
+<circle class="fc-dot" cx="251" cy="326" r="9"/>
+<text class="fc-num" x="251" y="330">6</text>
+</g>
+</svg>
+<ol class="fc-steps">
+<li data-node="claim"><span class="fc-say">A worker claims a job from the queue.</span></li>
+<li data-node="order"><span class="fc-say">It places the order on the seller, over there.</span></li>
+<li data-node="ack"><span class="fc-say">Only then does it acknowledge by deleting the row.</span></li>
+<li data-node="dies"><span class="fc-say">Killed: lost if acked first, else twice. Paused: lock waits, everything else doubles.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Why not hold the row lock for the whole job? A crash releases it.</span><p>It still doubles, 2 to 6 in 12 kills. Frozen with SIGSTOP, Postgres kept the lock and the job waited 5.3 s for a five-second pause.</p></div></li>
+<li data-node="lease"><span class="fc-say">No failure: a lease shorter than the slow tail doubles 107 to 116 of 400.</span></li>
+<li data-node="key"><span class="fc-say">The seller refuses a key it has seen: zero twice, eleven redeliveries.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Why not check a processed table in the worker first?</span><p>The record is written after the effect, and the duplicate comes from a crash between the two. It doubled 2 to 9 jobs in 12 kills.</p></div></li>
+<li data-node="same"><span class="fc-say">Or, when the effect is a row here, it commits with the delete: zero twice.</span></li>
+</ol>
+</figure>
+</section>
+
+<section class="fc-item" id="fc-0022">
+<h2><a href="../lessons/0022-a-table-before-a-broker.html">0022 &#183; A Table Before a Broker</a></h2>
+<figure class="fc" data-fc="0022">
+<svg class="fc-svg" viewBox="0 0 360 392" style="--fc-cols:3" role="img" aria-label="A Table Before a Broker: it breaks at Two writes, no order; the fix is Job in same transaction and Reader by txid.">
+<defs>
+<marker id="fc-tip-0022" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip" d="M0 0L10 5L0 10z"/></marker>
+<marker id="fc-tip-0022-fix" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip-fix" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+<path class="fc-edge fc-to-fix" data-from="run" data-to="same" d="M180 68L180 83L300 83L300 98" marker-end="url(#fc-tip-0022-fix)"/>
+<text class="fc-elabel" data-to="same" x="240" y="79" text-anchor="middle">one write</text>
+<path class="fc-edge fc-to-fix" data-from="log" data-to="safe" d="M300 296L300 326" marker-end="url(#fc-tip-0022-fix)"/>
+<path class="fc-edge" data-from="run" data-to="broker" d="M180 68L180 83L60 83L60 98" marker-end="url(#fc-tip-0022)"/>
+<text class="fc-elabel" data-to="broker" x="120" y="79" text-anchor="middle">two writes</text>
+<path class="fc-edge" data-from="broker" data-to="dual" d="M60 144L60 174" marker-end="url(#fc-tip-0022)"/>
+<path class="fc-edge" data-from="same" data-to="idle" d="M300 144L300 174" marker-end="url(#fc-tip-0022)"/>
+<path class="fc-edge" data-from="idle" data-to="log" d="M300 220L300 250" marker-end="url(#fc-tip-0022)"/>
+<g class="fc-node" data-node="run">
+<rect class="fc-box" x="132" y="22" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="41">Eval run,</text>
+<text class="fc-label" x="180" y="58">Postgres</text>
+<circle class="fc-dot" cx="131" cy="22" r="9"/>
+<text class="fc-num" x="131" y="26">1</text>
+</g>
+<g class="fc-node" data-node="broker">
+<rect class="fc-box" x="12" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="60" y="117">Job in a</text>
+<text class="fc-label" x="60" y="134">broker</text>
+<circle class="fc-dot" cx="11" cy="98" r="9"/>
+<text class="fc-num" x="11" y="102">2</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="same">
+<rect class="fc-box" x="252" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="117">Job in same</text>
+<text class="fc-label" x="300" y="134">transaction</text>
+<circle class="fc-dot" cx="251" cy="98" r="9"/>
+<text class="fc-num" x="251" y="102">4</text>
+</g>
+<g class="fc-node fc-break fc-has-ask" data-node="dual">
+<rect class="fc-box" x="12" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="60" y="193">Two writes,</text>
+<text class="fc-label" x="60" y="210">no order</text>
+<circle class="fc-dot" cx="11" cy="174" r="9"/>
+<text class="fc-num" x="11" y="178">3</text>
+<circle class="fc-xdot" cx="109" cy="220" r="9"/>
+<text class="fc-x" x="109" y="224">&#10007;</text>
+</g>
+<g class="fc-node" data-node="idle">
+<rect class="fc-box" x="252" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="193">Idle session</text>
+<text class="fc-label" x="300" y="210">reads pages</text>
+<circle class="fc-dot" cx="251" cy="174" r="9"/>
+<text class="fc-num" x="251" y="178">5</text>
+</g>
+<g class="fc-node" data-node="log">
+<rect class="fc-box" x="252" y="250" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="269">Log: offset</text>
+<text class="fc-label" x="300" y="286">per reader</text>
+<circle class="fc-dot" cx="251" cy="250" r="9"/>
+<text class="fc-num" x="251" y="254">6</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="safe">
+<rect class="fc-box" x="252" y="326" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="345">Reader by</text>
+<text class="fc-label" x="300" y="362">txid</text>
+<circle class="fc-dot" cx="251" cy="326" r="9"/>
+<text class="fc-num" x="251" y="330">7</text>
+</g>
+</svg>
+<ol class="fc-steps">
+<li data-node="run"><span class="fc-say">An eval run is written to Postgres, and it needs a scoring job.</span></li>
+<li data-node="broker"><span class="fc-say">The job goes to a broker: a second write to a second system.</span></li>
+<li data-node="dual"><span class="fc-say">Commit first leaves runs with no job; publish first leaves jobs with no run.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Why not just use Pub/Sub? You’re on GCP already.</span><p>Because the job would stop being atomic with the write that causes it. A jobs table in the same transaction had zero of either in every run.</p></div></li>
+<li data-node="same"><span class="fc-say">Insert the job in the same transaction: zero of either, in every run.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">And when you do need Pub/Sub?</span><p>Write to a table in the transaction and relay it: the outbox, lesson 0027.</p></div></li>
+<li data-node="idle"><span class="fc-say">An idle session makes each claim read hundreds of pages; without headroom, it tips over.</span></li>
+<li data-node="log"><span class="fc-say">A queue’s second reader gets 0 of 1 000; a log gives each reader all.</span></li>
+<li data-node="safe"><span class="fc-say">Tail by id and late commits are never read; read below the oldest running transaction.</span><div class="fc-ask"><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Why can’t consumers just remember the last id they read?</span><p>Ids are handed out at insert, rows visible at commit: late rows are skipped, 324 to 709 of 2 000. By txid misses none but waits for the slowest writer.</p></div></li>
+</ol>
+</figure>
+</section>
+
+</div>
+</body>
+</html>
