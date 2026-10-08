@@ -4,7 +4,7 @@
 #   ./publish.sh            sync, check, show the diff, ask, commit, push
 #   ./publish.sh --dry-run  sync and check only; nothing is committed
 #
-# Sources are the sibling folders in ~/personal. They are only read, never written.
+# Sources are the sibling folders in ~/personal/study-guides. They are only read, never written.
 set -euo pipefail
 
 SITE="$(cd "$(dirname "$0")" && pwd)"
