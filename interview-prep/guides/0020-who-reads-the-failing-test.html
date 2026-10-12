@@ -1,0 +1,1326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Who Reads the Failing Test</title>
+<script src="../assets/visit.js"></script>
+<style>
+/* plain:start (written by trim_tools.py; do not hand-edit) */
+aside.plain{display:block;box-sizing:border-box;max-width:64ch;margin:24px 0 16px;padding:14px 18px;border:0;border-left:3px solid var(--accent,var(--sig,var(--wire,var(--led,var(--plum,var(--teal,var(--green,var(--steel,#1a4f7a))))))));border-radius:0 6px 6px 0;background:color-mix(in srgb,var(--accent,var(--sig,var(--wire,var(--led,var(--plum,var(--teal,var(--green,var(--steel,#1a4f7a)))))))) 8%,var(--surface,var(--card,var(--paper,#fff))));color:var(--ink,#1b1f24);font-family:var(--sans,var(--body,system-ui,sans-serif))}
+aside.plain p{margin:0 0 .5em;max-width:none;font-size:16px;line-height:1.55;color:var(--ink,#1b1f24)}
+aside.plain p:last-child{margin-bottom:0}
+aside.plain .plain-label{margin:0 0 6px;font-family:var(--mono,ui-monospace,monospace);font-size:11px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--ink-3,#6b7280)}
+/* plain:end */
+</style>
+</head>
+<body>
+<div class="prep-sitebar">
+  <a href="../index.html">&#8592;&#160;Interview prep</a>
+  <span>Guide 0020</span>
+  <span>Question 19 &#183; Deep prep sheet</span>
+</div>
+<style>
+.prep-sitebar{
+  max-width:1060px; margin:0 auto; padding:20px 24px 0;
+  font-family:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:10.5px; font-weight:500; letter-spacing:0.13em; text-transform:uppercase;
+  opacity:0.6; display:flex; gap:12px; flex-wrap:wrap; align-items:baseline;
+}
+.prep-sitebar a{color:inherit; text-decoration:none; border-bottom:1px solid currentColor; padding-bottom:1px}
+.prep-sitebar a:hover{opacity:1}
+.prep-sitebar span::before{content:"/"; margin-right:12px; opacity:0.5}
+@media (max-width:640px){.prep-sitebar span:last-child{flex-basis:100%}.prep-sitebar span:last-child::before{content:none}}
+</style>
+
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Manrope:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap">
+<style>
+/* ==========================================================================
+   0020 - Who Reads the Failing Test.
+
+   THE FIFTEENTH MOVE, and the first one made with GLYPHS.
+
+   Hue, ground, edge, texture and registration are spent. This page carries
+   its states the way a test runner does: as one typed character per
+   attempt, read left to right like a pytest progress line.
+
+       .   the attempt passed
+       F   the test ran and said no
+       E   the step never ran: a malformed call, an edit that did not apply
+       s   the agent stopped without running the test
+       =   the same fix again, after reading that it failed
+
+   None of those carry colour. The amber accent marks exactly one event:
+   the model read a failing result and its NEXT action was different
+   because of it. That is the only thing a loop adds over a pipeline, so
+   it is the only thing on the page that gets the accent. A strip with no
+   amber in it is a loop that ran and learned nothing from running.
+
+   Faces: Space Grotesk for display, a grotesk drawn from a monospace, so
+   the headings sit next to the glyph strips without a seam; Manrope for
+   running text, because this guide was asked for in plain words; Geist
+   Mono for every glyph, rate and formula.
+   ========================================================================== */
+:root{
+  --ground:#f3f4f5; --card:#fbfbfc; --card-2:#e9ebed; --sunk:#e3e6e9;
+  --ink:#16191c; --ink-2:#41474e; --ink-3:#5d636b;
+  --rule:#cfd3d8; --rule-2:#e0e3e6;
+  --accent:#b8600f; --accent-ink:#8a4508; --accent-soft:#f6e3cf;
+  --calm:#5d636b; --calm-ink:#4a5057; --calm-soft:#e9ecee;
+  --bad:#a3351f;
+  --display:"Space Grotesk","Helvetica Neue",Arial,system-ui,sans-serif;
+  --body:"Manrope","Segoe UI",system-ui,-apple-system,sans-serif;
+  --sans:var(--body);
+  --chrome:"Geist Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --mono:"Geist Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --surface:var(--card);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#111315; --card:#171a1d; --card-2:#1f2327; --sunk:#0c0e10;
+    --ink:#e9ecef; --ink-2:#b4bac1; --ink-3:#8f969e;
+    --rule:#33393f; --rule-2:#262b30;
+    --accent:#f0a04b; --accent-ink:#ffc27a; --accent-soft:#3a250f;
+    --calm:#959ca4; --calm-ink:#aeb4bb; --calm-soft:#1b1f23;
+    --bad:#f08c74;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#111315; --card:#171a1d; --card-2:#1f2327; --sunk:#0c0e10;
+  --ink:#e9ecef; --ink-2:#b4bac1; --ink-3:#8f969e;
+  --rule:#33393f; --rule-2:#262b30;
+  --accent:#f0a04b; --accent-ink:#ffc27a; --accent-soft:#3a250f;
+  --calm:#959ca4; --calm-ink:#aeb4bb; --calm-soft:#1b1f23;
+  --bad:#f08c74;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:var(--body); font-size:17px; line-height:1.66;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1040px; margin:0 auto; padding:0 20px 96px}
+p{margin:0 0 16px}
+a{color:var(--accent-ink); text-decoration:none; border-bottom:1px solid var(--rule)}
+a:hover{border-bottom-color:var(--accent)}
+strong{font-weight:600}
+code,kbd{font-family:var(--mono); font-size:0.86em; background:var(--sunk); padding:1px 5px; border-radius:3px}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+@media(prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+
+/* ---------- masthead ---------- */
+.mast{padding:40px 0 30px; border-bottom:2px solid var(--ink); margin-bottom:40px}
+.kick{
+  font-family:var(--chrome); font-size:11.5px; font-weight:500; letter-spacing:0.12em;
+  text-transform:uppercase; color:var(--accent-ink); margin:0 0 20px; line-height:1.6;
+}
+.mast h1{
+  font-family:var(--display); font-size:clamp(40px,7vw,74px); font-weight:600; line-height:1.0;
+  letter-spacing:-0.025em; margin:0 0 22px; text-wrap:balance; max-width:14ch;
+}
+.mast .sub{font-size:19.5px; line-height:1.55; color:var(--ink-2); max-width:62ch; margin:0}
+.mast .sub b{color:var(--ink); font-weight:600}
+.qcard{background:var(--card); border:1px solid var(--rule); border-left:3px solid var(--calm); padding:22px 24px; margin:32px 0 0}
+.qcard .lab{display:block; margin-bottom:12px}
+.qcard p{font-family:var(--display); font-size:21px; line-height:1.42; margin:0}
+.sbar{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:1px; margin:30px 0 0; border:1px solid var(--rule); background:var(--rule)}
+@media(max-width:620px){.sbar{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.sbar div{background:var(--card-2); padding:11px 14px}
+.sbar span{display:block; font-family:var(--chrome); font-size:11px; letter-spacing:0.1em; text-transform:uppercase; color:var(--ink-3); margin-bottom:5px; line-height:1.5}
+.sbar b{font-family:var(--mono); font-size:16px; font-weight:500; color:var(--ink-2); font-variant-numeric:tabular-nums}
+.sbar div.met b{color:var(--accent-ink); font-weight:600}
+
+/* ---------- sections ---------- */
+.part{padding:52px 0 0; border-top:1px solid var(--rule-2); margin-top:52px}
+.part:first-of-type{border-top:0; margin-top:0}
+.parthead{display:flex; gap:16px; align-items:baseline; margin-bottom:8px}
+.pnum{font-family:var(--chrome); font-size:13px; font-weight:500; color:var(--calm); flex:none; padding-top:10px}
+.parthead h2{font-family:var(--display); font-size:clamp(26px,3.4vw,36px); font-weight:600; line-height:1.12; letter-spacing:-0.015em; margin:0; text-wrap:balance; max-width:24ch}
+.lede{font-size:18.5px; line-height:1.58; color:var(--ink-2); max-width:66ch; margin:0 0 24px 30px}
+.part>p,.part>ul,.part>ol{max-width:68ch; margin-left:30px}
+.part>ul:not([class]),.part>ol:not([class]){padding-left:20px}
+.part>ul:not([class]) li,.part>ol:not([class]) li{margin-bottom:8px}
+h3.sub{font-family:var(--chrome); font-size:12.5px; font-weight:500; letter-spacing:0.12em; text-transform:uppercase; color:var(--ink-3); margin:38px 0 14px 30px}
+.lab{font-family:var(--chrome); font-size:11.5px; font-weight:500; letter-spacing:0.12em; text-transform:uppercase; color:var(--ink-3)}
+@media(max-width:560px){
+  .lede,.part>p,.part>ul,.part>ol,h3.sub{margin-left:0}
+}
+
+/* ---------- probes ---------- */
+.probes{margin:0 0 0 30px; display:grid; gap:1px; background:var(--rule); border:1px solid var(--rule)}
+.probe{background:var(--card); padding:16px 20px; display:grid; grid-template-columns:3.6em minmax(0,1fr); gap:0 14px}
+.probe .pk{font-family:var(--chrome); font-size:12.5px; color:var(--calm); padding-top:4px; margin:0}
+.probe p{grid-column:2; margin:0}
+.probe p:nth-child(2){font-weight:600}
+.probe p+p{margin-top:7px}
+.probe p:nth-child(3){color:var(--ink-2); font-size:16px}
+
+/* ---------- do / don't ---------- */
+.grid2{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px; margin:24px 0 0 30px}
+@media(max-width:760px){.grid2{grid-template-columns:1fr}}
+.dont,.do{padding:18px 20px; border:1px solid var(--rule); background:var(--card)}
+.dont{border-top:3px solid var(--ink-3)}
+.do{border-top:3px solid var(--ink)}
+.dont q,.do q{display:block; font-family:var(--display); font-size:19px; line-height:1.38; margin:10px 0 11px}
+.dont p,.do p{margin:0; font-size:16px; line-height:1.56; color:var(--ink-2)}
+.dont p+p,.do p+p{margin-top:9px}
+
+/* ---------- answer lengths ---------- */
+.ans{margin:0 0 0 30px; border-top:1px solid var(--rule)}
+.ans>div{border-bottom:1px solid var(--rule); padding:20px 0; display:grid; grid-template-columns:9em minmax(0,1fr); gap:0 20px}
+@media(max-width:720px){.ans>div{grid-template-columns:1fr; gap:8px 0}}
+.ans .st{padding-top:4px}
+.ans .body{max-width:64ch}
+.ans .body p{margin:0}
+.ans .body p+p{margin-top:11px}
+.ans .body ol{margin:0; padding-left:20px}
+.ans .body li{margin-bottom:8px}
+.ans .body.big p{font-family:var(--display); font-size:21px; line-height:1.42}
+
+/* ---------- fundamentals ---------- */
+.fund{margin:0 0 0 30px; display:grid; gap:14px}
+.fcard{background:var(--card); border:1px solid var(--rule); padding:18px 20px}
+.fcard h3{font-family:var(--display); font-size:22px; font-weight:600; margin:0 0 4px; line-height:1.2}
+.fcard .pw{font-size:17.5px; font-weight:600; color:var(--ink); margin:0 0 10px}
+.fcard p{margin:0; max-width:68ch}
+.fcard p+p{margin-top:10px}
+.fcard .eg{font-size:15.5px; color:var(--ink-2)}
+@media(max-width:560px){.fund,.probes,.grid2,.ans{margin-left:0}}
+
+/* ---------- formula / code blocks ---------- */
+.formula{
+  margin:22px 0 22px 30px; background:var(--sunk); border-left:3px solid var(--rule);
+  padding:16px 18px; font-family:var(--mono); font-size:13.5px; line-height:1.75;
+  white-space:pre; overflow-x:auto; color:var(--ink-2); max-width:calc(100% - 30px);
+}
+.formula b{color:var(--ink); font-weight:600}
+.formula i{color:var(--accent-ink); font-style:normal; font-weight:500}
+.formula u{color:var(--ink-3); text-decoration:none}
+@media(max-width:560px){.formula{margin-left:0; max-width:100%}}
+
+/* ---------- tables ---------- */
+.twrap{overflow-x:auto; margin:22px 0 8px 30px}
+.tw{border-collapse:collapse; width:100%; font-size:15.5px; min-width:600px}
+.tw th{text-align:left; font-family:var(--chrome); font-size:11px; font-weight:500; letter-spacing:0.1em; text-transform:uppercase; color:var(--ink-3); border-bottom:1.5px solid var(--ink); padding:0 14px 10px 0; vertical-align:bottom; line-height:1.5}
+.tw td{border-bottom:1px solid var(--rule-2); padding:11px 14px 11px 0; vertical-align:top; line-height:1.5}
+.tw tr:last-child td{border-bottom:1.5px solid var(--ink)}
+.tw td.n{font-family:var(--mono); font-variant-numeric:tabular-nums; white-space:nowrap; font-size:14px}
+.tw td.m{font-family:var(--mono); font-size:13.5px}
+.tw .sg{font-weight:600; color:var(--ink)}
+.tw td b{font-weight:600}
+.cap{font-size:15px; color:var(--ink-3); margin:10px 0 24px 30px; max-width:68ch}
+.cap b{color:var(--ink-2); font-weight:600}
+@media(max-width:560px){.twrap,.cap{margin-left:0}}
+
+
+/* ---------- the glyph alphabet ----------
+   One character per attempt. Only .g.rev (the model changed course
+   because of what it read) is allowed the accent.                      */
+.g{display:inline-grid; place-items:center; width:1.55em; height:1.55em; font-family:var(--mono); font-weight:600; font-size:0.95em; line-height:1; border:1px solid var(--rule); background:var(--card); color:var(--ink); vertical-align:-0.3em; font-variant-numeric:tabular-nums}
+.g.f{border-color:var(--ink-3)}
+.g.e{border-style:dotted; border-color:var(--ink-3); color:var(--ink-2)}
+.g.s{border-color:transparent; background:transparent; color:var(--ink-3)}
+.g.eq{border-color:transparent; background:var(--sunk); color:var(--ink-3)}
+.g.p{background:var(--ink); border-color:var(--ink); color:var(--card)}
+.g.rev{box-shadow:0 0 0 2px var(--accent); border-color:var(--accent)}
+.g.dim{opacity:.45}
+
+/* ---------- SIGNATURE FIGURE 1: three ways to use a failing test ----- */
+.strips{margin:26px 0 0 30px; background:var(--card); border:1px solid var(--rule); max-width:880px}
+@media(max-width:560px){.strips{margin-left:0}}
+.strips .ftitle{display:block; font-family:var(--display); font-weight:600; font-size:19px; padding:16px 18px 2px}
+.strips .fsub{font-size:14.5px; color:var(--ink-3); margin:0; padding:0 18px 12px; max-width:72ch}
+.strip{display:grid; grid-template-columns:minmax(0,13em) minmax(0,1fr) 5.4em; gap:8px 16px; align-items:center; padding:14px 18px; border-top:1px solid var(--rule-2)}
+@media(max-width:700px){.strip{grid-template-columns:minmax(0,1fr) 5.4em}.strip .line{grid-column:1/-1; grid-row:2}}
+.strip .who{font-size:15px; line-height:1.38; font-weight:600}
+.strip .who small{display:block; font-weight:400; font-family:var(--chrome); font-size:11px; letter-spacing:0.04em; color:var(--ink-3); margin-top:2px}
+.strip .line{display:flex; flex-wrap:wrap; align-items:center; gap:6px; font-family:var(--mono); font-size:15px; min-width:0}
+.strip .line .arr{color:var(--ink-3); font-size:13px}
+.strip .line .arr.rev{color:var(--accent-ink); font-weight:600}
+.strip .line .note{font-family:var(--chrome); font-size:11.5px; color:var(--ink-3); letter-spacing:0.02em}
+.strip .line .note.rev{color:var(--accent-ink)}
+.strip .out{font-family:var(--mono); font-size:14px; text-align:right; color:var(--ink-2); font-variant-numeric:tabular-nums}
+.strip .out b{display:block; font-size:18px; color:var(--ink)}
+.strip.hot .out b{color:var(--accent-ink)}
+.gkey{display:flex; flex-wrap:wrap; gap:8px 20px; padding:12px 18px; border-top:1px solid var(--rule); background:var(--card-2); font-family:var(--chrome); font-size:11.5px; letter-spacing:0.04em; color:var(--ink-3)}
+.gkey span{display:inline-flex; align-items:center; gap:8px}
+
+/* ---------- SIGNATURE FIGURE 2: the two dials ----------------------- */
+.dials{margin:26px 0 0 30px; max-width:880px; background:var(--card); border:1px solid var(--rule); padding:16px 18px 12px}
+@media(max-width:560px){.dials{margin-left:0; padding:14px 12px 10px}}
+.dials .ftitle{display:block; font-family:var(--display); font-weight:600; font-size:19px; margin:0 0 4px}
+.dials .fsub{font-size:14.5px; color:var(--ink-3); margin:0 0 14px; max-width:72ch}
+.dgrid{display:grid; grid-template-columns:minmax(0,10em) minmax(0,1fr) minmax(0,1fr); gap:1px; background:var(--rule); border:1px solid var(--rule)}
+.dgrid>div{background:var(--card); padding:12px 14px; min-width:0}
+.dgrid .h{background:var(--card-2); font-family:var(--chrome); font-size:12px; letter-spacing:0.02em; color:var(--ink-3); line-height:1.45}
+.dgrid .h b{display:block; font-family:var(--body); font-size:14.5px; letter-spacing:0; text-transform:none; color:var(--ink); font-weight:600; margin-top:2px}
+.dgrid .c b{display:block; font-family:var(--mono); font-size:28px; font-weight:600; line-height:1.1; font-variant-numeric:tabular-nums}
+.dgrid .c span{display:block; font-size:13.5px; color:var(--ink-2); margin-top:4px; line-height:1.4}
+.dgrid .c.lose b{color:var(--ink-3)}
+.dgrid .c.win{box-shadow:inset 0 0 0 2px var(--accent)}
+.dgrid .c.win b{color:var(--accent-ink)}
+@media(max-width:620px){.dgrid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.dgrid .corner{display:none}.dgrid .rh{grid-column:1/-1}}
+.floor{display:flex; flex-wrap:wrap; gap:6px 18px; margin:12px 0 0; font-family:var(--chrome); font-size:12px; color:var(--ink-3); letter-spacing:0.03em}
+.floor b{color:var(--ink); font-family:var(--mono)}
+
+/* ---------- skills table glyph column ---------- */
+.tw td.gl{white-space:nowrap}
+.tw td.gl .g{margin-right:3px}
+
+/* ---------- SVG figures ---------- */
+.fig{margin:26px 0 0 30px; background:var(--card); border:1px solid var(--rule); padding:16px 16px 10px; max-width:820px}
+@media(max-width:560px){.fig{margin-left:0}}
+.fig figcaption{font-size:15px; color:var(--ink-2); margin:8px 0 4px; max-width:68ch}
+.fig figcaption b{color:var(--ink)}
+.fig .ftitle{display:block; font-family:var(--display); font-size:19px; margin:0 0 8px; color:var(--ink)}
+.svgw{overflow-x:auto}
+.svgw svg{display:block; width:100%; height:auto; min-width:560px}
+.svgw svg text{font-family:var(--chrome); font-size:12px; fill:var(--ink-3)}
+.svgw svg .lbl{fill:var(--ink); font-size:12.5px}
+.svgw svg .lbl-a{fill:var(--accent-ink); font-weight:600}
+.svgw svg .hd{font-family:var(--display); font-size:17px; fill:var(--ink)}
+.svgw svg .axis{stroke:var(--ink-3); stroke-width:1; fill:none}
+.svgw svg .grid{stroke:var(--rule-2); stroke-width:1; fill:none}
+.svgw svg .pane{fill:var(--card-2); stroke:var(--rule); stroke-width:1}
+.svgw svg .shot{fill:var(--ground); stroke:var(--ink-3); stroke-width:1}
+.svgw svg .ink{fill:var(--ink-2)}
+.svgw svg .ghost{fill:var(--accent); opacity:0.85}
+.svgw svg .ghost-l{fill:none; stroke:var(--accent); stroke-width:1.5}
+.svgw svg .strike{stroke:var(--ink-3); stroke-width:1.3}
+.svgw svg .barj{fill:var(--accent)}
+.svgw svg .barh{fill:var(--ink-2)}
+
+/* ---------- properties / numbered claims ---------- */
+.props{list-style:none; margin:24px 0 0 30px; padding:0; display:grid; gap:1px; background:var(--rule); border:1px solid var(--rule)}
+.props>li{background:var(--card); padding:16px 20px; display:grid; grid-template-columns:9.4em minmax(0,1fr); gap:0 18px}
+@media(max-width:640px){.props>li{grid-template-columns:1fr; gap:6px 0}}
+@media(max-width:560px){.props{margin-left:0}}
+.props .pn{font-family:var(--chrome); font-size:11.5px; letter-spacing:0.06em; text-transform:uppercase; color:var(--calm-ink); padding-top:4px; line-height:1.5}
+.props p{margin:0; font-size:16.5px; line-height:1.55}
+.props p+p{margin-top:8px; color:var(--ink-2); font-size:16px}
+.props .tell{font-weight:600}
+
+/* ---------- checks ---------- */
+.checks{list-style:none; margin:24px 0 0 30px; padding:0}
+@media(max-width:560px){.checks{margin-left:0}}
+.checks>li{border-left:2px solid var(--calm); padding:0 0 4px 20px; margin-bottom:24px; max-width:70ch}
+.checks>li.must{border-left:3px solid var(--ink)}
+.checks .ck2{display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; font-family:var(--chrome); font-size:11.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--calm-ink); margin-bottom:7px}
+.checks>li.must .ck2{color:var(--ink)}
+.checks .ctag{border:1px solid currentColor; padding:1px 6px}
+.checks>li>b{display:block; font-family:var(--display); font-size:20px; font-weight:600; margin-bottom:6px; line-height:1.3}
+.checks>li p{margin:0; font-size:16.5px; color:var(--ink-2)}
+.checks>li p+p{margin-top:8px}
+.checks .obs{font-size:15.5px; color:var(--ink-3); border-top:1px solid var(--rule); padding-top:8px; margin-top:10px}
+.checks .obs b{font-family:var(--chrome); font-size:11px; font-weight:500; letter-spacing:0.1em; text-transform:uppercase; margin-right:8px}
+
+/* ---------- boxes ---------- */
+.box{border:1px solid var(--rule); background:var(--card); padding:18px 20px; margin:24px 0 24px 30px; max-width:70ch}
+@media(max-width:560px){.box{margin-left:0}}
+.box>.lab{display:block; margin-bottom:9px}
+.box p{margin:0}
+.box p+p{margin-top:10px}
+.box.sig{border-left:3px solid var(--ink)}
+.box.sig>.lab{color:var(--ink)}
+.box.calm{border-left:3px solid var(--calm); background:var(--calm-soft)}
+.box.calm>.lab{color:var(--calm-ink)}
+/* Counter-evidence keeps the house dashed frame: the accent channel on
+   this page is a glyph's ring, not a line style, so dashing is free.   */
+.box.against{border:1.5px dashed var(--ink-3); background:transparent}
+.box.against>.lab{color:var(--ink)}
+.ruleline{margin:24px 0 24px 30px; max-width:68ch; background:var(--card-2); border-left:3px solid var(--ink); padding:12px 18px; font-family:var(--display); font-size:21px; line-height:1.38; color:var(--ink)}
+@media(max-width:560px){.ruleline{margin-left:0}}
+
+/* ---------- follow-ups ---------- */
+.fu{border-top:1px solid var(--rule); padding:18px 0 0; margin:0 0 18px 30px; max-width:72ch}
+@media(max-width:560px){.fu{margin-left:0}}
+.fuq{font-family:var(--display); font-size:21px; line-height:1.3; margin:0 0 8px; padding-left:38px; text-indent:-38px}
+.fuq .fn3{display:inline-block; width:38px; text-indent:0; font-family:var(--chrome); font-size:12.5px; font-weight:500; color:var(--calm)}
+.fua{margin:0; color:var(--ink-2); font-size:16.5px}
+.fua+.fua{margin-top:9px}
+.fua strong{color:var(--ink)}
+
+/* ---------- glossary ---------- */
+.gloss{display:grid; grid-template-columns:minmax(0,15em) minmax(0,1fr); gap:0; margin:22px 0 0 30px; border-top:1px solid var(--rule)}
+.gloss dt{font-family:var(--mono); font-size:13.5px; font-weight:500; color:var(--ink); padding:12px 18px 12px 0; border-bottom:1px solid var(--rule-2); line-height:1.45}
+.gloss dd{margin:0; padding:12px 0; border-bottom:1px solid var(--rule-2); font-size:15.5px; line-height:1.52; color:var(--ink-2)}
+@media(max-width:640px){
+  .gloss{grid-template-columns:1fr; margin-left:0}
+  .gloss dt{border-bottom:0; padding-bottom:2px}
+  .gloss dd{padding-top:0}
+}
+.srcs{margin:20px 0 0 30px; padding-left:20px; max-width:72ch; font-size:15.5px; color:var(--ink-2)}
+.srcs li{margin-bottom:8px}
+@media(max-width:560px){.srcs{margin-left:0}}
+
+/* ---------- evidence ---------- */
+.evidence{margin:26px 0 0 30px; border:1px solid var(--rule); background:var(--card)}
+@media(max-width:560px){.evidence{margin-left:0}}
+.evidence header{display:flex; justify-content:space-between; gap:14px; flex-wrap:wrap; align-items:baseline; padding:14px 20px; border-bottom:1px solid var(--rule); background:var(--card-2)}
+.evidence .elab{font-family:var(--chrome); font-size:11.5px; letter-spacing:0.12em; text-transform:uppercase; color:var(--calm-ink)}
+.evidence .hint{font-size:14px; color:var(--ink-3)}
+.ebody{padding:20px}
+.rows{display:grid; gap:20px}
+.evidence .row{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px 18px; padding:18px 0 0; border-top:1px solid var(--rule-2)}
+.evidence .row:first-child{border-top:0; padding-top:0}
+.evidence .ran{grid-column:1/-1; font-weight:600; font-size:17px; margin:0}
+.evidence .field{display:flex; flex-direction:column; gap:5px; min-width:0}
+.evidence .why-row{grid-column:1/-1; display:flex; flex-direction:column; gap:5px}
+.evidence label{font-family:var(--chrome); font-size:11px; letter-spacing:0.07em; text-transform:uppercase; color:var(--ink-3); line-height:1.5}
+.evidence input,.evidence textarea{font-family:var(--body); font-size:16px; color:var(--ink); background:var(--ground); border:1px solid var(--rule); padding:9px 11px; width:100%; border-radius:3px}
+.evidence textarea{min-height:88px; resize:vertical; line-height:1.5}
+.evidence input::placeholder,.evidence textarea::placeholder{color:var(--ink-3); opacity:0.9}
+.evidence input.filled,.evidence textarea.filled{border-color:var(--ink-2); background:var(--card)}
+@media(max-width:640px){.evidence .row{grid-template-columns:1fr}}
+.earned{margin:24px 0 0; padding:18px 20px; background:var(--card-2); border:1px solid var(--rule); border-left:3px solid var(--ink)}
+.earned>.lab{display:block; margin-bottom:9px; color:var(--ink)}
+.earned p{margin:0; font-family:var(--display); font-size:19px; line-height:1.5; max-width:64ch}
+.earned .placeholder{font-family:var(--mono); font-size:0.78em; color:var(--bad); border-bottom:1px dashed var(--bad); padding:0 2px}
+
+.foot{margin-top:68px; padding-top:22px; border-top:2px solid var(--ink); font-size:13px; color:var(--ink-3); display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap; font-family:var(--chrome); letter-spacing:0.04em}
+</style>
+
+<div class="wrap">
+<header class="mast">
+  <p class="kick">Question 19 · Google · senior AI engineer</p>
+  <h1>Who Reads the Failing Test</h1>
+  <p class="sub">A fixed pipeline beating your agent is not a verdict on loops. It is a reading of how your model was trained. A loop adds two things: more steps that can go wrong, and the chance to read what went wrong and try something different. <b>The second one is a skill the model has to have been taught. If it wasn’t, the loop only adds steps.</b></p>
+
+  <div class="qcard">
+    <span class="lab">The question, as asked</span>
+    <p>“A fixed localize → patch pipeline, with no tool loop and no verification step, beats your full coding agent on SWE-bench. Does that mean agent loops aren’t worth it?”</p>
+  </div>
+
+  <div class="sbar">
+    <div><span>The pipeline</span><b>4 fixed stages</b></div>
+    <div><span>The agent</span><b>open loop, tests in reach</b></div>
+    <div><span>Who reads a failing test</span><b>a script · the model</b></div>
+    <div class="met"><span>Revise vs restart, measured</span><b>never</b></div>
+  </div>
+</header>
+
+<!-- flowchart:start 0020 (generated by build_flowcharts.py from flows/0020.flow; do not hand-edit) -->
+<figure class="fc" data-fc="0020" tabindex="-1">
+<figcaption class="fc-cap"><span class="fc-kicker">Walk it in 90 seconds</span><span class="fc-title">Who Reads the Failing Test</span></figcaption>
+<svg class="fc-svg" viewBox="120 0 240 392" style="--fc-cols:2" role="img" aria-label="Who Reads the Failing Test: it breaks at Same guess, more crashes; the fix is Revise or restart? and Train the model.">
+<defs>
+<marker id="fc-tip-0020" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip" d="M0 0L10 5L0 10z"/></marker>
+<marker id="fc-tip-0020-fix" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="fc-tip-fix" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+<path class="fc-edge fc-to-fix" data-from="unused" data-to="read" d="M228 273L252 273" marker-end="url(#fc-tip-0020-fix)"/>
+<path class="fc-edge fc-to-fix" data-from="read" data-to="train" d="M300 296L300 326" marker-end="url(#fc-tip-0020-fix)"/>
+<path class="fc-edge" data-from="result" data-to="adds" d="M180 68L180 98" marker-end="url(#fc-tip-0020)"/>
+<path class="fc-edge" data-from="adds" data-to="skill" d="M180 144L180 174" marker-end="url(#fc-tip-0020)"/>
+<path class="fc-edge" data-from="skill" data-to="unused" d="M180 220L180 250" marker-end="url(#fc-tip-0020)"/>
+<g class="fc-node" data-node="result">
+<rect class="fc-box" x="132" y="22" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="41">Pipeline</text>
+<text class="fc-label" x="180" y="58">beats agent</text>
+<circle class="fc-dot" cx="131" cy="22" r="9"/>
+<text class="fc-num" x="131" y="26">1</text>
+</g>
+<g class="fc-node" data-node="adds">
+<rect class="fc-box" x="132" y="98" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="117">Steps plus</text>
+<text class="fc-label" x="180" y="134">feedback</text>
+<circle class="fc-dot" cx="131" cy="98" r="9"/>
+<text class="fc-num" x="131" y="102">2</text>
+</g>
+<g class="fc-node" data-node="skill">
+<rect class="fc-box" x="132" y="174" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="193">Feedback is</text>
+<text class="fc-label" x="180" y="210">learned</text>
+<circle class="fc-dot" cx="131" cy="174" r="9"/>
+<text class="fc-num" x="131" y="178">3</text>
+</g>
+<g class="fc-node fc-break fc-has-ask" data-node="unused">
+<rect class="fc-box" x="132" y="250" width="96" height="46" rx="10"/>
+<text class="fc-label" x="180" y="269">Same guess,</text>
+<text class="fc-label" x="180" y="286">more crashes</text>
+<circle class="fc-dot" cx="131" cy="250" r="9"/>
+<text class="fc-num" x="131" y="254">4</text>
+<circle class="fc-xdot" cx="229" cy="296" r="9"/>
+<text class="fc-x" x="229" y="300">&#10007;</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="read">
+<rect class="fc-box" x="252" y="250" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="269">Revise or</text>
+<text class="fc-label" x="300" y="286">restart?</text>
+<circle class="fc-dot" cx="251" cy="250" r="9"/>
+<text class="fc-num" x="251" y="254">5</text>
+</g>
+<g class="fc-node fc-fix fc-has-ask" data-node="train">
+<rect class="fc-box" x="252" y="326" width="96" height="46" rx="10"/>
+<text class="fc-label" x="300" y="345">Train the</text>
+<text class="fc-label" x="300" y="362">model</text>
+<circle class="fc-dot" cx="251" cy="326" r="9"/>
+<text class="fc-num" x="251" y="330">6</text>
+</g>
+</svg>
+<p class="fc-live" aria-live="polite"></p>
+<p class="fc-q" aria-live="polite" hidden></p>
+<p class="fc-prompt" hidden>Sketch it on paper from memory, then press Reveal.</p>
+<div class="fc-controls" hidden>
+<button type="button" data-fc-act="walk">Walk it &#9656;</button>
+<button type="button" data-fc-act="practice">Practice</button>
+<button type="button" data-fc-act="present">Present</button>
+<button type="button" data-fc-act="back" hidden>&#8592; Back</button>
+<button type="button" data-fc-act="next" hidden>Next &#8594;</button>
+<button type="button" data-fc-act="reveal" hidden>Reveal</button>
+<button type="button" data-fc-act="done" hidden>Done</button>
+</div>
+<ol class="fc-steps">
+<li data-node="result"><span class="fc-say">A fixed pipeline wins: a fact about this model in this harness.</span></li>
+<li data-node="adds"><span class="fc-say">A loop adds steps that can break, and feedback that can help.</span></li>
+<li data-node="skill"><span class="fc-say">Feedback helps only if the model learned to read a failing test.</span></li>
+<li data-node="unused"><span class="fc-say">Untrained, it repeats the fix and fumbles calls, so the pipeline wins.</span><details class="fc-ask"><summary><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Doesn&#x27;t the pipeline run tests too?</span></summary><p>Yes. Agentless uses tests to pick one patch out of several. A script reads the result, so no skill is needed. Revising needs one.</p></details></li>
+<li data-node="read"><span class="fc-say">Bucket the failures, then fork each at its first failing test.</span><details class="fc-ask"><summary><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Why compare against a restart?</span></summary><p>A fresh attempt is what the pipeline does. If continuing with the failure in context doesn&#x27;t beat it, the model isn&#x27;t using the feedback.</p></details></li>
+<li data-node="train"><span class="fc-say">Fix the harness, train the loop with RL, keep the pipeline as floor.</span><details class="fc-ask"><summary><span class="fc-ask-k">Interviewer asks:</span> <span class="fc-ask-q">Why keep the pipeline once the agent wins?</span></summary><p>It is the floor at matched cost and the fallback, and it improves with every model too. Track the margin, not the agent&#x27;s score.</p></details></li>
+</ol>
+<style>
+.fc{--fc-ink:var(--ink,#1b1f24);--fc-muted:var(--ink-3,#6b7280);--fc-surface:var(--surface,var(--card,#fff));--fc-ground:var(--ground,var(--paper,#fff));--fc-rule:var(--rule,#d0d5dc);--fc-break:var(--bad,#b3261e);--fc-fix:var(--good,#2e6b4f);--fc-accent:var(--accent,var(--sig,var(--wire,var(--steel,#1a4f7a))));--fc-font:var(--sans,var(--body,system-ui,sans-serif))}
+figure.fc{margin:30px 0 36px;padding:0;border:0;border-radius:0;box-shadow:none;background:none;max-width:520px;font-family:var(--fc-font);color:var(--fc-ink)}
+.fc [hidden]{display:none!important}
+.fc:focus{outline:none}
+.fc .fc-cap{display:block;margin:0 0 10px;padding:0;border:0;font-family:var(--fc-font);max-width:none}
+.fc .fc-kicker{display:block;font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--fc-muted)}
+.fc .fc-title{display:block;margin-top:2px;font-size:17px;font-weight:600;color:var(--fc-ink)}
+.fc .fc-svg{display:block;width:100%;max-width:calc(var(--fc-cols,3) * 173.33px);height:auto;overflow:visible}
+.fc .fc-box{fill:var(--fc-surface);stroke:var(--fc-rule);stroke-width:1.5}
+.fc .fc-break .fc-box{stroke:var(--fc-break);stroke-dasharray:5 3;fill:color-mix(in srgb,var(--fc-break) 12%,var(--fc-surface))}
+.fc .fc-fix .fc-box{stroke:var(--fc-fix);fill:color-mix(in srgb,var(--fc-fix) 12%,var(--fc-surface))}
+.fc .fc-label{font-family:var(--fc-font);font-size:13.5px;font-weight:500;fill:var(--fc-ink);text-anchor:middle}
+.fc .fc-edge{fill:none;stroke:var(--fc-muted);stroke-width:1.5}
+.fc .fc-back{stroke-dasharray:4 3}
+.fc .fc-to-fix{stroke:var(--fc-fix)}
+.fc .fc-tip{fill:var(--fc-muted)}
+.fc .fc-tip-fix{fill:var(--fc-fix)}
+.fc .fc-elabel{font-family:var(--fc-font);font-size:11.5px;fill:var(--fc-muted);paint-order:stroke;stroke:var(--fc-ground);stroke-width:3px;stroke-linejoin:round}
+.fc .fc-dot{fill:var(--fc-accent)}
+.fc .fc-num{font-family:var(--fc-font);font-size:11.5px;font-weight:700;fill:var(--fc-surface);text-anchor:middle}
+.fc .fc-xdot{fill:var(--fc-break)}
+.fc .fc-x{font-family:var(--fc-font);font-size:11.5px;font-weight:700;fill:var(--fc-surface);text-anchor:middle}
+.fc .fc-steps{margin:14px 0 0;padding-left:1.6em;max-width:60ch;font-size:15px;line-height:1.5;color:var(--fc-ink)}
+.fc .fc-steps li{margin:0 0 4px;padding-left:2px}
+.fc .fc-say{display:block}
+.fc .fc-ask{margin:3px 0 6px;font-size:14px;line-height:1.45;color:var(--fc-ink)}
+.fc .fc-ask summary{cursor:pointer;width:fit-content}
+.fc .fc-ask .fc-ask-k{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--fc-muted)}
+.fc .fc-ask .fc-ask-q{font-weight:600}
+.fc .fc-ask p{margin:4px 0 0;max-width:60ch;color:var(--fc-ink)}
+.fc .fc-has-ask{cursor:pointer}
+.fc .fc-q{margin:4px 0 0;max-width:60ch;font-size:14px;line-height:1.45;color:var(--fc-muted)}
+.fc .fc-prompt{margin:12px 0 0;padding:14px 16px;max-width:60ch;border:1.5px dashed var(--fc-rule);border-radius:10px;font-size:15px;color:var(--fc-muted)}
+.fc.practicing .fc-svg{display:none}
+.fc.presenting{position:fixed;inset:0;z-index:2147483000;display:flex;align-items:center;justify-content:center;max-width:none;margin:0;padding:2vh 2vw;background:var(--fc-ground)}
+.fc.presenting>:not(.fc-svg):not(.fc-controls){display:none!important}
+.fc.presenting .fc-controls{position:fixed;top:12px;right:12px;margin:0}
+.fc.presenting .fc-svg{width:auto;height:auto;max-width:96vw;max-height:96vh;flex:0 1 auto;cursor:pointer}
+.fc .fc-live{margin:10px 0 0;max-width:60ch;font-size:15px;font-weight:600;line-height:1.5;color:var(--fc-ink)}
+.fc .fc-live:empty{margin:0}
+.fc .fc-controls{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0}
+.fc .fc-controls button{min-height:36px;padding:8px 14px;border:1.5px solid var(--fc-accent);border-radius:999px;background:var(--fc-surface);color:var(--fc-ink);font:600 13px/1 var(--fc-font);cursor:pointer}
+.fc .fc-controls button[data-fc-act="walk"]{background:var(--fc-accent);color:var(--fc-surface)}
+.fc .fc-controls button:focus-visible{outline:2px solid var(--fc-accent);outline-offset:2px}
+.fc .fc-node,.fc .fc-edge,.fc .fc-elabel,.fc .fc-steps li{transition:opacity .18s ease}
+.fc.walking .fc-node,.fc.walking .fc-edge,.fc.walking .fc-elabel{opacity:.25}
+.fc.walking .fc-steps li{opacity:.55}
+.fc.walking .is-lit,.fc.walking .fc-steps li.is-lit{opacity:1}
+.fc.walking .fc-steps li.is-lit{font-weight:600}
+@media (prefers-reduced-motion:reduce){.fc *{transition:none!important}}
+@media print{.fc .fc-controls,.fc .fc-live,.fc .fc-q,.fc .fc-prompt{display:none!important}}
+</style>
+<script>
+(function(){
+  var fig=document.currentScript.closest('.fc'); if(!fig) return;
+  var ctl=fig.querySelector('.fc-controls'), live=fig.querySelector('.fc-live');
+  var asked=fig.querySelector('.fc-q'), prompt=fig.querySelector('.fc-prompt');
+  var steps=[].slice.call(fig.querySelectorAll('.fc-steps>li')), at=-1, presenting=false, back=0, hold=null;
+  var SHOW={idle:['walk','practice','present'],walking:['back','next','done'],practicing:['reveal','done'],revealed:['done'],presenting:['done']};
+  function btn(a){return ctl.querySelector('[data-fc-act="'+a+'"]');}
+  function mode(m){[].forEach.call(ctl.querySelectorAll('[data-fc-act]'),function(b){b.hidden=SHOW[m].indexOf(b.getAttribute('data-fc-act'))<0;});}
+  function clear(){fig.querySelectorAll('.is-lit').forEach(function(el){el.classList.remove('is-lit');});}
+  function light(id,seen){
+    seen=seen||{}; if(seen[id]) return; seen[id]=true;
+    fig.querySelectorAll('[data-node="'+id+'"],[data-to="'+id+'"]').forEach(function(el){
+      el.classList.add('is-lit');
+      var from=el.getAttribute('data-from');
+      if(from && !fig.querySelector('.fc-steps>li[data-node="'+from+'"]')) light(from,seen);
+    });
+  }
+  function show(i){
+    at=Math.max(0,Math.min(steps.length-1,i)); clear(); fig.classList.add('walking');
+    var li=steps[at], id=li.getAttribute('data-node'), q=li.querySelector('.fc-ask-q');
+    li.classList.add('is-lit'); light(id);
+    live.textContent=(at+1)+'. '+li.querySelector('.fc-say').textContent;
+    asked.textContent=q?'They may ask: '+q.textContent:''; asked.hidden=!q;
+    if(!presenting) mode('walking');
+  }
+  function idle(){
+    at=-1; clear(); fig.classList.remove('walking','practicing');
+    live.textContent=''; asked.hidden=true; prompt.hidden=true; mode('idle');
+  }
+  function done(){idle(); btn('walk').focus();}
+  function present(on){
+    if(on){
+      back=window.scrollY;
+      // a stand-in keeps the chart's space, so the page under it does not move
+      hold=document.createElement('div'); hold.className='fc-hold';
+      hold.style.height=fig.offsetHeight+'px'; hold.style.margin=getComputedStyle(fig).margin;
+      fig.parentNode.insertBefore(hold,fig);
+    }
+    presenting=on; fig.classList.toggle('presenting',on); idle();
+    if(on){
+      mode('presenting');
+      if(fig.requestFullscreen) fig.requestFullscreen().catch(function(){});
+      fig.focus({preventScroll:true});
+    } else {
+      var home=function(){if(hold){hold.remove(); hold=null;} window.scrollTo(0,back);};
+      btn('present').focus({preventScroll:true});
+      if(document.fullscreenElement===fig) document.exitFullscreen().then(home,home); else home();
+    }
+  }
+  document.addEventListener('fullscreenchange',function(){
+    if(presenting && document.fullscreenElement!==fig) present(false);
+  });
+  ctl.addEventListener('click',function(ev){
+    var b=ev.target.closest('[data-fc-act]'); if(!b) return;
+    var a=b.getAttribute('data-fc-act');
+    if(a==='walk'){show(0); btn('next').focus();}
+    else if(a==='next') show(at+1);
+    else if(a==='back') show(at-1);
+    else if(a==='practice'){idle(); fig.classList.add('practicing'); prompt.hidden=false; mode('practicing'); btn('reveal').focus();}
+    else if(a==='reveal'){fig.classList.remove('practicing'); prompt.hidden=true; mode('revealed'); btn('done').focus();}
+    else if(a==='present') present(true);
+    else if(presenting) present(false);
+    else done();
+  });
+  fig.querySelector('.fc-svg').addEventListener('click',function(ev){
+    if(presenting){show(at+1); return;}
+    var g=ev.target.closest('.fc-has-ask'); if(!g) return;
+    var d=fig.querySelector('.fc-steps>li[data-node="'+g.getAttribute('data-node')+'"] .fc-ask');
+    if(d){d.open=true; d.querySelector('summary').focus();}
+  });
+  fig.addEventListener('keydown',function(ev){
+    if(at<0 && !presenting) return;
+    if(ev.key==='ArrowRight'){show(at+1);} else if(ev.key==='ArrowLeft'){show(at-1);}
+    else if(ev.key==='Escape'){if(presenting) present(false); else done();} else return;
+    ev.preventDefault();
+  });
+  mode('idle'); ctl.hidden=false;
+})();
+</script>
+</figure>
+<!-- flowchart:end -->
+
+<section class="part">
+  <div class="parthead"><span class="pnum">00</span><h2>What they are actually testing</h2></div>
+  <p class="lede">The question is set up as an architecture debate: pipelines against agents. The interviewer wants to hear you refuse that framing. The result is a fact about <em>this model, in this harness, at this point in its training</em>, and it tells you where to look next.</p>
+
+  <div class="probes">
+    <div class="probe"><p class="pk">Probe 1</p>
+      <p>Can you separate architecture from training?</p>
+      <p>The same two designs have swapped places in public. In 2024 a fixed pipeline (Agentless) beat most open agents on SWE-bench. Once models were trained on agent trajectories, simple loops pulled far ahead. The designs didn’t change. The models did.</p>
+    </div>
+    <div class="probe"><p class="pk">Probe 2</p>
+      <p>Can you say exactly what a loop adds?</p>
+      <p>Two things that pull in opposite directions. More steps, each one a fresh chance to send a broken tool call, lose the thread or wander. And feedback, which only helps if the model can read a failing test and change course. A senior answer names both and says which one decides the result.</p>
+    </div>
+    <div class="probe"><p class="pk">Probe 3</p>
+      <p>Do you diagnose before you decide?</p>
+      <p>“Read the trajectories” is the expected first move. The better answer says what you are sorting them into: wrong file, edit that didn’t apply, test output ignored, stopped too early or never stopped. Each bucket has a different owner and a different fix.</p>
+    </div>
+    <div class="probe"><p class="pk">Probe 4</p>
+      <p>Do you know the fix, and keep the baseline?</p>
+      <p>Harness bugs get fixed in the harness. Missing loop skills get fixed in training: RL in real, executable repositories. And the pipeline stays, as the floor the agent has to beat at the same cost, or the extra steps are just latency and tokens.</p>
+    </div>
+  </div>
+
+  <div class="box calm">
+    <span class="lab">Where this sits next to the other guides</span>
+    <p><strong>Q6 (<a href="0007-the-guarantee-register.html">0007</a>)</strong> is the mirror image: there the agent <em>beat</em> the fixed workflow, and the question was what the workflow had been guaranteeing that the benchmark couldn’t see. Here the workflow wins, and the question is what the agent is missing.</p>
+    <p><strong>Q17 (<a href="0018-the-only-cockpit-it-knew.html">0018</a>)</strong> owns <em>dialect</em>: a model trained in one harness writes tool calls and edits that another harness can’t read, and the adapter test proves it. The newsletter’s “check the edit format” point is that guide’s ground. This one uses it as one bucket out of four and points there for the detail.</p>
+    <p><strong>Q12 (<a href="0013-the-score-with-three-authors.html">0013</a>)</strong> owns the idea that a score is written jointly by model, harness and environment. <strong>Q1 (<a href="0001-the-max-iteration-trap.html">0001</a>)</strong> owns what a loop costs in latency. <strong>Q9 (<a href="0010-the-frozen-org-chart.html">0010</a>)</strong> owns role pipelines (planner, coder, tester). New here: what a loop adds and loses <em>per step</em>, the difference between a test read by a script and a test read by the model, the revise-or-restart test, the four loop skills as things you can count in a log, and the pipeline as a standing floor.</p>
+  </div>
+</section>
+
+<section class="part">
+  <div class="parthead"><span class="pnum">01</span><h2>The answer, at three lengths</h2></div>
+  <p class="lede">Say the thirty-second version out loud before reading on. Everything after it supports one of its sentences.</p>
+
+  <div class="ans">
+    <div>
+      <span class="lab st">30 seconds</span>
+      <div class="body big"><p>No. It tells me this model gets less out of a loop than the loop costs it. A loop adds steps, and each step is another chance to break something. It also adds feedback, but feedback only helps if the model was trained to read a failing test and change course. Agentless beat agents in 2024 because models were trained to write a patch in one go, not to work in a loop. Once labs trained them on agent runs, loops pulled ahead. So I’d read the trajectories, sort the failures, fix harness bugs in the harness and loop skills in training, and keep the pipeline as the floor.</p></div>
+    </div>
+    <div>
+      <span class="lab st">2 minutes</span>
+      <div class="body"><ol>
+        <li><strong>Split what a loop adds.</strong> More steps, which cost reliability. Feedback, which can buy it back. The pipeline wins whenever the first outweighs the second.</li>
+        <li><strong>The pipeline reads tests too.</strong> Agentless runs tests and uses them to <em>pick</em> one patch out of several. The difference is who reads the result: a script choosing among drafts, or the model revising its own. Choosing needs no training. Revising does.</li>
+        <li><strong>Measure the two dials.</strong> How often a step breaks (bad call, bad edit, lost thread). And when the model sees a failing test, whether its next attempt does better than simply starting over.</li>
+        <li><strong>Read the trajectories.</strong> Sort failed runs into wrong file, edit that didn’t apply, test output ignored, stopped too early or never stopped. Count each.</li>
+        <li><strong>Fix by bucket.</strong> Edit formats, output truncation and edit linting are harness fixes and are cheap. Using feedback and knowing when to stop are model skills, fixed by RL in executable repositories, across more than one harness.</li>
+        <li><strong>Keep the pipeline.</strong> It is the floor. If the agent can’t beat it at the same cost, every extra step is latency and tokens.</li>
+      </ol></div>
+    </div>
+    <div>
+      <span class="lab st">One line</span>
+      <div class="body big"><p>“A loop is only worth it if the model learned to read the failing test. Otherwise it is the same guess made more times, with more ways to crash.”</p></div>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="dont">
+      <span class="lab">The two tempting answers</span>
+      <q>“Agents are overhyped, the simple pipeline wins, ship it.” Or: “SWE-bench is noisy, the agent is better in real life.”</q>
+      <p>Both treat the result as a verdict on a design. The first throws away the one thing that can improve with training. The second waves away a measurement it could have learned from.</p>
+      <p>Neither asks why the agent lost, which is the only question with an engineering answer.</p>
+    </div>
+    <div class="do">
+      <span class="lab">The answer that gets the job</span>
+      <q>It measures how well this model fits this loop, not how good loops can be. I’d find out which loop skill is missing before I touch the architecture.</q>
+      <p>Name what a loop adds and costs, show that the pipeline’s advantage is fewer chances to fail, diagnose from trajectories, fix the harness or the training depending on the bucket, and keep the pipeline as the floor.</p>
+    </div>
+  </div>
+</section>
+
+<section class="part">
+  <div class="parthead"><span class="pnum">02</span><h2>The fundamentals, in plain words first</h2></div>
+  <p class="lede">Seven ideas carry the whole answer. Each starts with the plain version. The precise version follows, because the interviewer will use the precise words.</p>
+
+  <div class="fund">
+    <div class="fcard">
+      <h3>A pipeline (a fixed workflow)</h3>
+      <p class="pw">Code decides the steps. The model fills in each step and never chooses what happens next.</p>
+      <p>Agentless, the best-known example, does it like this: ask the model which files probably need editing, then which classes and functions inside them, then which exact lines. Then ask it for a patch, several times, and use tests to pick one. Every run takes the same path. The model is called a fixed number of times and never sees the result of its own work.</p>
+    </div>
+    <div class="fcard">
+      <h3>An agent loop</h3>
+      <p class="pw">The model decides the next step, sees what happened, and decides again, until it chooses to stop.</p>
+      <p>The model gets tools: a shell, a file viewer, an editor. Each turn it writes a tool call, the harness runs it and pastes the result (the <strong>observation</strong>) back in. The model can open files, grep, edit, run the tests, read a stack trace and try again. It also decides when it is done. A run is a <strong>trajectory</strong>: every call and every observation, in order.</p>
+    </div>
+    <div class="fcard">
+      <h3>SWE-bench, and what “beats” means</h3>
+      <p class="pw">Real GitHub issues from real Python projects. A fix counts only if hidden tests pass.</p>
+      <p>The full set is 2,294 issues from 12 repositories. <strong>Lite</strong> is a 300-issue subset. <strong>Verified</strong> is 500 issues that people checked were solvable and fairly tested. The system sees the issue text and the repository, writes a patch, and the patch is scored by tests it never saw. The headline number is the <strong>resolve rate</strong>: the share of issues fixed, usually from one attempt per issue (pass@1).</p>
+    </div>
+    <div class="fcard">
+      <h3>Localisation</h3>
+      <p class="pw">Finding where the change goes. Both designs have to do it, and both can get it wrong.</p>
+      <p>A pipeline does it in fixed rounds, narrowing from files to functions to lines. An agent does it by searching and reading. A wrong file is fatal either way, which is why “wrong file” is the first bucket when you read failures: it is a failure the loop didn’t cause, so it doesn’t count against the loop.</p>
+    </div>
+    <div class="fcard">
+      <h3>An edit format</h3>
+      <p class="pw">The exact way the model writes down a change: whole file, search-and-replace block, unified diff, or a tool call.</p>
+      <p>The same fix can be written many ways, and a model is much better at the ones it saw in training. A wrong line number in a diff, or a search block that doesn’t match the file exactly, and the edit simply doesn’t apply. Guide <a href="0018-the-only-cockpit-it-knew.html">0018</a> covers how a harness’s format gets baked into a model. Here it is one of four ways a loop can fail.</p>
+    </div>
+    <div class="fcard">
+      <h3>What the model was trained on</h3>
+      <p class="pw">A model is good at what it practised. Writing a patch in one go and working through a loop are different practice.</p>
+      <p>Pretraining on code is full of finished changes: commits, diffs, fixed files. That teaches “issue in, patch out”, which is exactly the pipeline’s shape. It contains almost no examples of a model reading its own failing test and trying something else. <strong>Agentic post-training</strong> supplies them: run the model as an agent inside a real repository, run the hidden tests at the end, and reward the trajectories that passed (reinforcement learning), or fine-tune on trajectories that worked.</p>
+    </div>
+    <div class="fcard">
+      <h3>Compounding</h3>
+      <p class="pw">Small chances of failure, repeated, add up to a large one.</p>
+      <p>If each step independently has a small chance ε of breaking the run, the chance of getting through T steps unbroken is (1 − ε)<sup>T</sup>. At 2% per step, 40 steps leaves you 45%. At 0.3%, it leaves 89%. Nothing about any single step looks bad. The loop’s length does the damage.</p>
+      <p class="eg">Guide <a href="0018-the-only-cockpit-it-knew.html">0018</a> covers a different compounding: imitation errors that push a model into states it never trained on. This page only needs the plain version.</p>
+    </div>
+  </div>
+</section>
+
+
+<section class="part">
+  <div class="parthead"><span class="pnum">03</span><h2>Every step is a chance to fail</h2></div>
+  <p class="lede">The newsletter’s key sentence is “the pipeline simply gives the model fewer chances”. Here is that sentence as arithmetic. Two dials decide whether a loop pays, and neither one is about architecture.</p>
+
+  <div class="formula"><b>a toy model of one run</b>   (illustrative; the shape matters, not the exact numbers)
+
+  s  = chance a first attempt at the fix is right             same model, so the same for both designs
+  ε  = chance any one step breaks the run                       bad call, edit that won't apply, lost thread
+  T  = steps in an agent run                                   40 here
+  ρ  = chance the next attempt is right, after seeing a failing test
+  k  = attempts the agent gets                                 4 here
+
+  pipeline  ≈  s                                               <u># few steps, nothing to slip on</u>
+  loop      ≈  (1 − ε)<sup>T</sup>  ×  [ 1 − (1 − s)(1 − ρ)<sup>k−1</sup> ]
+               └ survives the steps ┘   └ gets it right within k tries ┘</div>
+
+  <p>The first bracket is what a loop <em>costs</em>: every step is a small tax, and forty small taxes compound. The second bracket is what a loop <em>buys</em>: more tries, each informed by the last failure. A pipeline pays almost none of the tax and buys none of the tries. Whether the loop wins depends on two numbers the model brings with it: how often it fumbles a step (ε), and how much a failing test actually helps its next try (ρ).</p>
+
+  <div class="dials">
+    <span class="ftitle">The two dials, and the floor</span>
+    <p class="fsub">Same model, same one-shot skill (s = 30%), same 40-step budget with up to 4 attempts. The pipeline scores 30%. Each cell is what the loop scores. The ringed cell is the only one that clearly earns its extra steps.</p>
+    <div class="dgrid">
+      <div class="h corner">per-step slip ε ↓ · feedback use ρ →</div>
+      <div class="h">ρ = 5%<b>Retries the same fix</b></div>
+      <div class="h">ρ = 45%<b>Reads the test, changes course</b></div>
+      <div class="h rh">ε = 2%<b>Clumsy with the tools</b></div>
+      <div class="c lose"><b>18%</b><span>Below the floor by 12 points. The 2024 picture.</span></div>
+      <div class="c"><b>39%</b><span>Feedback helps, but 55% of runs break before it can.</span></div>
+      <div class="h rh">ε = 0.3%<b>Fluent with the tools</b></div>
+      <div class="c"><b>35%</b><span>Clean runs, but extra tries are mostly the same guess.</span></div>
+      <div class="c win"><b>78%</b><span>Both skills. The loop more than doubles the floor.</span></div>
+    </div>
+    <div class="floor"><span>pipeline floor <b>30%</b></span><span>runs surviving 40 steps <b>45%</b> at ε = 2% · <b>89%</b> at ε = 0.3%</span><span>break-even ρ <b>22%</b> at ε = 2% · <b>2%</b> at ε = 0.3%</span></div>
+  </div>
+  <p class="cap"><b>How to read it.</b> Fixing only one dial gets you a few points past the floor. Fixing both gets you far past it. Agentic training moves both at once, which is why the reversal in public was so sharp. All numbers on this figure are made up to show the shape. The real ones come from your own trajectories, section 07.</p>
+
+  <p>Two things in the figure are worth saying out loud in the interview.</p>
+  <p><strong>The break-even moves.</strong> With clumsy tool use, the loop needs the model to fix a failure 22% of the time just to tie the pipeline. With fluent tool use, 2% is enough. So the same model can lose to a pipeline in one harness and beat it in another, purely because the edit format or the tool output changed ε. That is the harness half of the answer, and it is cheap to fix.</p>
+  <p><strong>Feedback can be worth almost nothing.</strong> At ρ = 5% the model sees the failing test and mostly writes the same fix again. Extra attempts then add steps without adding chances, and the loop is strictly worse. That is the training half of the answer, and it is not cheap to fix.</p>
+
+  <aside class="plain"><p class="plain-label">In plain words</p><p>A pipeline is one shot at the target from close range. A loop is a walk up to the target, a shot, a look at where it landed, and another shot. The walk has places to trip. The look only helps if you know how to adjust your aim. A shooter who trips often and never adjusts should stay where they are and take the one shot.</p></aside>
+</section>
+
+
+<section class="part">
+  <div class="parthead"><span class="pnum">04</span><h2>Who reads the failing test</h2></div>
+  <p class="lede">The question says the pipeline has “no verification step”. The real Agentless does run tests. What it never does is show the results to the model. That difference, more than the loop itself, is what the result is about.</p>
+
+  <p>Here is what Agentless (version 2) actually does with each issue. It localises in three rounds, from files down to edit locations. It samples <strong>40 candidate patches</strong> in search-and-replace format. It has the model write a reproduction test. Then, in the paper’s words, it “runs the set of regression tests on all the generated patches … keeps the patches with the lowest number of regression failures … runs the selected reproduction test and only keeps patches that output <code>Issue resolved</code>”, and takes a majority vote over what is left.</p>
+  <p>So tests are read, many times over. But they are read by a <strong>script</strong>, to pick one patch out of forty. The model wrote forty independent drafts and never saw a single test result. An agent does the opposite. It writes one draft, the <strong>model</strong> reads the failure, and the model writes the next draft.</p>
+
+  <div class="strips">
+    <span class="ftitle">Three ways to use a failing test</span>
+    <p class="fsub">Each glyph is one attempt, read left to right like a pytest progress line. The amber ring marks the only thing a loop adds over a pipeline: an attempt that is different <em>because of</em> what the last one showed.</p>
+    <div class="strip">
+      <div class="who">The pipeline: a sieve<small>tests read by a script</small></div>
+      <div class="line"><span class="g f">F</span><span class="g p">.</span><span class="g f">F</span><span class="g e">E</span><span class="g f">F</span><span class="g p">.</span><span class="g f">F</span><span class="g f">F</span><span class="arr">→</span><span class="note">tests keep the two passes, vote picks one</span></div>
+      <div class="out"><b>solved</b>8 drafts</div>
+    </div>
+    <div class="strip">
+      <div class="who">A loop, untrained<small>tests read by the model</small></div>
+      <div class="line"><span class="g e">E</span><span class="g f">F</span><span class="arr">→</span><span class="g eq">=</span><span class="arr">→</span><span class="g eq">=</span><span class="arr">→</span><span class="g s">s</span><span class="note">same fix twice, then stops</span></div>
+      <div class="out"><b>failed</b>5 steps</div>
+    </div>
+    <div class="strip hot">
+      <div class="who">A loop, trained<small>tests read by the model</small></div>
+      <div class="line"><span class="g f">F</span><span class="arr rev">→</span><span class="g f rev">F</span><span class="arr rev">→</span><span class="g p rev">.</span><span class="note rev">reads the assertion, changes the fix, stops on green</span></div>
+      <div class="out"><b>solved</b>3 attempts</div>
+    </div>
+    <div class="gkey">
+      <span><span class="g p">.</span>passed</span>
+      <span><span class="g f">F</span>test ran, said no</span>
+      <span><span class="g e">E</span>step never ran</span>
+      <span><span class="g eq">=</span>same fix again</span>
+      <span><span class="g s">s</span>stopped without a pass</span>
+      <span><span class="g f rev">F</span>changed course because of feedback</span>
+    </div>
+  </div>
+  <p class="cap"><b>The middle row has no amber at all.</b> It ran a test, saw the failure, and did nothing different with it. That is a loop paying for steps and getting none of the benefit, and it is what “the model was never trained to use feedback” looks like in a log.</p>
+
+  <h3 class="sub">The one comparison that decides it</h3>
+  <p>A sieve and a loop are both ways of getting more than one try. The sieve’s tries are independent: each draft has the model’s one-shot chance s of being right, and the script just has to recognise the right one. The loop’s tries are linked: each one has the last failure in its context. That can help a lot, if the model knows what to do with a stack trace. It can also hurt, because the wrong patch is right there and the model anchors on it.</p>
+
+  <div class="formula"><b>revision beats a fresh draw only if</b>
+
+  ρ  &gt;  s
+
+  ρ = chance the next attempt is right, having read the failure
+  s = chance a brand-new attempt is right, from the issue alone
+
+  ρ &lt; s   the loop is a worse sieve: correlated tries, more steps     <u># the 2024 picture</u>
+  ρ &gt; s   the loop does something no sieve can                         <u># what agentic training buys</u></div>
+
+  <p>That gives you a sharp version of the newsletter’s thesis: <strong>a loop is only an asset when revising beats restarting</strong>. Section 11 turns this into the gate: fork real runs at their first failing test and measure both.</p>
+  <p>It also explains why feedback isn’t automatically worth much. Olausson and colleagues measured self-repair on code at equal compute and found the gains “often modest, vary a lot between subsets of the data, and are sometimes not present at all”. Feedback quality was the bottleneck: when a person wrote the explanation of the bug instead of the model, GPT-4’s repair rate went from 33.3% to 52.6%. On SWE-bench, the hidden tests are hidden. The only feedback an agent gets is from tests and scripts it wrote itself, so writing a test that actually reproduces the bug is part of the skill.</p>
+  <p>Independent draws, on the other hand, are cheap and effective whenever something can recognise the right answer. In <em>Large Language Monkeys</em>, one open model’s SWE-bench Lite coverage went from 15.9% with one sample to 56% with 250. The catch is that 56% counts an issue solved if <em>any</em> sample passes the real tests, an oracle no deployed system has. Agentless’s generated tests and majority vote are a practical, imperfect stand-in for that oracle.</p>
+
+  <aside class="plain"><p class="plain-label">In plain words</p><p>There are two ways to use a failed exam. You can sit it again with a fresh head and hope for different questions to go well. Or you can read the marked paper, see what you got wrong, and fix exactly that. The second is better only if you can read the marking. A student who can’t read it does better just sitting the exam again.</p></aside>
+</section>
+
+<section class="part">
+  <div class="parthead"><span class="pnum">05</span><h2>Four skills a loop needs, and what each looks like in a log</h2></div>
+  <p class="lede">A one-shot patch needs none of these. A loop needs all four, every step. Each one can be counted in trajectories, and each has a clear owner: the harness, the training, or both.</p>
+
+  <div class="twrap">
+  <table class="tw">
+    <thead><tr><th>Skill</th><th>In the strip</th><th>Count it with</th><th>Owner</th><th>Measured</th></tr></thead>
+    <tbody>
+      <tr><td><b>Tool fluency</b><br>valid calls, edits that apply</td><td class="gl"><span class="g e">E</span></td><td>calls that fail to parse and edits that fail to apply, per step</td><td>harness first (edit format, absolute paths), then training</td><td>SWE-agent with no edit command: 18.0% → 10.3% on Lite. Aider’s unified-diff format took GPT-4 Turbo from 20% to 61% on a laziness benchmark.</td></tr>
+      <tr><td><b>Feedback use</b><br>change course after a failure</td><td class="gl"><span class="g f">F</span><span class="g eq">=</span><span class="g eq">=</span></td><td>near-identical edits after a failing test; revise vs restart</td><td>training</td><td>Over 25% of SWE-agent-LM-32B trajectories repeat a 10-step sequence, against under 4% for Claude 3.7 Sonnet (SWE-smith).</td></tr>
+      <tr><td><b>Stopping</b><br>finish when done, not before, not never</td><td class="gl"><span class="g s">s</span> <span class="g s">⋯</span></td><td>submissions with no test run; runs that hit the step or cost limit</td><td>training (the harness can only cap)</td><td>53% of SWE-agent-LM-32B failures hit the cost or step limit. Failed issues take about 3.5× more steps than solved ones.</td></tr>
+      <tr><td><b>Context discipline</b><br>not drowning in output</td><td class="gl"><span class="g e">E</span><span class="g f">F</span> after a long read</td><td>observation tokens per step; failures right after very long outputs</td><td>harness first (truncate, window, trim old results), then training</td><td>SWE-agent’s 100-line file window: 18.0%; whole file: 12.7%. Shortening old tool results under a tight budget raised the share of target tests passing per task from 28% to 49% (one study, a selected set of tasks).</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="cap"><b>Sources:</b> SWE-agent Table 3 (GPT-4 Turbo, Lite); Aider’s unified-diff benchmark; SWE-smith §4.2; Liu et al. 2509.13941; <em>Same Model, Different Harness</em> 2608.26218. The fifth bucket, <b>wrong file</b>, belongs to localisation, which both designs share, so it is not counted against the loop.</p>
+
+  <p>Two of the four are mostly harness problems with a model component. Two are mostly model problems that the harness can only fence in. That split is what makes the diagnosis worth doing: <strong>a harness fix ships this week, a training fix ships with the next model.</strong></p>
+  <p>Anthropic’s write-up of its own minimal SWE-bench agent is a good example of a harness-side fix for tool fluency. Models got relative paths wrong once the agent had moved out of the repository root, “to prevent this, we simply made the tool always require an absolute path.” Their broader advice on agents makes the same point: “we actually spent more time optimizing our tools than the overall prompt.”</p>
+  <p>The edit-format detail belongs to guide <a href="0018-the-only-cockpit-it-knew.html">0018</a>, so only the headline is here. Vendors train their models on their own edit format. OpenAI’s Codex guide says it plainly: use “our exact <code>apply_patch</code> implementation as the model has been trained to excel at this diff format.” Put that model behind a different editor and ε goes up for reasons that have nothing to do with its coding ability. The newsletter’s line about a model family lagging on popular harnesses for months fits that pattern. I couldn’t find a primary source for it, so treat it as an anecdote.</p>
+</section>
+
+<section class="part">
+  <div class="parthead"><span class="pnum">06</span><h2>It already happened, in public</h2></div>
+  <p class="lede">This question has a real history, and it is the strongest part of your answer. The designs stayed the same. The training changed, and the winner changed with it.</p>
+
+  <div class="twrap">
+  <table class="tw">
+    <thead><tr><th>When</th><th>What happened</th><th>Number</th></tr></thead>
+    <tbody>
+      <tr><td class="n">Jul 2024</td><td>Agentless v1: a fixed localise-then-repair pipeline, “the best and cheapest” among open-source approaches on SWE-bench Lite</td><td class="n">27.33% · $0.34/issue</td></tr>
+      <tr><td class="n">Oct 2024</td><td>Agentless v2 adds test-based patch selection. Best open-source agent in the same table: AutoCodeRover-v2 at 30.67%</td><td class="n">32.00% Lite · $0.70</td></tr>
+      <tr><td class="n">Oct 2024</td><td>Anthropic’s minimal agent (bash and an edit tool, model decides when it is done) with the new Claude 3.5 Sonnet. The older 3.5 Sonnet: 33%</td><td class="n">49% Verified</td></tr>
+      <tr><td class="n">Dec 2024</td><td>OpenAI’s o1 system card: “o1 does not support code execution or file editing tools. To compensate, we use … Agentless.”</td><td class="n">40.9% Verified</td></tr>
+      <tr><td class="n">Dec 2024 – Jan 2025</td><td>DeepSeek-V3 and R1 report SWE-bench Verified “using the agentless framework”</td><td class="n">42.0% · 49.2%</td></tr>
+      <tr><td class="n sg">Jan 2025</td><td><b>o3-mini system card, same model in two harnesses.</b> “o3-mini (tools) performs the best on SWE-bench Verified at 61%. The o3-mini launch candidate, which uses Agentless instead of internal tools, scores 39%.” (477 tasks; the tools run used a slightly different checkpoint.)</td><td class="n sg">61% vs 39%</td></tr>
+      <tr><td class="n">Jul 2025</td><td>DeepSWE: Qwen3-32B trained with RL alone, in an agent scaffold. “With just 200 steps of RL training, SWE-Bench-Verified score increases from 23→42%”</td><td class="n">23% → 42%</td></tr>
+      <tr><td class="n sg">Sep 2025</td><td><b>Kimi-Dev, the reverse case.</b> A model trained heavily on Agentless-style tasks scores 60.4% as a pipeline. Adapted to a SWE-agent with 5k trajectories of SFT, it scores 48.6%.</td><td class="n sg">60.4% vs 48.6%</td></tr>
+      <tr><td class="n">2026</td><td>mini-SWE-agent, about 100 lines with bash as its only tool, with Claude 4.5 Opus. The top entry overall is 79.2%. The best Agentless-style entry is still 50.8%, from December 2024.</td><td class="n">76.8% Verified</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="box sig">
+    <span class="lab">The pair to quote</span>
+    <p><strong>o3-mini</strong> was trained to use tools. Same model, loop beats pipeline by 22 points. <strong>Kimi-Dev</strong> was trained on pipeline-shaped tasks. Same model, pipeline beats loop by 12 points. The direction of the gap follows the training, both times. That is the whole thesis in two rows, and it comes from the labs’ own reports.</p>
+  </div>
+
+  <p>One more row is worth knowing because it cuts the other way. Liu et al. ran Claude 3.5 Sonnet through three designs: OpenHands solved 53.0%, Agentless 50.8% and a tool-based Claude agent 49.0%. That is within about four points, and they note the three solve partly <em>different</em> issues. When a model is reasonably fit for both shapes, the architecture moves the total very little. What it moves is <em>which</em> problems get solved, and how they fail.</p>
+  <p>The last row is the ending the newsletter describes. With a model trained for agentic work, a hundred-line loop with one tool lands within a few points of the best custom scaffold, and no fixed pipeline is anywhere near. The loop didn’t get cleverer. The model learned to use it.</p>
+</section>
+
+<section class="part">
+  <div class="parthead"><span class="pnum">07</span><h2>Read the trajectories before you decide</h2></div>
+  <p class="lede">The newsletter’s first instruction is the right one. Here is what reading them actually involves, and what the published failure studies say you will find.</p>
+
+  <p>The same failure study (Liu et al.) gives each design a clear fingerprint. In Agentless, <strong>51.3%</strong> of failed issues contain a localisation error: the pipeline’s weak point is finding the code, and it never gets a second look. In the two agents, about half of failed issues contain an error in the <strong>iteration and validation</strong> phase (49.1% and 51.7%), a phase that Agentless doesn’t have at all. Most successful runs finish within about 25 rounds, and failed issues take on average 3.5 times more steps. Roughly 65% of root causes are flawed reasoning rather than missing knowledge or the environment.</p>
+  <p>Read that as a forecast for your own trajectories. If your agent is losing to a pipeline, expect the extra failures to live in the part of the run the pipeline doesn’t have: the edit-test-edit cycle. That is exactly where the four loop skills are used.</p>
+
+  <h3 class="sub">A reading procedure</h3>
+  <ol class="props">
+    <li><span class="pn">01 · sample</span><div><p class="tell">Take a hundred failed runs, not the worst ten.</p><p>Stratify by repository and by run length. Long failures and short failures fail differently, and the short ones are often harness bugs.</p></div></li>
+    <li><span class="pn">02 · first fatal event</span><div><p class="tell">Tag each run with the first thing that made success impossible.</p><p>Not the last error message. A run that edited the wrong file at step 6 and then flailed for 40 steps is a localisation failure, not a stopping failure.</p></div></li>
+    <li><span class="pn">03 · count the cheap signals</span><div><p class="tell">Add counters for what can be detected mechanically.</p><p>Parse failures, edits that didn’t apply, identical consecutive edits, test runs per attempt, observation length per step, steps used against the limit. These give you ε and the bucket shares on every run from now on, not just the hundred you read.</p></div></li>
+    <li><span class="pn">04 · gradient or scatter</span><div><p class="tell">Look at how each bucket is spread.</p><p>If one bucket is mostly one tool, one error string or one repository, it is a harness problem. If it is spread thinly over everything, it is the model.</p></div></li>
+    <li><span class="pn">05 · fork the failures</span><div><p class="tell">At each run’s first failing test, branch: continue, or restart fresh.</p><p>This is check 02 and the only step that measures feedback use directly. Everything before it says <em>where</em> runs fail. This says whether the loop could ever pay.</p></div></li>
+  </ol>
+  <p>Guide <a href="0013-the-score-with-three-authors.html">0013</a> has a different four-way split, for a score that <em>changed</em> between runs (environment, harness, patch format, model). This one is for a loop that lost to a simpler design, so its buckets are loop skills.</p>
+</section>
+
+<section class="part">
+  <div class="parthead"><span class="pnum">08</span><h2>Fix the model, not the loop</h2></div>
+  <p class="lede">Once the cheap harness fixes are in, what is left is a model that never practised working in a loop. Deleting the loop hides that. Training fixes it.</p>
+
+  <p><strong>Agentic post-training</strong> in one paragraph: put the model in a real repository inside a container, give it the same tools it will have in production, let it work an issue to the end, run the hidden tests, and reward the run if they pass. Repeat over thousands of issues. Every step of a winning run gets credit, including reading the stack trace and the second attempt that differed from the first. Patch-only training never shows the model those steps.</p>
+
+  <div class="twrap">
+  <table class="tw">
+    <thead><tr><th>Result</th><th>Before → after</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr><td>SWE-Gym: 491 agent trajectories, fine-tuning a 32B model in OpenHands</td><td class="n">7.0% → 20.6%</td><td>2412.21139, Table 3</td></tr>
+      <tr><td>Same study: runs “stuck in loop” on Verified, 32B</td><td class="n">29.4% → 23.8%</td><td>2412.21139</td></tr>
+      <tr><td>DeepSWE: RL only, 200 steps, Qwen3-32B</td><td class="n">23% → 42%</td><td>Agentica / Together blog</td></tr>
+      <tr><td>LEGO-RL: RL inside three unmodified harnesses (OpenHands, Claude Code, OpenCode)</td><td class="n">+6.4 · +5.8 · +9.4 pp</td><td>2608.17393</td></tr>
+      <tr><td>Qwen3-Coder-Next: trained on trajectories from six scaffolds. Verified in SWE-agent, mini-SWE-agent, OpenHands</td><td class="n">70.6 · 71.1 · 71.3</td><td>2603.00729, Table 3</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <p>The last two rows are the newsletter’s “across multiple harnesses”. Train in one harness only and you get a model of that harness: guide <a href="0018-the-only-cockpit-it-knew.html">0018</a> has a fine-tuned 32B model scoring 52.6% in the harness it was trained in and 8.4% in another, because its tool calls couldn’t be parsed. Train across six and the scores sit within a point of each other.</p>
+  <p>If you can’t train the model, because it is a vendor API, your options shrink to three: fix the harness side of ε, match the vendor’s own tool formats, and, if revise-or-restart says the model doesn’t use feedback, make the loop restart instead of revise. That last one quietly turns your agent back into a sieve, which is the honest design for that model.</p>
+
+  <aside class="plain"><p class="plain-label">In plain words</p><p>If a new driver keeps stalling a manual car, you can give them an automatic (fix the harness) or teach them the clutch (fix the training). Taking the car away and making them walk (delete the loop) does get them there without stalling, but it doesn’t make them a better driver, and it caps how far they can go.</p></aside>
+</section>
+
+<section class="part">
+  <div class="parthead"><span class="pnum">09</span><h2>Where this argument runs out</h2></div>
+  <p class="lede">Five honest limits. Bring one up yourself before the interviewer does.</p>
+
+  <div class="box against">
+    <span class="lab">Pipelines are not just a 2024 relic</span>
+    <p>Kimi-Dev’s pipeline beat its own agent by 12 points in late 2025. If your model, budget and task are all pipeline-shaped, the pipeline can be the right product. Kimi-Dev’s authors also argue the two aren’t rivals: pipeline-style training builds “skill priors, including localization, code edit, and self-reflection” that make later agent training cheaper. A pipeline can be the curriculum, not just the competitor.</p>
+  </div>
+  <div class="box against">
+    <span class="lab">Sometimes architecture barely matters</span>
+    <p>Claude 3.5 Sonnet scored 49.0 to 53.0% across three very different designs. When a model is reasonably fit for both shapes, arguing about the design is arguing about four points. The bigger win can be combining them, since they solve different issues.</p>
+  </div>
+  <div class="box against">
+    <span class="lab">Feedback is only as good as the test that produced it</span>
+    <p>On SWE-bench the agent never sees the hidden tests. Its feedback comes from scripts it wrote itself, and a bad reproduction script gives confident wrong feedback. Low ρ can mean the model can’t read feedback, or that the feedback was poor. Check the agent’s own tests before blaming its reading.</p>
+  </div>
+  <div class="box against">
+    <span class="lab">The benchmark has its own error</span>
+    <p>Wang, Pradel and Liu found 7.8% of “solved” patches fail the project’s full test suite, inflating reported scores by 6.2 points. Contamination favours one-shot recall of a known fix, which is the pipeline’s shape. OpenAI has reportedly stopped reporting Verified for those reasons (I couldn’t open the post itself). Confirm a few-point gap on fresh issues before acting on it.</p>
+  </div>
+  <div class="box against">
+    <span class="lab">The two-dial model is mine</span>
+    <p>Section 03 is a teaching model, not a measured law. Real step failures aren’t independent, and attempts aren’t fixed in number. No paper I found measures step count against compounding failure for coding agents directly. The nearest are the 3.5× step ratio and the 53% of failures that hit the step limit. Use the model to explain the shape. Use your trajectories for the numbers.</p>
+  </div>
+</section>
+
+
+<section class="part">
+  <div class="parthead"><span class="pnum">10</span><h2>Keep the pipeline, as the floor</h2></div>
+  <p class="lede">The newsletter’s last line is the one most people skip. Even when the agent wins, the pipeline has three jobs left, and deleting it throws all three away.</p>
+
+  <ol class="props">
+    <li><span class="pn">01 · baseline</span><div><p class="tell">The agent has to beat it at the same cost.</p><p>A pipeline that draws four patches and an agent that runs forty steps are not the same spend. Compare them at equal dollars or equal model calls. If the agent only wins when it spends five times more, that is a pricing decision, not a capability result.</p></div></li>
+    <li><span class="pn">02 · fallback</span><div><p class="tell">It is a known-good path when the agent fails loudly.</p><p>A run that breaks early (no edit applied, budget gone, nothing changed) can be handed to the pipeline instead of returned empty. Run the cheap path first on easy issues and the loop on the rest, and you get most of both.</p></div></li>
+    <li><span class="pn">03 · re-measured</span><div><p class="tell">The floor moves with every model.</p><p>A new model raises the pipeline’s score too, because one-shot patch writing improves as well. The margin between agent and pipeline is the number to track per release, not the agent’s score alone. A shrinking margin means loop skills are falling behind patch skills.</p></div></li>
+  </ol>
+
+  <h3 class="sub">The thing to carry forward</h3>
+  <p>One record per model and harness pair, filled from trajectories rather than from a leaderboard. The values are an example. The two <code>null</code> fields are the ones almost nobody measures, and they are the ones that answer the question.</p>
+
+  <div class="formula"><b># loop_eval.yaml</b>   one per model × harness pair (example values)
+model: coder-2026-10
+harness: internal-agent v3          <u># bash, str_replace editor, pytest</u>
+floor:
+  design: localise → 4 drafts → test-selected
+  resolve_rate: 0.30
+  cost_per_issue_usd: 0.41
+agent:
+  resolve_rate: 0.26
+  cost_per_issue_usd: 1.90
+  median_steps: 38
+per_step_slip_rate: 0.018           <u># calls that failed to parse + edits that failed to apply, per step</u>
+failed_runs_by_bucket:              <u># from reading 100 failed trajectories</u>
+  wrong_file: 0.31
+  edit_did_not_apply: 0.22
+  ignored_test_output: 0.19
+  ran_out_of_budget: 0.12
+  stopped_without_testing: 0.08
+  other: 0.08
+<i>revise_vs_restart: null</i>             <u># after a failing test: success if it continues vs a fresh start</u>
+<i>floor_margin_at_matched_cost: null</i>  <u># agent minus pipeline, pipeline given the agent's budget</u></div>
+
+  <aside class="plain"><p class="plain-label">In plain words</p><p>Keep the simple version running next to the clever one. If the clever one can’t beat it at the same price, you have learned something about the clever one. If it can, the simple version is still your safety net and your measuring stick.</p></aside>
+</section>
+
+<section class="part">
+  <div class="parthead"><span class="pnum">11</span><h2>Five checks, and one is the gate</h2></div>
+  <p class="lede">In the order you would run them. Only one decides whether the loop can ever pay. The others tell you where to spend the effort.</p>
+
+  <ol class="checks">
+    <li>
+      <span class="ck2"><span>Check 01</span><span class="ctag">a day</span></span>
+      <b>Bucket a hundred failed runs</b>
+      <p>Read them, don’t just count them. Tag each with its first fatal event: wrong file, edit that didn’t apply, test output ignored, stopped without testing, ran out of budget. Counters help (parse failures, apply failures, repeated identical edits), but the reading is where you find the bucket nobody predicted.</p>
+      <p class="obs"><b>Tells you</b>which of the four loop skills is missing, and how much of the gap is the loop at all. Wrong-file failures belong to localisation, which the pipeline has too.</p>
+    </li>
+    <li class="must">
+      <span class="ck2"><span>Check 02</span><span class="ctag">the gate</span></span>
+      <b>Revise or restart</b>
+      <p>Take every run that reached a failing test. Fork it at that moment. One branch continues with the failure in context, as the agent would. The other starts a fresh attempt from the issue, with the same remaining budget. Compare how often each ends up passing.</p>
+      <p>If continuing doesn’t beat restarting, the model is not using the feedback. The loop is a slow, correlated way of drawing more samples, and a pipeline that draws independent samples and picks with tests will beat it. No harness change fixes that. It is a training gap.</p>
+      <p class="obs"><b>Tells you</b>ρ against s, the one comparison that decides whether a loop can ever beat a sieve.</p>
+    </li>
+    <li>
+      <span class="ck2"><span>Check 03</span><span class="ctag">an afternoon</span></span>
+      <b>Transplant the localisation</b>
+      <p>Give the agent the pipeline’s file and line predictions as a starting hint, and re-run. If the agent catches up, the pipeline’s edge was in finding the code, and the agent’s search tools or context handling are the problem, not its repair skill.</p>
+      <p class="obs"><b>Tells you</b>whether the gap is in search or in repair.</p>
+    </li>
+    <li>
+      <span class="ck2"><span>Check 04</span><span class="ctag">an afternoon</span></span>
+      <b>Swap the edit format</b>
+      <p>Re-run with the edit format the model was trained on (its vendor’s patch tool, or plain search-and-replace) and with tool output truncated and line-numbered. Watch the per-step slip rate. This is guide <a href="0018-the-only-cockpit-it-knew.html">0018</a>’s adapter test, aimed at one number.</p>
+      <p class="obs"><b>Tells you</b>how much of ε is the harness. That part is cheap to remove.</p>
+    </li>
+    <li>
+      <span class="ck2"><span>Check 05</span><span class="ctag">a day</span></span>
+      <b>Price-match the floor</b>
+      <p>Give the pipeline the agent’s budget: more drafts, the same test-based selection. Report both at equal cost, with intervals. On a fresh set of issues too, not only the public benchmark, since a memorised fix helps the one-shot design more than the loop.</p>
+      <p class="obs"><b>Tells you</b>the honest margin, which is the number you report.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="part">
+  <div class="parthead"><span class="pnum">12</span><h2>Twelve follow-ups</h2></div>
+  <p class="lede">The likely next questions, with answers you can say in under a minute.</p>
+
+  <div class="fu">
+    <p class="fuq"><span class="fn3">F1</span>“Isn’t this just SWE-bench being noisy or contaminated?”</p>
+    <p class="fua">Noise is a reason to put intervals on both numbers, not a reason to dismiss the gap. Contamination is more interesting: if a model has seen the fix, writing it in one shot is exactly what a pipeline asks for, so leakage can favour the pipeline. That is a reason to re-run on fresh issues or your own repositories, not a reason to trust the agent.</p>
+  </div>
+  <div class="fu">
+    <p class="fuq"><span class="fn3">F2</span>“So when would you actually ship the pipeline?”</p>
+    <p class="fua">When the tasks are narrow and alike, when the latency or cost budget is tight, when every run must follow an auditable path, or when I can’t retrain the model and the harness fixes don’t close the gap. Often the answer is both: the pipeline first on easy issues, the agent on the rest.</p>
+  </div>
+  <div class="fu">
+    <p class="fuq"><span class="fn3">F3</span>“The model is a vendor API. You can’t retrain it. Now what?”</p>
+    <p class="fua">Fix the harness side of ε: use the edit format that vendor trained on, truncate and line-number tool output, lint edits before applying them. Then check revise-or-restart. If the model doesn’t use feedback, make the loop restart instead of revise: fresh attempts, chosen by tests. That turns the agent into a sieve, which is what the pipeline was already doing well. Or try a different model.</p>
+  </div>
+  <div class="fu">
+    <p class="fuq"><span class="fn3">F4</span>“How do you tell a harness bug from a model gap in a trajectory?”</p>
+    <p class="fua">Harness bugs repeat. The same tool, the same format error, the same truncated output, across many unrelated issues. Model gaps scatter across tasks and steps. If one bucket is dominated by one tool or one error string, look at the harness first.</p>
+  </div>
+  <div class="fu">
+    <p class="fuq"><span class="fn3">F5</span>“What does agentic RL actually teach that fine-tuning on patches doesn’t?”</p>
+    <p class="fua">It rewards whole trajectories by whether the hidden tests pass at the end, so everything in a winning run gets credit: the search that found the file, reading the stack trace, the second edit that differed from the first, and stopping once the tests pass. Fine-tuning on patches only ever shows the last step.</p>
+  </div>
+  <div class="fu">
+    <p class="fuq"><span class="fn3">F6</span>“Why not just add a retry to the pipeline when tests fail?”</p>
+    <p class="fua">You can, and it is worth being exact about what kind. “If the tests fail, generate again” is selection, and it works with any model. “Show the model the failure and ask again” is revision, and it only works if the model uses feedback. Check 02 tells you which one to build.</p>
+  </div>
+  <div class="fu">
+    <p class="fuq"><span class="fn3">F7</span>“Isn’t more test-time compute always better?”</p>
+    <p class="fua">Only if the extra attempts are different from each other and you can tell which one is right. Independent samples are diverse by construction. Retries inside one context are correlated with the first mistake, because the wrong patch is sitting right there. Extra compute on correlated attempts buys much less.</p>
+  </div>
+  <div class="fu">
+    <p class="fuq"><span class="fn3">F8</span>“What per-step slip rate is acceptable?”</p>
+    <p class="fua">Work backwards from run length. For your median run length T, pick ε so that (1 − ε)<sup>T</sup> stays near 0.9. At 40 steps that is about a quarter of a percent per step. Then measure the real ε per tool, because one bad tool usually accounts for most of it.</p>
+  </div>
+  <div class="fu">
+    <p class="fuq"><span class="fn3">F9</span>“How do you stop the agent wandering?”</p>
+    <p class="fua">In the harness, a step budget and a stall detector that notices the same state twice. Guide <a href="0001-the-max-iteration-trap.html">0001</a> has the caveat: a cap is a budget, not a skill. The skill of stopping once the tests pass comes from training, where runs that finish cleanly are the ones that get rewarded.</p>
+  </div>
+  <div class="fu">
+    <p class="fuq"><span class="fn3">F10</span>“Does this apply outside coding?”</p>
+    <p class="fua">Anywhere a loop’s feedback has to be read by the model. Coding is the easy case because tests give a clear signal. In computer use the feedback is a screenshot, which is harder to read and easier to misread. Guide <a href="0019-the-fifteen-percent.html">0019</a> is what happens when the only signal is another model’s opinion.</p>
+  </div>
+  <div class="fu">
+    <p class="fuq"><span class="fn3">F11</span>“The agent is now five points ahead. Delete the pipeline?”</p>
+    <p class="fua">No. Five points at what cost? Is the margin still there on fresh issues? And will it still be there after the next model, which also improves the pipeline? Keep it as the floor and the fallback, and re-measure the margin every release.</p>
+  </div>
+  <div class="fu">
+    <p class="fuq"><span class="fn3">F12</span>“What would you report to leadership?”</p>
+    <p class="fua">Agent and pipeline at matched cost with intervals, on a fresh set. The failure buckets and how they moved. Revise-versus-restart. Per-step slip rate by tool. Then one sentence: whether the gap is in the harness (we fix it this sprint) or in the model (it needs training, or a different model).</p>
+  </div>
+</section>
+
+
+<section class="part">
+  <div class="parthead"><span class="pnum">13</span><h2>Your evidence</h2></div>
+  <p class="lede">Everything above is other people’s measurements. This is the part only you can write: a loop you built or ran, a simpler path it was up against, and what the runs showed. A retry wrapper around one model call counts. So does a RAG chain that was replaced by an agent, or the other way round.</p>
+
+  <div class="evidence" data-evidence-for="0020">
+    <header>
+      <span class="elab">Four rows · saved in this browser</span>
+      <span class="hint">Row 2 is the one that turns the conversation. Fill that one first.</span>
+    </header>
+    <div class="ebody">
+      <div class="rows">
+
+        <div class="row">
+          <p class="ran">01 · A loop and its simpler rival</p>
+          <div class="field">
+            <label for="e20-loop">The loop or agent</label>
+            <input id="e20-loop" data-field="loop" placeholder="e.g. a tool-calling agent that fixes failing CI jobs">
+          </div>
+          <div class="field">
+            <label for="e20-floor">The simpler path it was compared with</label>
+            <input id="e20-floor" data-field="floor" placeholder="e.g. one prompt with the log and the diff, no tools">
+          </div>
+          <div class="why-row">
+            <label for="e20-why">Why you built the loop in the first place</label>
+            <textarea id="e20-why" data-field="why" placeholder="Name the feedback the loop was supposed to use: test output, a compiler error, a query result, a user's correction. If you never compared it with a simpler path, say so plainly and say what that path would have been. Knowing which baseline you skipped is half of this question."></textarea>
+          </div>
+        </div>
+
+        <div class="row">
+          <p class="ran">02 · What the runs showed</p>
+          <div class="field">
+            <label for="e20-bucket">The most common way runs failed</label>
+            <input id="e20-bucket" data-field="bucket" placeholder="e.g. it re-ran the same fix after the test failed">
+          </div>
+          <div class="field">
+            <label for="e20-share">How common, and how you counted</label>
+            <input id="e20-share" data-field="share" placeholder="e.g. 23 of 60 failed runs, read by hand">
+          </div>
+          <div class="why-row">
+            <label for="e20-owner">Harness problem or model problem, and how you could tell</label>
+            <textarea id="e20-owner" data-field="owner" placeholder="The strong version gives the evidence: the same error string on many tasks points at the harness; scattered mistakes point at the model. If you only ever looked at the final score, say which counter you would add first (parse failures, edits that didn't apply, repeated identical attempts)."></textarea>
+          </div>
+        </div>
+
+        <div class="row">
+          <p class="ran">03 · The number</p>
+          <div class="field">
+            <label for="e20-before">Loop vs simpler path, before</label>
+            <input id="e20-before" data-field="before" placeholder="e.g. 41% vs 47% fixed">
+          </div>
+          <div class="field">
+            <label for="e20-cost">What each cost per task</label>
+            <input id="e20-cost" data-field="cost" placeholder="e.g. $0.90 vs $0.12, 3 min vs 20 s">
+          </div>
+          <div class="why-row">
+            <label for="e20-matched">Was the comparison at the same cost?</label>
+            <textarea id="e20-matched" data-field="matched" placeholder="If the loop spent more, say what the simpler path would have scored with the same budget (more samples, picked by a check). If you don't know, say that, and say how you'd find out. Interviewers trust a candidate who knows which comparison was unfair."></textarea>
+          </div>
+        </div>
+
+        <div class="row">
+          <p class="ran">04 · What you changed</p>
+          <div class="field">
+            <label for="e20-fix">The change</label>
+            <input id="e20-fix" data-field="fix" placeholder="e.g. truncated test output to the failing assertion">
+          </div>
+          <div class="field">
+            <label for="e20-after">Loop vs simpler path, after</label>
+            <input id="e20-after" data-field="after" placeholder="e.g. 58% vs 47%">
+          </div>
+          <div class="why-row">
+            <label for="e20-left">What it didn't fix</label>
+            <textarea id="e20-left" data-field="left" placeholder="Name the bucket that is still there and whether it needs a harness change, a different model, or training you couldn't do. An answer with a known remaining gap reads as experience."></textarea>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="earned">
+        <span class="lab">The answer these rows earn</span>
+        <p>“I’ve hit this. We had <span data-fill="loop" class="placeholder">[row 1]</span>, and a simpler <span data-fill="floor" class="placeholder">[row 1]</span> was holding its own: <span data-fill="before" class="placeholder">[row 3]</span>. When we read the runs, the main failure was <span data-fill="bucket" class="placeholder">[row 2]</span>, <span data-fill="share" class="placeholder">[row 2]</span>. We changed <span data-fill="fix" class="placeholder">[row 4]</span>, and it went to <span data-fill="after" class="placeholder">[row 4]</span>. Since then I read the trajectories before I decide whether a loop is worth it.”</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section class="part">
+  <div class="parthead"><span class="pnum">14</span><h2>Numbers worth carrying in</h2></div>
+  <p class="lede">The first three are this page’s own arithmetic and are labelled as such. The rest come from primary sources.</p>
+
+  <div class="twrap">
+  <table class="tw">
+    <thead><tr><th>Number</th><th>What it is</th><th>Source</th></tr></thead>
+    <tbody>
+      <tr><td class="n sg">(1 − ε)<sup>T</sup></td><td>Chance of surviving T steps. 45% at 2% per step over 40 steps, 89% at 0.3%</td><td>Arithmetic, section 03</td></tr>
+      <tr><td class="n sg">ρ &gt; s</td><td>A loop beats a sieve only when revising after a failure beats a fresh draw</td><td>Section 04</td></tr>
+      <tr><td class="n">22% vs 2%</td><td>Break-even revision rate for the toy loop to tie a 30% pipeline, clumsy vs fluent tool use</td><td>Arithmetic, section 03</td></tr>
+      <tr><td class="n sg">61% vs 39%</td><td>o3-mini with tools vs o3-mini in Agentless, SWE-bench Verified (477 tasks)</td><td>o3-mini system card §5.7.2</td></tr>
+      <tr><td class="n sg">60.4% vs 48.6%</td><td>Kimi-Dev as a pipeline vs as a SWE-agent after 5k trajectories of SFT</td><td>2509.23045</td></tr>
+      <tr><td class="n">32.00% · $0.70</td><td>Agentless v2 on SWE-bench Lite, vs best open agent AutoCodeRover-v2 at 30.67%</td><td>2407.01489</td></tr>
+      <tr><td class="n">40 patches</td><td>Agentless samples per issue, then filters with regression and reproduction tests and votes</td><td>2407.01489 §3</td></tr>
+      <tr><td class="n">53.0 · 50.8 · 49.0</td><td>Claude 3.5 Sonnet in OpenHands, Agentless, a tool-based agent: same model, three designs</td><td>2509.13941</td></tr>
+      <tr><td class="n">51.3%</td><td>Agentless failures with a localisation error</td><td>2509.13941</td></tr>
+      <tr><td class="n">49.1% · 51.7%</td><td>Agent failures with an error in iteration and validation, a phase Agentless lacks</td><td>2509.13941</td></tr>
+      <tr><td class="n">3.5×</td><td>Steps in failed issues vs solved ones. Most successes within about 25 rounds</td><td>2509.13941</td></tr>
+      <tr><td class="n">23% → 42%</td><td>DeepSWE: Qwen3-32B after 200 RL steps in an agent scaffold</td><td>Agentica / Together</td></tr>
+      <tr><td class="n">7.0% → 20.6%</td><td>SWE-Gym: 32B model fine-tuned on 491 agent trajectories, OpenHands</td><td>2412.21139</td></tr>
+      <tr><td class="n">18.0 → 10.3</td><td>SWE-agent on Lite without its edit command. Whole-file viewer: 12.7</td><td>2405.15793, Table 3</td></tr>
+      <tr><td class="n">33.3% → 52.6%</td><td>GPT-4 self-repair when a person explains the bug instead of the model</td><td>Olausson et al., ICLR 2024</td></tr>
+      <tr><td class="n">15.9% → 56%</td><td>Lite coverage, 1 vs 250 samples, judged by an oracle (any sample passes)</td><td>Large Language Monkeys</td></tr>
+      <tr><td class="n">76.8%</td><td>mini-SWE-agent (bash only, ~100 lines) with Claude 4.5 Opus on Verified. Best pipeline entry: 50.8%</td><td>SWE-bench leaderboard</td></tr>
+      <tr><td class="n">7.8% · 6.2 pp</td><td>“Solved” patches failing the full test suite, and the resulting score inflation</td><td>2503.15223</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+
+<section class="part">
+  <div class="parthead"><span class="pnum">15</span><h2>Glossary</h2></div>
+  <dl class="gloss">
+    <dt>agent loop</dt><dd>The model chooses a tool call, sees the result, and chooses again until it decides to stop.</dd>
+    <dt>pipeline / workflow</dt><dd>Code fixes the sequence of steps. The model fills each step in but never chooses the next one.</dd>
+    <dt>Agentless</dt><dd>A 2024 pipeline for fixing GitHub issues: localise (files, then functions, then lines), sample several patches, and pick one using tests. No tool loop.</dd>
+    <dt>harness / scaffold</dt><dd>Everything around the model: tools, prompt, how calls are parsed, how results are shown, when the run stops.</dd>
+    <dt>trajectory</dt><dd>The full record of one agent run: every tool call and every observation, in order.</dd>
+    <dt>observation</dt><dd>What the harness pastes back after a tool call: file contents, command output, a test failure.</dd>
+    <dt>localisation</dt><dd>Finding where in the codebase the change belongs.</dd>
+    <dt>edit format</dt><dd>How a change is written down: whole file, search-and-replace block, unified diff, or a string-replace tool call.</dd>
+    <dt>resolve rate · pass@1</dt><dd>Share of issues fixed (hidden tests pass), from one attempt per issue.</dd>
+    <dt>pass@k · coverage</dt><dd>Share of issues where at least one of k attempts is right. Only useful in practice if something can pick the right one.</dd>
+    <dt>selection</dt><dd>Using feedback to choose among attempts. A script can do it. Needs no model skill.</dd>
+    <dt>revision</dt><dd>Using feedback to write a better next attempt. The model has to do it, and it has to have learned how.</dd>
+    <dt>ε · per-step slip rate</dt><dd>Chance that a single step breaks the run: a call that won’t parse, an edit that won’t apply.</dd>
+    <dt>ρ · revision rate</dt><dd>Chance that the attempt after a failing test is right. Compare it with s, the chance a fresh attempt is right.</dd>
+    <dt>revise or restart</dt><dd>This guide’s gate: fork failed runs at the first failing test and compare continuing against starting over.</dd>
+    <dt>agentic post-training</dt><dd>Training a model on agent runs, usually RL in executable repositories with hidden tests as the reward.</dd>
+    <dt>executable environment</dt><dd>A repository in a container where code can be run and tests can be executed, so a run can be scored automatically.</dd>
+    <dt>floor</dt><dd>The pipeline’s score at the agent’s budget. The agent has to beat it to justify its extra steps.</dd>
+  </dl>
+</section>
+
+
+<section class="part">
+  <div class="parthead"><span class="pnum">16</span><h2>Sources</h2></div>
+  <ol class="srcs">
+    <li>Xia, Deng, Dunn &amp; Zhang, <a href="https://arxiv.org/abs/2407.01489">Agentless: Demystifying LLM-based Software Engineering Agents</a>, arXiv 2407.01489, 2024 (v1 and v2; §3 and Table 1).</li>
+    <li>OpenAI, <a href="https://cdn.openai.com/o3-mini-system-card-feb10.pdf">OpenAI o3-mini System Card</a>, 2025 (§5.7.2, SWE-bench Verified).</li>
+    <li>OpenAI, <a href="https://arxiv.org/abs/2412.16720">OpenAI o1 System Card</a>, arXiv 2412.16720, 2024 (§5.8.2).</li>
+    <li>DeepSeek-AI, <a href="https://arxiv.org/abs/2412.19437">DeepSeek-V3 Technical Report</a>, arXiv 2412.19437 (Table 6), and <a href="https://arxiv.org/abs/2501.12948">DeepSeek-R1</a>, arXiv 2501.12948 (Table 4).</li>
+    <li>Yang et al., <a href="https://arxiv.org/abs/2509.23045">Kimi-Dev: Agentless Training as Skill Prior for SWE-Agents</a>, arXiv 2509.23045, 2025.</li>
+    <li>Anthropic, <a href="https://www.anthropic.com/engineering/swe-bench-sonnet">Raising the bar on SWE-bench Verified with Claude 3.5 Sonnet</a>, 2024, and <a href="https://www.anthropic.com/engineering/building-effective-agents">Building effective agents</a>, December 2024.</li>
+    <li>Yang, Jimenez, Wettig et al., <a href="https://arxiv.org/abs/2405.15793">SWE-agent: Agent-Computer Interfaces Enable Automated Software Engineering</a>, arXiv 2405.15793, 2024 (Tables 1 and 3).</li>
+    <li>Liu et al., <a href="https://arxiv.org/abs/2509.13941">An Empirical Study on Failures in Automated Issue Solving</a>, arXiv 2509.13941, 2025.</li>
+    <li>Pan et al., <a href="https://arxiv.org/abs/2412.21139">Training Software Engineering Agents and Verifiers with SWE-Gym</a>, arXiv 2412.21139, 2024 (Table 3).</li>
+    <li>Agentica and Together AI, <a href="https://www.together.ai/blog/deepswe">DeepSWE: training a coding agent with reinforcement learning</a>, July 2025.</li>
+    <li>Yang et al., <a href="https://arxiv.org/abs/2504.21798">SWE-smith: Scaling Data for Software Engineering Agents</a>, arXiv 2504.21798, 2025 (§4.2).</li>
+    <li>Du, Jiang, Yuan et al., <a href="https://arxiv.org/abs/2608.17393">LEGO-RL: Harness-Native Reinforcement Learning for Coding Agents</a>, arXiv 2608.17393, 2026.</li>
+    <li>Qwen Team, <a href="https://arxiv.org/abs/2603.00729">Qwen3-Coder-Next Technical Report</a>, arXiv 2603.00729, 2026 (Table 3).</li>
+    <li>Thangarajah, Chen &amp; Hassan, <a href="https://arxiv.org/abs/2608.06113">DCAS: Decoupling CLI Agent Scaffolding to Internalize Planning across Scaffolds</a>, arXiv 2608.06113, ASE 2026.</li>
+    <li>Lewis, <a href="https://arxiv.org/abs/2608.26218">Same Model, Different Harness: Different Coding-Agent Results</a>, arXiv 2608.26218, 2026.</li>
+    <li>Olausson, Inala, Wang, Gao &amp; Solar-Lezama, <a href="https://arxiv.org/abs/2306.09896">Is Self-Repair a Silver Bullet for Code Generation?</a>, ICLR 2024.</li>
+    <li>Brown et al., <a href="https://arxiv.org/abs/2407.21787">Large Language Monkeys: Scaling Inference Compute with Repeated Sampling</a>, arXiv 2407.21787, 2024.</li>
+    <li>Wang, Pradel &amp; Liu, <a href="https://arxiv.org/abs/2503.15223">Are “Solved Issues” in SWE-bench Really Solved Correctly?</a>, arXiv 2503.15223, 2025.</li>
+    <li>Cuadron et al., <a href="https://arxiv.org/abs/2502.08235">The Danger of Overthinking: Examining the Reasoning-Action Dilemma in Agentic Tasks</a>, arXiv 2502.08235, 2025.</li>
+    <li>Aider, <a href="https://aider.chat/docs/unified-diffs.html">Unified diffs make GPT-4 Turbo 3X less lazy</a>, and OpenAI, <a href="https://developers.openai.com/cookbook/examples/gpt-5/gpt-5-1-codex-max_prompting_guide">Codex prompting guide</a> (on <code>apply_patch</code>).</li>
+    <li><a href="https://www.swebench.com/">SWE-bench leaderboards</a> (Verified, mini-SWE-agent entries), and <a href="https://github.com/SWE-agent/mini-swe-agent">mini-SWE-agent</a>.</li>
+  </ol>
+</section>
+
+<footer class="foot">
+  <span>Guide 0020 · Who Reads the Failing Test</span>
+  <span>Question 19 · a pipeline that beats the agent</span>
+</footer>
+
+
+<script>
+/* evidence.js, inlined - each guide is a standalone published page, so it
+   cannot rely on a sibling asset file. Markup contract: every input and
+   textarea carries data-field; anything with data-fill="<field>" is replaced
+   by that field's value as it is typed. Guarded throughout: a private window
+   or blocked storage returns nothing and the block still reads correctly. */
+(function(){
+  "use strict";
+  var KEY = "prep:v1:evidence";
+  function read(){ try { var r = localStorage.getItem(KEY); return r ? JSON.parse(r) : {}; } catch (e) { return {}; } }
+  function write(o){ try { localStorage.setItem(KEY, JSON.stringify(o)); return true; } catch (e) { return false; } }
+  /* An emptied field is a deletion, not an empty string: it has to read as
+     "not measured yet" in the earned answer, which refuses to render it. */
+  function save(id, field, val){
+    var all = read(), g = all[id] || {};
+    if (!val) { delete g[field]; } else { g[field] = val; }
+    if (!Object.keys(g).length) { delete all[id]; } else { all[id] = g; }
+    write(all);
+  }
+  function paintFill(block, field, val){
+    Array.prototype.slice.call(block.querySelectorAll('[data-fill="' + field + '"]')).forEach(function (t) {
+      if (t.dataset.prompt === undefined) { t.dataset.prompt = t.textContent; }
+      if (val) { t.textContent = val; t.classList.remove("placeholder"); }
+      else { t.textContent = t.dataset.prompt; t.classList.add("placeholder"); }
+    });
+  }
+  function wire(block){
+    var id = block.dataset.evidenceFor;
+    if (!id) return;
+    var saved = read()[id] || {};
+    Array.prototype.slice.call(block.querySelectorAll("input[data-field],textarea[data-field]")).forEach(function (el) {
+      var f = el.dataset.field;
+      if (saved[f] !== undefined && saved[f] !== null) { el.value = saved[f]; }
+      var v = el.value.trim();
+      if (v) { el.classList.add("filled"); }
+      paintFill(block, f, v);
+      /* input rather than change: typed numbers should survive closing the
+         tab mid-sentence, which is exactly when it happens. */
+      el.addEventListener("input", function () {
+        var cur = el.value.trim();
+        save(id, f, cur);
+        el.classList.toggle("filled", !!cur);
+        paintFill(block, f, cur);
+      });
+    });
+  }
+  function init(){
+    Array.prototype.slice.call(document.querySelectorAll(".evidence[data-evidence-for]")).forEach(wire);
+  }
+  if (document.readyState === "loading") { document.addEventListener("DOMContentLoaded", init); }
+  else { init(); }
+})();
+</script>
+
+</div>
+
+</body>
+</html>
