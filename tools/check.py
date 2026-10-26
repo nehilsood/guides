@@ -15,7 +15,7 @@ import re
 import sys
 from pathlib import Path
 
-CONTENT = ["index.html", "interview-prep", "system-design-school", "resume-mastery"]
+CONTENT = ["index.html", "interview-prep", "system-design-school", "resume-mastery", "sde2-plan"]
 
 # Artifacts that have a page on this site. Anything else is unwrapped to text.
 ARTIFACT_PAGES = {

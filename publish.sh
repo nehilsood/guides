@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sync the three guide workspaces into this repo and push it to GitHub Pages.
+# Sync the four guide workspaces into this repo and push it to GitHub Pages.
 #
 #   ./publish.sh            sync, check, show the diff, ask, commit, push
 #   ./publish.sh --dry-run  sync and check only; nothing is committed
@@ -31,6 +31,9 @@ for course in system-design-school resume-mastery; do
     sync "$SRC/$course/$dir/" "$SITE/$course/$dir/"
   done
 done
+
+echo "sync: sde2-plan"
+sync "$SRC/sde2-plan/site/" "$SITE/sde2-plan/"
 
 python3 "$SITE/tools/check.py" "$SITE"
 
