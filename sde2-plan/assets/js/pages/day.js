@@ -2,7 +2,7 @@ import { DAYS } from "../dates.js";
 import { dayModel } from "../models.js";
 import { dayFlow, afterChange } from "../dayflow.js";
 import { SUBJECTS } from "../subjects.js";
-import { setSolved, setMinutes, setFlag, setResult, setDay, rate, setHelp, showAnswer } from "../store.js";
+import { setSolved, setMinutes, setFlag, setResult, setDay, rate, setHelp, hideHelp, showAnswer } from "../store.js";
 import { el, busy, getState, commit, loadData, renderHeader, showError, guarded, today, now, rerender, onExternalChange, debounced, flushPending, safeHref, formatViews, codeParts, leadIn, plain, sentence, longDate, fullDate, trackLabel, todayDayClamped, reviseRow, barParts } from "./common.js";
 import { icon, ring } from "./icons.js";
 import { PROBLEM_CAP, elapsed, start, pause, clear, clock, isOver, toMinutes, runningId, parseRuns } from "../timer.js";
@@ -42,13 +42,23 @@ const STEP_TEXT = { idea: "Show the idea", example: "Show the worked example" };
 
 // One button for a coding row's next step of help; the same focus key keeps focus on it from step to step.
 // Its accessible name adds the row's name, so a screen reader can tell the rows apart.
-const helpButton = (x, name, mutate) => {
+const nextHelp = (x, name, mutate) => {
   const attrs = (text) => ({ type: "button", class: "link-btn", "data-f": `help-${x.answerId}`, "aria-label": `${text}: ${name}`, text });
   if (x.nextStep) return el("button", { ...attrs(STEP_TEXT[x.nextStep]), onclick: () => mutate((s) => setHelp(s, x.answerId, x.nextStep, now())) });
   return x.canShowAnswer
     ? el("button", { ...attrs("Show the answer"), title: "Shows the Solution and Video, and adds it to revision", onclick: () => mutate((s) => showAnswer(s, x.answerId, x.flagId ?? x.answerId, today(), now())) })
     : null;
 };
+
+// Folds the help the row has taken (the idea, the worked example, the answer's links) away and back. Nothing taken
+// is undone, and while it's hidden the next step waits for Show help again.
+const hideToggle = (x, name, mutate) => {
+  if (!x.canHide) return null;
+  const text = x.hidden ? "Show help again" : "Hide help";
+  return el("button", { type: "button", class: "link-btn", "data-f": `hide-${x.answerId}`, "aria-expanded": String(!x.hidden), "aria-label": `${text}: ${name}`, text, onclick: () => mutate((s) => hideHelp(s, x.answerId, !x.hidden, now())) });
+};
+
+const helpButton = (x, name, mutate) => [x.hidden ? null : nextHelp(x, name, mutate), hideToggle(x, name, mutate)];
 
 const resource = (item) =>
   el(
@@ -182,10 +192,10 @@ const points = (lines) => el("ul", { class: "points" }, lines.map(point));
 // One span per step: each li is a two-column grid (number, text), and a bare <code> would take the number's column.
 const steps = (lines) => el("ol", { class: "steps" }, lines.map((s) => el("li", {}, el("span", {}, rich(s)))));
 
-// The help a coding row has taken, under the row: none taken, nothing drawn.
+// The help a coding row has taken, under the row: none taken (or hidden), nothing drawn.
 const hintPanel = (x) => {
-  const idea = x.taken.idea && x.help.idea.length > 0;
-  const example = x.taken.example && x.help.example.length > 0;
+  const idea = !x.hidden && x.taken.idea && x.help.idea.length > 0;
+  const example = !x.hidden && x.taken.example && x.help.example.length > 0;
   return idea || example
     ? el(
         "div",

@@ -222,12 +222,15 @@ const withHelp = (block, state) => {
       ? { idea: [...block.points, ...(block.hints[item.slug] ?? [])], example: block.exampleFor === null || block.exampleFor === item.slug ? block.example ?? [] : [] }
       : { idea: [], example: [] };
     const steps = ["idea", "example"].filter((k) => help[k].length > 0);
-    const hideAnswer = coded && !ticked && rec.answer !== true;
+    const answerOut = coded && !ticked && rec.answer !== true;
+    // Help on screen (a step taken, or the answer shown before the tick) can be folded away until shown again.
+    const canHide = !debrief && (taken.idea || taken.example || (coded && !ticked && rec.answer === true));
+    const hidden = canHide && rec.helpHidden === true;
     return {
-      ...item, help, taken,
+      ...item, help, taken, canHide, hidden,
       nextStep: coded && !ticked && !debrief ? steps.find((k) => !taken[k]) ?? null : null,
-      hideAnswer,
-      canShowAnswer: hideAnswer && (debrief || steps.every((k) => taken[k])),
+      hideAnswer: answerOut || (hidden && coded && !ticked),
+      canShowAnswer: answerOut && (debrief || steps.every((k) => taken[k])),
     };
   };
   return {
