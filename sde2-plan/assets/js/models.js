@@ -20,10 +20,12 @@ const isDone = (state, day) => Boolean(state.days[day]?.done);
 const phaseOf = (todayDay) =>
   todayDay < 0 ? "before" : todayDay === 0 ? "baseline" : todayDay <= DAYS ? "running" : "finished";
 
-const cellStatus = (entry, state, todayDay) => {
+// started: the days with some work saved (the home page works it out from each day's cards).
+const cellStatus = (entry, state, todayDay, started) => {
   if (entry.day === todayDay) return "today";
   if (entry.day > todayDay) return "future";
   if (isDone(state, entry.day)) return "done";
+  if (started.has(entry.day)) return "partial";
   return entry.kind === "catchup" ? "catchup" : "missed";
 };
 
@@ -58,11 +60,11 @@ const expectedFinish = (days, state, todayDay) => {
 
 const totalMinutes = (slots) => slots.reduce((sum, s) => sum + s.minutes, 0);
 
-export const homeModel = (outline, state, today) => {
+export const homeModel = (outline, state, today, started = new Set()) => {
   const todayDay = dayNumber(today);
   const days = outline.filter((e) => e.day >= 1 && e.day <= DAYS);
   const todayEntry = outline[todayDay];
-  const cells = days.map((e) => ({ day: e.day, date: e.date, status: cellStatus(e, state, todayDay) }));
+  const cells = days.map((e) => ({ day: e.day, date: e.date, status: cellStatus(e, state, todayDay, started) }));
   const count = (status) => cells.filter((c) => c.status === status).length;
   return {
     todaySummary: todayEntry
@@ -74,7 +76,7 @@ export const homeModel = (outline, state, today) => {
     cells,
     // The map: one row of 30 days per month.
     months: Array.from({ length: DAYS / 30 }, (_, m) => cells.slice(m * 30, m * 30 + 30)),
-    counts: { done: count("done"), missed: count("missed") },
+    counts: { done: count("done"), partial: count("partial"), missed: count("missed") },
     tracks: trackTotals(days, state),
     dsa: dsaProgress(state),
     expectedFinish: expectedFinish(days, state, todayDay),

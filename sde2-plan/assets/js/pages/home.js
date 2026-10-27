@@ -1,4 +1,4 @@
-import { DAYS } from "../dates.js";
+import { DAYS, dayNumber } from "../dates.js";
 import { homeModel, dayModel } from "../models.js";
 import { dayFlow } from "../dayflow.js";
 import { icon } from "./icons.js";
@@ -6,7 +6,7 @@ import { SUBJECTS, subjectOf } from "../subjects.js";
 import { el, getState, loadData, renderHeader, showError, guarded, onExternalChange, today, todayDayClamped, longDate, fullDate, plain, sentence, barParts } from "./common.js";
 
 const SHOWN = ["hld", "lld", "ai", "cs"];
-const LEGEND = [["done", "done"], ["today", "today"], ["missed", "missed"], ["catchup", "catch-up day"]];
+const LEGEND = [["done", "done"], ["partial", "partly done"], ["today", "today"], ["missed", "missed"], ["catchup", "catch-up day"]];
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
@@ -35,11 +35,13 @@ const heading = (m) =>
   : m.daysToStart === 1 ? "Starts tomorrow"
   : `Starts in ${m.daysToStart} days`;
 
+// Some of the day's work is saved: a minute counted or a row finished.
+const started = (flow) => flow.minutesDone > 0 || flow.rows.some((r) => r.done);
+
 // The day to do now (Day 0 before the start, Day 180 after the end): how far through it is, and the way in.
 const todayCard = (m, d, flow) => {
-  const started = flow.minutesDone > 0 || flow.rows.some((r) => r.done);
   const outside = m.phase === "before" || m.phase === "finished";
-  const action = outside || flow.done ? `Open Day ${d.day}` : started ? `Continue Day ${d.day}` : `Start Day ${d.day}`;
+  const action = outside || flow.done ? `Open Day ${d.day}` : started(flow) ? `Continue Day ${d.day}` : `Start Day ${d.day}`;
   return el(
     "section",
     { class: "panel today-card", "aria-labelledby": "today-t" },
@@ -56,7 +58,7 @@ const todayCard = (m, d, flow) => {
 const monthRow = (cells, i) => {
   const n = (status) => cells.filter((c) => c.status === status).length;
   const now = cells.find((c) => c.status === "today");
-  const summary = [`Month ${i + 1}, Days ${cells[0].day} to ${cells.at(-1).day}`, `${n("done")} done`, `${n("missed")} missed`, now && `today is Day ${now.day}`];
+  const summary = [`Month ${i + 1}, Days ${cells[0].day} to ${cells.at(-1).day}`, `${n("done")} done`, `${n("partial")} partly done`, `${n("missed")} missed`, now && `today is Day ${now.day}`];
   return el(
     "div",
     { class: "map-row", role: "img", "aria-label": summary.filter(Boolean).join(", ") },
@@ -69,13 +71,17 @@ const map = (m) => [
   el("div", { class: "map-h" }, el("h2", { text: `Your ${DAYS} days` }), el("a", { class: "more", href: "outline.html", text: "Every day in the outline" })),
   el("div", { class: "map" }, m.months.map(monthRow)),
   el("div", { class: "legend" }, LEGEND.map(([cls, text]) => el("span", {}, el("i", { class: `cell ${cls}` }), text))),
-  el("p", { class: "map-foot", text: `One row is one month. ${m.counts.done} done, ${m.counts.missed} missed.` }),
+  el("p", { class: "map-foot", text: `One row is one month. ${m.counts.done} done, ${m.counts.partial} partly done, ${m.counts.missed} missed.` }),
 ];
 
 const render = ({ outline, cardsByDay, schedule, problemsById }) => {
   const now = today();
-  const m = homeModel(outline, getState(), now);
-  const d = dayModel(todayDayClamped(), outline, cardsByDay, schedule, problemsById, getState(), now);
+  const state = getState();
+  const flowOf = (day) => dayFlow(dayModel(day, outline, cardsByDay, schedule, problemsById, state, now));
+  // The map shows a past day that isn't marked done as partly done when some of its work is saved.
+  const past = outline.filter((e) => e.day >= 1 && e.day < dayNumber(now)).map((e) => e.day);
+  const m = homeModel(outline, state, now, new Set(past.filter((day) => started(flowOf(day)))));
+  const d = dayModel(todayDayClamped(), outline, cardsByDay, schedule, problemsById, state, now);
   return el(
     "div",
     {},
