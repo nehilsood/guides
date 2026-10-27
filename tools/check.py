@@ -55,6 +55,8 @@ FORBIDDEN = [
     ("work email", re.compile(r"[\w.+-]+@cloudsufi\.com", re.I)),
 ]
 RESUME_FORBIDDEN = ("résumé ledger", re.compile(r"ledger", re.I))
+# Working folders that hold private plans and reviews. A file under one means a sync copied too much.
+PRIVATE_FOLDERS = {"superpowers", ".superpowers", ".scratch"}
 
 # GitHub Pages serves no /favicon.ico for a project site, so every page asks for one and
 # logs a 404. An inline icon answers the request without another file to keep in sync.
@@ -129,6 +131,9 @@ def rewrite(page: Path) -> bool:
 def guard(site: Path) -> list[str]:
     problems = []
     for path in files(site, "*"):
+        if path.is_file() and PRIVATE_FOLDERS & set(path.relative_to(site).parts):
+            problems.append(f"{path.relative_to(site)}: private working folder")
+            continue
         if not path.is_file() or path.suffix not in {".html", ".js", ".css", ".md", ".json", ".svg"}:
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
