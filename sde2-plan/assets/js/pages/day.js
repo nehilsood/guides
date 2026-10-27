@@ -38,7 +38,8 @@ const chip = (url, text, name) => {
   return href && el("a", { class: "chip", href, target: "_blank", rel: "noopener" }, name && icon(name), text, icon("external"));
 };
 
-const solutionChips = (x) => [chip(x.solutionUrl, "Solution"), chip(x.videoUrl, "Video", "video")];
+// Where to solve it (either site), then help. A chip whose link the problem lacks is left out.
+const linkChips = (x) => [chip(x.ncUrl, "NeetCode"), chip(x.lcUrl, "LeetCode"), chip(x.solutionUrl, "Solution"), chip(x.videoUrl, "Video", "video")];
 
 const resource = (item) =>
   el(
@@ -82,7 +83,7 @@ const problem = (p, mutate) => {
     checkbox(p.solved, `Solved: ${p.title}`, () => mutate((s) => setSolved(s, id, s.items[id]?.solved !== true, box.minutesFor(s), now())), `done-${id}`),
     [ext(p.ncUrl, p.title), el("span", { class: `tag ${p.difficulty.toLowerCase()}`, text: p.difficulty })],
     reviseToggle(id, p.flagged, p.title, mutate),
-    [chip(p.ncUrl, "NeetCode"), solutionChips(p), box.input],
+    [linkChips(p), box.input],
   );
 };
 
@@ -94,7 +95,7 @@ const task = (t, mutate) => {
     checkbox(t.done, `Done: ${name}`, () => mutate((s) => setSolved(s, t.doneId, s.items[t.doneId]?.solved !== true, box ? box.minutesFor(s) : null, now())), `done-${t.doneId}`),
     ext(t.url, rich(t.text)),
     reviseToggle(t.flagId, t.flagged, name, mutate),
-    [solutionChips(t), box?.input],
+    [linkChips(t), box?.input],
   );
 };
 

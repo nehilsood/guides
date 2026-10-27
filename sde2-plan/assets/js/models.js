@@ -77,13 +77,17 @@ export const homeModel = (outline, state, today) => {
   };
 };
 
+const ncProblemUrl = (slug) => `https://neetcode.io/problems/${slug}/question`;
+const lcProblemUrl = (slug) => `https://leetcode.com/problems/${slug}/`;
+
 const problemView = (problem, state) => {
   const item = state.items["p:" + problem.id] ?? {};
   return {
     id: problem.id,
     title: problem.title,
     difficulty: problem.difficulty,
-    ncUrl: `https://neetcode.io/problems/${problem.ncSlug}/question`,
+    ncUrl: ncProblemUrl(problem.ncSlug),
+    lcUrl: lcProblemUrl(problem.lcSlug),
     solutionUrl: `https://neetcode.io/solutions/${problem.lcSlug}`,
     videoUrl: problem.video ? `https://www.youtube.com/watch?v=${problem.video}` : null,
     solved: item.solved === true,
@@ -103,17 +107,24 @@ const problemsByTrack = (day, entry, schedule, problemsById, state) => {
 };
 
 const NC_PROBLEM = /^https:\/\/neetcode\.io\/problems\/([a-z0-9-]+)\/question$/;
+const LC_PROBLEM = /^https:\/\/leetcode\.com\/problems\/([a-z0-9-]+)/;
 
-// A task that links a NeetCode problem shares that problem's ⭐, so a re-solve is one revision entry, not two.
-// Its ✓ stays on the task's own record, so ticking a re-solve never un-solves the original.
-const taskView = (task, state, problemsBySlug) => {
+// A task that links a NeetCode 250 problem (on either site) shares that problem's ⭐, so a re-solve is one revision
+// entry, not two. Its ✓ stays on the task's own record, so ticking a re-solve never un-solves the original.
+const taskView = (task, state, problems) => {
   const doneId = "t:" + task.id;
   const own = { doneId, done: state.items[doneId]?.solved === true, cap: capMinutes(task.text), minutes: state.items[doneId]?.minutes ?? null };
-  const problem = problemsBySlug[task.url?.match(NC_PROBLEM)?.[1]];
-  if (!problem) return { ...task, ...own, flagId: doneId, flagged: state.items[doneId]?.flag === true };
+  const nc = task.url?.match(NC_PROBLEM)?.[1];
+  const lc = task.url?.match(LC_PROBLEM)?.[1];
+  const problem = nc ? problems.byNc[nc] : lc ? problems.byLc[lc] : undefined;
+  if (!problem) {
+    const plain = { ...task, ...own, flagId: doneId, flagged: state.items[doneId]?.flag === true };
+    // A LeetCode problem outside the 250 has the same slug on NeetCode; refresh_links.py checks NeetCode's sitemap.
+    return lc ? { ...plain, ncUrl: ncProblemUrl(lc), lcUrl: lcProblemUrl(lc) } : plain;
+  }
   const view = problemView(problem, state);
   return { ...task, ...own, flagId: "p:" + problem.id, flagged: view.flagged,
-    solutionUrl: view.solutionUrl, videoUrl: view.videoUrl };
+    ncUrl: view.ncUrl, lcUrl: view.lcUrl, solutionUrl: view.solutionUrl, videoUrl: view.videoUrl };
 };
 
 const blockFromSlot = (slot) => ({
@@ -128,11 +139,11 @@ const blockFromSlot = (slot) => ({
   own: [],
 });
 
-const blockFromCard = (block, state, problemsBySlug) => ({
+const blockFromCard = (block, state, problems) => ({
   ...block,
   points: block.points ?? [],
   say: block.say ?? "",
-  tasks: (block.tasks ?? []).map((t) => taskView(t, state, problemsBySlug)),
+  tasks: (block.tasks ?? []).map((t) => taskView(t, state, problems)),
   primary: block.primary ?? null,
   extras: block.extras ?? [],
   own: block.own ?? [],
@@ -205,8 +216,9 @@ export const dayModel = (day, outline, cardsByDay, schedule, problemsById, state
   const entry = outline[day];
   const card = cardsByDay[day];
   const problemsFor = problemsByTrack(day, entry, schedule, problemsById, state);
-  const problemsBySlug = Object.fromEntries(Object.values(problemsById).map((p) => [p.ncSlug, p]));
-  const raw = card ? card.blocks.map((b) => blockFromCard(b, state, problemsBySlug)) : entry.slots.map(blockFromSlot);
+  const list = Object.values(problemsById);
+  const problems = { byNc: Object.fromEntries(list.map((p) => [p.ncSlug, p])), byLc: Object.fromEntries(list.map((p) => [p.lcSlug, p])) };
+  const raw = card ? card.blocks.map((b) => blockFromCard(b, state, problems)) : entry.slots.map(blockFromSlot);
   const { blocks, selftest } = placeQuestions(day, raw.map(keyed(day, state)), card ? card.selftest : [], state);
   const record = state.days[day] ?? {};
   const isToday = day === dayNumber(today);
