@@ -9,7 +9,7 @@
    ========================================================================== */
 
 window.SDS = (function () {
-  var PREFIX = "sds:v1:";
+  var PREFIX = "rm:v1:";
 
   function safeGet(key) {
     try { return window.localStorage.getItem(PREFIX + key); } catch (e) { return null; }

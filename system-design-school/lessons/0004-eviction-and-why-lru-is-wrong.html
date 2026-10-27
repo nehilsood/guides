@@ -277,7 +277,7 @@ figure.fc{margin:30px 0 36px;padding:0;border:0;border-radius:0;box-shadow:none;
   </dl>
 </div>
 <aside class="plain"><p class="plain-label">In plain words</p><p>Google&#8217;s Memorystore and AWS ElastiCache ship with a policy called <code>volatile-lru</code>. It only deletes keys that were given an expiry time (a TTL). If none were, it deletes nothing and refuses new writes, just like the open-source default, while its name makes eviction look switched on. So the only safe answer is the one you have checked.</p></aside>
-<h2>First: eviction is not automatic</h2>
+<h2 id="first-eviction-is-not-automatic">First: eviction is not automatic</h2>
 
 <p>The single most common production surprise here. In <strong>Redis open source</strong> the default <code>maxmemory-policy</code> is <code>noeviction</code>, which means that when memory runs out Redis does not make room — it starts <strong>returning errors on writes</strong> while continuing to serve reads normally.</p>
 
@@ -372,7 +372,7 @@ figure.fc{margin:30px 0 36px;padding:0;border:0;border-radius:0;box-shadow:none;
   <span class="timer">If it took longer than a minute, you drew the picture. Draw the argument.</span>
 </div>
 
-<h2>Why LRU is the wrong default here</h2>
+<h2 id="why-lru-is-the-wrong-default-here">Why LRU is the wrong default here</h2>
 
 <p>LRU's weakness is that it is fooled by recency without frequency. Consider your evaluation platform running a batch job that embeds a 49-dataset benchmark — a single sweep across thousands of distinct texts, each touched exactly once.</p>
 
@@ -380,7 +380,7 @@ figure.fc{margin:30px 0 36px;padding:0;border:0;border-radius:0;box-shadow:none;
 
 <p>Under <code>allkeys-lfu</code>, those one-shot keys have a frequency counter of one. They are the <em>first</em> things evicted, and your hot interactive set survives the sweep. That is the whole argument, and it is a real operational difference rather than a preference.</p>
 
-<h2>Lab — fill it up and break it</h2>
+<h2 id="lab-fill-it-up-and-break-it">Lab — fill it up and break it</h2>
 
 <div class="lab">
   <header>
@@ -560,7 +560,7 @@ C. <code>DEL</code> one key, <em>then</em> SET, still at 116 MB  &#8594;  <b>the
   <p class="lands"><b>Both policies are estimators, and <code>maxmemory</code> is an admission check.</b> So the defensible form of “what is your eviction policy” is never a policy name on its own — it is <em>which number the policy sorts on, how approximate that number is, and how much headroom sits under the real memory limit.</em></p>
 </div>
 
-<h2>Check yourself</h2>
+<h2 id="check-yourself">Check yourself</h2>
 
 <div class="quiz" data-quiz-id="0004-q1">
   <p class="q">Redis hits <code>maxmemory</code> under the default policy. What does your service observe?</p>
@@ -621,7 +621,7 @@ C. <code>DEL</code> one key, <em>then</em> SET, still at 116 MB  &#8594;  <b>the
   <p>So say the true version, which is stronger anyway: <span class="quoted">“it depends who provisioned it, and I have checked mine — here is what <code>config get maxmemory-policy</code> returns.”</span> Having checked is the signal. Assuming is the tell.</p>
 </div>
 
-<h2>Probes to expect</h2>
+<h2 id="probes-to-expect">Probes to expect</h2>
 
 <div class="probes">
   <ol>

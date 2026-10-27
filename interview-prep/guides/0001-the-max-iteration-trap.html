@@ -500,7 +500,7 @@ figure.fc{margin:30px 0 36px;padding:0;border:0;border-radius:0;box-shadow:none;
 <!-- flowchart:end -->
 
 <section class="part">
-  <div class="parthead"><div class="pnum">00</div><h2>What the interviewer is actually testing</h2></div>
+  <div class="parthead"><div class="pnum">00</div><h2 id="what-the-interviewer-is-actually-testing">What the interviewer is actually testing</h2></div>
   <p class="lede">This is not a trivia question. It is a <em>judgement</em> question wearing systems clothing. Four things are being probed at once, and a good answer touches all four without being asked.</p>
   <div class="grid2">
     <div class="defect" style="border-top-color:var(--accent)">
@@ -527,7 +527,7 @@ figure.fc{margin:30px 0 36px;padding:0;border:0;border-radius:0;box-shadow:none;
 </section>
 
 <section class="part">
-  <div class="parthead"><div class="pnum">01</div><h2>The answer, at three lengths</h2></div>
+  <div class="parthead"><div class="pnum">01</div><h2 id="the-answer-at-three-lengths">The answer, at three lengths</h2></div>
   <p class="lede">Lead with the 30-second version. Interviewers interrupt; make sure the first thirty seconds contain the thesis, not the setup.</p>
 
   <div class="box say">
@@ -561,7 +561,7 @@ figure.fc{margin:30px 0 36px;padding:0;border:0;border-radius:0;box-shadow:none;
 </section>
 
 <section class="part">
-  <div class="parthead"><div class="pnum">02</div><h2>Fundamentals: percentiles, and why p99 is the one that bites</h2></div>
+  <div class="parthead"><div class="pnum">02</div><h2 id="fundamentals-percentiles-and-why-p99-is-the">Fundamentals: percentiles, and why p99 is the one that bites</h2></div>
 
   <h3>Tail amplification: why 1% is never 1% of your users</h3>
   <p>If a single call has a 1% chance of exceeding your p99, and a user session makes <span class="m">k</span> calls, the chance that session hits at least one slow call is <span class="m">1 − 0.99<sup>k</sup></span>:</p>
@@ -584,7 +584,7 @@ figure.fc{margin:30px 0 36px;padding:0;border:0;border-radius:0;box-shadow:none;
 </section>
 
 <section class="part">
-  <div class="parthead"><div class="pnum">03</div><h2>Fundamentals: where LLM latency actually comes from</h2></div>
+  <div class="parthead"><div class="pnum">03</div><h2 id="fundamentals-where-llm-latency-actually-comes-from">Fundamentals: where LLM latency actually comes from</h2></div>
   <p class="lede">You cannot reason about a latency regression in an LLM system without decomposing it. Two phases, two bottlenecks, two different metrics.</p>
 
   <div class="tw"><table>
@@ -600,7 +600,7 @@ figure.fc{margin:30px 0 36px;padding:0;border:0;border-radius:0;box-shadow:none;
 
 <aside class="plain"><p class="plain-label">In plain words</p><p>Most requests are fine after one pass, so the typical request (the median, p50) barely got slower. What changed is that the number of passes now varies, and a few hard requests go round the loop many times. Those few make up the slowest 1% (p99), which is why it tripled. A cap trims them but never explains why they didn&#8217;t stop.</p></aside>
 <section class="part">
-  <div class="parthead"><div class="pnum">04</div><h2>Why p50 stayed flat and p99 tripled</h2></div>
+  <div class="parthead"><div class="pnum">04</div><h2 id="why-p50-stayed-flat-and-p99-tripled">Why p50 stayed flat and p99 tripled</h2></div>
   <p class="lede">This is the single most impressive thing you can explain in this answer, because it is the observation the interviewer gave you and most candidates skate past it.</p>
 
   <figure>
@@ -648,7 +648,7 @@ Var[Total] = E[N] · Var[X]  +  Var[N] · E[X]²
 
 <aside class="plain"><p class="plain-label">In plain words</p><p>Every extra pass is another request to the same shared model server, so the server gets busier. Waiting in a queue does not grow evenly: near full capacity, a little more load makes every wait much longer. So the loop slows down requests that never loop at all. The fix is a lower-priority queue for refinement passes, so they can&#8217;t crowd out first passes.</p></aside>
 <section class="part">
-  <div class="parthead"><div class="pnum">05</div><h2>The loop is also slowing down requests that never enter it</h2></div>
+  <div class="parthead"><div class="pnum">05</div><h2 id="the-loop-is-also-slowing-down-requests">The loop is also slowing down requests that never enter it</h2></div>
   <p class="lede">This is the part that separates &#8220;I understand algorithms&#8221; from &#8220;I have run something in production.&#8221;</p>
 
   <p>Every refinement pass is another request into the same inference engine. If 30% of requests take 3 extra passes, your effective arrival rate <span class="m">λ</span> isn't up 30% — it's up ~90%. Utilisation <span class="m">ρ = λ/μ</span> climbs, and queue wait does not climb linearly. It climbs like <span class="m">1/(1−ρ)</span>.</p>
@@ -666,7 +666,7 @@ Var[Total] = E[N] · Var[X]  +  Var[N] · E[X]²
 </section>
 
 <section class="part">
-  <div class="parthead"><div class="pnum">06</div><h2>Serving-stack specifics worth naming</h2></div>
+  <div class="parthead"><div class="pnum">06</div><h2 id="serving-stack-specifics-worth-naming">Serving-stack specifics worth naming</h2></div>
 
   <h3>Prefix caching — check this before you touch the algorithm</h3>
 
@@ -678,7 +678,7 @@ Var[Total] = E[N] · Var[X]  +  Var[N] · E[X]²
 
 <aside class="plain"><p class="plain-label">In plain words</p><p>A model that checks its own work, with nothing outside to check against, sometimes &#8220;fixes&#8221; answers that were already right. An average over many requests can still rise while some answers get worse, and nobody sees those. So compare each request&#8217;s answer before and after the extra passes, and let an outside check, such as unit tests, decide what is right.</p></aside>
 <section class="part">
-  <div class="parthead"><div class="pnum">07</div><h2>The quality claim is probably also wrong</h2></div>
+  <div class="parthead"><div class="pnum">07</div><h2 id="the-quality-claim-is-probably-also-wrong">The quality claim is probably also wrong</h2></div>
   <p class="lede">&#8220;Improves quality on every pass&#8221; is the premise you should politely refuse to accept at face value. This is the highest-value pushback available in the whole question.</p>
 
   <h3>Intrinsic vs. extrinsic self-correction</h3>
@@ -711,7 +711,7 @@ Refinement stops paying when:   ECR / EIR  =  Acc / (1 − Acc)</div>
 </section>
 
 <section class="part">
-  <div class="parthead"><div class="pnum">08</div><h2>So: what is actually broken</h2></div>
+  <div class="parthead"><div class="pnum">08</div><h2 id="so-what-is-actually-broken">So: what is actually broken</h2></div>
   <p class="lede">Four named defects. Name them as defects, not as opinions — each one is a missing component, not a badly tuned parameter.</p>
 
   <div class="grid2">
@@ -740,7 +740,7 @@ Refinement stops paying when:   ECR / EIR  =  Acc / (1 − Acc)</div>
 
 <aside class="plain"><p class="plain-label">In plain words</p><p>The real fix gives the loop a way to know it is done: an outside check, such as running the tests, that stops it once the answer passes. Easy requests then get one pass and hard ones get more, all inside a time limit. The cap stays only as a last-resort safety limit.</p></aside>
 <section class="part">
-  <div class="parthead"><div class="pnum">09</div><h2>The fix, in the order you'd actually do it</h2></div>
+  <div class="parthead"><div class="pnum">09</div><h2 id="the-fix-in-the-order-youd-actually">The fix, in the order you'd actually do it</h2></div>
   <p class="lede">Present this as a sequence with the cheap, reversible things first. The cap survives — it just moves to the end, and it changes role from mechanism to guardrail.</p>
 
   <ol class="beats">
@@ -761,7 +761,7 @@ Refinement stops paying when:   ECR / EIR  =  Acc / (1 − Acc)</div>
 </section>
 
 <section class="part">
-  <div class="parthead"><div class="pnum">10</div><h2>The diagnostic you'd run first</h2></div>
+  <div class="parthead"><div class="pnum">10</div><h2 id="the-diagnostic-youd-run-first">The diagnostic you'd run first</h2></div>
   <p class="lede">If the interviewer asks &#8220;how would you actually find out?&#8221;, this is the answer. Three measurements, three distinct verdicts.</p>
 
   <div class="tw"><table>
@@ -778,7 +778,7 @@ Refinement stops paying when:   ECR / EIR  =  Acc / (1 − Acc)</div>
 </section>
 
 <section class="part">
-  <div class="parthead"><div class="pnum">11</div><h2>Follow-ups they will ask</h2></div>
+  <div class="parthead"><div class="pnum">11</div><h2 id="follow-ups-they-will-ask">Follow-ups they will ask</h2></div>
   <p class="lede">Twelve probes, ordered roughly by how likely they are. Each answer is written to be said aloud in under a minute.</p>
 
   <div class="fu">
@@ -891,7 +891,7 @@ Refinement stops paying when:   ECR / EIR  =  Acc / (1 − Acc)</div>
 </section>
 
 <section class="part">
-  <div class="parthead"><div class="pnum">12</div><h2>Your evidence</h2></div>
+  <div class="parthead"><div class="pnum">12</div><h2 id="your-evidence">Your evidence</h2></div>
   <p class="lede">The one block on this page that is not finished. Fill it in and the answer stops being an argument you can reproduce and becomes one only you can give.</p>
 
 <div class="evidence" data-evidence-for="0001">
@@ -938,7 +938,7 @@ Refinement stops paying when:   ECR / EIR  =  Acc / (1 − Acc)</div>
 
 
 <section class="part">
-  <div class="parthead"><div class="pnum">13</div><h2>Numbers and formulas worth memorising</h2></div>
+  <div class="parthead"><div class="pnum">13</div><h2 id="numbers-and-formulas-worth-memorising">Numbers and formulas worth memorising</h2></div>
   <p class="lede">The five things to have on the tip of your tongue. Getting one of these right in an interview is worth a paragraph of general reasoning.</p>
 
   <div class="tw"><table>
@@ -965,7 +965,7 @@ Refinement stops paying when:   ECR / EIR  =  Acc / (1 − Acc)</div>
 </section>
 
 <section class="part">
-  <div class="parthead"><div class="pnum">14</div><h2>Glossary</h2></div>
+  <div class="parthead"><div class="pnum">14</div><h2 id="glossary">Glossary</h2></div>
   <dl class="gloss">
     <dt>Continuous batching</dt><dd>Scheduling at token-iteration granularity so new requests join a running batch immediately, instead of waiting for the whole batch to finish.</dd>
     <dt>HOL blocking</dt><dd>Head-of-line blocking: a long job delays short jobs queued behind it. Continuous batching removes the queue-level form, not the token-level form.</dd>

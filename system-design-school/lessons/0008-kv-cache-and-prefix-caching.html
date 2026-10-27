@@ -285,7 +285,7 @@ figure.fc{margin:30px 0 36px;padding:0;border:0;border-radius:0;box-shadow:none;
 </div>
 
 <aside class="plain"><p class="plain-label">In plain words</p><p>How much card memory one conversation takes is a multiplication, not a guess. The factor people get wrong is how many separate sets of keys and values each layer stores. On Llama-3 that is a quarter of the figure people tend to plug in, so the wrong number makes the answer four times too big. Get it right and an 8k-token conversation on Llama-3-8B takes about one gigabyte, so an 80-gigabyte card holds about sixty.</p></aside>
-<h2>First: the arithmetic, which is exact</h2>
+<h2 id="first-the-arithmetic-which-is-exact">First: the arithmetic, which is exact</h2>
 
 <p>One formula, and every term in it comes out of the model's <code>config.json</code>:</p>
 
@@ -296,7 +296,7 @@ figure.fc{margin:30px 0 36px;padding:0;border:0;border-radius:0;box-shadow:none;
   <p>Llama-3-8B is 32 layers, 8 KV heads, head dimension 128. At fp16 that is <code>2 &#215; 32 &#215; 8 &#215; 128 &#215; 2</code> = <strong>131&#8239;072 bytes per token</strong>, or 128&#8239;KiB &#8212; and at an 8k context, <strong>exactly one gibibyte per conversation</strong>. Worth memorising, because it makes every follow-up mental arithmetic.</p>
 </div>
 
-<h2>Prefill sets the first word; decode sets the rest</h2>
+<h2 id="prefill-sets-the-first-word-decode-sets">Prefill sets the first word; decode sets the rest</h2>
 
 <p>These are two different bottlenecks and they respond to different things, which is why TTFW and tokens-per-second move independently. Prefill processes the prompt in one compute-bound pass, so it scales with <em>how long your prompt is</em>. Decode then produces one token per step, each step reading the entire KV cache, so it is limited by <em>memory bandwidth</em> and barely cares about prompt length at all.</p>
 
@@ -374,7 +374,7 @@ figure.fc{margin:30px 0 36px;padding:0;border:0;border-radius:0;box-shadow:none;
   <span class="timer">Say &#8220;two, layers, kv heads, head dim, sequence length, dtype&#8221; out loud as you write the formula. Six factors, and the one people get wrong is the third.</span>
 </div>
 
-<h2>Lab &#8212; do the arithmetic, then break your own prompt</h2>
+<h2 id="lab-do-the-arithmetic-then-break-your">Lab &#8212; do the arithmetic, then break your own prompt</h2>
 
 <div class="lab">
   <header>
@@ -535,7 +535,7 @@ same edited prefix, 2nd call              <span class="pass">100 ms</span></pre>
   <p>Sixty conversations a card is not a soft number: exceed it and a request cannot be admitted, whatever your CPU is doing. This is why prefix caching pays twice. Blocks shared between conversations are <b>stored once</b>, so a thousand sessions sharing a 2&#8239;048-token system prompt hold one copy of its 256&#8239;MiB rather than a thousand &#8212; and the memory you get back is more sessions.</p>
 </div>
 
-<h2>Check yourself</h2>
+<h2 id="check-yourself">Check yourself</h2>
 
 <div class="quiz" data-quiz-id="0008-q1">
   <p class="q">You start caching the KV blocks of a shared system prompt. Which measurement improves?</p>
@@ -597,7 +597,7 @@ same edited prefix, 2nd call              <span class="pass">100 ms</span></pre>
   <p>The other trap is the confident capacity answer: <span class="quoted">&#8220;we'd scale it horizontally.&#8221;</span> With 267 thousand concurrent decodes at a gigabyte of cache each, horizontal means <em>four thousand accelerators</em>, and saying so is the difference between having done the arithmetic and having heard the word. The version that holds names the number first and the mitigation second.</p>
 </div>
 
-<h2>Probes to expect</h2>
+<h2 id="probes-to-expect">Probes to expect</h2>
 
 <div class="probes">
   <ol>
