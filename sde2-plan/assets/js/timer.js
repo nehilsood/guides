@@ -30,3 +30,19 @@ export const clock = (ms) => {
 export const isOver = (run, nowMs, capMin) => elapsed(run, nowMs) >= capMin * 60000;
 
 export const toMinutes = (ms) => Math.max(1, Math.round(ms / 60000));
+
+export const runningId = (runs) => Object.keys(runs).find((id) => runs[id].since !== null) ?? null;
+
+const isRun = (run) =>
+  typeof run === "object" && run !== null && Number.isFinite(run.ms) && run.ms >= 0 && (run.since === null || Number.isFinite(run.since));
+
+// Runs saved in sessionStorage, read back once at load: anything malformed is dropped rather than trusted.
+export const parseRuns = (text) => {
+  try {
+    const saved = JSON.parse(text);
+    if (typeof saved !== "object" || saved === null || Array.isArray(saved)) return {};
+    return Object.fromEntries(Object.entries(saved).filter(([, run]) => isRun(run)).map(([id, { ms, since }]) => [id, { ms, since }]));
+  } catch {
+    return {};
+  }
+};

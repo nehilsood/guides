@@ -1,28 +1,12 @@
 import { reviseModel } from "../models.js";
-import { el, getState, commit, loadData, renderHeader, showError, guarded, today, now, rerender, onExternalChange, ratingButtons, reviseTag, longDate, plain } from "./common.js";
+import { el, getState, commit, loadData, renderHeader, showError, guarded, today, now, rerender, onExternalChange, reviseRow, longDate } from "./common.js";
 import { rate } from "../store.js";
 
 const HOW =
   "Nothing to revise yet. Tap the bookmark on a problem, a task or a whole day, or mark a self-test question Missed, and it comes back here.";
 
-// One thing in revision: due ones take a rating, later ones show the date they come back.
-const row = (r, onRate) =>
-  el(
-    "div",
-    { class: "due" },
-    el("p", { class: "due-text", text: plain(r.label) }),
-    el(
-      "p",
-      { class: "due-meta" },
-      el("span", { class: "tag", text: reviseTag(r.id, r.step) }),
-      r.overdue ? el("span", { class: "tag warn", text: `overdue since ${longDate(r.due)}` }) : null,
-      r.isDue ? null : el("span", { class: "tag", text: longDate(r.due) }),
-    ),
-    r.isDue ? ratingButtons(r.id, plain(r.label), onRate) : null,
-  );
-
 const group = (title, rows, onRate) =>
-  el("section", { class: "revise-group" }, el("h2", { text: `${title} (${rows.length})` }), rows.map((r) => row(r, onRate)));
+  el("section", { class: "revise-group" }, el("h2", { text: `${title} (${rows.length})` }), rows.map((r) => reviseRow(r, onRate)));
 
 const build = (data, onRate) => {
   const list = reviseModel(getState(), today(), data.problemsById, data.outline, data.cardsByDay);

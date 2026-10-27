@@ -2,6 +2,7 @@ import { load, save, merge, KEY } from "../store.js";
 import { todayIST, dayNumber, DAYS } from "../dates.js";
 import { startSync, scheduleSync, onStatus, getStatus, describe } from "./syncwire.js";
 import { icon } from "./icons.js";
+import { plain } from "../format.js";
 
 export const today = () => todayIST(new Date());
 export const now = () => Date.now();
@@ -262,7 +263,7 @@ export const barParts = (flow, swept, prefix) =>
     return el("i", { "data-seg": prefix === "seg" ? "" : null, "data-k": `${prefix}-${r.key}`, class: `anim part s-${r.subject} ${state}${r.kind === "block" ? " is-block" : ""}`, style });
   });
 
-export const ratingButtons = (id, name, onRate) =>
+const ratingButtons = (id, name, onRate) =>
   el(
     "span",
     { class: "seg", role: "group", "aria-label": `How well did you remember ${name}?` },
@@ -271,4 +272,21 @@ export const ratingButtons = (id, name, onRate) =>
     ),
   );
 
-export const reviseTag = (id, step) => (id.startsWith("p:") ? `re-solve #${step + 1}` : "re-read");
+const reviseTag = (id, step) => (id.startsWith("p:") ? `re-solve #${step + 1}` : "re-read");
+
+// One thing in revision, on Revise and on the day page's Revise row: due ones take a rating, later ones show the
+// date they come back.
+export const reviseRow = (r, onRate) =>
+  el(
+    "div",
+    { class: "due" },
+    el("p", { class: "due-text", text: plain(r.label) }),
+    el(
+      "p",
+      { class: "due-meta" },
+      el("span", { class: "tag", text: reviseTag(r.id, r.step) }),
+      r.overdue ? el("span", { class: "tag warn", text: `overdue since ${longDate(r.due)}` }) : null,
+      r.isDue ? null : el("span", { class: "tag", text: longDate(r.due) }),
+    ),
+    r.isDue ? ratingButtons(r.id, plain(r.label), onRate) : null,
+  );

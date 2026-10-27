@@ -3,8 +3,9 @@ import { dayModel } from "../models.js";
 import { dayFlow, afterChange } from "../dayflow.js";
 import { SUBJECTS } from "../subjects.js";
 import { setSolved, setMinutes, setFlag, setResult, setDay, rate, setHelp, showAnswer } from "../store.js";
-import { el, busy, getState, commit, loadData, renderHeader, showError, guarded, today, now, rerender, onExternalChange, debounced, flushPending, safeHref, formatViews, codeParts, leadIn, plain, sentence, longDate, fullDate, trackLabel, todayDayClamped, ratingButtons, reviseTag, barParts } from "./common.js";
+import { el, busy, getState, commit, loadData, renderHeader, showError, guarded, today, now, rerender, onExternalChange, debounced, flushPending, safeHref, formatViews, codeParts, leadIn, plain, sentence, longDate, fullDate, trackLabel, todayDayClamped, reviseRow, barParts } from "./common.js";
 import { icon, ring } from "./icons.js";
+import { PROBLEM_CAP, elapsed, start, pause, clear, clock, isOver, toMinutes, runningId, parseRuns } from "../timer.js";
 
 const requestedDay = () => {
   const d = new URLSearchParams(location.search).get("d");
@@ -76,34 +77,81 @@ const minutesBox = (id, minutes, name) => {
   const save = debounced(() => commit((s) => setMinutes(s, id, input.value === "" ? null : Number(input.value), now())), 500);
   input.addEventListener("input", save);
   input.addEventListener("blur", flushPending);
-  return { input, minutesFor: (s) => (input.value === "" ? s.items[id]?.minutes ?? null : Number(input.value)) };
+  return { input, edited: () => input.value !== String(minutes ?? ""), minutesFor: (s) => (input.value === "" ? s.items[id]?.minutes ?? null : Number(input.value)) };
+};
+
+// Timers: the runs live in page memory, mirrored to sessionStorage so a reload keeps them. Only the final minutes
+// are saved to progress, on the tick. `timed` holds each timed row on this day (its cap in minutes, its name and the
+// day-list row it sits in), from the day's model. `buzzed` holds the runs already past their cap, so each cues
+// once; it is seeded at the first draw, so a reload doesn't cue again.
+const TIMERS_KEY = "sde2:v1:timers";
+let runs = (() => {
+  try {
+    return parseRuns(sessionStorage.getItem(TIMERS_KEY));
+  } catch {
+    return {};
+  }
+})();
+let timed = {};
+let buzzed = null;
+const keepRuns = (next) => {
+  runs = next;
+  try {
+    sessionStorage.setItem(TIMERS_KEY, JSON.stringify(runs));
+  } catch {} // storage blocked: the timers last as long as the page
+};
+const endRun = (id) => {
+  keepRuns(clear(runs, id));
+  buzzed.delete(id);
+};
+
+// Start or Pause, then the time so far. The time is filled in by paintTimers every second, without a redraw.
+const timer = (id, name, redraw) => {
+  const on = runs[id]?.since != null;
+  const word = on ? "Pause" : "Start";
+  return el(
+    "span",
+    { class: "timer" },
+    el("button", { type: "button", class: "btn timer-btn", "data-f": `timer-${id}`, "aria-label": `${word} the timer: ${name}`, onclick: () => (keepRuns(on ? pause(runs, id, now()) : start(runs, id, now())), redraw()) }, icon(on ? "pause" : "play"), word),
+    runs[id] ? el("span", { class: "timer-clock", "data-timer": id }) : null,
+  );
+};
+
+// Ticking a row with a timer on it saves the timer's minutes and ends the run, unless minutes were typed into its
+// box since it was drawn: those win (the run ends anyway). Otherwise the typed box, else the minutes already saved.
+const tick = (id, box, mutate) => () => {
+  const on = getState().items[id]?.solved !== true;
+  const run = on ? runs[id] : undefined;
+  if (run) endRun(id);
+  const timedMinutes = run && !box.edited() ? toMinutes(elapsed(run, now())) : null;
+  mutate((s) => setSolved(s, id, on, timedMinutes ?? (box ? box.minutesFor(s) : null), now()));
 };
 
 // Checkbox, text and the revise toggle on the first line; links and minutes under the text.
 const item = (done, check, text, toggle, tools) =>
   el("div", { class: `item${done ? " is-done" : ""}` }, check, el("div", { class: "item-text" }, text), toggle, el("div", { class: "item-tools" }, tools));
 
-const problem = (p, mutate) => {
+const problem = (p, mutate, redraw) => {
   const id = "p:" + p.id;
   const box = minutesBox(id, p.minutes, p.title);
   return item(
     p.solved,
-    checkbox(p.solved, `Solved: ${p.title}`, () => mutate((s) => setSolved(s, id, s.items[id]?.solved !== true, box.minutesFor(s), now())), `done-${id}`),
+    checkbox(p.solved, `Solved: ${p.title}`, tick(id, box, mutate), `done-${id}`),
     [ext(p.ncUrl, p.title), el("span", { class: `tag ${p.difficulty.toLowerCase()}`, text: p.difficulty })],
     reviseToggle(id, p.flagged, p.title, mutate),
-    [linkChips(p), helpButton(p, p.title, mutate), box.input],
+    [linkChips(p), helpButton(p, p.title, mutate), p.solved ? null : timer(id, p.title, redraw), box.input],
   );
 };
 
-const task = (t, mutate) => {
+const task = (t, mutate, redraw) => {
   const name = plain(t.text);
   const box = t.cap !== null ? minutesBox(t.doneId, t.minutes, name) : null;
   return item(
     t.done,
-    checkbox(t.done, `Done: ${name}`, () => mutate((s) => setSolved(s, t.doneId, s.items[t.doneId]?.solved !== true, box ? box.minutesFor(s) : null, now())), `done-${t.doneId}`),
+    checkbox(t.done, `Done: ${name}`, tick(t.doneId, box, mutate), `done-${t.doneId}`),
     ext(t.url, rich(t.text)),
     reviseToggle(t.flagId, t.flagged, name, mutate),
-    [linkChips(t), helpButton(t, name, mutate), box?.input],
+    [linkChips(t), helpButton(t, name, mutate), box && !t.done ? timer(t.doneId, name, redraw) : null, box?.input],
   );
 };
 
@@ -149,11 +197,11 @@ const hintPanel = (x) => {
 };
 
 // Once the block is in its debrief, a row's help moves into the debrief's "The idea".
-const todos = (b, mutate) => {
+const todos = (b, mutate, redraw) => {
   const rows = (x, drawn) => [drawn, b.debrief ? null : hintPanel(x)];
   return [
-    b.problems.length ? todo("Solve today", b.problems.filter((p) => p.solved).length, b.problems.map((p) => rows(p, problem(p, mutate)))) : null,
-    b.tasks.length ? todo("Do today", b.tasks.filter((t) => t.done).length, b.tasks.map((t) => rows(t, task(t, mutate)))) : null,
+    b.problems.length ? todo("Solve today", b.problems.filter((p) => p.solved).length, b.problems.map((p) => rows(p, problem(p, mutate, redraw)))) : null,
+    b.tasks.length ? todo("Do today", b.tasks.filter((t) => t.done).length, b.tasks.map((t) => rows(t, task(t, mutate, redraw)))) : null,
   ];
 };
 
@@ -188,13 +236,13 @@ const debriefIdea = (b) => {
 };
 
 // A coding block opens on its problems; its teaching waits for help on a row or for the debrief below them.
-const solveFirstBody = (b, r, mutate) => {
+const solveFirstBody = (b, r, mutate, redraw) => {
   const early = b.primary?.first ? b.primary : null;
   return [
     b.builds_on ? buildsOn(b.builds_on) : null,
     b.first.length || early ? group("Before you start", b.first.length ? points(b.first) : null, early ? el("div", { class: "start" }, resource(early)) : null) : null,
     b.debrief ? null : el("p", { text: `Restate it with a tiny example, list the edge cases and say the brute force before you code. ${b.track === "checkpoint" ? "Stuck? Use Show the answer on its row." : "Stuck on one? Take the help on its row, one step at a time."}` }),
-    todos(b, mutate),
+    todos(b, mutate, redraw),
     b.debrief
       ? [debriefIdea(b), exampleBox(b), sayBox(b), readings(b, early ? null : b.primary)]
       : el("p", {
@@ -208,15 +256,15 @@ const solveFirstBody = (b, r, mutate) => {
   ];
 };
 
-const blockBody = (b, r, mutate) =>
+const blockBody = (b, r, mutate, redraw) =>
   b.solveFirst
-    ? solveFirstBody(b, r, mutate)
+    ? solveFirstBody(b, r, mutate, redraw)
     : [
         b.builds_on ? buildsOn(b.builds_on) : null,
         b.points.length ? group("In plain words", points(b.points)) : null,
         exampleBox(b),
         sayBox(b),
-        todos(b, mutate),
+        todos(b, mutate, redraw),
         readings(b, b.primary),
         tail(b, r, mutate),
       ];
@@ -225,14 +273,7 @@ const reviseBody = (m, mutate) => {
   if (!m.due.length) return el("p", { class: "small", text: "All revised for today." });
   const onRate = (id, rating) => mutate((s) => rate(s, id, rating, today(), now()));
   return [
-    m.due.map((r) =>
-      el(
-        "div",
-        { class: "due" },
-        el("p", { class: "due-text" }, plain(r.label), el("span", { class: `tag${r.overdue ? " warn" : ""}`, text: r.overdue ? `${reviseTag(r.id, r.step)}, overdue` : reviseTag(r.id, r.step) })),
-        ratingButtons(r.id, plain(r.label), onRate),
-      ),
-    ),
+    m.due.map((r) => reviseRow(r, onRate)),
     el("p", { class: "small", text: "Easy brings it back later. Struggled brings it back sooner." }),
   ];
 };
@@ -377,6 +418,8 @@ let headingWatch = null;
 const stickyBar = (m, flow, swept, onTap) => {
   const current = flow.rows.find((r) => r.key === flow.current);
   const left = current?.minutes ? current.minutes - Math.round(current.minutes * current.progress) : null;
+  const id = runningId(runs);
+  const running = id === null ? undefined : timed[id];
   return el(
     "div",
     { class: "sticky", "data-k": "sticky", hidden: !stickyShown },
@@ -389,7 +432,9 @@ const stickyBar = (m, flow, swept, onTap) => {
         { class: "sticky-line" },
         el("span", { class: "sticky-name", text: current ? current.title : `Day ${m.day} done` }),
         left !== null ? el("span", { class: "row-mins", text: `${left} min left` }) : null,
-        el("span", { class: "sticky-timer" }), // phase 2: the running timer
+        // The running timer, filled by paintTimers; named when it sits in another row.
+        running && running.row !== flow.current ? el("span", { class: "sticky-timer-name", text: running.name }) : null,
+        el("span", { class: "sticky-timer" }),
       ),
     ),
   );
@@ -405,6 +450,34 @@ const watchHeading = (root) => {
     if (bar) bar.hidden = !stickyShown;
   });
   headingWatch.observe(heading);
+};
+
+// Every second: each row's time, the sticky bar's running timer, and the cues at the cap (alert colour and "up",
+// the tab title, and once per run a vibration and a screen-reader line). Only a timer on this day's rows counts;
+// one left running on another day's page waits there.
+const pageTitle = document.title;
+const capNote = el("p", { class: "sr-only", "aria-live": "polite" });
+const paintTimers = () => {
+  const t = now();
+  const shown = (id) => (isOver(runs[id], t, timed[id]?.cap) ? `${clock(elapsed(runs[id], t))} up` : clock(elapsed(runs[id], t)));
+  for (const span of document.querySelectorAll("[data-timer]")) {
+    span.textContent = shown(span.dataset.timer);
+    span.classList.toggle("is-over", isOver(runs[span.dataset.timer], t, timed[span.dataset.timer]?.cap));
+  }
+  const id = runningId(runs);
+  const mine = id !== null && id in timed;
+  const over = mine && isOver(runs[id], t, timed[id].cap);
+  const slot = document.querySelector(".sticky-timer");
+  if (slot) {
+    slot.textContent = mine ? shown(id) : "";
+    slot.classList.toggle("is-over", over);
+  }
+  document.title = over ? `${timed[id].cap}:00 up · Day ${day}` : pageTitle;
+  if (over && !buzzed.has(id)) {
+    buzzed.add(id);
+    navigator.vibrate?.(200);
+    capNote.textContent = `${timed[id].name}: ${timed[id].cap} minutes up`;
+  }
 };
 
 // The day's subjects in their colours, with minutes: the key to the bar's colours.
@@ -449,7 +522,7 @@ const build = (data, m, flow, mutate, redraw) => {
   const blocks = new Map(m.blocks.map((b) => [b.key, b]));
   const bodyOf = (r) =>
     r.kind === "revise" ? reviseBody(m, mutate)
-    : r.kind === "block" ? blockBody(blocks.get(r.key), r, mutate)
+    : r.kind === "block" ? blockBody(blocks.get(r.key), r, mutate, redraw)
     : r.kind === "selftest" ? m.selftest.map((q) => question(q, m.baseline, mutate))
     : r.kind === "close" ? closeBody(m, mutate)
     : null;
@@ -503,12 +576,22 @@ const whenIdle = (fn, delay) => {
 };
 
 renderHeader("day.html");
+document.body.append(capNote);
 loadData()
   .then((data) => {
     const root = document.getElementById("app");
     const draw = guarded(() => {
       const m = dayModel(day, data.outline, data.cardsByDay, data.schedule, data.problemsById, getState(), today());
       if (!m.ok) return root.replaceChildren(notFound(m.message));
+      timed = Object.fromEntries(
+        m.blocks.flatMap((b) => [
+          ...b.problems.map((p) => ["p:" + p.id, { cap: PROBLEM_CAP, name: p.title, row: b.key, done: p.solved }]),
+          ...b.tasks.filter((t) => t.cap !== null).map((t) => [t.doneId, { cap: t.cap, name: plain(t.text), row: b.key, done: t.done }]),
+        ]),
+      );
+      buzzed ??= new Set(Object.keys(timed).filter((id) => isOver(runs[id], now(), timed[id].cap)));
+      // A row ticked on another device or tab ends its run here too.
+      for (const id of Object.keys(timed)) if (timed[id].done && runs[id]) endRun(id);
       const flow = dayFlow(m);
       const next = afterChange(lastFlow, flow, open, local);
       local = false;
@@ -538,6 +621,7 @@ loadData()
       } else open = next.open;
       rerender(root, () => build(data, m, flow, mutate, draw));
       watchHeading(root);
+      paintTimers();
     });
     const mutate = (mutator) => {
       clearTimeout(advance);
@@ -548,5 +632,7 @@ loadData()
     onExternalChange(draw);
     wide.addEventListener("change", draw);
     draw();
+    setInterval(paintTimers, 1000);
+    document.addEventListener("visibilitychange", paintTimers);
   })
   .catch(showError);
