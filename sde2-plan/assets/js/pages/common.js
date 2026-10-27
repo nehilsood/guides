@@ -158,7 +158,7 @@ export const fullDate = (dateStr) =>
 
 export { formatViews, formatHours, codeParts, leadIn, plain, sentence } from "../format.js";
 
-const TRACKS = { dsa: "DSA", hld: "HLD", lld: "LLD", ai: "AI", cs: "CS basics", hard: "DSA hard" };
+const TRACKS = { dsa: "DSA", hld: "HLD", lld: "LLD", ai: "AI", cs: "CS basics", hard: "DSA hard", catchup: "Catch-up" };
 export const trackLabel = (track) => (typeof track === "string" ? TRACKS[track] ?? track.charAt(0).toUpperCase() + track.slice(1) : "");
 
 export const todayDayClamped = () => Math.min(DAYS, Math.max(0, dayNumber(today())));
@@ -267,7 +267,7 @@ export const ratingButtons = (id, name, onRate) =>
     "span",
     { class: "seg", role: "group", "aria-label": `How well did you remember ${name}?` },
     [["easy", "Easy"], ["ok", "OK"], ["struggled", "Struggled"]].map(([rating, label]) =>
-      el("button", { type: "button", "aria-label": `${label}: ${name}`, onclick: () => onRate(id, rating), text: label }),
+      el("button", { type: "button", "aria-label": `${label}: ${name}`, "data-f": `${id}-${rating}`, onclick: () => onRate(id, rating), text: label }),
     ),
   );
 

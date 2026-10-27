@@ -11,7 +11,7 @@
         "points": [
           "This is a measurement, not a test. It shows where Month 1 should push, so be honest.",
           "Do the three problems one at a time, in Python, in a blank editor. No hints, notes, videos or AI help.",
-          "Start a 25-minute timer for each. Stop when it rings, even mid-line. The 25 minutes is a cap, not a target: the easy one should take about 10.",
+          "Start a timer for each: 10 minutes for the easy one and 25 for each medium, so the three fit the hour. Stop when it rings, even mid-line. The timer is a cap, not a target.",
           "Score each problem: 1 if it passes LeetCode's tests, 0.5 if the idea was right but the code wasn't finished, 0 otherwise.",
           "Then answer the 15 self-test questions below (5 HLD, 5 LLD, 5 AI) from memory before tapping each one. Score them the same way: 1, 0.5 or 0.",
           "Write your scores in My notes as \"DSA x/3 · HLD x/5 · LLD x/5 · AI x/5\". Day 28's checkpoint measures you against these numbers, so keep them honest."
@@ -19,7 +19,7 @@
         "tasks": [
           {
             "id": "d0-dsa-1",
-            "text": "First Unique Character in a String (Easy) · 25-minute timer · Python, no hints",
+            "text": "First Unique Character in a String (Easy) · 10-minute timer · Python, no hints",
             "url": "https://leetcode.com/problems/first-unique-character-in-a-string/"
           },
           {
@@ -1096,7 +1096,7 @@
           },
           {
             "id": "d7-ai-dml",
-            "text": "Optional, about 15 min (if it doesn't fit today, do it in Sunday's review). Code it on Deep-ML: #15 Linear Regression Using Gradient Descent. Same loop as your d7 file, written for many features at once: X has a column of ones, so b is just one more weight. The tests print a plain list rounded to 4 places, so finish with `.tolist()`. It runs in the browser and numpy is fine. Pass its tests, then read its Learn tab.",
+            "text": "Optional, about 15 min (if it doesn't fit today, do it in Sunday's review). Code it on Deep-ML: #15 Linear Regression Using Gradient Descent. Same loop as your d7 file, written for many features at once: X has a column of ones, so b is just one more weight. One difference: Deep-ML's slope leaves out the 2 (it is the average of error × x), so drop it, or the first two tests fail. The tests print a plain list rounded to 4 places, so finish with `.tolist()`. It runs in the browser and numpy is fine. Pass its tests, then read its Learn tab.",
             "url": "https://www.deep-ml.com/problems/15"
           }
         ],
@@ -1224,7 +1224,7 @@
         "example": [
           "A spam filter with one feature, x = how many times \"FREE!!\" appears, and w = 1.5, b = −3.",
           "x = 4: z = 1.5 × 4 − 3 = 3, so p = σ(3) ≈ 0.95. That is above 0.5, so: spam.",
-          "x = 1: z = −1.5, so p ≈ 0.18: not spam. x = 2: z = 0, so p = 0.5, right on the line.",
+          "x = 1: z = −1.5, so p ≈ 0.18: not spam. x = 2: z = 0, so p = 0.5, right on the line; the usual rule, p ≥ 0.5, counts it as spam.",
           "If the x = 4 email really is spam (y = 1), its loss is −ln 0.95 ≈ 0.05. If it is not (y = 0), the loss is −ln 0.05 ≈ 3.0.",
           "In that second case p − y = 0.95, so the slope for w is 0.95 × 4 ≈ 3.8. Gradient descent lowers w, and the next prediction is less confident."
         ],
@@ -1235,7 +1235,7 @@
           },
           {
             "id": "d8-ai-dml",
-            "text": "Optional, about 15 min (if it doesn't fit today, do it in Sunday's review). Code it on Deep-ML: #104 Binary Classification with Logistic Regression: the sigmoid, then the 0.5 threshold. It runs in the browser and numpy is fine. Pass its tests, then read its Learn tab.",
+            "text": "Optional, about 15 min (if it doesn't fit today, do it in Sunday's review). Code it on Deep-ML: #104 Binary Classification with Logistic Regression: the sigmoid, then the 0.5 threshold. Predict 1 when p ≥ 0.5 (one test has p exactly 0.5), and return ints with `(p >= 0.5).astype(int)`, since the tests print [1 1 0], not True and False. It runs in the browser and numpy is fine. Pass its tests, then read its Learn tab.",
             "url": "https://www.deep-ml.com/problems/104"
           }
         ],
@@ -1462,12 +1462,13 @@
           "Split first, stratified: 7,000 train, 1,500 validation and 1,500 test, each with about 5% defaults (350, 75 and 75).",
           "Scale income with the mean and spread of the 7,000 training rows only, and apply those same numbers to validation and test.",
           "A feature days_in_collections gives near-perfect validation scores. It only exists after a default, so it is a leak: drop it.",
-          "Choose the threshold on validation (say 0.3 beats 0.5), then score the test set once and report that number."
+          "Choose the threshold on validation (say 0.3 beats 0.5), then score the test set once and report that number.",
+          "In scikit-learn (StandardScaler from sklearn.preprocessing, LogisticRegression from sklearn.linear_model): `scaler = StandardScaler().fit(X_tr)`, then `model = LogisticRegression().fit(scaler.transform(X_tr), y_tr)`. `p = model.predict_proba(scaler.transform(X_va))[:, 1]` gives each validation row's probability of label 1, and `((p >= t) == y_va).mean()` is the accuracy at threshold t."
         ],
         "tasks": [
           {
             "id": "d10-ai-1",
-            "text": "In d10.py, load load_breast_cancer, then split 70/15/15 by calling train_test_split twice (stratify=y, random_state=0); check you get 398, 85 and 86 rows. Fit StandardScaler on the training rows only, train LogisticRegression, choose a threshold from 0.3, 0.5 and 0.7 by validation accuracy, then report test accuracy once. Finally leak on purpose: add a column equal to the label plus small noise, retrain, and watch validation accuracy hit 100%. Run it with `uv run --with scikit-learn python d10.py` (nothing to install), or `python3 -m pip install scikit-learn` inside a venv."
+            "text": "In d10.py, load the data with `X, y = load_breast_cancer(return_X_y=True)` (from sklearn.datasets), then split 70/15/15 with two calls to train_test_split (from sklearn.model_selection): `X_tr, X_rest, y_tr, y_rest = train_test_split(X, y, test_size=0.3, stratify=y, random_state=0)`, then `X_va, X_te, y_va, y_te = train_test_split(X_rest, y_rest, test_size=0.5, stratify=y_rest, random_state=0)`. Check you get 398, 85 and 86 rows. Fit StandardScaler on the training rows only, train LogisticRegression, choose a threshold from 0.3, 0.5 and 0.7 by validation accuracy, then report test accuracy once. Finally leak on purpose: add a column equal to the label plus small noise, retrain, and watch validation accuracy hit 100%. Run it with `uv run --with scikit-learn python d10.py` (nothing to install), or `python3 -m pip install scikit-learn` inside a venv."
           },
           {
             "id": "d10-ai-dml",
@@ -1846,7 +1847,7 @@
           },
           {
             "id": "d13-hld-3",
-            "text": "Cap the cache at 100 entries: when it is full, evict the oldest-inserted key (a dict keeps insertion order, so next(iter(cache)) is the oldest). Compare the hit rate with the uncapped run, then explain out loud why LRU would usually do better than evicting the oldest insert."
+            "text": "Cap the cache at 100 entries: when it is full, evict the oldest-inserted key (a dict keeps insertion order, so next(iter(cache)) is the oldest). One catch: storing to a key already in the dict keeps its old place, so when you refill an expired entry, `del` the key first. Otherwise the entry you just loaded stays near the front and is evicted early, and a full cache throws out another key for nothing. Compare the hit rate with the uncapped run, then explain out loud why LRU would usually do better than evicting the oldest insert."
           },
           {
             "id": "d13-hld-4",
@@ -2090,11 +2091,11 @@
         "track": "review",
         "title": "Weekly review: re-solve flagged problems, retest the week",
         "minutes": 30,
-        "builds_on": "Days 8 to 13 · this week's problems and self-tests",
+        "builds_on": "Days 8 to 13 · this week's problems and self-tests, and Days 1 to 7 · their self-tests",
         "points": [
           "Start with the Revise row at the top of this page: re-solve each due problem from a blank file and rate it.",
           "Nothing due? Re-solve the two problems from Days 8 to 12 that took you longest (the minutes you typed), skipping the six from this weekend's re-solve sets.",
-          "Then re-answer the self-tests of the two hardest days this week. Aim for about 20 minutes of re-solving and 10 of self-tests."
+          "Then re-answer two days' self-tests: the hardest day this week, and the hardest of Days 1 to 7, now one to two weeks old. Aim for about 20 minutes of re-solving and 10 of self-tests."
         ],
         "tasks": [
           {
@@ -2103,7 +2104,7 @@
           },
           {
             "id": "d14-rev-2",
-            "text": "Re-answer the self-tests of the two days from Days 8 to 13 that felt hardest, from memory before tapping each one. Note the misses in My notes."
+            "text": "Re-answer the self-tests of the hardest day from Days 8 to 13 and the hardest from Days 1 to 7, from memory before tapping each one. Note the misses in My notes."
           }
         ]
       }
@@ -2184,9 +2185,9 @@
         "say": "Regularisation adds a weight penalty to the loss: L2 shrinks every weight, L1 sets some to zero and so picks features, and early stopping halts training when validation loss stops improving; I tune the strength on the validation set.",
         "example": [
           "Day 14's degree-12 fit (seed 5), with x scaled to −1…1: training MSE 0.03, validation 0.95. Its biggest weight is 373, which lets the curve swing wildly between the training points.",
-          "Add L2 (scikit-learn's Ridge; its alpha is λ). At λ = 0.01: training 0.04, validation 0.13, and the biggest weight is 2.5. Same 12 features, a calmer curve.",
-          "Too strong, at λ = 100: training 0.43, validation 0.67. Every weight is squeezed near 0, so now it underfits.",
-          "L1 (Lasso) at λ = 0.001: validation 0.13, and 7 of the 12 weights are exactly 0. It chose its own features.",
+          "Add L2 with scikit-learn's Ridge. Its alpha plays the role of λ, but it is added to the total squared error, not the average (and Lasso scales its loss another way), so alpha values don't carry over from λ or from Deep-ML #43. At alpha = 0.01: training 0.04, validation 0.13, and the biggest weight is 2.5. Same 12 features, a calmer curve.",
+          "Too strong, at alpha = 100: training 0.43, validation 0.67. Every weight is squeezed near 0, so now it underfits.",
+          "L1 (Lasso) at alpha = 0.001: validation 0.13, and 7 of the 12 weights are exactly 0. It chose its own features.",
           "Early stopping in a training loop: validation loss by epoch is 0.50, 0.31, 0.22, 0.20, 0.21, 0.23, 0.26. With patience 3, training stops after epoch 7 and keeps the epoch-4 weights."
         ],
         "tasks": [
@@ -2432,7 +2433,7 @@
           },
           {
             "id": "d17-ai-2",
-            "text": "Copy Day 10's d10.py to d17.py. After the two splits, set each y to `1 - y`, so 1 means malignant, the class to catch."
+            "text": "Copy Day 10's d10.py to d17.py and delete the leak step at the end (the label-plus-noise column). After the two splits, set each y to `1 - y`, so 1 means malignant, the class to catch."
           },
           {
             "id": "d17-ai-3",
@@ -2440,7 +2441,7 @@
           },
           {
             "id": "d17-ai-dml",
-            "text": "Optional, about 15 min (if it doesn't fit today, do it in Sunday's review). Code it on Deep-ML: #91 Calculate F1 Score from Predicted and True Labels: count the true positives, false positives and false negatives first. It runs in the browser and numpy is fine. Pass its tests, then read its Learn tab.",
+            "text": "Optional, about 15 min (if it doesn't fit today, do it in Sunday's review). Code it on Deep-ML: #91 Calculate F1 Score from Predicted and True Labels: count the true positives, false positives and false negatives first. If there are no true positives, return 0.0 (a float): one test has none and expects 0.0; there recall is 0 ÷ 0 (no real positives), and so is F1. It runs in the browser and numpy is fine. Pass its tests, then read its Learn tab.",
             "url": "https://www.deep-ml.com/problems/91"
           }
         ],
@@ -3074,11 +3075,11 @@
         "track": "review",
         "title": "Weekly review: re-solve flagged problems, retest the week",
         "minutes": 30,
-        "builds_on": "Days 15 to 20 · this week's problems and self-tests",
+        "builds_on": "Days 15 to 20 · this week's problems and self-tests, and Days 8 to 14 · their self-tests",
         "points": [
           "Start with the Revise row at the top of this page: re-solve each due problem from a blank file and rate it. Stop at about 20 minutes; anything left stays in the Revise row for tomorrow.",
           "Nothing due? Re-solve the problem from Days 15 to 20 that took you longest (the minutes you typed), skipping the two from today's re-solve set.",
-          "Then re-answer the self-tests of the two hardest days this week, in about 10 minutes."
+          "Then re-answer two days' self-tests in about 10 minutes: the hardest day this week, and the hardest of Days 8 to 14, now one to two weeks old."
         ],
         "tasks": [
           {
@@ -3087,7 +3088,7 @@
           },
           {
             "id": "d21-rev-2",
-            "text": "Re-answer the self-tests of the two days from Days 15 to 20 that felt hardest, from memory before tapping each one. Note the misses in My notes."
+            "text": "Re-answer the self-tests of the hardest day from Days 15 to 20 and the hardest from Days 8 to 14, from memory before tapping each one. Note the misses in My notes."
           }
         ]
       }
@@ -3290,7 +3291,7 @@
         "track": "lld",
         "title": "Factory pattern: one place that creates objects",
         "minutes": 45,
-        "builds_on": "Day 16 · Strategy and choosing it in one place, Day 9 · open/closed, and Day 14 · depending on an interface",
+        "builds_on": "Day 7 · abstraction and abstract base classes, Day 16 · Strategy and choosing it in one place, Day 9 · open/closed, and Day 14 · depending on an interface",
         "points": [
           "A factory is one place that decides which class to create, and creates it. Callers ask for \"a payment for 'upi'\" and get an object behind an interface; they never name the concrete class.",
           "A simple factory in Python is a dict from name to class plus a function: `PAYMENTS = {\"upi\": UpiPayment, \"card\": CardPayment}`, and `make_payment(kind, **details)` looks the class up and calls it. Raise a clear ValueError for an unknown kind.",
@@ -3304,7 +3305,7 @@
         "example": [
           "Checkout creates payments with `if method == \"upi\": UpiPayment(vpa) elif method == \"card\": CardPayment(token) …`, and the refunds code has a copy of the same chain.",
           "Simple factory: `PAYMENTS = {\"upi\": UpiPayment, \"card\": CardPayment}`, and `make_payment(method, **details)` does `cls = PAYMENTS.get(method)`, raises ValueError if cls is None, and returns `cls(**details)`.",
-          "Checkout now calls `make_payment(req.method, **req.details).pay(amount)` and knows only the Payment ABC (Day 7). Refunds call the same function.",
+          "Checkout now calls `make_payment(req.method, **req.details).pay(amount)` and knows only the Payment ABC and its pay(amount), the abstraction from Day 7. Refunds call the same function.",
           "Adding net banking is one NetBankingPayment class and one dict entry. Checkout and refunds don't change (Day 9).",
           "With Strategy (Day 16): `make_fare(config[\"mode\"])` returns `SurgeFare(1.5)` or `NormalFare()`, so Trip still just receives a FareStrategy."
         ],

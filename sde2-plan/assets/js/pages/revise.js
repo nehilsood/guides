@@ -1,14 +1,28 @@
 import { reviseModel } from "../models.js";
-import { el, getState, commit, loadData, renderHeader, showError, guarded, today, now, rerender, onExternalChange, ratingButtons, reviseTag, longDate } from "./common.js";
+import { el, getState, commit, loadData, renderHeader, showError, guarded, today, now, rerender, onExternalChange, ratingButtons, reviseTag, longDate, plain } from "./common.js";
 import { rate } from "../store.js";
 
-const item = (r, onRate) =>
+const HOW =
+  "Nothing to revise yet. Tap the bookmark on a problem, a task or a whole day, or mark a self-test question Missed, and it comes back here.";
+
+// One thing in revision: due ones take a rating, later ones show the date they come back.
+const row = (r, onRate) =>
   el(
     "div",
-    { class: "prob" },
-    el("span", {}, `${r.label} `, el("span", { class: `tag${r.overdue ? " warn" : ""}`, text: reviseTag(r.id, r.step) }), el("span", { class: "small", text: r.isDue ? ` · due ${r.overdue ? "since " : ""}${longDate(r.due)}` : ` · ${longDate(r.due)}` })),
-    r.isDue ? ratingButtons(r.id, r.label, onRate) : null,
+    { class: "due" },
+    el("p", { class: "due-text", text: plain(r.label) }),
+    el(
+      "p",
+      { class: "due-meta" },
+      el("span", { class: "tag", text: reviseTag(r.id, r.step) }),
+      r.overdue ? el("span", { class: "tag warn", text: `overdue since ${longDate(r.due)}` }) : null,
+      r.isDue ? null : el("span", { class: "tag", text: longDate(r.due) }),
+    ),
+    r.isDue ? ratingButtons(r.id, plain(r.label), onRate) : null,
   );
+
+const group = (title, rows, onRate) =>
+  el("section", { class: "revise-group" }, el("h2", { text: `${title} (${rows.length})` }), rows.map((r) => row(r, onRate)));
 
 const build = (data, onRate) => {
   const list = reviseModel(getState(), today(), data.problemsById, data.outline, data.cardsByDay);
@@ -17,15 +31,12 @@ const build = (data, onRate) => {
   return el(
     "div",
     {},
-    el("h1", { text: "Revise" }),
-    el(
-      "div",
-      { class: "box" },
-      el("h2", { text: `Due today (${due.length})` }),
-      due.length ? due.map((r) => item(r, onRate)) : el("p", { class: "empty", text: "Nothing due. Bookmark a problem or a day for revision and it comes back here." }),
-      due.length ? el("p", { class: "small", text: "Easy brings it back later. Struggled brings it back sooner." }) : null,
-    ),
-    later.length ? el("div", { class: "box" }, el("h2", { text: `Coming up (${later.length})` }), later.map((r) => item(r, onRate))) : null,
+    el("h1", { class: "revise-h", tabindex: "-1", text: "Revise" }),
+    !list.length ? el("p", { class: "empty", text: HOW }) : null,
+    list.length > 0 && !due.length ? el("p", { class: "empty", text: `Nothing due today. The next one comes back on ${longDate(later[0].due)}.` }) : null,
+    due.length ? group("Due today", due, onRate) : null,
+    due.length ? el("p", { class: "small", text: "Easy brings it back later. Struggled brings it back sooner." }) : null,
+    later.length ? group("Coming up", later, onRate) : null,
   );
 };
 
@@ -35,8 +46,14 @@ loadData()
     const root = document.getElementById("app");
     const draw = guarded(() => rerender(root, () => build(data, onRate)));
     const onRate = (id, rating) => {
+      const at = [...root.querySelectorAll(".due .seg")].findIndex((seg) => seg.contains(document.activeElement));
       commit((s) => rate(s, id, rating, today(), now()));
       draw();
+      if (at < 0 || root.contains(document.activeElement)) return;
+      // The rated row's buttons are gone: keyboard focus moves on to the next due row, or to the heading.
+      const segs = root.querySelectorAll(".due .seg");
+      if (segs.length) segs[Math.min(at, segs.length - 1)].querySelector("button")?.focus({ preventScroll: true });
+      else root.querySelector(".revise-h")?.focus();
     };
     onExternalChange(draw);
     draw();

@@ -1,5 +1,5 @@
 import { el, getState, commit, renderHeader, rerender, onExternalChange, debounced, flushPending, guarded, now } from "./common.js";
-import { setStory } from "../store.js";
+import { setStory, setStoryDeleted } from "../store.js";
 
 const LEADERSHIP_PRINCIPLES = [
   "Customer Obsession",
@@ -31,6 +31,10 @@ const PARTS = [
 
 let filter = "";
 let openId = null;
+// The story just deleted, offered back for a few seconds. Its text is kept, so Undo only clears the mark.
+let undo = null;
+let undoTimer = 0;
+const UNDO_MS = 8000;
 
 const liveStories = () =>
   Object.entries(getState().stories)
@@ -52,13 +56,28 @@ const storyCard = (id, story, draw) => {
     pending = { ...pending, ...patch };
     flushPatch();
   };
-  const toggle = (lp, on) => {
+  const toggle = (lp) => {
     const set = new Set(getState().stories[id]?.lps ?? []);
-    if (on) set.add(lp);
-    else set.delete(lp);
+    if (set.has(lp)) set.delete(lp);
+    else set.add(lp);
     save({ lps: LEADERSHIP_PRINCIPLES.filter((p) => set.has(p)) });
     openId = id;
     draw();
+  };
+  const remove = () => {
+    flushPending();
+    commit((s) => setStoryDeleted(s, id, true, now()));
+    undo = { id, title: getState().stories[id]?.title || "Untitled story" };
+    clearTimeout(undoTimer);
+    undoTimer = setTimeout(() => {
+      undo = null;
+      const notice = document.querySelector(".undo");
+      const hadFocus = notice?.contains(document.activeElement);
+      notice?.remove();
+      if (hadFocus) document.querySelector(".story-h h2")?.focus();
+    }, UNDO_MS);
+    draw();
+    document.querySelector(".undo button")?.focus();
   };
   return el(
     "details",
@@ -66,19 +85,32 @@ const storyCard = (id, story, draw) => {
     el("summary", { text: story.title || "Untitled story" }),
     el("label", { class: "field", for: `${id}-title`, text: "Title" }),
     el("input", { id: `${id}-title`, class: "text-input", type: "text", value: story.title ?? "", oninput: (e) => saveLater({ title: e.target.value }), onblur: flushPending }),
-    el("p", { class: "field", text: "Leadership principles" }),
-    el("div", { class: "lp-list" }, LEADERSHIP_PRINCIPLES.map((lp) => el("label", {}, el("input", { type: "checkbox", checked: tagged(story, lp), onchange: (e) => toggle(lp, e.target.checked) }), lp))),
+    el("p", { class: "field", text: "Leadership principles it shows" }),
+    el(
+      "div",
+      { class: "lp-list", role: "group", "aria-label": "Leadership principles" },
+      LEADERSHIP_PRINCIPLES.map((lp, i) => el("button", { type: "button", class: "chip", "aria-pressed": String(tagged(story, lp)), "data-f": `${id}-lp${i}`, onclick: () => toggle(lp), text: lp })),
+    ),
     PARTS.map(([key, label]) => [
       el("label", { class: "field", for: `${id}-${key}`, text: label }),
       el("textarea", { id: `${id}-${key}`, rows: "4", oninput: (e) => saveLater({ [key]: e.target.value }), text: story[key] ?? "" }),
     ]),
-    el("p", {}, el("button", { type: "button", class: "btn danger", onclick: () => { flushPending(); save({ ...BLANK, deleted: true }); draw(); }, text: "Delete story" })),
+    el("p", {}, el("button", { type: "button", class: "btn danger", onclick: remove, text: "Delete story" })),
   );
 };
 
 const build = (draw) => {
   const stories = liveStories();
   const shown = filter ? stories.filter(([, story]) => tagged(story, filter)) : stories;
+  const restore = () => {
+    clearTimeout(undoTimer);
+    commit((s) => setStoryDeleted(s, undo.id, false, now()));
+    const id = undo.id;
+    openId = id;
+    undo = null;
+    draw();
+    document.querySelector(`details[data-k="${id}"] > summary`)?.focus();
+  };
   const add = () => {
     const id = `s-${Date.now()}`;
     commit((s) => setStory(s, id, BLANK, now()));
@@ -96,13 +128,21 @@ const build = (draw) => {
       el("h2", { text: "Leadership principles" }),
       LEADERSHIP_PRINCIPLES.map((lp) => el("div", { class: "lp-count" }, el("span", { text: lp }), el("span", { class: "small", text: `${stories.filter(([, story]) => tagged(story, lp)).length}` }))),
     ),
-    el("div", { class: "story-h" }, el("h2", { text: `Stories (${shown.length})` }), el("button", { type: "button", class: "button", onclick: add, text: "Add story" })),
+    el("div", { class: "story-h" }, el("h2", { tabindex: "-1", text: `Stories (${shown.length})` }), el("button", { type: "button", class: "button", onclick: add, text: "Add story" })),
     el(
       "div",
       {},
       el("label", { class: "field", for: "lp-filter", text: "Show stories for" }),
       el("select", { id: "lp-filter", class: "text-input", onchange: (e) => { filter = e.target.value; draw(); } }, el("option", { value: "", text: "All principles" }), LEADERSHIP_PRINCIPLES.map((lp) => el("option", { value: lp, selected: lp === filter, text: lp }))),
     ),
+    undo
+      ? el(
+          "p",
+          { class: "box notice undo", role: "status" },
+          el("span", { id: "undo-t", text: `Deleted “${undo.title}”.` }),
+          el("button", { type: "button", class: "btn", "aria-describedby": "undo-t", "data-f": "undo", onclick: restore, text: "Undo delete" }),
+        )
+      : null,
     shown.length ? shown.map(([id, story]) => storyCard(id, story, draw)) : el("p", { class: "small", text: "No stories yet. Add one and tag it with the principles it shows." }),
   );
 };

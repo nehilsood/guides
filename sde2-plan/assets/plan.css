@@ -165,7 +165,7 @@ b, strong { font-weight: 600; }
 
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 /* Headings take focus only when the control under it folds away; the scroll to them shows where it went. */
-.day-h:focus-visible, .reader-h:focus-visible { outline: none; }
+.day-h:focus-visible, .reader-h:focus-visible, .revise-h:focus-visible { outline: none; }
 
 button, input, select, textarea { font: inherit; color: inherit; }
 input[type="file"] { max-width: 100%; font-size: var(--fs-sm); }
@@ -188,7 +188,7 @@ main.page {
 
 /* ---------- components ---------- */
 
-/* Buttons: primary is ink, quiet is panel. Old pages use .button (primary) and .btn (quiet). */
+/* Buttons: .button is primary (ink), .btn is quiet (panel). */
 .button, .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: var(--s2);
   min-height: var(--tap);
@@ -270,6 +270,7 @@ svg.icon { width: 20px; height: 20px; flex: none; }
   display: inline-flex; align-items: center; gap: 6px;
   min-height: 36px;
   padding: 0 var(--s3);
+  border: 0;
   border-radius: var(--r-round);
   background: var(--panel);
   color: var(--ink);
@@ -333,7 +334,7 @@ details > summary::before {
 }
 details[open] > summary::before { transform: rotate(45deg); }
 
-/* Panels: one tone step, no border, no shadow. Old pages wrap sections in .box. */
+/* Panels: one tone step, no border, no shadow. .box is a panel section, a notice or a story card. */
 .box, .panel { background: var(--panel); border-radius: var(--r-panel); padding: var(--s5); margin: var(--s4) 0; }
 .box > h2:first-child, .panel > h2:first-child { margin-top: 0; }
 .box-h h2 { margin-top: 0; }
@@ -342,16 +343,6 @@ details[open] > summary::before { transform: rotate(45deg); }
 
 .empty { margin: 0; padding: var(--s4) 0 var(--s2); color: var(--muted); }
 
-/* Rows of things to do (old pages): text on the left, controls on the right. */
-.prob {
-  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
-  gap: var(--s2) var(--s3);
-  padding: var(--s3) 0;
-  border-top: 1px solid var(--line);
-}
-.prob:first-of-type { border-top: 0; }
-.prob.done > span:first-child { color: var(--muted); }
-.links { display: inline-flex; flex-wrap: wrap; gap: var(--s2); }
 .res { overflow-wrap: anywhere; margin: var(--s2) 0; }
 .say { margin: var(--s4) 0; }
 
@@ -403,24 +394,51 @@ details[open] > summary::before { transform: rotate(45deg); }
 .due-link svg.icon { color: var(--accent); }
 .due-link .more { margin-left: auto; }
 
-/* ---------- outline (old structure until phase 4) ---------- */
+/* ---------- revise ---------- */
 
-.outline { width: 100%; border-collapse: collapse; font-size: var(--fs-sm); }
-.outline th { text-align: left; font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--line); padding: var(--s2) var(--s3) var(--s2) 0; }
-.outline td { padding: var(--s3) var(--s3) var(--s3) 0; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
-.outline tr:last-child td { border-bottom: 0; }
-.outline td:nth-child(2) { white-space: nowrap; color: var(--muted); }
-.outline .tag { margin: 0 6px 0 0; color: var(--s); }
-.outline tr.now td:first-child a, .outline tr.now td:nth-child(3) { color: var(--accent); font-weight: 600; }
-.outline tr.catchup-row td { color: var(--muted); }
+/* Due today, then coming up: the day page's revise rows, on the ground, a line between each. */
+.revise-group .due:first-of-type { border-top: 0; }
+.due-meta { display: flex; flex-wrap: wrap; gap: 0 var(--s3); margin: calc(-1 * var(--s1)) 0 var(--s2); }
+.due-meta .tag { margin-left: 0; }
 
-/* ---------- stories (old structure until phase 4) ---------- */
+/* ---------- outline ---------- */
+
+/* A month per disclosure, a line between them. */
+.month { border-top: 1px solid var(--line); }
+.month > summary { padding: var(--s2) 0; }
+.month-t { font-size: var(--fs-md); font-weight: 600; }
+.odays { list-style: none; margin: 0 0 var(--s4); padding: 0; }
+
+/* A day: when on the left, its tracks and topics on the right. The whole row is the link. */
+.oday {
+  display: grid; grid-template-columns: 6.5rem 1fr; gap: var(--s3);
+  padding: var(--s3) var(--s2);
+  margin: 0 calc(-1 * var(--s2));
+  border-radius: var(--r-btn);
+  color: var(--ink);
+  text-decoration: none;
+  transition: background-color var(--t-state) var(--ease);
+}
+.oday:hover { background: var(--panel); }
+.oday-when, .oday-plan { display: flex; flex-direction: column; min-width: 0; }
+.oday-plan { overflow-wrap: anywhere; }
+.oday-track { color: var(--s); font-weight: 600; }
+.oday.is-catchup .oday-plan { color: var(--muted); }
+/* Today: a panel, its day number and the word "Today" in petrol. */
+.oday.is-today { background: var(--panel); }
+.oday.is-today b, .oday-now { color: var(--accent); }
+.oday-now { font-size: var(--fs-sm); font-weight: 600; }
+
+/* ---------- stories ---------- */
 
 .story-h { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); flex-wrap: wrap; }
 .story-h h2 { margin: 0; }
-.lp-list { display: flex; flex-wrap: wrap; gap: var(--s2); margin: var(--s2) 0; }
-.lp-list label { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 var(--s3); border-radius: var(--r-round); background: var(--ground); font-size: var(--fs-sm); }
 .lp-count { display: flex; justify-content: space-between; gap: var(--s3); padding: var(--s1) 0; font-size: var(--fs-sm); }
+/* Principles on a story are toggle chips: the chosen ones are ink. */
+.lp-list { display: flex; flex-wrap: wrap; gap: var(--s2); margin: var(--s2) 0; }
+.lp-list .chip[aria-pressed="true"], .lp-list .chip[aria-pressed="true"]:hover { background: var(--ink); color: var(--on-ink); }
+/* "Deleted …" with its Undo, for a few seconds after a delete. */
+.undo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s2) var(--s3); }
 
 /* ---------- shell ---------- */
 

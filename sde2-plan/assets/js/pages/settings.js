@@ -102,13 +102,6 @@ document.getElementById("app").replaceChildren(
   el(
     "section",
     { class: "box" },
-    el("h2", { text: "Appearance" }),
-    el("p", { class: "small", text: "Auto follows your device's light or dark setting." }),
-    el("div", { class: "seg", role: "group", "aria-label": "Colour theme" }, themeButtons),
-  ),
-  el(
-    "section",
-    { class: "box" },
     el("h2", { text: "Sync" }),
     el("p", { class: "small", text: "Use a fine-grained GitHub token with access to only the progress repo, Contents: Read and write." }),
     field("repo", "Progress repo", repoInput),
@@ -116,6 +109,13 @@ document.getElementById("app").replaceChildren(
     el("p", {}, el("span", { class: "btns" }, el("button", { type: "button", class: "button", onclick: save, text: "Save" }), el("button", { type: "button", class: "btn", onclick: () => syncNow(), text: "Sync now" }), el("button", { type: "button", class: "btn", onclick: forget, text: "Forget token on this device" }))),
     statusLine,
     message,
+  ),
+  el(
+    "section",
+    { class: "box" },
+    el("h2", { text: "Appearance" }),
+    el("p", { class: "small", text: "Auto follows your device's light or dark setting." }),
+    el("div", { class: "seg", role: "group", "aria-label": "Colour theme" }, themeButtons),
   ),
   el(
     "section",

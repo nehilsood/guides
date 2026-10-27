@@ -52,6 +52,9 @@ export const setDay = (state, day, patch, nowMs) => touch(state, "days", day, pa
 
 export const setStory = (state, id, patch, nowMs) => touch(state, "stories", id, patch, nowMs);
 
+// Delete and Undo send only the mark: the story's text stays, so Undo (here or on another device) brings it back.
+export const setStoryDeleted = (state, id, deleted, nowMs) => touch(state, "stories", id, { deleted }, nowMs);
+
 const isObject = (x) => typeof x === "object" && x !== null && !Array.isArray(x);
 
 // Per record, each field keeps the value with the larger time (b on a tie), so a stale device's unrelated write
