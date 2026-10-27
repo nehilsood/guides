@@ -1,0 +1,562 @@
+{
+ "lesson": "rm-0013",
+ "label": "RM 0013",
+ "track": "project",
+ "title": "On-Device RAG over a Quantized MobileLLM",
+ "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "c13-t1",
+   "kind": "toolbox",
+   "q": "What is MobileLLM, and how is it not just a small Llama?",
+   "a": "A family of language models designed from the start for phones and embedded hardware, at under a billion parameters. The finding behind it is that below that size the usual scaling intuitions invert. Depth beats width, so the architecture is unusually deep and thin. It also shares input and output embeddings and uses grouped-query attention, both of which are about fitting rather than quality. What it buys is useful language ability in a few hundred megabytes, which is the only band a television will give a background process. Those choices barely register at seven billion parameters. At three hundred million they decide the result.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it as a compressed large model. It was designed at this size, and that distinction is the whole contribution.",
+   "teach": {
+    "title": "Why this is retrieval at all",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#why-this-is-retrieval-at-all"
+   }
+  },
+  {
+   "id": "c13-t2",
+   "kind": "toolbox",
+   "q": "What is grouped-query attention, and what does it save?",
+   "a": "In standard attention every head computes its own keys and values, and all of them must be cached for every token generated so far. Grouped-query attention has several heads share one set of key and value projections, while each keeps its own queries. That shrinks the cache by the size of the group. What it buys is a conversation that can get longer. The weights are a constant, but the key-value cache grows with every token, and on a fixed memory budget that growth is the ceiling. Multi-head is one set per head, best quality and largest cache. Multi-query is one shared set, smallest cache and some quality loss. Grouped sits between, and the group count is the dial.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling it a speed optimisation. It is a memory one, and on a bandwidth-bound device that becomes speed for a different reason.",
+   "teach": {
+    "title": "Where the errors actually come from",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#where-the-errors-actually-come-from"
+   }
+  },
+  {
+   "id": "c13-t3",
+   "kind": "toolbox",
+   "q": "Do the memory arithmetic for me.",
+   "a": "Quantization means storing each weight in four or eight bits instead of sixteen. The arithmetic settles the feasibility argument on its own. Take a 350-million-parameter model. At sixteen bits a weight that is about 700 megabytes. At eight bits it is roughly 350. At four bits it is under 200, plus the KV cache on top, which grows with context. A television gives a background process a few hundred megabytes. So four-bit is not a preference here, it is the constraint. What it buys is the project existing at all. There is no version where a sixteen-bit model sits resident beside the actual television software.",
+   "options": null,
+   "correct": null,
+   "flag": "Quoting a parameter count with no byte count. The bytes are the thing that has to fit, and the conversion is one multiplication.",
+   "teach": {
+    "title": "Why this is retrieval at all",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#why-this-is-retrieval-at-all"
+   }
+  },
+  {
+   "id": "c13-t4",
+   "kind": "toolbox",
+   "q": "What actually runs the model on the device?",
+   "a": "A mobile runtime such as ExecuTorch, TFLite or ONNX Runtime Mobile. Each takes its own converted file format and implements its own set of operators, so they are not interchangeable. What one buys is an execution engine measured in megabytes rather than hundreds, with no Python on the device. It usually dispatches to the NPU, a dedicated block of silicon that does integer matrix multiplication extremely efficiently. That is what keeps inference from heating the device or stealing cycles from the interface. The risk lives in conversion. An unsupported operator either blocks the export or falls back to the CPU mid-graph, and that round trip can cost more than the accelerator saved.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating export as a build step. It is where on-device projects actually stall, and the fix is usually to change the model.",
+   "teach": null
+  },
+  {
+   "id": "c13-t5",
+   "kind": "toolbox",
+   "q": "There are only fifty functions. Why retrieve at all?",
+   "a": "Because fifty schemas with descriptions and typed parameters is a large prompt, and prefill is the dominant cost on this hardware. Retrieval uses a second, much smaller model that turns text into vectors, so the query and the catalogue can be compared locally. Those encoders are tens of megabytes, an order below the language model. It puts maybe five candidates in front of the model instead of fifty. What that buys is most of the latency win, because the prompt is what you are paying for. It also keeps the catalogue growable without growing the prompt. The trade is that a function the retriever misses cannot be called at all.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying fifty is small enough to inline. On a server it would be. The whole point of this bullet is that it is not a server.",
+   "teach": {
+    "title": "Why this is retrieval at all",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#why-this-is-retrieval-at-all"
+   }
+  },
+  {
+   "id": "c13-t6",
+   "kind": "toolbox",
+   "q": "What does constrained decoding guarantee, and what does it not?",
+   "a": "At each step the model proposes probabilities for every possible next token. Constrained decoding masks out the ones that would make the output invalid against a schema, before sampling. The invalid continuation is not rejected afterwards. It is never on the table. What that buys is parse failures becoming impossible rather than rare, which removes the retry path entirely. On a device with a few hundred milliseconds of budget there is no room for a second attempt. So it guarantees a parse. It does not guarantee a choice. The model can emit a perfectly formed call to entirely the wrong function, and only the confirmation step in front of the user catches that.",
+   "options": null,
+   "correct": null,
+   "flag": "Offering it as the correctness story. Well-formed and correct are different properties, and only one of them is enforceable here.",
+   "teach": {
+    "title": "What a schema can and cannot guarantee",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#what-a-schema-can-and-cannot-guarantee"
+   }
+  },
+  {
+   "id": "c13-t7",
+   "kind": "toolbox",
+   "q": "Where does the latency actually go?",
+   "a": "The budget runs from the user finishing speaking to the television doing something. Wake word, transcription, retrieval, prefill, generation, parse, execute. A remote-control interaction has to feel instant, which is a few hundred milliseconds for all of it. What stating it as a budget buys is that every design decision gets justified in milliseconds rather than in preference. It is also the single constraint that rules out the cloud, because a network round trip can consume the whole thing. On this hardware prefill dominates, because the prompt is long relative to the reply. So prompt length matters more than output length here, which reverses the usual server intuition.",
+   "options": null,
+   "correct": null,
+   "flag": "Quoting a single model latency. The user feels the whole chain, and the model is one link in it.",
+   "teach": {
+    "title": "The decision nobody asks about until they do",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#the-decision-nobody-asks-about-until-they"
+   }
+  },
+  {
+   "id": "c13-f1",
+   "kind": "fundamentals",
+   "q": "In two sentences, what does this layer do?",
+   "a": "It turns something a person says to a television into the right action on that television. A small model runs on the set itself. It picks a function from the device's catalogue and fills in its parameters. Nothing leaves the device.",
+   "options": null,
+   "correct": null,
+   "flag": "Leading with MobileLLM. The model is a constraint, not the product, and naming it first invites the wrong conversation.",
+   "teach": null
+  },
+  {
+   "id": "c13-f2",
+   "kind": "fundamentals",
+   "q": "What is being retrieved? There are no documents here.",
+   "a": "The function definitions themselves. The catalogue is the corpus. Each function has a name, a description and typed parameters, and the retriever finds the handful most likely to match the request. So it is retrieval over capabilities rather than over content.",
+   "options": null,
+   "correct": null,
+   "flag": "Letting “RAG” imply a document store. The reframing is the whole reason this design is interesting.",
+   "teach": {
+    "title": "Why this is retrieval at all",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#why-this-is-retrieval-at-all"
+   }
+  },
+  {
+   "id": "c13-f3",
+   "kind": "fundamentals",
+   "q": "Why not put all fifty functions in the prompt?",
+   "a": "They do not fit. A function definition with a description and a few typed parameters is not small. Fifty of them is far more than a device-sized model can hold alongside the user's sentence. Even if it fit, burying the relevant few among fifty makes the choice harder.",
+   "options": null,
+   "correct": null,
+   "flag": "Only citing token limits. The signal argument matters too, and it still applies on a model with a larger window.",
+   "teach": {
+    "title": "Why this is retrieval at all",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#why-this-is-retrieval-at-all"
+   }
+  },
+  {
+   "id": "c13-f4",
+   "kind": "fundamentals",
+   "q": "How does the retriever decide which functions are candidates?",
+   "a": "By similarity between the request and each function's description, so the descriptions are load-bearing text rather than documentation. A function whose description does not use the words people actually say will not be retrieved, and then it can never be chosen. That makes description quality a recall problem.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating descriptions as comments. They are the index, and editing one changes behaviour.",
+   "teach": {
+    "title": "Where the errors actually come from",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#where-the-errors-actually-come-from"
+   }
+  },
+  {
+   "id": "c13-f5",
+   "kind": "fundamentals",
+   "q": "What does the model actually return?",
+   "a": "A function name and its arguments, in a constrained format. Not prose. The parameter values are extracted from what the person said, which is the slot-filling half and often the harder one. “Brighter” has to become a named setting plus a direction or an amount.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing only function selection. Slot filling is where ambiguity lives, since people rarely state values precisely.",
+   "teach": {
+    "title": "What a schema can and cannot guarantee",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#what-a-schema-can-and-cannot-guarantee"
+   }
+  },
+  {
+   "id": "c13-f6",
+   "kind": "fundamentals",
+   "q": "Why run this on the device rather than in the cloud?",
+   "a": "Privacy and latency. What somebody says in their living room never leaves the room, which for a television is the deciding argument. And there is no network round trip, so a short command feels immediate. You accept a weaker model to get both.",
+   "options": null,
+   "correct": null,
+   "flag": "Leading with cost. It matters at scale and it is not why a consumer device does this.",
+   "teach": {
+    "title": "Why this is retrieval at all",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#why-this-is-retrieval-at-all"
+   }
+  },
+  {
+   "id": "c13-f7",
+   "kind": "fundamentals",
+   "q": "What does constraining the output format guarantee?",
+   "a": "That the call is structurally valid. The model cannot name a function that does not exist or give a parameter the wrong type, because the format has no shape for it. What it does not guarantee is that the chosen function is the right one. A valid call to the wrong function is exactly as valid.",
+   "options": null,
+   "correct": null,
+   "flag": "Presenting the schema as correctness. It removes one class of failure completely and leaves the interesting one untouched.",
+   "teach": {
+    "title": "What a schema can and cannot guarantee",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#what-a-schema-can-and-cannot-guarantee"
+   }
+  },
+  {
+   "id": "c13-f8",
+   "kind": "fundamentals",
+   "q": "Name the two ways this system gets an answer wrong.",
+   "a": "Retrieval misses the right function, so it was never on the shortlist. Or retrieval succeeds and the model picks the wrong one from it. The first is a recall problem and no model quality fixes it. The second is a selection problem, and it is where quantization hurts most.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating them as one accuracy number. They have different causes and completely different fixes.",
+   "teach": {
+    "title": "Where the errors actually come from",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#where-the-errors-actually-come-from"
+   }
+  },
+  {
+   "id": "c13-f9",
+   "kind": "fundamentals",
+   "q": "What happens when the model is not confident?",
+   "a": "There is no bigger model to escalate to, so the options are act, ask, or decline. The right choice depends on reversibility. Changing brightness is trivially undone, so acting is fine. Deleting a recording is not, so confirmation earns its friction. One global threshold for both is the wrong design.",
+   "options": null,
+   "correct": null,
+   "flag": "Proposing a single confidence cutoff. The cost of being wrong differs per function, so the threshold should too.",
+   "teach": {
+    "title": "The decision nobody asks about until they do",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#the-decision-nobody-asks-about-until-they"
+   }
+  },
+  {
+   "id": "c13-f10",
+   "kind": "fundamentals",
+   "q": "What is the riskiest claim in this bullet?",
+   "a": "“Covering 50+ TV functions” reads as a success rate and it is a coverage count. It says the catalogue had that many entries, not that all fifty were selected correctly. I would separate those two before anyone asks, and give the accuracy figure separately if I have it.",
+   "options": null,
+   "correct": null,
+   "flag": "Letting a count stand as a quality claim. It is the same shape as a 100% success rate that means completion rather than correctness.",
+   "teach": {
+    "title": "Why this is retrieval at all",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#why-this-is-retrieval-at-all"
+   }
+  },
+  {
+   "id": "c13-d1",
+   "kind": "deep-dive",
+   "q": "How many functions do you retrieve, and how would you pick that number?",
+   "a": "Few enough to fit comfortably, many enough that the right one is nearly always present. I would tune it by measuring recall of the correct function at each size. Then selection accuracy at each size. Those move in opposite directions. The best number is where their product peaks, not where either is best.",
+   "options": null,
+   "correct": null,
+   "flag": "Optimising recall alone. A longer shortlist guarantees the answer is present and makes the choice harder, so the two have to be measured together.",
+   "teach": {
+    "title": "Where the errors actually come from",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#where-the-errors-actually-come-from"
+   }
+  },
+  {
+   "id": "c13-d2",
+   "kind": "deep-dive",
+   "q": "You said descriptions are the index. What follows from that?",
+   "a": "That they have to be written in the words people actually say, not in product vocabulary. If the setting is called “backlight” internally and everyone says “brightness,” the description needs both. It also means editing a description is a behaviour change and should be tested like one.",
+   "options": null,
+   "correct": null,
+   "flag": "Writing descriptions for engineers. They are matched against consumer phrasing, so they should contain consumer phrasing.",
+   "teach": {
+    "title": "Why this is retrieval at all",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#why-this-is-retrieval-at-all"
+   }
+  },
+  {
+   "id": "c13-d3",
+   "kind": "deep-dive",
+   "q": "Where does the retrieval index live on a television?",
+   "a": "On the device, in the same memory budget as the model. That is what keeps it small. Fifty function definitions and their embeddings is a tiny index, which is why this works at all. A general document corpus would not fit, and that constraint is what makes the catalogue the right corpus.",
+   "options": null,
+   "correct": null,
+   "flag": "Assuming a vector database. At this size a flat array and a dot product is both sufficient and faster.",
+   "teach": {
+    "title": "Why this is retrieval at all",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#why-this-is-retrieval-at-all"
+   }
+  },
+  {
+   "id": "c13-d4",
+   "kind": "deep-dive",
+   "q": "How do you stop the model inventing a function name?",
+   "a": "Constrain the decode. The output must match a grammar over the shortlist's function names and parameter types. An invalid name then cannot be generated, because those tokens are never available. That is stronger than validating afterwards, since there is no invalid output to reject.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing post-hoc validation. Rejecting a bad output costs a retry, and preventing it costs nothing.",
+   "teach": null
+  },
+  {
+   "id": "c13-d5",
+   "kind": "deep-dive",
+   "q": "Why is slot filling harder than function selection?",
+   "a": "Because people do not state values. “Make it brighter” gives a direction and no amount. “A bit louder” gives a vague magnitude. The model has to map fuzzy language onto a typed parameter. The sensible default is a relative step, rather than an absolute value it had to guess.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating parameters as easy once the function is chosen. Selection is a closed choice and slot filling is open-ended.",
+   "teach": {
+    "title": "Why this is retrieval at all",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#why-this-is-retrieval-at-all"
+   }
+  },
+  {
+   "id": "c13-d6",
+   "kind": "deep-dive",
+   "q": "“Make it brighter.” Then “a bit more.” What has to happen?",
+   "a": "The second utterance has no function in it at all. It only means something relative to the previous turn, so the system needs the last action in context. That is conversation state on a device with a tight context budget. In practice it means keeping a short structured record of recent actions, rather than the raw transcript.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating each utterance as independent. Follow-ups are the common case in voice, not the exception.",
+   "teach": {
+    "title": "Why this is retrieval at all",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#why-this-is-retrieval-at-all"
+   }
+  },
+  {
+   "id": "c13-d7",
+   "kind": "deep-dive",
+   "q": "“Turn the volume down and switch to Netflix.”",
+   "a": "Two functions in one sentence. The system has to emit a sequence rather than a single call. That means the output format must permit a list. If it does not, the model will pick one and silently drop the other. That is the worst outcome, because the person thinks both happened.",
+   "options": null,
+   "correct": null,
+   "flag": "Assuming one call per utterance. Compound commands are ordinary speech, and silently dropping half is worse than failing.",
+   "teach": null
+  },
+  {
+   "id": "c13-d8",
+   "kind": "deep-dive",
+   "q": "Why does quantization hurt function selection specifically?",
+   "a": "Because selecting between similar candidates depends on small differences in the output distribution. Reduced precision is exactly what erodes those. Fluency survives low bit widths well. So the model still produces a confident, well-formed call. It is just slightly more likely to be the wrong one, which is a failure that looks like success.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying quantization lowers accuracy generally. The damage is concentrated exactly on the task this system performs.",
+   "teach": {
+    "title": "Where the errors actually come from",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#where-the-errors-actually-come-from"
+   }
+  },
+  {
+   "id": "c13-d9",
+   "kind": "deep-dive",
+   "q": "What is the latency budget for a spoken command?",
+   "a": "Much tighter than a conversation. A person expects a remote control to respond in a few hundred milliseconds, and a television that thinks for two seconds feels broken. That budget covers embedding the request, the retrieval, and the generation. It is also why the model has to be small rather than merely small enough to fit.",
+   "options": null,
+   "correct": null,
+   "flag": "Comparing it to a chat turn. A command is not a conversation, and the tolerance is an order of magnitude lower.",
+   "teach": {
+    "title": "Why this is retrieval at all",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#why-this-is-retrieval-at-all"
+   }
+  },
+  {
+   "id": "c13-d10",
+   "kind": "deep-dive",
+   "q": "A new feature adds a fifty-first function. What has to happen?",
+   "a": "Write its description, embed it, add it to the index. No retraining, which is the main benefit of doing selection by retrieval rather than by a trained classifier. The risk is that the new description overlaps an existing one. Then both get retrieved, and selection gets harder for a command that used to work.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying it is free. Adding a candidate makes every neighbouring decision slightly harder, so the regression test is on the old functions.",
+   "teach": {
+    "title": "Why this is retrieval at all",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#why-this-is-retrieval-at-all"
+   }
+  },
+  {
+   "id": "c13-d11",
+   "kind": "deep-dive",
+   "q": "How would you measure whether this works?",
+   "a": "Two metrics, matching the two failures. Retrieval recall, meaning how often the correct function is in the shortlist. And end-to-end accuracy, meaning how often the right function is called with the right parameters. The gap between them is selection error, which is the part a better model fixes.",
+   "options": null,
+   "correct": null,
+   "flag": "Reporting one accuracy number. Splitting it tells you which half to invest in, and that is the whole point of measuring.",
+   "teach": {
+    "title": "Where the errors actually come from",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#where-the-errors-actually-come-from"
+   }
+  },
+  {
+   "id": "c13-d12",
+   "kind": "deep-dive",
+   "q": "Why not a trained intent classifier instead?",
+   "a": "A classifier over fifty fixed intents would be smaller and faster, and it needs retraining every time a function is added or changed. The retrieval approach handles new functions by writing a description. It also generalises to phrasings nobody thought of, which a classifier trained on a fixed set does poorly.",
+   "options": null,
+   "correct": null,
+   "flag": "Dismissing the classifier. For a fixed catalogue it is a genuinely strong baseline, and the argument is about change rather than accuracy.",
+   "teach": null
+  },
+  {
+   "id": "c13-e1",
+   "kind": "edges",
+   "q": "Someone asks for something the television cannot do.",
+   "a": "Retrieval still returns the nearest few, because top-k always returns k. The model still has to choose from them. Without a similarity floor it will confidently perform the closest available action, which is worse than failing. The fix is a distance threshold below which the answer is that it cannot be done.",
+   "options": null,
+   "correct": null,
+   "flag": "Assuming it declines naturally. Nothing in the pipeline offers “none of these” as an option unless you build it.",
+   "teach": {
+    "title": "Why this is retrieval at all",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#why-this-is-retrieval-at-all"
+   }
+  },
+  {
+   "id": "c13-e2",
+   "kind": "edges",
+   "q": "Two functions are both plausible for what was said.",
+   "a": "Then the request was genuinely ambiguous and guessing is the wrong instinct. If both are reversible, pick the more common and make undo obvious. If either is not, ask a single disambiguating question. What you must not do is pick silently and leave the person working out what happened.",
+   "options": null,
+   "correct": null,
+   "flag": "Always asking. A question on every ambiguous command makes the product tiring, so reversibility has to decide.",
+   "teach": {
+    "title": "Why this is retrieval at all",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#why-this-is-retrieval-at-all"
+   }
+  },
+  {
+   "id": "c13-e3",
+   "kind": "edges",
+   "q": "How do you handle a function that deletes something?",
+   "a": "Confirmation, independent of confidence. Reversibility should be a property of the function rather than a threshold on the model's certainty. A confident wrong answer is exactly the case that hurts. Destructive functions get a confirm step even at high confidence, and reversible ones do not get one at low confidence.",
+   "options": null,
+   "correct": null,
+   "flag": "Gating on confidence alone. Confidence is the model's opinion of itself, and it is the least reliable input to an irreversible decision.",
+   "teach": null
+  },
+  {
+   "id": "c13-e4",
+   "kind": "edges",
+   "q": "Speech recognition mishears the command. What does your layer see?",
+   "a": "A perfectly plausible sentence that is not what was said, and nothing downstream can tell. This layer's input is already the output of another uncertain system, and the errors compound. It argues for the retrieval floor again, since a misheard command often lands nowhere near any function description.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating the transcript as ground truth. It is another model's best guess, and the two error rates multiply.",
+   "teach": null
+  },
+  {
+   "id": "c13-e5",
+   "kind": "edges",
+   "q": "A child, or a television advert, says something the set hears.",
+   "a": "Then the system acts on input nobody intended to give it. That is an activation problem rather than a retrieval one, and it sits upstream of this layer. What this layer can contribute is the reversibility rule, so an unintended command changes brightness rather than deleting recordings.",
+   "options": null,
+   "correct": null,
+   "flag": "Claiming it is out of scope. It is upstream, and the mitigation inside your layer is still worth naming.",
+   "teach": {
+    "title": "The decision nobody asks about until they do",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#the-decision-nobody-asks-about-until-they"
+   }
+  },
+  {
+   "id": "c13-e6",
+   "kind": "edges",
+   "q": "Defend “covering 50+ TV functions.”",
+   "a": "It is a coverage count, not an accuracy claim. The catalogue had that many entries and the layer could route to all of them. It does not say all fifty were selected correctly, and I would separate the two. The number that matters is end-to-end accuracy, split into retrieval recall and selection.",
+   "options": null,
+   "correct": null,
+   "flag": "Letting the count imply quality. It is the same shape as a success rate that means completion, and interviewers read both the same way.",
+   "teach": null
+  },
+  {
+   "id": "c13-e7",
+   "kind": "edges",
+   "q": "The catalogue grows to five hundred functions.",
+   "a": "Retrieval matters more, not less, and the shortlist size probably has to stay the same. What breaks first is description overlap: at five hundred, many will be near-duplicates and the retriever cannot separate them. That is when you need hierarchy, retrieving a category first and then within it.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying it scales linearly. Retrieval scales fine and disambiguation does not, and that is the interesting half.",
+   "teach": {
+    "title": "Where the errors actually come from",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#where-the-errors-actually-come-from"
+   }
+  },
+  {
+   "id": "c13-e8",
+   "kind": "edges",
+   "q": "What would you change?",
+   "a": "Add a similarity floor so “I cannot do that” is a real outcome. Make reversibility a property of each function and drive confirmation from it. Then split the accuracy measurement into recall and selection, because right now one number hides which half needs work.",
+   "options": null,
+   "correct": null,
+   "flag": "Proposing a bigger model. The device budget is fixed, and two of these three fixes cost nothing at inference.",
+   "teach": null
+  },
+  {
+   "id": "0013-q1",
+   "kind": "quiz",
+   "q": "This layer is described as RAG. What corpus is being retrieved from?",
+   "a": "<p>The device's own capabilities. Fifty function definitions, each with a description and typed parameters, are far more than a small on-device model can hold alongside the user's sentence. So the retriever narrows fifty to a handful and only those enter the prompt.</p>\n    <p>Nothing crosses the network, which rules out the last option and is the entire reason the work is on-device. Viewing history is a different system's problem, and it appears in chapter 0014 rather than this one.</p>",
+   "options": [
+    "Retrieval over the function catalogue, not over documents",
+    "Retrieval over the model's weights resident in memory",
+    "Retrieval over the user's own viewing history instead",
+    "Retrieval over a server-side index across the network"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Why this is retrieval at all",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#why-this-is-retrieval-at-all"
+   }
+  },
+  {
+   "id": "0013-q2",
+   "kind": "quiz",
+   "q": "Constrained output guarantees the model cannot name a function that does not exist. Why is that not enough?",
+   "a": "<p>A valid call to the wrong function is structurally identical to a valid call to the right one. The schema removes an entire class of failure, which is invented names and mistyped parameters, and leaves selection error completely untouched.</p>\n    <p>It is the same limit as schema-enforced grounding in chapter 0001: the shape is guaranteed and the value is not. Constrained decoding is also enforced during generation rather than checked afterwards, which is what makes the second option wrong.</p>",
+   "options": [
+    "A schema constrains the shape, and never the chosen value",
+    "A schema is checked only after the call has completed",
+    "A schema cannot be enforced by a quantized small model",
+    "A schema is advisory text the model may freely ignore"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "What a schema can and cannot guarantee",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#what-a-schema-can-and-cannot-guarantee"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“RAG on a television? Retrieval over what?”",
+   "a": "<p>Over the device's own function catalogue. It has more than fifty functions, each with a description and typed parameters, and all of that together is far more than a small on-device model can hold alongside the user's sentence. So the request is embedded, matched against the function descriptions, and only the nearest few go into the prompt. The corpus is the capabilities rather than any content.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Why this is retrieval at all",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#why-this-is-retrieval-at-all"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“What happens when it picks the wrong function?”",
+   "a": "<p>First I would separate two cases, because they need different fixes. Either the right function never reached the shortlist, which is a retrieval recall failure and no model quality recovers it. Or the shortlist was correct and the model chose badly, which is selection and it is exactly where quantization hurts. Then the response depends on reversibility: a wrong brightness change is trivially undone, and anything destructive should have required a confirmation regardless of confidence.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Where the errors actually come from",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#where-the-errors-actually-come-from"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“Why not just fine-tune a classifier over fifty intents?”",
+   "a": "<p>It is a strong baseline and it would be smaller and faster. The argument against it is change rather than accuracy. Every new function means retraining, and a television's catalogue grows with every firmware release. With retrieval, adding a function is writing a description and embedding it. It also generalises better to phrasings nobody anticipated, which a classifier trained on a fixed set handles poorly.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Why this is retrieval at all",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#why-this-is-retrieval-at-all"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“How do you stop it doing something destructive by mistake?”",
+   "a": "<p>By making reversibility a property of each function rather than a confidence cutoff. Anything destructive gets a confirmation step even when the model is confident, because a confident wrong answer is precisely the case that hurts. Anything trivially reversible acts immediately with a visible undo. A single global confidence threshold treats deleting a recording and changing brightness identically, which is the wrong design.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The decision nobody asks about until they do",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0013-on-device-rag.html#the-decision-nobody-asks-about-until-they"
+   }
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“Someone asks for something the TV cannot do. What happens?”",
+   "a": "<p>Without a similarity floor, retrieval returns the nearest few anyway and the model confidently performs the closest available action. That is worse than failing, because the person did not get what they asked for and something else changed. The fix is a distance threshold below which the honest answer is that the television cannot do it. Nothing in a top-k pipeline offers “none of these” unless you build it.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  }
+ ]
+}

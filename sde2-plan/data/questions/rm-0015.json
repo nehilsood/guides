@@ -1,0 +1,538 @@
+{
+ "lesson": "rm-0015",
+ "label": "RM 0015",
+ "track": "project",
+ "title": "Memory for a Dementia Companion",
+ "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0015-memory-for-a-dementia-companion.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "c15-t1",
+   "kind": "toolbox",
+   "q": "What is the actual idea in MemGPT?",
+   "a": "An operating-systems analogy applied to a language model. A computer has fast memory that is small. It has slow storage that is large. The operating system moves pages between them. MemGPT treats the context window as the fast memory and everything else as storage. The twist is that the model itself issues the paging calls, deciding what to load and what to write out. What that buys is a conversation outliving the context window, which is the whole requirement for a companion that has to remember last Tuesday. Without it you have a context window and a database, and no policy connecting them.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it as “long-term memory for chatbots.” That is the outcome. The mechanism is paging, and the mechanism is what was novel.",
+   "teach": {
+    "title": "What MemGPT adds, said in one sentence",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0015-memory-for-a-dementia-companion.html#what-memgpt-adds-said-in-one-sentence"
+   }
+  },
+  {
+   "id": "c15-t2",
+   "kind": "toolbox",
+   "q": "How is that different from ordinary retrieval?",
+   "a": "In plain retrieval an outer program decides what to fetch, before the model runs. Here the model calls functions to search, to write and to evict. Memory management happens inside the reasoning loop rather than around it. The long-term half is a vector store holding past conversation and extracted facts, searched when the model asks. What that buys is unbounded history at bounded context cost. Three months of conversation can exist without three months of tokens. It is also more flexible and much harder to reason about. What is remembered now depends on choices the model made three sessions ago, and nothing recorded why.",
+   "options": null,
+   "correct": null,
+   "flag": "“It's RAG with extra steps.” The difference is who decides, and moving that decision inside the model changes the failure modes completely.",
+   "teach": null
+  },
+  {
+   "id": "c15-t3",
+   "kind": "toolbox",
+   "q": "The model edits its own memory. What stops it writing something false?",
+   "a": "Inside the loop, nothing. Function calling normally points outward at the world. Here the same mechanism points back at the agent's own state, with tools that append a fact, replace a block or search the archive. What that buys is memory updating during a conversation rather than after it, with no batch job and no separate extraction pass. The cost is that a model which misheard a name will persist the wrong one with full confidence, and keep using it. Normally the user corrects that. Here the user may not be able to. So anything that must be right belongs in a record a carer entered, not a block the model may rewrite.",
+   "options": null,
+   "correct": null,
+   "flag": "Trusting self-editing memory for facts that matter. The interesting answer says which facts you would refuse to let it write.",
+   "teach": {
+    "title": "What MemGPT adds, said in one sentence",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0015-memory-for-a-dementia-companion.html#what-memgpt-adds-said-in-one-sentence"
+   }
+  },
+  {
+   "id": "c15-t4",
+   "kind": "toolbox",
+   "q": "What does compaction lose?",
+   "a": "Specifics first. When the window fills, a long span of older conversation is replaced by a much shorter summary. The freed tokens go to new turns. What that buys is a conversation that continues instead of hitting a wall, with recent turns keeping their full detail. The cost is that it is lossy and the loss compounds, because you eventually summarise summaries. Worse, it loses the wrong things first. Specifics disappear and generalities survive. That is exactly backwards here, because the specifics are the medication times. The loss is also invisible. Nothing in the output says a fact was dropped rather than never mentioned.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling summarisation lossless enough. It compounds, and the things it discards are exactly the things this application exists to remember.",
+   "teach": {
+    "title": "Why the reminder must not depend on remembering",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0015-memory-for-a-dementia-companion.html#why-the-reminder-must-not-depend-on"
+   }
+  },
+  {
+   "id": "c15-t5",
+   "kind": "toolbox",
+   "q": "What does “memory-grounded” have to mean for a reminder?",
+   "a": "That the reminder was read from a stored record, not generated from context. Grounding means a statement points at something actually recorded, and the test is whether you can trace the sentence back to a row. Those two look identical in the output and are completely different claims. What grounding buys is the difference between a reminder and a guess. A model asked what someone's routine is will always produce a plausible answer, and plausible is not the requirement here. If it is generated, the model can produce a medication time nobody ever entered. Grounded means the text traces to a row somebody wrote, and is shown with its source.",
+   "options": null,
+   "correct": null,
+   "flag": "Letting the word grounded do the work. Say where the reminder came from. That is the whole of the claim.",
+   "teach": null
+  },
+  {
+   "id": "c15-t6",
+   "kind": "toolbox",
+   "q": "Who is this design actually for?",
+   "a": "The patient and the carer, which are two different sets of requirements. Routines, medication schedules and observations about cognitive state are health information. They are also about a person whose capacity to consent may itself be in question. That is a different category from ordinary personal data. What recognising that early buys is a design that stays honest, because retention, access and disclosure stop being deferred questions. The system also records what somebody said all day, so it is a surveillance artefact as much as a companion. Deciding deliberately who may read that log back is part of the architecture, not policy added later.",
+   "options": null,
+   "correct": null,
+   "flag": "Answering only for the patient. The carer is the other user, and forgetting them is the most common failure in this product category.",
+   "teach": {
+    "title": "What MemGPT adds, said in one sentence",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0015-memory-for-a-dementia-companion.html#what-memgpt-adds-said-in-one-sentence"
+   }
+  },
+  {
+   "id": "c15-t7",
+   "kind": "toolbox",
+   "q": "How would you test that the memory works?",
+   "a": "Scripted conversations that run across several sessions. State a fact in session one, need it in session four, and score whether it comes back correctly. The gap between sessions is the thing being tested, so a single-session test proves nothing. What that buys is evidence instead of a design diagram, and it catches compaction damage, which is invisible in any short test. Then test the negative. Probe for a fact that was never stated and check the system says it does not know. A memory system has to not invent, and that half is the one people leave out.",
+   "options": null,
+   "correct": null,
+   "flag": "Demonstrating recall and stopping. Anyone can show one good trace. The test that convinces is the one where the right answer is “I do not have that.”",
+   "teach": {
+    "title": "What MemGPT adds, said in one sentence",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0015-memory-for-a-dementia-companion.html#what-memgpt-adds-said-in-one-sentence"
+   }
+  },
+  {
+   "id": "c15-f1",
+   "kind": "fundamentals",
+   "q": "In two sentences, what does MemGPT give you that retrieval does not?",
+   "a": "The model writes as well as reads. It calls functions to save a fact, replace one, or search older conversations. So the store grows out of the conversation rather than being built in advance.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it as a bigger context window. The window is the same size. What changed is who decides what leaves it and what gets kept.",
+   "teach": {
+    "title": "What MemGPT adds, said in one sentence",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0015-memory-for-a-dementia-companion.html#what-memgpt-adds-said-in-one-sentence"
+   }
+  },
+  {
+   "id": "c15-f2",
+   "kind": "fundamentals",
+   "q": "What are short-term and long-term memory here, concretely?",
+   "a": "Short-term is the context window. System instructions, a small always-present block of facts about the person, and the recent turns. Long-term is everything outside it. Full conversation history and a store of saved facts, both of which have to be searched to be seen.",
+   "options": null,
+   "correct": null,
+   "flag": "Naming them without saying where the boundary is. The boundary is the window, and the interesting engineering is what crosses it.",
+   "teach": {
+    "title": "Three memories, three write policies",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0015-memory-for-a-dementia-companion.html#three-memories-three-write-policies"
+   }
+  },
+  {
+   "id": "c15-f3",
+   "kind": "fundamentals",
+   "q": "You said three kinds of memory. Name them and say why the split matters.",
+   "a": "Semantic is stable facts about the person. Episodic is what happened, with times. Procedural is the routine. The split matters because they have different write policies. Semantic is read-mostly and needs corroboration to change. Episodic is append-only. Procedural is written by a caregiver and never by the model.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling it all long-term memory. One store with one write policy is how a confused sentence becomes a permanent fact.",
+   "teach": {
+    "title": "Three memories, three write policies",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0015-memory-for-a-dementia-companion.html#three-memories-three-write-policies"
+   }
+  },
+  {
+   "id": "c15-f4",
+   "kind": "fundamentals",
+   "q": "The model can write to its own memory. What are you afraid of?",
+   "a": "That it writes something wrong and then reads it back as truth. A retrieval mistake is wrong once. A memory mistake is wrong from tomorrow onwards, and nothing in the loop rechecks it. So writes to stable facts need a second source or a person, and every write is timestamped and reversible.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating write access as a pure win. It is the feature and it is the failure mode, and saying both is what makes the answer credible.",
+   "teach": {
+    "title": "What MemGPT adds, said in one sentence",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0015-memory-for-a-dementia-companion.html#what-memgpt-adds-said-in-one-sentence"
+   }
+  },
+  {
+   "id": "c15-f5",
+   "kind": "fundamentals",
+   "q": "Where does the eight o'clock tablet reminder actually live?",
+   "a": "In a table, fired by a scheduler. Not in the model's memory. Whether it is eight o'clock has one right answer, so nothing about it should depend on what survived summarisation. The model phrases the reminder and reads the response. It does not decide that the reminder is due.",
+   "options": null,
+   "correct": null,
+   "flag": "Letting the model remember the schedule. A full context window would then silently drop a medication reminder, and nothing would report it.",
+   "teach": {
+    "title": "Why the reminder must not depend on remembering",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0015-memory-for-a-dementia-companion.html#why-the-reminder-must-not-depend-on"
+   }
+  },
+  {
+   "id": "c15-f6",
+   "kind": "fundamentals",
+   "q": "What does “memory-grounded” mean in this bullet?",
+   "a": "That a reminder points at something stored rather than something generated. “Your daughter is coming on Tuesday” has to trace back to a row somebody wrote. If it cannot, the system should not say it, because this user has no way to check it against their own recollection.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating grounding as a quality nicety. For this user it is the safety property, since they cannot catch the error themselves.",
+   "teach": null
+  },
+  {
+   "id": "c15-f7",
+   "kind": "fundamentals",
+   "q": "What has to carry across from one session to the next?",
+   "a": "The stable facts, which are small and always in the window. Plus a searchable record of what happened, so the system can find this morning if this afternoon needs it. What deliberately does not carry across is tone and thread. A new conversation should not resume mid-sentence.",
+   "options": null,
+   "correct": null,
+   "flag": "Carrying the whole previous conversation forward. That fills the window with yesterday and leaves no room for today.",
+   "teach": {
+    "title": "Three memories, three write policies",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0015-memory-for-a-dementia-companion.html#three-memories-three-write-policies"
+   }
+  },
+  {
+   "id": "c15-f8",
+   "kind": "fundamentals",
+   "q": "The person says something that contradicts a stored fact. What happens?",
+   "a": "Nothing gets overwritten and nothing gets argued with. The stored fact stays. The contradiction goes into episodic memory with a timestamp, and a caregiver sees it. One sentence cannot tell a person who moved house from a person who is confused. Pretending otherwise is how the system starts being wrong permanently.",
+   "options": null,
+   "correct": null,
+   "flag": "Correcting them in the moment. Whether to orient somebody to reality is a clinical judgment, and there is genuine disagreement about it.",
+   "teach": {
+    "title": "The contradiction, which is the hard part",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0015-memory-for-a-dementia-companion.html#the-contradiction-which-is-the-hard-part"
+   }
+  },
+  {
+   "id": "c15-f9",
+   "kind": "fundamentals",
+   "q": "Why does the user population change the engineering?",
+   "a": "Because the usual safety net is gone. Most systems assume a user notices a wrong answer. Here the wrong answer is about the user's own life and they cannot check it. So confidence has to be earned from the store rather than from the model, and anything ungrounded should not be said at all.",
+   "options": null,
+   "correct": null,
+   "flag": "Answering with tone and empathy. Those matter, but the engineering consequence is that user verification is not available, and that is what the interviewer is listening for.",
+   "teach": null
+  },
+  {
+   "id": "c15-f10",
+   "kind": "fundamentals",
+   "q": "What is the riskiest claim in this bullet?",
+   "a": "“For dementia patients.” It was a prototype and I would say so first, because the alternative reading is that it was used by patients. That would raise clinical validation and regulatory questions I cannot answer. The memory architecture is defensible. The deployment claim is not one I am making.",
+   "options": null,
+   "correct": null,
+   "flag": "Naming MemGPT as the risk. The architecture is the strong part. The word doing the heavy lifting is “patients.”",
+   "teach": {
+    "title": "The contradiction, which is the hard part",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0015-memory-for-a-dementia-companion.html#the-contradiction-which-is-the-hard-part"
+   }
+  },
+  {
+   "id": "c15-d1",
+   "kind": "deep-dive",
+   "q": "Somebody calls the context window a cache. Is that fair?",
+   "a": "Yes, and the comparison earns its keep. It is a small fast tier over a large slow one, it is populated on demand, and the model is the thing doing the populating. What it does not have is invalidation. A fact edited in the store does not update the copy sitting in the window.",
+   "options": null,
+   "correct": null,
+   "flag": "Stopping at the analogy. The useful half is naming what the analogy lacks, which here is invalidation.",
+   "teach": {
+    "title": "What MemGPT adds, said in one sentence",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0015-memory-for-a-dementia-companion.html#what-memgpt-adds-said-in-one-sentence"
+   }
+  },
+  {
+   "id": "c15-d2",
+   "kind": "deep-dive",
+   "q": "The window is full. What leaves?",
+   "a": "Oldest turns first, which is the simple policy and mostly right for conversation. But it is wrong in the same way least-recently-used is wrong elsewhere. The person's name was mentioned once at the start and is needed every turn. That is why stable facts live in a pinned block rather than in the message queue.",
+   "options": null,
+   "correct": null,
+   "flag": "Only naming the policy. The interesting part is which things are exempt from it and why.",
+   "teach": null
+  },
+  {
+   "id": "c15-d3",
+   "kind": "deep-dive",
+   "q": "Evicted turns get summarised. What does that cost?",
+   "a": "Detail you cannot get back inside the window. The raw turns are still in the history store, so it is recoverable by search. But nothing triggers that search unless something notices the detail is missing, and a summary reads as complete. That is the quiet failure.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling summarisation lossless because the transcript is kept. The loss is that nobody knows to go looking.",
+   "teach": null
+  },
+  {
+   "id": "c15-d4",
+   "kind": "deep-dive",
+   "q": "What does editing the always-present block of facts actually cost at inference time?",
+   "a": "The prefix cache. That block sits near the front of the prompt, so changing it invalidates every cached key and value after it. A whole conversation's worth of prefix has to be recomputed. It is a reason to batch memory edits at turn boundaries rather than mid-turn.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating a memory edit as free. It is the most expensive kind of edit available, precisely because it is at the front.",
+   "teach": {
+    "title": "Three memories, three write policies",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0015-memory-for-a-dementia-companion.html#three-memories-three-write-policies"
+   }
+  },
+  {
+   "id": "c15-d5",
+   "kind": "deep-dive",
+   "q": "How should the memory functions be shaped?",
+   "a": "As a small fixed set with typed arguments, the same discipline as chapter 0005's router. Append a fact, replace a fact given the old text, save to the long store, search it. Replace taking the old value is what stops a silent overwrite, because a stale replace fails instead of clobbering.",
+   "options": null,
+   "correct": null,
+   "flag": "A single write function taking free text. It can do anything, so nothing about it can be checked before it runs.",
+   "teach": {
+    "title": "What MemGPT adds, said in one sentence",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0015-memory-for-a-dementia-companion.html#what-memgpt-adds-said-in-one-sentence"
+   }
+  },
+  {
+   "id": "c15-d6",
+   "kind": "deep-dive",
+   "q": "How does the system decide a fact is worth saving?",
+   "a": "The model proposes and a policy disposes. Proposing is a judgment call with no deterministic answer, so that part suits a model. Committing to stable facts should need either a second mention in a different session or a caregiver confirming. Episodic writes need neither, because appending what was said is not a claim about truth.",
+   "options": null,
+   "correct": null,
+   "flag": "Letting the model write directly to stable facts on first hearing. That is exactly the path by which a confused sentence becomes permanent.",
+   "teach": null
+  },
+  {
+   "id": "c15-d7",
+   "kind": "deep-dive",
+   "q": "When should it search old conversations rather than answer from the window?",
+   "a": "When the question is about a specific past event and the window does not contain it. That is a narrow trigger on purpose. Searching on every turn is slow and fills the window with old material. That is the cost that makes a long conversation worse rather than better.",
+   "options": null,
+   "correct": null,
+   "flag": "Searching always. Retrieved history competes for the same window the current conversation needs.",
+   "teach": null
+  },
+  {
+   "id": "c15-d8",
+   "kind": "deep-dive",
+   "q": "A caregiver edits a fact while a conversation is in progress. What happens?",
+   "a": "Two writers, one record, and no isolation between them. The window holds a copy from before the edit. So the model keeps using the old value for the rest of the session. The fix is to reload the pinned block at each turn boundary, and to accept the prefix-cache cost when it changed.",
+   "options": null,
+   "correct": null,
+   "flag": "Assuming the edit takes effect immediately. Nothing pushes it into a window that was built before it happened.",
+   "teach": null
+  },
+  {
+   "id": "c15-d9",
+   "kind": "deep-dive",
+   "q": "How would you evaluate the memory, not the conversation?",
+   "a": "With scripted multi-session runs. Plant a fact in session one, ask for it in session four, and check it comes back exactly. Then plant a contradiction and check the stored fact survived. Both have deterministic answers, which is what makes them testable without a person judging.",
+   "options": null,
+   "correct": null,
+   "flag": "Scoring conversation quality instead. Memory has right answers, so measure the part that does before reaching for a judge.",
+   "teach": null
+  },
+  {
+   "id": "c15-d10",
+   "kind": "deep-dive",
+   "q": "The person asks the same question five times in an hour. What does the system do?",
+   "a": "Answers it five times, the same way each time. Repetition is the condition, not a signal that the answer was unsatisfactory. What it does do is log the repetition into episodic memory, because a caregiver wants to know the frequency changed.",
+   "options": null,
+   "correct": null,
+   "flag": "Any form of “as I mentioned.” It is a correction the person cannot act on, and it makes the system something to be embarrassed in front of.",
+   "teach": null
+  },
+  {
+   "id": "c15-d11",
+   "kind": "deep-dive",
+   "q": "Should any of this run on the device?",
+   "a": "The stores, yes. This is health data about somebody whose capacity to consent is exactly what is in question. The default should be that it never leaves the home. The model is harder, because a small local model is worse at the judgment calls. That trade is a real one and I would not pretend it away.",
+   "options": null,
+   "correct": null,
+   "flag": "Answering on latency. The reason here is consent and sensitivity, and latency is the least of it.",
+   "teach": null
+  },
+  {
+   "id": "c15-d12",
+   "kind": "deep-dive",
+   "q": "Where does this design break first?",
+   "a": "On the stable facts drifting out of date. A person's condition changes, and facts written six months ago describe somebody else. Nothing in the loop re-examines a fact once it is written. A review date on every stable fact is the cheap fix, and it is the one I would add first.",
+   "options": null,
+   "correct": null,
+   "flag": "Answering on scale. One person's memory is tiny, and every real problem here is about correctness over time.",
+   "teach": {
+    "title": "What MemGPT adds, said in one sentence",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0015-memory-for-a-dementia-companion.html#what-memgpt-adds-said-in-one-sentence"
+   }
+  },
+  {
+   "id": "c15-e1",
+   "kind": "edges",
+   "q": "The person becomes distressed and the window fills mid-conversation.",
+   "a": "Eviction picks the worst possible moment, because the turns about to be summarised are the ones that matter most. The fix is to stop summarising by age during a flagged session and pin the current exchange. And distress should end the conversation into a caregiver alert rather than continue it well.",
+   "options": null,
+   "correct": null,
+   "flag": "Handling it as a context-length problem. The right outcome is a human being contacted, not a longer window.",
+   "teach": null
+  },
+  {
+   "id": "c15-e2",
+   "kind": "edges",
+   "q": "A stored fact turns out to have been wrong from the day it was written.",
+   "a": "Then every reminder built on it was wrong too, and you need to know which ones. That is the argument for recording the source of each fact and each reminder that used it. Without it you can fix the fact and never find out what it caused.",
+   "options": null,
+   "correct": null,
+   "flag": "Just correcting the row. Derived output is where the error actually lived, which is the same lesson as deleting an entry in chapter 0014.",
+   "teach": null
+  },
+  {
+   "id": "c15-e3",
+   "kind": "edges",
+   "q": "The person asks about somebody who has died.",
+   "a": "This is the case that decides whether the system is safe to build. There is no engineering answer. Whether to tell somebody with dementia, repeatedly, that their spouse has died is a clinical and family decision. The system carries whatever answer they gave. It does not choose one.",
+   "options": null,
+   "correct": null,
+   "flag": "Picking a side. A candidate who answers this confidently in either direction has not understood the problem.",
+   "teach": {
+    "title": "The contradiction, which is the hard part",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0015-memory-for-a-dementia-companion.html#the-contradiction-which-is-the-hard-part"
+   }
+  },
+  {
+   "id": "c15-e4",
+   "kind": "edges",
+   "q": "Two caregivers write contradictory facts.",
+   "a": "The store cannot resolve it, so it should not try. Keep both with their author and timestamp, use neither for anything consequential, and surface the conflict. A last-write-wins rule would silently give one family member authority over another.",
+   "options": null,
+   "correct": null,
+   "flag": "Last write wins. It looks like a sensible default and it is a decision about a family, made by accident.",
+   "teach": null
+  },
+  {
+   "id": "c15-e5",
+   "kind": "edges",
+   "q": "Who consented to this, exactly?",
+   "a": "That is the uncomfortable question and it deserves a straight answer. The person's capacity to consent is the condition being accommodated. Consent usually comes from a family member or a legal proxy, which makes it consent by somebody else. It is a real reason to keep the data local and the retention short.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating it as a checkbox. Naming that consent is proxied is what shows you thought about the user rather than the feature.",
+   "teach": null
+  },
+  {
+   "id": "c15-e6",
+   "kind": "edges",
+   "q": "A medication reminder fires and nobody responds.",
+   "a": "Then the system knows nothing, and unknown is not the same as taken. It should not assume either. Escalation belongs in the schedule layer, which retries and then alerts a caregiver. What it must never do is fire again later from an assumption, because a duplicate dose is a real harm.",
+   "options": null,
+   "correct": null,
+   "flag": "Recording it as done. The two failure directions cost very different amounts, and only one of them is medical.",
+   "teach": {
+    "title": "Why the reminder must not depend on remembering",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0015-memory-for-a-dementia-companion.html#why-the-reminder-must-not-depend-on"
+   }
+  },
+  {
+   "id": "c15-e7",
+   "kind": "edges",
+   "q": "Is this a medical device?",
+   "a": "Anything reminding about medication is close enough to that line that I would not answer it myself. It was a prototype, not a deployed product, and that distinction is the honest thing to lead with. Shipping it would need a clinician and a regulatory review before it needed more engineering.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying no confidently. Confidence about a regulatory boundary you have not checked reads worse than saying you would ask.",
+   "teach": {
+    "title": "The contradiction, which is the hard part",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0015-memory-for-a-dementia-companion.html#the-contradiction-which-is-the-hard-part"
+   }
+  },
+  {
+   "id": "c15-e8",
+   "kind": "edges",
+   "q": "What would you change?",
+   "a": "Put a review date on every stable fact. Nothing should be trusted forever without being looked at. Record which fact each reminder came from, so a wrong one is traceable to what it caused. And make the caregiver a first-class user, because half the real decisions belong to them.",
+   "options": null,
+   "correct": null,
+   "flag": "Proposing a larger model. Every real problem here is about write policy, traceability and who is allowed to decide.",
+   "teach": {
+    "title": "What MemGPT adds, said in one sentence",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0015-memory-for-a-dementia-companion.html#what-memgpt-adds-said-in-one-sentence"
+   }
+  },
+  {
+   "id": "0015-q1",
+   "kind": "quiz",
+   "q": "What actually distinguishes MemGPT from an ordinary retrieval system?",
+   "a": "<p>Retrieval reads a store somebody else built. MemGPT reads and writes, because the model calls functions to save a fact, replace one, and search for older material. The store grows out of the conversation.</p>\n    <p>That is also where the danger is. A retrieval mistake is wrong once. A memory mistake is written down and read back as fact tomorrow, and nothing in the loop rechecks it.</p>",
+   "options": [
+    "The model also decides what gets written down",
+    "The store is searched by meaning, not keyword",
+    "The context window is now larger than before",
+    "The retrieved text is put before the question"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "What MemGPT adds, said in one sentence",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0015-memory-for-a-dementia-companion.html#what-memgpt-adds-said-in-one-sentence"
+   }
+  },
+  {
+   "id": "0015-q2",
+   "kind": "quiz",
+   "q": "The person asks the same question for the fifth time in an hour. Correct behaviour?",
+   "a": "<p>Repetition is the condition rather than a signal. Treating it as feedback that the answer was unsatisfactory is a design error, and any form of “as I mentioned” is a correction the person cannot act on.</p>\n    <p>The system still records it. A caregiver wants to know that the frequency changed this week, so the repetition goes into the episodic record even though the reply does not change.</p>",
+   "options": [
+    "Answer it again, exactly as patiently as before",
+    "Point out that this question was already asked",
+    "Refuse and suggest they check their written notes",
+    "Change the subject to one rather less repetitive"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“Why MemGPT rather than just retrieval?”",
+   "a": "<p>Because the model writes as well as reads. In retrieval the corpus is fixed and somebody else built it, so nothing the model produced goes back in. Here the model calls a function to save a fact, replace one that changed, or search older conversations, and the store grows out of the conversation. That is the feature, and it is also the risk, because a retrieval mistake is wrong once and a memory mistake is wrong from tomorrow onwards.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What MemGPT adds, said in one sentence",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0015-memory-for-a-dementia-companion.html#what-memgpt-adds-said-in-one-sentence"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“What stops it from remembering something wrong?”",
+   "a": "<p>Splitting memory by write policy rather than by lifetime. Stable facts about the person are read constantly and written rarely, and changing one needs a second mention in a different session or a caregiver confirming it. What happened is append-only and timestamped, so it can hold a contradiction without resolving it. Nothing in the system lets a single sentence overwrite a fact, because a single sentence cannot tell a person who moved house from a person who is confused.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“How do you make sure the eight o'clock reminder actually happens?”",
+   "a": "<p>By taking it out of the model entirely. Whether it is eight o'clock has one right answer, so it belongs in a table with a timer, not in memory that can be summarised away. The model phrases the reminder in the person's own terms and records what they said back. Acknowledgement goes into the same table rather than staying in the conversation, because a duplicate dose is a real harm and the record of it needs to be somewhere a scheduler can read.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Why the reminder must not depend on remembering",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0015-memory-for-a-dementia-companion.html#why-the-reminder-must-not-depend-on"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“They tell you something that contradicts what you stored. Now what?”",
+   "a": "<p>Hold both. The stored fact stays, the contradiction is appended with a timestamp, and a caregiver sees it. I would not overwrite, because one confused sentence would then be the truth forever. And I would not correct them in the moment, because whether to orient somebody to reality or go along with them is a clinical judgment with genuine disagreement behind it. That is not a decision a prototype should be making by itself.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The contradiction, which is the hard part",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0015-memory-for-a-dementia-companion.html#the-contradiction-which-is-the-hard-part"
+   }
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“What does editing memory cost you at inference time?”",
+   "a": "<p>The prefix cache. The always-present block of facts sits near the front of the prompt, so changing it invalidates every cached key and value after it and the whole conversation's prefix is recomputed. It is the most expensive edit in the system precisely because it is the earliest one. The practical consequence is to batch memory edits at turn boundaries rather than writing mid-turn, and to keep that block small.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Three memories, three write policies",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0015-memory-for-a-dementia-companion.html#three-memories-three-write-policies"
+   }
+  }
+ ]
+}

@@ -1,0 +1,111 @@
+{
+ "lesson": "sds-0022",
+ "label": "SDS 0022",
+ "track": "hld",
+ "title": "A Table Before a Broker",
+ "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0022-a-table-before-a-broker.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "0022-q1",
+   "kind": "quiz",
+   "q": "During a 1.5 s broker stall, publishing the job first and committing the run second lost nothing, while committing first lost 20 to 24 runs. Why is publishing first still not safe?",
+   "a": "<p>Each order has a window after its first write. Publishing first survives a broker failure because a failed publish can roll the run back, but a producer killed after its publish and before its commit leaves a job for a run that never existed: 2 to 6 of them in twelve kills across four runs. Swapping the order moves the window; it does not remove it.</p>\n    <p>The distractors describe things that did not happen: in this lab the paused broker never executed the abandoned pushes, nothing waited on the run's lock, and the order of two writes does not change how many there are. Only one write in one transaction has no window at all.</p>",
+   "options": [
+    "A producer dying between publish and commit orphans its job",
+    "The broker delivers the job once its stall has finished",
+    "The run's transaction holds a lock the consumer waits on",
+    "Publishing first doubles the load on the whole of Postgres"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0022-a-table-before-a-broker.html#underneath-0022"
+   }
+  },
+  {
+   "id": "0022-q2",
+   "kind": "quiz",
+   "q": "A reader tails a log table with <code>WHERE id &gt; :last ORDER BY id</code> while several producers commit concurrently. It raises no errors and never read <strong>583 of 2 000</strong> events. What happened to them?",
+   "a": "<p>An id is taken from the sequence when the row is inserted, and the row becomes visible when its transaction commits. A producer that inserted first and committed second leaves its row behind a higher id the reader has already passed, and <code>id &gt; :last</code> will never look back. The rows are all there, committed, and unread.</p>\n    <p>Sequence values are never reused, vacuum does not remove live rows, and a batch limit only defers rows to the next read. The fix is to read only rows written by transactions older than every running one, ordered by writer — at the cost of waiting for the slowest writer in the database.</p>",
+   "options": [
+    "They committed after rows with higher ids were already read",
+    "They were rolled back and their ids were reused afterwards",
+    "They were removed by vacuum before the reader ever arrived",
+    "They exceeded the batch size limit and were quietly dropped"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0022-a-table-before-a-broker.html#underneath-0022"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“Why not just use Pub/Sub? You’re on GCP already.”",
+   "a": "<p>Because the job would stop being atomic with the write that causes it. I measured the dual write: committing the interview and then publishing orphaned <strong>20 to 24 runs</strong> during one 1.5-second broker stall, and publishing first left jobs for runs that never committed when the producer was killed. A jobs table in the same transaction had zero of either in every run.</p>\n        <p>Pub/Sub is the right answer the day a second service needs the same events — that is a subscription each, and a table queue cannot do it. Until then it adds a system and a consistency problem to solve a durability problem.</p>\n        Invites · <b>“And when you do need Pub/Sub?” — write to a table in the transaction and relay it: the outbox, lesson 0027.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0022-a-table-before-a-broker.html#underneath-0022"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“Doesn’t a Postgres queue fall over under load?”",
+   "a": "<p>Not from throughput first — four consumers claimed 1 100 a second on a laptop. What kills it is an open transaction elsewhere. Every job deleted after that transaction's snapshot stays in the index, so each claim walks past them: one idle session took claims from <strong>a few pages to over 1 600</strong> on a queue that was nearly empty.</p>\n        <p>With headroom that is invisible. At 1 100 a second the median claim went from 1.9 to 4.8 ms and the consumers fell up to 4 400 jobs behind; closing the session fixed it within ten seconds. So the defence is an idle-in-transaction timeout on every pool, plus an alert on the oldest transaction's age, not a bigger database.</p>\n        Invites · <b>“How did you find the idle session?” — lesson 0019's pg_stat_activity query.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0022-a-table-before-a-broker.html#underneath-0022"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“Could you use the same table for the audit service as well?”",
+   "a": "<p>Not as a queue: the scorer deletes each job as it finishes, and the audit reader got <strong>0 of 1 000</strong>. A copy per reader works, doubling writes and deletes and coupling every producer to every reader.</p>\n        <p>What it needs is a log: append-only, never deleted, with a position per reader, which gave both 1 000 and made a rerun free. I can build that in a table, but it needs a careful reader, and this is the point where I would seriously consider Pub/Sub — or Kafka if replay matters.</p>\n        Invites · <b>“What is careful about the reader?” — ids are not commit order.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0022-a-table-before-a-broker.html#underneath-0022"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“You have an events table with a serial id. Why can’t consumers just remember the last id they read?”",
+   "a": "<p>Because an id is handed out at insert and the row becomes visible at commit. A producer that inserts first and commits second leaves its row behind a higher id the reader has already passed, and it is never read. With eight producers, <strong>324 to 709 of 2 000</strong> events were skipped, silently, across nine runs.</p>\n        <p>The fix is to read only rows written by transactions older than the snapshot's <code>xmin</code>, ordered by transaction id then row id, because nothing can be added below that. It missed nothing, and its cost is that one open writer anywhere holds every reader — over two seconds in the lab.</p>\n        Invites · <b>“How does Kafka avoid it?” — the broker assigns the offset at append, in order.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0022-a-table-before-a-broker.html#underneath-0022"
+   }
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“So when would you move to Kafka?”",
+   "a": "<p>When I need a log rather than a queue and the table version’s costs start to bite. Replay: rescoring every stored interview against a changed rubric. Several independent readers, each at its own pace. Ordered history per key.</p>\n        <p>And the price of the table log is what pushes it: its safe reader waits for the slowest writer in the database, so a single slow transaction stalls every consumer. Kafka gives those three without that coupling, and costs brokers, partitions and operations I do not run today. For fan-out alone, Pub/Sub is enough.</p>\n        Invites · <b>“And the job still has to get into Kafka atomically?” — yes: an outbox table, lesson 0027.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0022-a-table-before-a-broker.html#underneath-0022"
+   }
+  }
+ ]
+}

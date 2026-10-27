@@ -1,0 +1,156 @@
+{
+ "lesson": "ip-0010",
+ "label": "IP 0010",
+ "track": "ai",
+ "title": "The Frozen Org Chart",
+ "url": "https://nehilsood.github.io/guides/interview-prep/guides/0010-the-frozen-org-chart.html",
+ "plain": [
+  {
+   "title": "In plain words",
+   "url": "https://nehilsood.github.io/guides/interview-prep/guides/0010-the-frozen-org-chart.html#plain-1"
+  }
+ ],
+ "questions": [
+  {
+   "id": "F1",
+   "kind": "follow-up",
+   "q": "Our pipeline genuinely does beat the single agent on these issues. Are you telling me that result is an illusion?",
+   "a": "<p>No. It is a real win on a task distribution that happens to match the prior, and I would say so first. What I would question is <strong>what it is a win of</strong> — and that is answerable in a day rather than in an argument.</p>\n    <p>Run the ablation: one agent, one context window, same model, same tools, instructed to work through the same three phases in order with the plan written to a file. If the score holds, the asset was the <em>sequence</em> and the split was overhead. If it drops, you have learned which boundary was load-bearing and you can keep that one and gate it properly. It costs a day of compute and almost nobody runs it, because the pipeline is already shipped and the result can only be awkward.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F2",
+   "kind": "follow-up",
+   "q": "Define “lossy handoff” precisely. Then tell me what you would log.",
+   "a": "<p>A compression step chosen by the sender, unauditable by the receiver, and unreported by the system — so when the receiver is missing something, its only available move is to assume, and it assumes confidently.</p>\n    <p>Two things to log. <strong>Compression factor per edge:</strong> the size of what crosses the boundary against the size of the trace it was made from. That orders your edges by risk and takes about a line. <strong>Precondition failure rate:</strong> how often a node produces output its successor cannot actually use. The first tells you which seams are dramatic; the second tells you which ones are already breaking.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The answer, at three lengths",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0010-the-frozen-org-chart.html#the-answer-at-three-lengths"
+   }
+  },
+  {
+   "id": "F3",
+   "kind": "follow-up",
+   "q": "The MAST taxonomy puts context loss at 2.8% of failures and withheld information at 0.85%. Doesn’t that undercut your whole story?",
+   "a": "<p>It undercuts the <em>symptom</em>, not the mechanism, and the distinction is operationally useful. An agent that lost a detail does not report a gap — nothing told it there was one. It fills the gap and proceeds, and an annotator records that as a reasoning–action mismatch, task derailment, or disobeying the spec. Meanwhile the single largest mode on the chart is <strong>step repetition at 15.7%</strong>, which is close to a pure signature of agents not sharing a trace.</p>\n    <p>There is a second point worth making. Those annotations are of <em>observed failures</em>. A handoff loss that the receiver papers over successfully never appears in the data at all. So 2.8% is a floor on how often loss is visible, not a ceiling on how often it happens.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The failure you get is not the failure you brace for",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0010-the-frozen-org-chart.html#the-failure-you-get-is-not-the"
+   }
+  },
+  {
+   "id": "F4",
+   "kind": "follow-up",
+   "q": "Who builds the DAG, and what stops it being nonsense?",
+   "a": "<p>A planning call emits it, and then <strong>code validates it, not a model.</strong> Four checks, all cheap: the graph is acyclic; every node carries an acceptance check; every edge names a gate from a closed vocabulary; every node’s declared inputs are produced by some ancestor. Fail any one and you reject the plan and re-ask with the violation quoted.</p>\n    <p>That is what makes dynamic structure debuggable rather than chaotic. The graph is a schema-checked artefact, so a bad plan is caught deterministically before anything runs, rather than discovered three nodes later by a confused executor.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F5",
+   "kind": "follow-up",
+   "q": "What triggers a replan, and what stops it thrashing?",
+   "a": "<p>Named triggers, explicit authority, and a budget. Triggers fire on evidence — a node failing its acceptance check twice, an executor touching material the survey never saw, a node blowing past its step budget. Authority says which node may rewrite which part of the graph, because a node rewriting its own ancestors is how you get a cycle in the thing you called a DAG.</p>\n    <p>The anti-thrash rule is a <strong>monotonic progress check</strong>: a replan that does not reduce the set of open acceptance checks did not accomplish anything. Two of those in a row is an escalation to a human, not a third attempt. Without that you have rebuilt the unbounded self-correction loop from guide 0001 with a graph on top of it.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F6",
+   "kind": "follow-up",
+   "q": "Anthropic reports multi-agent beating a single agent by 90.2%. You have just spent ten minutes telling me not to build one.",
+   "a": "<p>Different cell of the grid, and they say so in the same write-up: <em>“most coding tasks involve fewer truly parallelizable tasks than research”</em>, and domains requiring shared context or many inter-agent dependencies <em>“are not a good fit.”</em> Their case is breadth-first research — subagents reading disjoint corners of the web, mutating nothing, returning summaries. That passes the breadth permit cleanly and never trips the shared-state veto. A repository trips it on the first write.</p>\n    <p>The caveat I would volunteer, because it is the most important line in that post for this argument: they also report those systems using roughly <strong>15×</strong> the tokens of a chat, and that token usage alone explains <strong>80%</strong> of performance variance on their browsing evaluation. Which means an architecture comparison that does not equalise token spend is partly measuring the budget. Some of that 90.2% is architecture and some of it is money.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Five gates, and only one of them is a veto",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0010-the-frozen-org-chart.html#five-gates-and-only-one-of-them"
+   }
+  },
+  {
+   "id": "F7",
+   "kind": "follow-up",
+   "q": "How many subagents should a lead spawn?",
+   "a": "<p>It is not a number you choose. It is the count of edges that passed a gate, which means the task determines it and the architecture does not. If you are picking between three and five by feel, the gates have not been applied — and Anthropic’s own guidance is that the lead scales the count to query complexity, which is the same rule stated as a behaviour.</p>\n    <p>The related failure is worth naming: they report that without detailed task descriptions, subagents <em>“duplicate work, leave gaps, or fail to find necessary information.”</em> Which is step repetition and context loss, arriving by the front door, in the system that is held up as the success case.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F8",
+   "kind": "follow-up",
+   "q": "What is the failure mode of <em>your</em> approach? Sell me the case against dynamic graphs.",
+   "a": "<p>Four real costs. Planning becomes the bottleneck and a single point of failure — you have added a component whose mistakes are the whole system’s mistakes. A per-run graph is unreproducible, so regressions are hard to attribute: was that the model, the plan, or the task. Benchmarking gets substantially harder when the structure is a variable. And the elaborate system is more system to get wrong — MAST’s largest failure category is <strong>system design issues at 41.8%</strong>, not model limitations.</p>\n    <p>Which is why I would not start here. Start with the template, measure how often it is violated, and let that number buy the dynamic version.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What “one well-managed agent” actually means",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0010-the-frozen-org-chart.html#what-one-well-managed-agent-actually-means"
+   }
+  },
+  {
+   "id": "F9",
+   "kind": "follow-up",
+   "q": "How do you verify a node’s output?",
+   "a": "<p>Defined when the node is created, never after — a check written once you have seen the output is a rationalisation. Prefer external checks to model opinions: does it compile, does the suite pass, does it parse against a schema, is every item in this list traceable to a real file and line. Where a model check is unavoidable, make the task narrow and bounded rather than an open quality rating.</p>\n    <p>MAST is pointed about how this goes wrong in production: verifiers <em>“perform only superficial checks, despite being prompted to perform thorough verification, such as checking if the code compiles or if there are leftover TODO comments”</em> — while the task objective itself is never examined. Adding a high-level objective verification step to ChatDev bought <strong>+15.6%</strong> on ProgramDev. Verification is not a formality; it is the third-largest lever in the taxonomy.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Decompose by the graph — and give somebody the pencil",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0010-the-frozen-org-chart.html#decompose-by-the-graph-and-give-somebody"
+   }
+  },
+  {
+   "id": "F10",
+   "kind": "follow-up",
+   "q": "Your single agent runs out of context. Then what?",
+   "a": "<p>In order. Compact, with the compaction prompt tuned on real traces — recall first, then precision. Keep the plan and the scratchpad on disk so they survive compaction, because a message does not and a file does. Clear stale tool results rather than carrying them forward.</p>\n    <p>If after all of that the <em>reading</em> still does not fit, the breadth gate has fired and subagents are now justified — but in a specific shape: <strong>one main loop carries the state; subagents are stateless workers with narrow scope</strong> that return small structured results. Notice this is not the role pipeline. Nobody is handing state to anybody. The lead never stops being the one place the plan lives.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What “one well-managed agent” actually means",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0010-the-frozen-org-chart.html#what-one-well-managed-agent-actually-means"
+   }
+  },
+  {
+   "id": "F11",
+   "kind": "follow-up",
+   "q": "We have this pipeline in production. Migrate it without a rewrite.",
+   "a": "<p>You do not rewrite it, you remove seams one at a time. Week one: annotate every existing edge with the gate it passes, and log the compression factor across each. You will usually find that the dramatic compressions and the ungated edges are the same edges.</p>\n    <p>Then delete them in order, highest compression first. A deletion here is a <strong>merge</strong> — two system prompts become one prompt inside one loop — which is a far smaller change than it sounds, ships behind a flag, and reverts cleanly. Measure per deletion, so each merge carries its own before and after rather than arriving as one undifferentiated rewrite that nobody can attribute.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F12",
+   "kind": "follow-up",
+   "q": "One week, this system, starting Monday. What do you actually do?",
+   "a": "<p>Monday: instrument the boundaries — compression factor per edge and precondition failure rate per edge. Tuesday: the F1 ablation, one agent doing the three phases in sequence with the plan on disk, same model and tools. Wednesday to Thursday: delete the ungated edges, biggest compression first, one at a time, measuring each. Friday: write an acceptance check for every node that survived, because the nodes you kept are the ones you will be replanning around.</p>\n    <p><strong>The lesson underneath all twelve:</strong> an org chart is a decomposition somebody committed to before they had seen the task. The senior move is not fewer agents, and it is not more agents. It is refusing to commit to the shape of the work until the work has told you what shape it is.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The answer, at three lengths",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0010-the-frozen-org-chart.html#the-answer-at-three-lengths"
+   }
+  }
+ ]
+}

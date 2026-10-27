@@ -1,0 +1,111 @@
+{
+ "lesson": "sds-0018",
+ "label": "SDS 0018",
+ "track": "hld",
+ "title": "Lock, Retry, or Don't Read",
+ "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0018-lock-retry-or-dont-read.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "0018-q1",
+   "kind": "quiz",
+   "q": "Sixteen writers add one to the same row with optimistic locking. The bench started <strong>136</strong> transactions to make sixteen writes. Where does 136 come from?",
+   "a": "<p>Each successful write increments the version, invalidating every read taken before it, so the writers succeed strictly one at a time and the n-th has lost n−1 times. The total is <code>1 + 2 + … + 16</code>, which is <strong>16×17÷2 = 136</strong>, and the conflicts are <strong>16×15÷2 = 120</strong>. Both figures were exact on every run.</p>\n    <p>The consequence worth carrying is that the cost is <em>quadratic</em>: doubling the contention quadruples the wasted work, and the retry budget has to grow linearly with the writer count — which is the same failure lesson 0016 found from the other side when a budget of eight dropped eight of sixteen writes.</p>",
+   "options": [
+    "Every writer retries once for each writer ahead of it",
+    "Postgres reran them on each conflict it chose to detect",
+    "The connection pool forced them to run in eight batches",
+    "Each transaction was simply far too slow to finish first"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0018-lock-retry-or-dont-read.html#underneath-0018"
+   }
+  },
+  {
+   "id": "0018-q2",
+   "kind": "quiz",
+   "q": "Adding <code>SKIP LOCKED</code> took the same thirty-two jobs in 0.20 s instead of 1.51 s, with <strong>zero</strong> duplicate claims either way. What did it actually change?",
+   "a": "<p>Only which row. Plain <code>FOR UPDATE</code> was <em>already correct</em> — the duplicates column is zero in both rows — it just made all eight workers queue behind whoever held the first job, so eight connections did one connection's work. <code>SKIP LOCKED</code> still takes a lock; it simply does not wait for one somebody else holds.</p>\n    <p>Which is why it is the wrong recommendation for a contended value. The test is whether the row you skipped was interchangeable with the one you took: for a queued job it is, and for a rubric score it is not — skipping there means the score is never written, and nothing reports it.</p>",
+   "options": [
+    "Which row each worker took, not whether any was correct",
+    "It dropped the row lock so workers no longer waited",
+    "It let two workers claim the very same job concurrently",
+    "It moved the whole queue into memory instead of Postgres"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0018-lock-retry-or-dont-read.html#underneath-0018"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“Two workers write the same row. Optimistic or pessimistic?”",
+   "a": "<p>Both of those are answers to the same thing — the gap between reading the value and writing what depends on it — so my first question is whether the gap has to exist. If the new value is a function of the old one, it does not: one statement that adds to the current value has no gap, and I measured it at <strong>0.06 s against 0.70 for the lock</strong>, with the same correct answer.</p>\n        <p>Where the gap is unavoidable, because the new value comes from a model or a person, I take the lock. I measured optimistic across five contention levels and it never beat the row lock — equal where conflicts are rare, and <strong>136 transactions for 16 writes</strong> where they are common. The case for optimistic is not throughput; it is a gap you cannot hold a transaction across at all.</p>\n        Invites · <b>“Why 136?” — it is a triangular number, and it is exact.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0018-lock-retry-or-dont-read.html#underneath-0018"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“Surely optimistic wins when contention is low?”",
+   "a": "<p>That is what I expected and it did not reproduce. Sixteen writers spread across one, two, four, eight and sixteen rows: <strong>optimistic was equal at best and never faster</strong>, and I re-ran it with a gap five times longer in case the gap was too short to matter. Same verdict.</p>\n        <p>The reason is that the thing optimistic avoids is not the expensive part. An uncontended row lock is one clause on a statement you were already issuing. What costs is holding a pooled connection for the length of the gap, and <strong>both strategies do that identically</strong> — so they queue the same way and differ only in whether the loser waits or repeats. Waiting is cheaper than repeating.</p>\n        Invites · <b>“Then when would you ever use optimistic?” — when the gap spans something you cannot keep a transaction open across.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0018-lock-retry-or-dont-read.html#underneath-0018"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“What does your retry loop cost when everybody hits the same row?”",
+   "a": "<p><strong>N(N+1)÷2 transactions for N writes</strong>, because each successful write invalidates every read taken before it, so the writers land one at a time and the n-th has lost n−1 times. Measured exactly: sixteen writers started 136 transactions with 120 conflicts, eight writers started 36 with 28. Not approximately — identical on every run, because the counts are decided by ordering rather than timing.</p>\n        <p>The consequence is that it is quadratic, so doubling the contention quadruples the wasted work, and the retry budget has to grow linearly with the writer count. I broke that deliberately in the previous lesson: sixteen writers against a budget of eight dropped <strong>exactly eight writes</strong>, as quietly as the bug the retry loop was added to fix.</p>\n        Invites · <b>“So what do you do when the writer count is unbounded?” — stop contending; the loop cannot be the answer.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0018-lock-retry-or-dont-read.html#underneath-0018"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“Would <code>SKIP LOCKED</code> help here?”",
+   "a": "<p>Not for a contended score, no — it answers a different question. It does not protect a value; it changes which row a worker takes when the one it wanted is busy. On a work table I measured it taking the same thirty-two jobs seven times faster, <strong>and plain <code>FOR UPDATE</code> already had zero duplicate claims</strong>. It bought throughput, not correctness.</p>\n        <p>The test I use is one question: is the row you skipped interchangeable with the one you took instead? For a queued job, yes. For a rubric score, no — skipping it means it is never written and nothing reports that. The documentation says as much itself: it gives <em>“an inconsistent view of the data, so this is not suitable for general purpose work”</em>.</p>\n        Invites · <b>“What about NOWAIT?” — the third option in the same clause, for when waiting is worse than failing.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0018-lock-retry-or-dont-read.html#underneath-0018"
+   }
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“Your fastest implementation gave the wrong answer. How would a load test have caught that?”",
+   "a": "<p>It would not, and that is the part worth saying plainly. The broken version was <strong>ten times faster than the correct ones</strong> — 0.07 s against 0.70 — because it does no coordinating, and a load test that measures throughput cannot distinguish fast-because-efficient from fast-because-not-doing-the-work. It also raised no errors, so an error-rate gate sees nothing.</p>\n        <p>What catches it is asserting the invariant: sixteen writers each adding one should leave sixteen. That is a test rather than a benchmark, and it is why the assertion I wrote checks <em>both</em> that every writer reported success and that the total is wrong — checking only the total would let a version that crashed loudly pass as fixed.</p>\n        Invites · <b>“What else in your system is only checkable by invariant?” — anything where failure is a missing write rather than an error.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0018-lock-retry-or-dont-read.html#underneath-0018"
+   }
+  }
+ ]
+}

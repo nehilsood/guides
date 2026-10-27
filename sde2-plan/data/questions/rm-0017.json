@@ -1,0 +1,506 @@
+{
+ "lesson": "rm-0017",
+ "label": "RM 0017",
+ "track": "project",
+ "title": "Teaching It: Pruning, KG-RAG, Multimodal",
+ "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "c17-t1",
+   "kind": "toolbox",
+   "q": "In layer pruning, how do you choose which layers to remove?",
+   "a": "Most pruning removes individual weights. Layer pruning removes entire transformer blocks. The surprising finding behind it is that in a deep model many blocks change the hidden state very little. So you measure the similarity between each block's input and its output, and delete the ones that barely move it. In practice the middle-to-late layers are the quietest. What that buys is a real speedup, because you removed whole computations rather than making a matrix sparse. Then you heal. Accuracy falls on removal and comes back with a short fine-tune, often LoRA. A pruning result with no healing step described is half a method, and the half that does not work.",
+   "options": null,
+   "correct": null,
+   "flag": "Removing layers by position because a paper did. The measurement is the method, and it differs by model.",
+   "teach": {
+    "title": "Layer pruning, in one minute",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#layer-pruning-in-one-minute"
+   }
+  },
+  {
+   "id": "c17-t2",
+   "kind": "toolbox",
+   "q": "Why does the shape of sparsity matter?",
+   "a": "Because hardware cannot use the unstructured kind. Unstructured pruning sets individual weights to zero wherever they are small. The matrix has fewer non-zero values and exactly the same shape, so a GPU still multiplies the whole thing. Dense matrix multiplication is what the hardware does. Structured pruning removes entire rows, attention heads or layers, so the matrix genuinely shrinks and the model genuinely gets faster. What knowing the difference buys is being able to say which kind of pruning produces a number you can put on a latency chart. Half your weights set to zero can buy nothing at all at inference.",
+   "options": null,
+   "correct": null,
+   "flag": "Quoting a sparsity percentage as a speedup. They are only related when the sparsity is structured, and that is the point of the distinction.",
+   "teach": null
+  },
+  {
+   "id": "c17-t3",
+   "kind": "toolbox",
+   "q": "What does GraphRAG actually build?",
+   "a": "A knowledge graph, extracted from the corpus by a model. Instead of chunking documents and embedding them, you run a model over everything to pull out entities and the relationships between them. Entities become nodes and relations become edges. The graph is clustered into communities of related entities, and each one gets a written summary. Queries are answered from that hierarchy rather than from raw passages. What it buys is answers requiring synthesis across many documents, which chunk retrieval structurally cannot produce. Indexing is expensive, because it runs a model over the whole corpus several times. That cost is the first thing to volunteer.",
+   "options": null,
+   "correct": null,
+   "flag": "Presenting it as better RAG. It is more expensive RAG that answers a different class of question, and the cost is the first thing an interviewer probes.",
+   "teach": {
+    "title": "Why this kind of pruning pays and other kinds often do not",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#why-this-kind-of-pruning-pays-and"
+   }
+  },
+  {
+   "id": "c17-t4",
+   "kind": "toolbox",
+   "q": "What does Leiden give you that Louvain does not?",
+   "a": "A guarantee that every community is internally connected. Both find communities in a graph, meaning groups of nodes more densely connected to each other than to the rest. Leiden is run recursively here, so communities contain sub-communities and you get a hierarchy rather than a flat partition. Louvain can produce a cluster whose members are not actually linked to each other. Leiden adds a refinement phase that rules that out. What the hierarchy buys is a summary tree you can query at different resolutions. What the guarantee buys is summaries that mean something. A disconnected community is two unrelated topics in one bag, and it summarises into confident nonsense.",
+   "options": null,
+   "correct": null,
+   "flag": "Naming the algorithm as a detail. The connectivity guarantee is exactly why the summaries are readable, so it is the substance.",
+   "teach": {
+    "title": "Why this kind of pruning pays and other kinds often do not",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#why-this-kind-of-pruning-pays-and"
+   }
+  },
+  {
+   "id": "c17-t5",
+   "kind": "toolbox",
+   "q": "What can global search answer that vector RAG cannot?",
+   "a": "Questions with no single passage behind them. GraphRAG answers in two ways. Local search finds the entities matching the question and walks outward through their neighbourhood, gathering connected facts. Global search ignores individual entities and combines community summaries at a chosen level of the hierarchy. So ask what the main themes across a corpus are, and vector retrieval has nothing to retrieve, because the answer exists in no one document. What global search buys is corpus-level questions becoming answerable at all. That is the entire argument for building the graph, and it is the one to lead with.",
+   "options": null,
+   "correct": null,
+   "flag": "Justifying GraphRAG on accuracy. On passage-level questions vector search is usually fine and much cheaper. The case is the question type.",
+   "teach": {
+    "title": "Why this kind of pruning pays and other kinds often do not",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#why-this-kind-of-pruning-pays-and"
+   }
+  },
+  {
+   "id": "c17-t6",
+   "kind": "toolbox",
+   "q": "How does an image become something a language model can read?",
+   "a": "A vision encoder cuts it into fixed-size patches, treats each patch like a token, and runs attention over them. That encoder is usually a vision transformer. It is trained the CLIP or SigLIP way, on image and caption pairs, so a picture lands close to its description. What that training buys is vectors that mean something to a text model, rather than arbitrary numbers. Then a bridge maps those vectors into the language model's own embedding space, and the model sees them as tokens. Resolution is the constraint that drives all the engineering. More pixels means more patches, which means more tokens, and the context window is finite.",
+   "options": null,
+   "correct": null,
+   "flag": "“It understands images.” It receives vectors that were trained to sit near text meaning. Saying the mechanism is what makes the answer credible.",
+   "teach": {
+    "title": "Multimodal, in one minute",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#multimodal-in-one-minute"
+   }
+  },
+  {
+   "id": "c17-t7",
+   "kind": "toolbox",
+   "q": "Projector or resampler. What is the trade?",
+   "a": "A projector is a small trained network, often a couple of linear layers, mapping image vectors straight into the text embedding space. What it buys is multimodality for the cost of training a tiny network. Both large models stay frozen, so there is no expensive training run and the language model's abilities are preserved exactly. A resampler uses cross-attention with a fixed set of learned queries to compress hundreds of image vectors into a small fixed number of tokens. What that buys is a fixed token budget whatever the resolution. The trade is straightforward. A projector is simple and lets token count grow with resolution. A resampler pins it and costs parameters and training complexity.",
+   "options": null,
+   "correct": null,
+   "flag": "Knowing only one of them. Naming both and the token-budget reason is what shows you taught the session rather than attended one.",
+   "teach": {
+    "title": "Multimodal, in one minute",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#multimodal-in-one-minute"
+   }
+  },
+  {
+   "id": "c17-f1",
+   "kind": "fundamentals",
+   "q": "Teach me layer pruning in two minutes.",
+   "a": "Delete whole transformer blocks from a trained model, then fine-tune briefly to recover. It works because the middle blocks change the hidden state very little. Measure the distance between the state entering a run of blocks and the state leaving it. Where that distance is small, cut. Keep the last blocks, cut a contiguous run, then heal with a low-rank fine-tune.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing pruning in general. The question is about this kind, and the selection rule is the part that shows you have used it.",
+   "teach": {
+    "title": "Layer pruning, in one minute",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#layer-pruning-in-one-minute"
+   }
+  },
+  {
+   "id": "c17-f2",
+   "kind": "fundamentals",
+   "q": "Teach me knowledge-graph RAG in two minutes.",
+   "a": "Ordinary retrieval answers what a corpus says about one thing. It is bad at how two things connect, because that answer sits in no single passage. So a model reads the corpus first and extracts entities and relations into a graph. Narrow questions walk a neighbourhood. Broad questions use pre-written summaries of dense regions, combined at answer time.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying it is more accurate. It is not generally more accurate. It answers a different shape of question, and that is the whole justification.",
+   "teach": {
+    "title": "Why this kind of pruning pays and other kinds often do not",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#why-this-kind-of-pruning-pays-and"
+   }
+  },
+  {
+   "id": "c17-f3",
+   "kind": "fundamentals",
+   "q": "Teach me how an image gets into a language model.",
+   "a": "It becomes tokens. A vision encoder turns the image into vectors. A small projector maps those into the language model's token space, and after that the model cannot tell them from words. Training is staged. Freeze both big parts, train only the projector on captions, then instruction-tune.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it as the model seeing the image. Nothing sees anything. An encoder produces vectors and a projector puts them in the same space as text.",
+   "teach": {
+    "title": "Multimodal, in one minute",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#multimodal-in-one-minute"
+   }
+  },
+  {
+   "id": "c17-f5",
+   "kind": "fundamentals",
+   "q": "Which blocks do you cut, and how many?",
+   "a": "A contiguous run from the deeper part of the stack, but never the last one or two. Those carry a lot. How many is empirical. Sweep the run length, measure after healing, and look for where it falls off. The cliff arrives far earlier on multi-step reasoning than on factual recall.",
+   "options": null,
+   "correct": null,
+   "flag": "Scattering the cuts. The model was trained as a stack, and a contiguous run is what the distance measure is actually telling you about.",
+   "teach": null
+  },
+  {
+   "id": "c17-f6",
+   "kind": "fundamentals",
+   "q": "When would you not build a graph?",
+   "a": "For single-hop factual lookup, which is most questions. Chunk retrieval answers those well and costs almost nothing to index. A graph needs a model pass over the whole corpus to build and a rebuild when the corpus changes. If nobody is asking questions that cross documents, that is a large bill for nothing.",
+   "options": null,
+   "correct": null,
+   "flag": "Presenting it as the better RAG. Knowing when a technique is not worth it is the part that makes the session useful rather than promotional.",
+   "teach": {
+    "title": "Why this kind of pruning pays and other kinds often do not",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#why-this-kind-of-pruning-pays-and"
+   }
+  },
+  {
+   "id": "c17-f8",
+   "kind": "fundamentals",
+   "q": "Who is a division-wide session for?",
+   "a": "Mostly people who will never implement it. A handful might, and designing for that handful loses the room in five minutes. The goal is to leave one idea behind that changes how somebody thinks about a problem they already have. The implementers get a pointer to the paper afterwards.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it as a tutorial. A tutorial for a mixed audience serves neither half of it.",
+   "teach": {
+    "title": "What a division-wide session is actually for",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#what-a-division-wide-session-is-actually"
+   }
+  },
+  {
+   "id": "c17-f10",
+   "kind": "fundamentals",
+   "q": "What is the riskiest claim in this bullet?",
+   "a": "That it is a communication claim which gets tested as a technical one. Nobody asks how you structured a talk. They pick a topic and ask you to explain it. So the risk is not the word “division-wide,” it is having taught something a year ago and no longer being able to teach it.",
+   "options": null,
+   "correct": null,
+   "flag": "Preparing the teaching story and not the content. The content is what actually gets asked about.",
+   "teach": {
+    "title": "What a division-wide session is actually for",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#what-a-division-wide-session-is-actually"
+   }
+  },
+  {
+   "id": "c17-d1",
+   "kind": "deep-dive",
+   "q": "What exactly do you measure to choose the blocks?",
+   "a": "The angle between the hidden state going into a run of blocks and the state coming out. Angle rather than magnitude, because the scale of these states drifts with depth and the direction is what carries meaning. Small angle means those blocks moved the representation very little.",
+   "options": null,
+   "correct": null,
+   "flag": "Measuring weight magnitude. That is what unstructured pruning uses, and it says nothing about whether a block is doing work.",
+   "teach": {
+    "title": "Layer pruning, in one minute",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#layer-pruning-in-one-minute"
+   }
+  },
+  {
+   "id": "c17-d2",
+   "kind": "deep-dive",
+   "q": "Pruning or quantization first?",
+   "a": "Quantization almost always. It is nearly free and it does not change the architecture. Pruning is what you reach for when quantization has run out and the model is still too big. They compose, but the combined loss is worse than either alone. Measure the pair rather than adding the two numbers.",
+   "options": null,
+   "correct": null,
+   "flag": "Assuming the losses add. Two lossy compressions interact, and the interaction is usually in the wrong direction.",
+   "teach": null
+  },
+  {
+   "id": "c17-d3",
+   "kind": "deep-dive",
+   "q": "What does healing involve, and how much does it matter?",
+   "a": "A short fine-tune after the cut, usually a low-rank adapter so only a small set of parameters moves. It matters enormously. The quoted results for this technique assume it. Without healing, the drop is large enough that the method looks much worse than it is.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating it as optional polish. It is part of the method, and reporting a pruned model without it is reporting a different experiment.",
+   "teach": {
+    "title": "Layer pruning, in one minute",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#layer-pruning-in-one-minute"
+   }
+  },
+  {
+   "id": "c17-d4",
+   "kind": "deep-dive",
+   "q": "Where does the cost of a knowledge graph actually land?",
+   "a": "At index time, not query time, and people get that backwards. Building it means a model reads every document to extract entities and relations. On a large corpus that is a real bill, and it comes back every time the corpus changes enough to matter.",
+   "options": null,
+   "correct": null,
+   "flag": "Comparing query latency. Query time is comparable. The difference is an index you have to pay a model to build.",
+   "teach": {
+    "title": "Why this kind of pruning pays and other kinds often do not",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#why-this-kind-of-pruning-pays-and"
+   }
+  },
+  {
+   "id": "c17-d6",
+   "kind": "deep-dive",
+   "q": "How would you evaluate whether the graph helped?",
+   "a": "On the questions it was built for, which means multi-hop questions that cross documents. Comparing on single-hop lookups will show it is no better, because it is not meant to be. And the comparison has to include index cost, since that is the thing being traded away.",
+   "options": null,
+   "correct": null,
+   "flag": "Running a generic RAG benchmark. Most of those are single-hop, so they measure the case the graph was not built for.",
+   "teach": {
+    "title": "Why this kind of pruning pays and other kinds often do not",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#why-this-kind-of-pruning-pays-and"
+   }
+  },
+  {
+   "id": "c17-d8",
+   "kind": "deep-dive",
+   "q": "Somebody asks three questions about the same image. What can you avoid?",
+   "a": "Recomputing the image tokens and their attention state. The image sits at the front of the prompt, so it is a shared prefix. Its key-value cache can be reused across all three turns. That is the prefix-caching argument from any long system prompt, and here the prefix is enormous.",
+   "options": null,
+   "correct": null,
+   "flag": "Re-encoding per question. The encoder pass is the cheap half. The prefill over hundreds of image tokens is the expensive half.",
+   "teach": {
+    "title": "Why this kind of pruning pays and other kinds often do not",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#why-this-kind-of-pruning-pays-and"
+   }
+  },
+  {
+   "id": "c17-d9",
+   "kind": "deep-dive",
+   "q": "What is the characteristic failure of a multimodal model?",
+   "a": "Describing what is plausibly in an image rather than what is in it. Ask about small text, or a detail at the edge. It will answer confidently from the prior. And it has no good way to say the image is too low-resolution to tell.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling it hallucination and moving on. The specific shape here is the prior overriding the pixels, and it gets worse as resolution drops.",
+   "teach": {
+    "title": "Multimodal, in one minute",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#multimodal-in-one-minute"
+   }
+  },
+  {
+   "id": "c17-d10",
+   "kind": "deep-dive",
+   "q": "Why those three topics?",
+   "a": "They are the three walls the division's work was about to hit. Models too big for the device. Retrieval that could not answer across documents. Inputs that were not text. A session is worth running when people already have the problem and no name for it.",
+   "options": null,
+   "correct": null,
+   "flag": "Answering that they were interesting. A talk chosen by interest gets attendance, and a talk chosen by an existing problem gets used.",
+   "teach": null
+  },
+  {
+   "id": "c17-d11",
+   "kind": "deep-dive",
+   "q": "How many sessions, and how many people?",
+   "a": "This needs a real number and the bullet does not have one. “Multiple” and “division-wide” are both doing work that a count would do better. Three sessions to forty engineers is a specific claim. The vaguer version reads as larger and is believed less.",
+   "options": null,
+   "correct": null,
+   "flag": "Leaving it vague on purpose. A number that sounds modest beats an adjective that sounds inflated.",
+   "teach": null
+  },
+  {
+   "id": "c17-d12",
+   "kind": "deep-dive",
+   "q": "Did anything change because of them?",
+   "a": "The honest answer is the one to give, whatever it is. If somebody tried layer pruning afterwards, that is the sentence worth having. If nothing traceable happened, say the sessions were awareness and not adoption. Claiming influence you cannot point at is the failure mode here.",
+   "options": null,
+   "correct": null,
+   "flag": "Implying adoption. It is the easiest claim to make and the easiest to unravel with one follow-up.",
+   "teach": {
+    "title": "Why this kind of pruning pays and other kinds often do not",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#why-this-kind-of-pruning-pays-and"
+   }
+  },
+  {
+   "id": "c17-e1",
+   "kind": "edges",
+   "q": "Somebody in the room challenges the technique, publicly and correctly.",
+   "a": "Concede it and use it. A correct challenge is the best material in the session. It is the “where it breaks” move arriving free, with more credibility than you could give it. Defending a technique you are teaching is how a session turns into a sales pitch.",
+   "options": null,
+   "correct": null,
+   "flag": "Deflecting to a follow-up conversation. The room learns more from the disagreement than from the slide it interrupted.",
+   "teach": {
+    "title": "What a division-wide session is actually for",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#what-a-division-wide-session-is-actually"
+   }
+  },
+  {
+   "id": "c17-e2",
+   "kind": "edges",
+   "q": "You are asked something you do not know.",
+   "a": "Say so, say what you would check, and move on. This matters more in a session than in a meeting, because the room is calibrating how much to trust everything else you said. One admitted gap makes the rest more believable rather than less.",
+   "options": null,
+   "correct": null,
+   "flag": "Reasoning out loud towards a guess. In a teaching context that is indistinguishable from an answer, and it gets repeated.",
+   "teach": {
+    "title": "What a division-wide session is actually for",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#what-a-division-wide-session-is-actually"
+   }
+  },
+  {
+   "id": "c17-e3",
+   "kind": "edges",
+   "q": "Half the room has built with LLMs and half has not.",
+   "a": "Pitch the mechanism at the half that has not, and put the depth in the questions. That way the experienced half gets what they came for through the discussion rather than the slides. A talk aimed at the middle reliably loses both ends.",
+   "options": null,
+   "correct": null,
+   "flag": "Splitting the difference. The middle of a mixed room is nobody, and aiming there is how you lose everyone at once.",
+   "teach": {
+    "title": "What a division-wide session is actually for",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#what-a-division-wide-session-is-actually"
+   }
+  },
+  {
+   "id": "c17-e4",
+   "kind": "edges",
+   "q": "Would you layer-prune a model that is already small?",
+   "a": "Much more carefully. The redundancy this relies on comes from depth, and a small model has less of it to give. The measured distances will be larger everywhere, which is the method telling you there is no cheap run to cut. Quantization is the better lever there.",
+   "options": null,
+   "correct": null,
+   "flag": "Applying the published ratios. Those came from large models and the redundancy does not scale down with the parameter count.",
+   "teach": null
+  },
+  {
+   "id": "c17-e5",
+   "kind": "edges",
+   "q": "The graph contains a relation that is simply false.",
+   "a": "Then the system will answer from it with structural confidence, which is worse than a wrong chunk. The mitigation is to keep the source text attached to every edge and cite it. An edge you cannot trace back to a sentence should not be usable in an answer.",
+   "options": null,
+   "correct": null,
+   "flag": "Proposing a validation pass by another model. It is the same extractor grading itself, which is the problem from chapter 0012 in a different costume.",
+   "teach": {
+    "title": "Why this kind of pruning pays and other kinds often do not",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#why-this-kind-of-pruning-pays-and"
+   }
+  },
+  {
+   "id": "c17-e6",
+   "kind": "edges",
+   "q": "Does any of the multimodal story change for video?",
+   "a": "The token problem stops being a problem and becomes the problem. Every frame is an image, so a few seconds of video exceeds any context you have. Everything interesting about video models is therefore about which frames to keep, which is a sampling question rather than an architecture one.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating video as more images. It is a different problem because the cost grows with duration and the context does not.",
+   "teach": null
+  },
+  {
+   "id": "c17-e7",
+   "kind": "edges",
+   "q": "You are teaching something you would not use yourself.",
+   "a": "Then say that, and say why, and the session gets better. Knowledge-graph RAG is a good example. It is genuinely worth knowing and it is the wrong choice for most retrieval problems. A session that ends with “here is when not to use this” is the one people trust next time.",
+   "options": null,
+   "correct": null,
+   "flag": "Teaching it as a recommendation. Explaining a technique and endorsing it are different acts, and blurring them costs you the next session.",
+   "teach": {
+    "title": "Why this kind of pruning pays and other kinds often do not",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#why-this-kind-of-pruning-pays-and"
+   }
+  },
+  {
+   "id": "c17-e8",
+   "kind": "edges",
+   "q": "What would you change?",
+   "a": "Put a number in the bullet, since “multiple” and “division-wide” both read as vaguer than the truth. Name one thing that happened afterwards, if one did. And keep a page of notes per session, because the bullet is tested by being asked to teach the content a year later.",
+   "options": null,
+   "correct": null,
+   "flag": "Adding more topics. Three is already more surface area than most people can defend cold.",
+   "teach": {
+    "title": "What a division-wide session is actually for",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#what-a-division-wide-session-is-actually"
+   }
+  },
+  {
+   "id": "0017-q1",
+   "kind": "quiz",
+   "q": "Layer pruning speeds a model up where zeroing individual weights often does not. Why?",
+   "a": "<p>The blocks are gone, so they are never executed. Memory, prefill, per-token latency and the key-value cache all drop by the same fraction, and nothing in the stack has to cooperate for that to happen.</p>\n    <p>The second option is true and it is the reason the other method disappoints, not the reason this one works. Load time is a one-off and has nothing to do with per-token cost.</p>",
+   "options": [
+    "Dropping whole blocks means fewer layers actually run",
+    "Sparse weights need hardware support to pay off",
+    "Removing parameters always makes a model run faster",
+    "Smaller checkpoints load from disk more quickly now"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Why this kind of pruning pays and other kinds often do not",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#why-this-kind-of-pruning-pays-and"
+   }
+  },
+  {
+   "id": "0017-q2",
+   "kind": "quiz",
+   "q": "When does knowledge-graph RAG earn its much higher indexing cost?",
+   "a": "<p>Chunk retrieval answers what a corpus says about one thing, and it is bad at how two things connect, because that answer sits in no single passage. A graph gives those questions somewhere to be answered from.</p>\n    <p>A corpus that changes fast is an argument against a graph rather than for one, since the extraction pass has to be redone. Index size and keyword noise are both solved more cheaply elsewhere.</p>",
+   "options": [
+    "When the answer connects facts across several documents",
+    "When the corpus outgrows a single embedding index",
+    "When exact keyword matching returns too many results",
+    "When the documents change faster than nightly rebuilds"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Why this kind of pruning pays and other kinds often do not",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#why-this-kind-of-pruning-pays-and"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“Teach me layer pruning.”",
+   "a": "<p>Delete whole transformer blocks from a trained model, then fine-tune briefly to recover. It works because the middle blocks change the hidden state very little, and you can measure that directly by comparing the state going into a run of blocks with the state coming out. Small angle means those blocks are doing little, so cut a contiguous run from the deeper part and keep the last one or two. Then heal with a low-rank fine-tune, which is cheap and is part of the method rather than polish. The speedup is free because the blocks never execute, and the cost is that multi-step reasoning falls over long before factual recall does.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Layer pruning, in one minute",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#layer-pruning-in-one-minute"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“Why not just prune weights?”",
+   "a": "<p>Zeroing individual weights leaves a matrix the same size with the same number of operations. You only get a speedup if the hardware can skip the zeros, and outside of a few structured sparsity patterns it cannot. Layer pruning has no such dependency. The blocks are gone, so memory, prefill, per-token latency and the key-value cache all drop by the same fraction on any hardware. That is the reason it is the first structured pruning to reach for.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Why this kind of pruning pays and other kinds often do not",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#why-this-kind-of-pruning-pays-and"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“When is a knowledge graph actually worth it?”",
+   "a": "<p>When the questions cross documents. Chunk retrieval answers what a corpus says about one thing and is bad at how two things connect, because that answer is in no single passage. The graph gives those questions somewhere to be answered from. But most questions are single-hop, and the cost lands at index time as a model pass over the whole corpus that has to be redone when the corpus changes. If nobody is asking multi-hop questions, that is a large bill for nothing.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Why this kind of pruning pays and other kinds often do not",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#why-this-kind-of-pruning-pays-and"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“How does an image get into a language model?”",
+   "a": "<p>A vision encoder turns the image into vectors and a small projector maps them into the language model's token space. After that the model cannot tell them from words. Training is staged: freeze both big parts and train only the projector on image-caption pairs, then instruction-tune. The consequence people miss is that an image costs tokens, often hundreds, and more at higher resolution. They fill the context and they all go through prefill, which is why resamplers exist. They emit a fixed token count whatever the image size.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Multimodal, in one minute",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#multimodal-in-one-minute"
+   }
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“How do you know the sessions were useful?”",
+   "a": "<p>Not from attendance, and not from a feedback form. The signal I trust is somebody coming back weeks later having tried it, or arguing with me about it, because both mean the idea survived the walk back to their desk. I would describe the outcome as awareness rather than adoption. If I could point at a thing that shipped because of a session I would say so, and I would rather give you the lower claim than one that unravels on the next question.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What a division-wide session is actually for",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0017-teaching-sessions.html#what-a-division-wide-session-is-actually"
+   }
+  }
+ ]
+}

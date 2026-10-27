@@ -1,0 +1,108 @@
+{
+ "lesson": "sds-0010",
+ "label": "SDS 0010",
+ "track": "hld",
+ "title": "Backoff with Jitter",
+ "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0010-backoff-with-jitter.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "0010-q1",
+   "kind": "quiz",
+   "q": "Your five-stage pipeline retries three times per stage. A caller upstream of the whole pipeline retries the entire run twice. What amplification does the provider see?",
+   "a": "<p>Six. There are exactly <strong>two</strong> nested retrying layers here — the caller and the stage — so the multiplier is 2 × 3. The five stages are in a row, and serial stages add rather than compound; the run halts at the failing stage anyway, which step 1 measured as <strong>3</strong> calls rather than 15.</p>\n    <p>The exponent is always the <em>nesting depth of retry logic</em>, never the stage count. That is why the first thing to do with a real stack is count the layers that retry, including the provider SDK, which retries by default and is the layer people forget they have.</p>",
+   "options": [
+    "Six times, because the two retrying layers multiply",
+    "Two hundred forty-three, the usual retry storm figure",
+    "Fifteen times, since each stage retries three times",
+    "Thirty times, summing the stage and caller retries"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "The 243× is real, and it is probably not your pipeline",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0010-backoff-with-jitter.html#the-243-is-real-and-it-is"
+   }
+  },
+  {
+   "id": "0010-q2",
+   "kind": "quiz",
+   "q": "Adding full jitter halved peak retry load and dropped completed runs from 49 of 49 to 3 of 49, with the retry count unchanged. What explains the completion collapse?",
+   "a": "<p><code>uniform(0, backoff)</code> averages half the backoff, so a fixed number of attempts spans <strong>half the wall clock</strong>: 5000 ms became <strong>2507 ms</strong>, against a 4000 ms outage. The clients gave up a second and a half before the provider recovered. No attempt was lost and no budget was involved — all 245 retries were made, just sooner.</p>\n    <p>The ordering across all four strategies confirms it: windows of 5000, 4706, 3754 and 2507 ms produced completion rates of 100, 61, 18 and 6 %. The fix is to raise the attempt count or the cap, not to drop jitter.</p>",
+   "options": [
+    "Its average wait halves, so the window shortens",
+    "It adds randomness, which loses some retry attempts",
+    "The budget refused most retries during the outage",
+    "Lower peaks always trade against total client work"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0010-backoff-with-jitter.html#underneath-0010"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“You have retries between five pipeline stages. What happens when the provider starts failing?”",
+   "a": "<p>Less than people expect, because the stages are serial. The number usually quoted is 243×, and that is 3<sup>5</sup> for a five-deep <em>nested</em> stack where each layer retries the layer below — attempts multiply because each one is a whole subtree. Ours are in a row, so they add: I measured <strong>15 calls</strong> if every stage is flaky, and <strong>3</strong> in practice because the run halts at the stage that failed. That is 3× normal load, not 243×.</p>\n        <p>The amplifier I would actually go looking for is nesting I did not write — the provider SDK retries by default, and if that sits inside a client wrapper that also retries, inside my loop, that is three layers and 27×.</p>\n        Invites · <b>“So what does bound it?” — a shared token bucket, because neither backoff nor jitter changes the count.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“Why jitter? Isn't exponential backoff already spreading the load out?”",
+   "a": "<p>Backoff spreads retries <em>over time</em> but not <em>across clients</em>. If everyone failed at the same instant they all wait the same 200 ms, so they arrive together. I measured that as five walls of 49 with silence between them — backoff relocated the contention rather than reducing it. Full jitter turned that into a decaying stream and took the peak from <strong>490/s to 320/s</strong>.</p>\n        <p>The cost surprised me. Full jitter averages half the backoff, so the same attempt count spans half the wall clock: my retry window went from <strong>5000 ms to 2507 ms</strong> and, against a four-second outage, completions fell from <strong>49 of 49 to 3</strong>. Jitter is the right default and it means raising the attempt count or the cap to keep the same coverage.</p>\n        Invites · <b>“How did you pick the attempt count?” — from the outage length I want to survive, and then checked it fits the per-stage budget.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0010-backoff-with-jitter.html#underneath-0010"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“How many retries should a stage get, and how did you choose?”",
+   "a": "<p>It falls out of the budget. The turn budget is 8 s over five stages, so a stage owns <strong>1600 ms</strong>. Three attempts cost <code>3T</code> plus two backoff gaps averaging 100 and 200 ms, so <code>3T + 300 ≤ 1600</code> gives <strong>T ≤ 433 ms</strong>. Two attempts allow <strong>T ≤ 750 ms</strong>.</p>\n        <p>Then the measurement: our stage is <strong>387 ms at p50, 670 at p90, 1042 at p99</strong>. So three attempts fit at the median, two at p90, and one at p99. The uncomfortable part is that the requests fast enough for three attempts are the ones that succeeded, and the slow ones I want to retry have no room. For those the answer is a hedge or a fallback rather than a retry.</p>\n        Invites · <b>“What is a hedge?” — a second request sent before the first has failed, which costs capacity rather than time.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0010-backoff-with-jitter.html#underneath-0010"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“What stops retries taking the provider down when it is already struggling?”",
+   "a": "<p>A retry budget: a token bucket per dependency, shared by everything that calls it, refilling at about <strong>10 %</strong> of real request rate. Retries spend tokens and are refused when it is empty. I measured it cutting retries from 245 to 8 and peak load from 320/s to 20/s, with <strong>48 of 56 retry requests denied</strong>.</p>\n        <p>I would say what it does not do, too: completion went to zero. It bounds the amplifier, it does not rescue the request. The Amazon Builders' Library recommends this <em>instead of</em> a circuit breaker — their argument is that breakers add modal behaviour that is hard to test and can lengthen recovery — so if I did add a breaker I would want to say what it buys over the bucket.</p>\n        Invites · <b>“So would you use a breaker at all?” — which is the whole of the next conversation, and worth having an answer to.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0010-backoff-with-jitter.html#underneath-0010"
+   }
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“Your batch of 49 datasets all start at once. Is that a problem in itself?”",
+   "a": "<p>Yes, and it is the same problem one layer out. Forty-nine simultaneous starts is a synchronised arrival spike before any failure happens; the retry storm just makes it visible. The fix is to jitter the launches, not only the retries — the same source recommends adding jitter to all timers, periodic jobs and delayed work, because clients that run “once a minute” line up on the first second of the minute.</p>\n        <p>One detail worth keeping: for scheduled work they pick the jitter <em>deterministically per host</em> rather than randomly, so that if something does overload, it overloads the same way each time and is therefore debuggable. Random jitter makes an overload happen at random, which is much harder to chase.</p>\n        Invites · <b>“What would you jitter first?” — the batch launch, because it is one line and it removes the spike that starts everything.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0010-backoff-with-jitter.html#underneath-0010"
+   }
+  }
+ ]
+}

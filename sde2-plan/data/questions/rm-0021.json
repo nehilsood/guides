@@ -1,0 +1,511 @@
+{
+ "lesson": "rm-0021",
+ "label": "RM 0021",
+ "track": "project",
+ "title": "3D-RNN over Resting-State fMRI",
+ "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0021-fmri-adhd-prediction.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "c21-t1",
+   "kind": "toolbox",
+   "q": "Where do 300 resting-state scans come from?",
+   "a": "From a public multi-site collection, in this field usually ADHD-200. It gathers resting-state scans with diagnosis and demographic data, contributed by several imaging sites. It was released so that methods could be compared on common ground. It exists because no single lab can collect hundreds of scans. What naming it buys is comparability. Somebody can place your result against the published ones immediately, which a raw scan count never does. It also explains the hardest problem in the paper. Multi-site means different scanners and different protocols, and that difference is learnable signal with nothing to do with the diagnosis.",
+   "options": null,
+   "correct": null,
+   "flag": "Presenting the scan count as the achievement. Three hundred is small here, and the source matters more than the number.",
+   "teach": null
+  },
+  {
+   "id": "c21-t2",
+   "kind": "toolbox",
+   "q": "What happens to a scan before you ever see it as data?",
+   "a": "A raw scan is not usable data. Between the scanner and any analysis sits a long series of corrections. Aligning the volumes to cancel head movement. Correcting for slices acquired at slightly different moments. Registering the brain onto a standard template so subjects are comparable. Smoothing spatially. Filtering down to the slow band the signal lives in. What it buys is data from different people and scanners that can be compared at all. Those steps shape the features more than any model choice does. Say which pipeline you used. A standard one such as fMRIPrep makes your result reproducible. A bespoke sequence does not.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating preprocessing as plumbing. In neuroimaging it is the largest single source of variation between published results.",
+   "teach": {
+    "title": "The two confounds that ruin this literature",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0021-fmri-adhd-prediction.html#the-two-confounds-that-ruin-this-literature"
+   }
+  },
+  {
+   "id": "c21-t3",
+   "kind": "toolbox",
+   "q": "How do you get from voxels to something a model can read?",
+   "a": "Pick an atlas, which divides the brain into named regions. Average the signal across all voxels inside each region to get one time course per region. Then correlate every region's time course with every other. That correlation matrix is what functional connectivity means in practice. With a hundred regions it is a hundred by hundred symmetric matrix. What the atlas buys is a reduction from hundreds of thousands of voxels to a few hundred regions, which is what makes the problem tractable. What the matrix buys is a fixed-size feature vector per subject, whatever the scan length, so any standard classifier applies. There is no correct atlas, only a chosen one.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying “we used functional connectivity” and stopping. It is three concrete steps, and the atlas you chose changes the answer.",
+   "teach": {
+    "title": "What functional connectivity actually is",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0021-fmri-adhd-prediction.html#what-functional-connectivity-actually-is"
+   }
+  },
+  {
+   "id": "c21-t4",
+   "kind": "toolbox",
+   "q": "Do the feature-to-sample arithmetic for me.",
+   "a": "A hundred regions gives a hundred by hundred matrix. It is symmetric with a trivial diagonal, so just under five thousand entries are actually distinct. You have around three hundred scans. So features outnumber samples by more than fifteen to one. What doing this arithmetic out loud buys is showing you know where the difficulty is. It is the central problem of the whole field, and every methodological choice downstream is a response to it. With this shape of data any model will fit noise unless something constrains it hard.",
+   "options": null,
+   "correct": null,
+   "flag": "Discussing architecture before this ratio. With this shape of data, regularisation and the split matter far more than the model.",
+   "teach": null
+  },
+  {
+   "id": "c21-t5",
+   "kind": "toolbox",
+   "q": "A 3D-RNN. Recurrent over what, exactly?",
+   "a": "Say the axis. Over time, over slices, or over regions. Those are three different models and only one matches the signal you claim to use. The idea behind a volumetric model is to keep the brain's spatial structure intact while modelling how it changes. The alternative destroys the geometry before the model sees it. What that buys over a connectivity matrix is that spatial relationships survive, because a correlation matrix has already thrown away where the regions are. Resting-state connectivity is computed over time, so a network recurrent over time is the coherent choice. A reviewer asks this in the first minute.",
+   "options": null,
+   "correct": null,
+   "flag": "Naming the architecture without the axis. It is the question that separates having built the model from having inherited it.",
+   "teach": {
+    "title": "What functional connectivity actually is",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0021-fmri-adhd-prediction.html#what-functional-connectivity-actually-is"
+   }
+  },
+  {
+   "id": "c21-t6",
+   "kind": "toolbox",
+   "q": "Why is accuracy the wrong headline here?",
+   "a": "Because the classes are uneven. If six in ten scans are controls, guessing control every time scores sixty percent. So quote the majority-class baseline beside any figure. Better, quote AUC or balanced accuracy. AUC is the probability a randomly chosen positive is scored above a randomly chosen negative, so it evaluates the ranking and needs no threshold. Balanced accuracy averages sensitivity and specificity, so getting the common class right cannot carry the score. What they buy is a number that cannot be inflated by predicting the majority. Those survive imbalance and plain accuracy does not.",
+   "options": null,
+   "correct": null,
+   "flag": "An accuracy number with no baseline. It is the first thing anyone with clinical experience asks, and it often erases most of the claimed result.",
+   "teach": null
+  },
+  {
+   "id": "c21-t7",
+   "kind": "toolbox",
+   "q": "What would make this result trustworthy?",
+   "a": "Leave-one-site-out validation, so an entire scanner is held out. Train on the other sites and test on that one. What it buys is an estimate reflecting a new hospital with different equipment, which is the only deployment that would ever matter clinically. Then a confidence interval, because on three hundred samples the interval around any figure is wide enough that a point estimate means little. And a check that the model is not simply reading head motion, which differs systematically between the groups. The accuracy usually falls under all three. That lower number is the one worth defending.",
+   "options": null,
+   "correct": null,
+   "flag": "Defending the headline figure. Volunteering the drop under a harder protocol is what makes the rest of the work credible.",
+   "teach": {
+    "title": "The two confounds that ruin this literature",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0021-fmri-adhd-prediction.html#the-two-confounds-that-ruin-this-literature"
+   }
+  },
+  {
+   "id": "c21-f1",
+   "kind": "fundamentals",
+   "q": "In two sentences, what does this paper do?",
+   "a": "It takes brain scans recorded while children lie still doing nothing. The model tries to separate those with an ADHD diagnosis from those without. What it reads is which brain regions rise and fall together over the scan.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling it a diagnostic tool. No imaging measure is a validated diagnostic for ADHD, and that sentence is expensive to say.",
+   "teach": {
+    "title": "What functional connectivity actually is",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0021-fmri-adhd-prediction.html#what-functional-connectivity-actually-is"
+   }
+  },
+  {
+   "id": "c21-f2",
+   "kind": "fundamentals",
+   "q": "Explain functional connectivity.",
+   "a": "Divide the brain into regions with an atlas, average the signal in each region over time, then correlate every region's time course with every other's. That matrix is the connectome. It is a correlation rather than a connection, because nothing here observes an actual pathway.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it as wiring. Two regions can move together because both follow a third, or because both follow breathing.",
+   "teach": {
+    "title": "What functional connectivity actually is",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0021-fmri-adhd-prediction.html#what-functional-connectivity-actually-is"
+   }
+  },
+  {
+   "id": "c21-f3",
+   "kind": "fundamentals",
+   "q": "What does 3D-RNN mean, structurally?",
+   "a": "A spatial part and a temporal part. Three-dimensional convolutions read each volume, since the data is a cube rather than a picture. Then a recurrent layer reads the sequence of volumes in order. It is the same shape as the hand-pose paper, with a different encoder.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating it as one exotic model. It is a per-timestep encoder plus recurrence, which is a familiar shape once you say it that way.",
+   "teach": null
+  },
+  {
+   "id": "c21-f4",
+   "kind": "fundamentals",
+   "q": "Why model time at all, if you already have a connectivity matrix?",
+   "a": "Because the matrix throws away everything about when. It assumes connectivity is one fixed number for the whole scan, and there is evidence it varies within a session. Reading the sequence keeps that. Whether three hundred subjects can support learning it is the fair objection.",
+   "options": null,
+   "correct": null,
+   "flag": "Claiming dynamics are clearly better. The added capacity has to be paid for out of a very small sample.",
+   "teach": {
+    "title": "Three hundred scans is the whole story",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0021-fmri-adhd-prediction.html#three-hundred-scans-is-the-whole-story"
+   }
+  },
+  {
+   "id": "c21-f6",
+   "kind": "fundamentals",
+   "q": "What is the biggest confound here?",
+   "a": "Head motion, and it is not close. Moving in the scanner raises apparent short-range connectivity and lowers long-range connectivity. Children with ADHD move more, so motion carries information about the label. A connectivity difference can be a motion difference wearing a connectivity costume.",
+   "options": null,
+   "correct": null,
+   "flag": "Naming noise generally. Motion is the specific, named, well-documented confound, and knowing it by name is the credential.",
+   "teach": {
+    "title": "The two confounds that ruin this literature",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0021-fmri-adhd-prediction.html#the-two-confounds-that-ruin-this-literature"
+   }
+  },
+  {
+   "id": "c21-f7",
+   "kind": "fundamentals",
+   "q": "How should the data have been split?",
+   "a": "By site, holding out whole sites. The scans come from different hospitals with different scanners and protocols, and sites do not contribute cases in equal proportions. Split randomly and the model can score well by recognising the scanner rather than the child.",
+   "options": null,
+   "correct": null,
+   "flag": "Random cross-validation. It is the default everywhere and it is the wrong default on multi-site clinical data.",
+   "teach": {
+    "title": "The two confounds that ruin this literature",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0021-fmri-adhd-prediction.html#the-two-confounds-that-ruin-this-literature"
+   }
+  },
+  {
+   "id": "c21-f8",
+   "kind": "fundamentals",
+   "q": "What does an imaging model have to beat?",
+   "a": "A model with no imaging in it. In the public ADHD competition, an entry using only personal characteristics scored at the top, with no scans at all. So the honest comparison is against age, sex, handedness, IQ and site on the same held-out split.",
+   "options": null,
+   "correct": null,
+   "flag": "Comparing only against other imaging models. The difference against a no-imaging baseline is the actual claim about brains.",
+   "teach": {
+    "title": "The baseline that has no brain in it",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0021-fmri-adhd-prediction.html#the-baseline-that-has-no-brain-in"
+   }
+  },
+  {
+   "id": "c21-f9",
+   "kind": "fundamentals",
+   "q": "The title says predicting. Is that the right word?",
+   "a": "Classifying would be more accurate. Prediction implies saying something about a future state, and this separates two groups whose labels already exist. The distinction matters because it is what separates a research result from a clinical claim.",
+   "options": null,
+   "correct": null,
+   "flag": "Using predicting loosely in a clinical setting. It is the word that makes a careful listener take the whole thing less seriously.",
+   "teach": {
+    "title": "Three hundred scans is the whole story",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0021-fmri-adhd-prediction.html#three-hundred-scans-is-the-whole-story"
+   }
+  },
+  {
+   "id": "c21-d1",
+   "kind": "deep-dive",
+   "q": "How much do preprocessing choices matter?",
+   "a": "Enough that they are a finding in their own right. Large studies have given the same dataset to many teams and got different conclusions, purely from analysis choices. So a result that depends on one pipeline is weaker than it looks, and stating the pipeline is the minimum.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating preprocessing as a fixed prelude. It is a long series of decisions, and the decisions move the answer.",
+   "teach": null
+  },
+  {
+   "id": "c21-d2",
+   "kind": "deep-dive",
+   "q": "What gets regressed out, and what does that cost?",
+   "a": "Motion parameters, and signals from white matter and ventricles that should not carry neural information. Sometimes the average over the whole brain too, which is contested. That last one changes correlations systematically and can create negative ones that were not there.",
+   "options": null,
+   "correct": null,
+   "flag": "Listing it as cleaning. Global signal regression in particular is an active argument, and picking a side silently is what a reviewer will notice.",
+   "teach": null
+  },
+  {
+   "id": "c21-d3",
+   "kind": "deep-dive",
+   "q": "What is scrubbing, and what does it do to your sample?",
+   "a": "Discarding volumes where the head moved too much. It helps the signal and it shrinks the scan, and it does not shrink every scan equally. The children who move most lose the most data, and those children are not randomly distributed across the two groups.",
+   "options": null,
+   "correct": null,
+   "flag": "Presenting it as a clean fix. It trades a measurement confound for a differential missing-data problem.",
+   "teach": {
+    "title": "The two confounds that ruin this literature",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0021-fmri-adhd-prediction.html#the-two-confounds-that-ruin-this-literature"
+   }
+  },
+  {
+   "id": "c21-d4",
+   "kind": "deep-dive",
+   "q": "Does the atlas choice change the result?",
+   "a": "Yes, and there is no correct atlas. Different parcellations produce different matrices from the same scan, and a finding that only appears under one of them is weak. Repeating the analysis under two or three is cheap and it is the kind of robustness check that makes a small-sample result credible.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating the atlas as given. It is a modelling assumption that arrived looking like a data format.",
+   "teach": null
+  },
+  {
+   "id": "c21-d5",
+   "kind": "deep-dive",
+   "q": "The groups are not the same size. What follows?",
+   "a": "Accuracy stops being informative. With an uneven split, always guessing the larger class can look respectable. Sensitivity and specificity separately, or a balanced measure, say what actually happened. And in a clinical framing the two error types have very different costs.",
+   "options": null,
+   "correct": null,
+   "flag": "Reporting accuracy alone. It is the same failure as an average hiding the cases that matter, in chapter 0012.",
+   "teach": {
+    "title": "The two confounds that ruin this literature",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0021-fmri-adhd-prediction.html#the-two-confounds-that-ruin-this-literature"
+   }
+  },
+  {
+   "id": "c21-d6",
+   "kind": "deep-dive",
+   "q": "Can site effects be removed rather than held out?",
+   "a": "Partly. There are harmonisation methods that model each site's offset and scaling and remove them. They help and they are not complete, because site is entangled with who was recruited there. Holding out whole sites is still the test that matters, and harmonisation is not a substitute for it.",
+   "options": null,
+   "correct": null,
+   "flag": "Harmonising and then splitting randomly. That fits the correction using the test data, which is leakage in a respectable coat.",
+   "teach": null
+  },
+  {
+   "id": "c21-d7",
+   "kind": "deep-dive",
+   "q": "How good can any model here actually get?",
+   "a": "Bounded by the label. An ADHD diagnosis is a clinical judgement made against behavioural criteria, and different clinicians disagree. So the target is a noisy measurement of a category, not a biological fact. A model cannot be more consistent than the labels it was trained on.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating the diagnosis as ground truth. Every question about the ceiling comes back to this and it is the most interesting thing in the chapter.",
+   "teach": {
+    "title": "What functional connectivity actually is",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0021-fmri-adhd-prediction.html#what-functional-connectivity-actually-is"
+   }
+  },
+  {
+   "id": "c21-d8",
+   "kind": "deep-dive",
+   "q": "What accuracy should make you suspicious?",
+   "a": "Anything comfortably above the sixties on a held-out site. Group differences in this literature are small and overlapping, so clean separation is more likely to be a confound than a discovery. That is an uncomfortable thing to say about your own result and it is the correct instinct.",
+   "options": null,
+   "correct": null,
+   "flag": "Celebrating a high number. In this field a high number is a reason to look for leakage first.",
+   "teach": {
+    "title": "Three hundred scans is the whole story",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0021-fmri-adhd-prediction.html#three-hundred-scans-is-the-whole-story"
+   }
+  },
+  {
+   "id": "c21-d9",
+   "kind": "deep-dive",
+   "q": "Can you say which connections mattered?",
+   "a": "Carefully, and less than people want. Attribution methods over a model with more parameters than examples produce maps that look meaningful and are unstable across runs. The honest check is whether the same regions appear under different seeds, different atlases and different sites.",
+   "options": null,
+   "correct": null,
+   "flag": "Showing a single attribution map as a finding. Rerunning with another seed usually produces a different one.",
+   "teach": {
+    "title": "What functional connectivity actually is",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0021-fmri-adhd-prediction.html#what-functional-connectivity-actually-is"
+   }
+  },
+  {
+   "id": "c21-d10",
+   "kind": "deep-dive",
+   "q": "What would make a result like this believable?",
+   "a": "Leave-one-site-out, a no-imaging baseline on the same split, motion reported per group, and the analysis repeated under a second atlas. None of that is expensive. All of it is what separates a paper somebody builds on from a paper somebody cites once.",
+   "options": null,
+   "correct": null,
+   "flag": "Proposing a bigger model or more layers. Nothing about this problem is short of capacity.",
+   "teach": null
+  },
+  {
+   "id": "c21-d11",
+   "kind": "deep-dive",
+   "q": "What kind of data is this, from a governance point of view?",
+   "a": "Health data about children, which is close to the strictest category there is. Public research datasets come with usage agreements about redistribution and re-identification, and brain images are not as anonymous as people assume. Knowing the terms you worked under is a fair thing to be asked.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating a public dataset as unrestricted. Public means available under terms, not free of them.",
+   "teach": null
+  },
+  {
+   "id": "c21-d12",
+   "kind": "deep-dive",
+   "q": "This was 2022. What has moved?",
+   "a": "The field got more sceptical about small-sample deep learning, largely because results kept failing to replicate. The methodological answer has been larger consortium datasets and stricter validation rather than better architectures. Saying that yourself is better than defending the result as it stands.",
+   "options": null,
+   "correct": null,
+   "flag": "Presenting the approach as current. The honest position is that the method was reasonable and the field learned something since.",
+   "teach": null
+  },
+  {
+   "id": "c21-e1",
+   "kind": "edges",
+   "q": "Many of these children have another diagnosis too.",
+   "a": "Then the two groups differ in more than one way and the model has several things it could be separating on. Comorbidity is the norm rather than the exception in this population. A binary label hides it entirely, which makes any interpretation of what the model found much weaker.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating the control group as clean. The comparison is rarely one condition against nothing.",
+   "teach": {
+    "title": "Three hundred scans is the whole story",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0021-fmri-adhd-prediction.html#three-hundred-scans-is-the-whole-story"
+   }
+  },
+  {
+   "id": "c21-e2",
+   "kind": "edges",
+   "q": "Some of the children are on stimulant medication.",
+   "a": "Which changes brain activity. So the model may be separating medicated from unmedicated rather than diagnosed from not. Medication status correlates with diagnosis almost perfectly. Disentangling the two needs a scanning protocol designed for it.",
+   "options": null,
+   "correct": null,
+   "flag": "Omitting it. It is one of the first questions any reviewer in this area asks.",
+   "teach": {
+    "title": "Three hundred scans is the whole story",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0021-fmri-adhd-prediction.html#three-hundred-scans-is-the-whole-story"
+   }
+  },
+  {
+   "id": "c21-e3",
+   "kind": "edges",
+   "q": "The children span several years of age.",
+   "a": "And brains change a great deal over those years, so age is a strong signal in the data on its own. If the groups differ in age distribution at all, the model can use that. It is part of why the no-imaging baseline scores as well as it does.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating age as a covariate to mention. In a developing brain it is one of the largest effects present.",
+   "teach": null
+  },
+  {
+   "id": "c21-e4",
+   "kind": "edges",
+   "q": "Would you put this in a clinic?",
+   "a": "No, and I would say so without hedging. No imaging measure is a validated diagnostic for ADHD. The effect sizes are small, and the sample is far too small to support a clinical claim. It is a research result about whether a signal exists, and that is a different sentence.",
+   "options": null,
+   "correct": null,
+   "flag": "Any answer that begins with “with more data.” The question is testing judgement, and the confident no is the right answer.",
+   "teach": {
+    "title": "Three hundred scans is the whole story",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0021-fmri-adhd-prediction.html#three-hundred-scans-is-the-whole-story"
+   }
+  },
+  {
+   "id": "c21-e5",
+   "kind": "edges",
+   "q": "The model is confidently wrong about a child.",
+   "a": "In a clinical framing the two errors cost very differently. Neither is acceptable from a research model. Chapter 0015 made the same point in a different domain. Where a decision belongs to a clinician, the system's job is to inform rather than decide. This one is not even at the informing stage.",
+   "options": null,
+   "correct": null,
+   "flag": "Discussing thresholds. Threshold tuning implies a deployment, and the honest answer is that there is no deployment.",
+   "teach": null
+  },
+  {
+   "id": "c21-e6",
+   "kind": "edges",
+   "q": "ADHD has recognised subtypes. Does the binary label survive that?",
+   "a": "Not well. Inattentive and hyperactive presentations are different, and pooling them assumes one brain signature covers both. Splitting them would be more principled and it makes an already small sample smaller. That tension is genuine and worth naming rather than resolving.",
+   "options": null,
+   "correct": null,
+   "flag": "Ignoring subtypes. It is one of the standard criticisms of binary classification in this area.",
+   "teach": null
+  },
+  {
+   "id": "c21-e8",
+   "kind": "edges",
+   "q": "What would you change?",
+   "a": "Hold out whole sites, and report a no-imaging baseline on the same split. Report motion per group, since that is the confound everyone will suspect. And describe the result as classification rather than prediction, because the paper is stronger with a smaller claim on it.",
+   "options": null,
+   "correct": null,
+   "flag": "Proposing a deeper network. Capacity is the one thing this problem has too much of already.",
+   "teach": {
+    "title": "The baseline that has no brain in it",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0021-fmri-adhd-prediction.html#the-baseline-that-has-no-brain-in"
+   }
+  },
+  {
+   "id": "0021-q1",
+   "kind": "quiz",
+   "q": "With millions of numbers per subject and three hundred subjects, what decides the result?",
+   "a": "<p>The model has far more parameters than examples, so almost anything fits the training set perfectly. What separates a real finding from a lucky one is how the data was held out and what the result was compared against.</p>\n    <p>The atlas does change the numbers, which is why repeating under a second one is a good robustness check. It is a smaller effect than a split that lets whole scanners leak between train and test.</p>",
+   "options": [
+    "The validation protocol, more than the architecture",
+    "The optimiser, and how long training continues",
+    "Whichever brain atlas defines the region boundaries",
+    "The scanner's field strength across the sites"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Three hundred scans is the whole story",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0021-fmri-adhd-prediction.html#three-hundred-scans-is-the-whole-story"
+   }
+  },
+  {
+   "id": "0021-q2",
+   "kind": "quiz",
+   "q": "Which confound in this literature is correlated with the diagnosis itself?",
+   "a": "<p>Moving in the scanner systematically raises apparent short-range connectivity and lowers long-range connectivity. Children with ADHD move more, so motion carries information about the label directly, and a group difference can be a motion difference in disguise.</p>\n    <p>The mitigations are motion regression, discarding corrupted volumes and matching the groups on motion. None is complete, and discarding volumes removes more data from exactly the children who move most.</p>",
+   "options": [
+    "Head motion, because affected children move more",
+    "Scanner drift, because sessions run quite long",
+    "Room temperature, because it affects blood flow",
+    "Time of day, because attention naturally varies"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "The two confounds that ruin this literature",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0021-fmri-adhd-prediction.html#the-two-confounds-that-ruin-this-literature"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“What is functional connectivity, exactly?”",
+   "a": "<p>You divide the brain into regions with an atlas, average the signal inside each region over the scan, and correlate every region's time course with every other's. That matrix is the connectome. It is important that this is a correlation and not a connection, because nothing here observes a pathway. Two regions can move together because they are communicating, or because both follow a third region, or because both follow breathing. And the signal is indirect and slow, since blood oxygenation peaks several seconds after the neural event.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What functional connectivity actually is",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0021-fmri-adhd-prediction.html#what-functional-connectivity-actually-is"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“Three hundred scans. Is that enough?”",
+   "a": "<p>It is normal for the field and tiny for the method, and both halves of that matter. One scan is millions of numbers, so the model has far more parameters than examples and almost anything fits the training set. That means the validation protocol decides the result rather than the architecture. The things I would want to state are the split, the motion handling, and what the model was compared against, and none of those is about the network.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Three hundred scans is the whole story",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0021-fmri-adhd-prediction.html#three-hundred-scans-is-the-whole-story"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“How did you handle head motion?”",
+   "a": "<p>It is the signature confound here, so it deserves a specific answer. Moving in the scanner raises apparent short-range connectivity and lowers long-range connectivity, and children with ADHD move more, so motion carries information about the label directly. The standard mitigations are regressing motion parameters out, discarding volumes where the head moved too much, and matching the groups on motion. None of them is complete, and discarding volumes removes the most data from exactly the children who move most.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The two confounds that ruin this literature",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0021-fmri-adhd-prediction.html#the-two-confounds-that-ruin-this-literature"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“What did you compare against?”",
+   "a": "<p>The comparison that matters is a model with no imaging in it. In the public ADHD competition an entry using only personal characteristics, age and sex and handedness and IQ, scored at the top, ahead of models built on the scans. So the honest benchmark is that baseline on the same held-out split, and the difference between the two is the actual claim being made about brains. Reporting only against other imaging models does not establish that the imaging contributed anything.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The baseline that has no brain in it",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0021-fmri-adhd-prediction.html#the-baseline-that-has-no-brain-in"
+   }
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“Could this be used clinically?”",
+   "a": "<p>No. No imaging measure is a validated diagnostic for ADHD, the effect sizes in this literature are small and overlapping, and three hundred subjects cannot support a clinical claim. There is also a ceiling that more data would not remove, which is the label itself. An ADHD diagnosis is a clinical judgement made against behavioural criteria and clinicians disagree, so the target is a noisy measurement of a category rather than a biological fact. This is a research result about whether a signal exists.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Three hundred scans is the whole story",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0021-fmri-adhd-prediction.html#three-hundred-scans-is-the-whole-story"
+   }
+  }
+ ]
+}

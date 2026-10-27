@@ -1,0 +1,509 @@
+{
+ "lesson": "rm-0007",
+ "label": "RM 0007",
+ "track": "project",
+ "title": "Execution Forecasting and Dependency Resolution",
+ "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "c07-t1",
+   "kind": "toolbox",
+   "q": "What is pandas, and what does <code>ewm(alpha=0.5).mean()</code> compute?",
+   "a": "Pandas is Python's library for tables in memory. A Series is one labelled column and a DataFrame is several sharing an index. The idea that makes it short and fast is simple. Operations apply to whole columns at once, in C, rather than row by row in a Python loop. What it buys here is date arithmetic and missing-value handling that would otherwise be fifty lines. The call computes an average where each older value counts half as much as the one after it. Newest interval a half, the one before a quarter, and so on. What that buys is adaptation without a change detector. A pipeline that moved from weekly to daily is forecast from the daily part. About the last three intervals decide the answer.",
+   "options": null,
+   "correct": null,
+   "flag": "“A weighted average.” Say the weights. Halving is what makes it forget fast, and forgetting fast is the behaviour you chose.",
+   "teach": {
+    "title": "The five lines that do the work",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#the-five-lines-that-do-the-work"
+   }
+  },
+  {
+   "id": "c07-t2",
+   "kind": "toolbox",
+   "q": "What is a time series, and what makes this one awkward?",
+   "a": "A time series is data where every observation carries a timestamp and the order is part of the meaning. You cannot shuffle it and you cannot treat the rows as independent samples. The distance between two points is itself information. That is what separates it from an ordinary table, and it is why a whole family of methods exists for the shape. This one is awkward because it is short and irregular. Nine recorded runs give you eight intervals, which is not enough to fit anything with confidence. The thing being modelled is the gap, not a value. A pipeline paused for a month leaves an interval that never meant anything.",
+   "options": null,
+   "correct": null,
+   "flag": "Talking about seasonality on eight points. With that much history the honest method is a weighted average, and saying so is a strength.",
+   "teach": {
+    "title": "The weekday problem, and the word Prophet",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#the-weekday-problem-and-the-word-prophet"
+   }
+  },
+  {
+   "id": "c07-t3",
+   "kind": "toolbox",
+   "q": "What does Prophet actually fit?",
+   "a": "An additive model, meaning it splits a series into parts that are summed. A piecewise-linear trend that can bend at detected changepoints. Seasonal cycles expressed as Fourier terms. Holiday effects. And noise. It is built for long daily business series with weekly and yearly structure, and it is deliberately usable without tuning. What it would buy is seasonality, which a weighted mean cannot represent at all. A pipeline that skips weekends is a pattern rather than noise. But that is not what this data is. If the branch that would call it has no method body, say so plainly rather than letting the name imply a model that never ran.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing Prophet vaguely as “time-series forecasting.” The follow-up is what it assumes about the data, and this data breaks those assumptions.",
+   "teach": null
+  },
+  {
+   "id": "c07-t4",
+   "kind": "toolbox",
+   "q": "How would you tell whether the forecast is any good?",
+   "a": "Mean absolute error in days is the number to quote. It is the average size of the miss, in the unit you actually care about. It says how far the predicted date sits from the real one. The percentage version divides by the true interval first, and it is worse here. The consequence is discrete, because the plan is either right for today or it is not. What an error figure buys is a claim that can be falsified, and a way to tell whether a change helped. You also need a baseline. Predicting the last interval again is the one to beat, and plenty of methods do not.",
+   "options": null,
+   "correct": null,
+   "flag": "Quoting an error with no baseline. Any number sounds good alone, and most forecasting methods lose to repeating the last value.",
+   "teach": {
+    "title": "The five lines that do the work",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#the-five-lines-that-do-the-work"
+   }
+  },
+  {
+   "id": "c07-t5",
+   "kind": "toolbox",
+   "q": "What is backtesting, and what is easy to get wrong?",
+   "a": "Pretending to stand at a date in the past. You forecast forward from only what was known then, and compare against what actually happened next. Walk that cut-off forward through the history and you get many honest predictions from data you already have. What it buys is an error figure today instead of in three months. Without it, validating a forecaster means waiting for the future to arrive. Everything you need here is already recorded. The mistake is leakage. The forecast must only ever see runs before the cut-off. Fit on the whole history and score against part of it, and the number is meaningless in a way nothing in the output will show.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling it testing. A test has a right answer. A backtest has a score, and the score needs a baseline beside it.",
+   "teach": {
+    "title": "The five lines that do the work",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#the-five-lines-that-do-the-work"
+   }
+  },
+  {
+   "id": "c07-t6",
+   "kind": "toolbox",
+   "q": "What is cron, and what is the day-of-week trap?",
+   "a": "Cron is the scheduling syntax used almost everywhere. Five fields: minute, hour, day of month, month, day of week, with a star meaning every. What it buys this system is a stated intention to compare reality against. The gap between the cron expression and the observed run history is itself the signal that something is wrong. The trap is numbering. Cron calls Sunday zero. Python's weekday calls Monday zero. Mixing them shifts every schedule by one day. It is a whole-day error, and it only shows itself on one day in seven, which is exactly how it survives testing and reaches production.",
+   "options": null,
+   "correct": null,
+   "flag": "Waving at cron as trivia. It is the declared schedule this layer exists to distrust, and the off-by-one is a real defect you can name.",
+   "teach": null
+  },
+  {
+   "id": "c07-t7",
+   "kind": "toolbox",
+   "q": "What does “parent–child dependency resolution” have to do?",
+   "a": "Work out whether a pipeline will be triggered by something upstream before deciding it needs its own slot. Pipelines that trigger other pipelines form a directed acyclic graph. Arrows point one way and nothing can be its own ancestor. What walking it buys is a forecast that accounts for why a pipeline runs. Predicting a child from its own history alone ignores that it only runs when its parent does. Doing it properly means a traversal, because a grandparent not running today decides whether the grandchild runs at all. The immediate parent will look perfectly healthy. Checking only that parent is one lookup, and it is a narrower claim.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying resolution when the code does a lookup. If it checks one level, say one level. The word implies a traversal and the interviewer will ask for it.",
+   "teach": {
+    "title": "Dependency resolution, which prevents a double run",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#dependency-resolution-which-prevents-a-double-run"
+   }
+  },
+  {
+   "id": "c07-f1",
+   "kind": "fundamentals",
+   "q": "In two sentences, what does this layer do?",
+   "a": "It works out how often each pipeline actually runs. It does that from execution history rather than from a configured schedule. From there it predicts the next run date. Anything due today goes onto a generated daily plan, which replaced a hand-maintained one.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling it machine learning. It is a weighted average over date differences, and dressing it up invites a question you will not enjoy.",
+   "teach": {
+    "title": "Inferring a schedule instead of reading one",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#inferring-a-schedule-instead-of-reading-one"
+   }
+  },
+  {
+   "id": "c07-f2",
+   "kind": "fundamentals",
+   "q": "Why not just read each pipeline's cron expression?",
+   "a": "Because a lot of them do not have one, or have one that stopped matching what the pipeline really does. History is evidence and configuration is intent. Inferring from history is less precise than a cron expression, and it is right more often in this environment. That is the trade.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying cron would be harder. It would be easier and exact. The reason is that it is exact about the wrong thing.",
+   "teach": {
+    "title": "Inferring a schedule instead of reading one",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#inferring-a-schedule-instead-of-reading-one"
+   }
+  },
+  {
+   "id": "c07-f3",
+   "kind": "fundamentals",
+   "q": "Walk me through the prediction, line by line.",
+   "a": "Take the distinct dates the pipeline ran. Difference them to get intervals in days and drop the empty first one. Take an exponentially weighted mean of those intervals and round to an integer. Add that many days to the last run date. If today is on or past it, the pipeline is due.",
+   "options": null,
+   "correct": null,
+   "flag": "Skipping the rounding. Days are integers here, and the rounding step is where a 1.4-day cadence becomes a one-day one.",
+   "teach": {
+    "title": "The five lines that do the work",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#the-five-lines-that-do-the-work"
+   }
+  },
+  {
+   "id": "c07-f4",
+   "kind": "fundamentals",
+   "q": "What is an exponentially weighted moving average?",
+   "a": "An average where recent observations count for more, with the weight decaying geometrically as you go back. Unlike a simple moving average it has no window. Every past value contributes something, just less and less. The decay rate is the single parameter.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it as a rolling average. The absence of a window is the defining property, and it is why old history never has to be discarded.",
+   "teach": {
+    "title": "The five lines that do the work",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#the-five-lines-that-do-the-work"
+   }
+  },
+  {
+   "id": "c07-f5",
+   "kind": "fundamentals",
+   "q": "Alpha is 0.5. What does that choose?",
+   "a": "How quickly the forecast forgets. At 0.5 the newest interval carries half the weight, the one before a quarter, then an eighth. After four or five observations the older history barely counts. That adapts fast to a genuine change in cadence and it is sensitive to one unusual gap.",
+   "options": null,
+   "correct": null,
+   "flag": "Not being able to state the weights. They are halves and it is the one piece of arithmetic in this bullet.",
+   "teach": {
+    "title": "What alpha of 0.5 actually chooses",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#what-alpha-of-0-5-actually-chooses"
+   }
+  },
+  {
+   "id": "c07-f6",
+   "kind": "fundamentals",
+   "q": "Why take unique dates rather than all executions?",
+   "a": "Because several runs on the same day would produce zero-day intervals. A retry storm on one afternoon would drag the mean towards zero and the pipeline would be predicted as due every single day afterwards. Collapsing to distinct days makes the interval a genuine cadence rather than a run count.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling it deduplication. Name the failure it prevents, because that is what the question is for.",
+   "teach": {
+    "title": "The five lines that do the work",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#the-five-lines-that-do-the-work"
+   }
+  },
+  {
+   "id": "c07-f7",
+   "kind": "fundamentals",
+   "q": "The check is greater than or equal, not equal. Why does that matter?",
+   "a": "Because a pipeline that was missed has to stay on the plan. With an equality test, a workflow whose predicted date was yesterday falls off today and is never scheduled again. Greater than or equal means anything overdue stays overdue until it runs.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating it as a detail. A one-character difference here is the gap between a planner that recovers and one that silently drops work.",
+   "teach": {
+    "title": "The five lines that do the work",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#the-five-lines-that-do-the-work"
+   }
+  },
+  {
+   "id": "c07-f8",
+   "kind": "fundamentals",
+   "q": "How does the parent-child resolution work?",
+   "a": "Before adding a workflow to the plan, it asks whether that workflow has a parent and whether the parent is already scheduled in this run. If so, the child is left off, because finishing the parent will trigger it. Without that check a child with a scheduled parent would run twice.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it as a dependency graph. It is a one-level lookup against the set scheduled in this pass, and saying so is more accurate.",
+   "teach": {
+    "title": "Dependency resolution, which prevents a double run",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#dependency-resolution-which-prevents-a-double-run"
+   }
+  },
+  {
+   "id": "c07-f10",
+   "kind": "fundamentals",
+   "q": "What is the riskiest claim in this bullet?",
+   "a": "The word Prophet. It reads as two implemented algorithms and there is one. The right framing is that the design uses a strategy pattern with EWMA implemented, and Prophet named as the intended second strategy for seasonality. That is still a real design decision and it survives a follow-up.",
+   "options": null,
+   "correct": null,
+   "flag": "Hoping nobody asks. It is a named library in a bracket, which makes it one of the most askable things on the whole page.",
+   "teach": {
+    "title": "The weekday problem, and the word Prophet",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#the-weekday-problem-and-the-word-prophet"
+   }
+  },
+  {
+   "id": "c07-d1",
+   "kind": "deep-dive",
+   "q": "Why EWMA rather than a simple mean of all intervals?",
+   "a": "Because a simple mean treats a gap from six months ago as equal to last week's. Pipelines change cadence, and when one moves from weekly to daily the simple mean takes many observations to catch up. EWMA weights the recent and tracks the change in a few runs.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying EWMA is more accurate. It is more responsive, and responsiveness costs stability. Naming the trade is the answer.",
+   "teach": {
+    "title": "What alpha of 0.5 actually chooses",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#what-alpha-of-0-5-actually-chooses"
+   }
+  },
+  {
+   "id": "c07-d2",
+   "kind": "deep-dive",
+   "q": "How would you actually choose alpha rather than picking 0.5?",
+   "a": "Backtest it. The history is already there. Hold out the last known run for each pipeline, predict it at several alphas, and measure the error in days. Then pick the alpha that minimises it across the fleet, or per cadence class. That turns a chosen number into a measured one.",
+   "options": null,
+   "correct": null,
+   "flag": "Defending 0.5 with reasoning. It was a default. Saying how you would justify it is worth more than pretending it was justified.",
+   "teach": {
+    "title": "The five lines that do the work",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#the-five-lines-that-do-the-work"
+   }
+  },
+  {
+   "id": "c07-d5",
+   "kind": "deep-dive",
+   "q": "The platform is down for ten days. What happens to the forecasts afterwards?",
+   "a": "Every affected pipeline gets one ten-day interval. At alpha 0.5 that carries half the weight immediately. A daily pipeline would then be predicted as roughly five-daily on the next pass. Since the test is greater than or equal it stays on the plan, so it still runs. It recovers over the following few runs.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying it breaks. The greater-or-equal test saves it. The prediction is wrong for a few days and the scheduling outcome is still right.",
+   "teach": {
+    "title": "The five lines that do the work",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#the-five-lines-that-do-the-work"
+   }
+  },
+  {
+   "id": "c07-d6",
+   "kind": "deep-dive",
+   "q": "A pipeline has run exactly twice. What does the forecast do?",
+   "a": "There is one interval, so the exponentially weighted mean is that interval. The forecast is entirely determined by a single observation. That is not wrong, and it is not a forecast in any useful sense either. It argues for a minimum history before trusting a prediction, and there is no such threshold today.",
+   "options": null,
+   "correct": null,
+   "flag": "Claiming EWMA handles it gracefully. It returns a number. Whether that number means anything is a separate question and the honest answer is no.",
+   "teach": {
+    "title": "The five lines that do the work",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#the-five-lines-that-do-the-work"
+   }
+  },
+  {
+   "id": "c07-d7",
+   "kind": "deep-dive",
+   "q": "A pipeline has never run. What happens?",
+   "a": "There are no intervals, so the differenced series is empty and taking its last element raises. That is the edge case I would check first in this code. The right behaviour is to fall back to the declared schedule if one exists. Otherwise leave it off the plan rather than fail the pass.",
+   "options": null,
+   "correct": null,
+   "flag": "Assuming it returns a default. Following the pandas operations through to an empty series is the answer, and it shows you read the code rather than the description.",
+   "teach": null
+  },
+  {
+   "id": "c07-d8",
+   "kind": "deep-dive",
+   "q": "The interval is rounded to whole days. What does that cost?",
+   "a": "Precision below a day, which does not matter, and an accumulating bias, which can. A true cadence of 1.4 days rounds to one. So the prediction runs ahead of reality and the pipeline is marked due early. With a greater-or-equal test it appears on the plan early and stays there, which is the safe direction.",
+   "options": null,
+   "correct": null,
+   "flag": "Dismissing it because days are the unit. Rounding always biases in one direction, and knowing which direction is safe is the point.",
+   "teach": {
+    "title": "The five lines that do the work",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#the-five-lines-that-do-the-work"
+   }
+  },
+  {
+   "id": "c07-d9",
+   "kind": "deep-dive",
+   "q": "A grandparent triggers a parent which triggers a child. Does the check handle it?",
+   "a": "Only one level. It asks for the immediate parent and whether that parent is in the scheduled set. If the grandparent is scheduled but the parent is not directly on the plan, the child's check passes and it gets scheduled independently. For two-level relationships it is correct, and for deeper chains it needs a traversal.",
+   "options": null,
+   "correct": null,
+   "flag": "Claiming it resolves the graph. It resolves one edge, which was enough for the shapes present, and saying so is the accurate answer.",
+   "teach": {
+    "title": "Dependency resolution, which prevents a double run",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#dependency-resolution-which-prevents-a-double-run"
+   }
+  },
+  {
+   "id": "c07-d10",
+   "kind": "deep-dive",
+   "q": "Why process workflows through a queue rather than loading them all?",
+   "a": "Memory. The planner runs across the whole fleet. Materialising every workflow with its execution history at once is a large footprint for no benefit. Pulling one at a time keeps the working set to a single workflow. The work is independent per workflow, so nothing is lost.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling it streaming for its own sake. It is bounded memory over an unbounded fleet, and the reason it is safe is that the work does not need a global view.",
+   "teach": {
+    "title": "Inferring a schedule instead of reading one",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#inferring-a-schedule-instead-of-reading-one"
+   }
+  },
+  {
+   "id": "c07-d11",
+   "kind": "deep-dive",
+   "q": "There is a day-of-week conversion with a modulo in it. What is that about?",
+   "a": "Cron and the platform number the days differently. The conversion subtracts one and takes the result modulo seven. It is worth mentioning because off-by-one errors in day numbering are silent. A job scheduled a day early every week looks like a business rule rather than a bug.",
+   "options": null,
+   "correct": null,
+   "flag": "Skipping it as trivial. Calendar off-by-ones are the classic silent failure, and noticing one is a good signal.",
+   "teach": null
+  },
+  {
+   "id": "c07-d12",
+   "kind": "deep-dive",
+   "q": "How would you know whether the forecasting is any good?",
+   "a": "Compare predicted dates against what actually happened. That needs no new instrumentation, because the history is the ground truth. Two numbers matter. Mean absolute error in days tells you how close it is. The share of pipelines that ran on an unplanned day tells you what the plan missed, and that is what operators feel.",
+   "options": null,
+   "correct": null,
+   "flag": "Proposing only an error metric. A planner is judged on what it missed, not on its average closeness.",
+   "teach": {
+    "title": "The five lines that do the work",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#the-five-lines-that-do-the-work"
+   }
+  },
+  {
+   "id": "c07-e2",
+   "kind": "edges",
+   "q": "A pipeline runs on the last day of every month.",
+   "a": "The intervals are 28, 30, 31, 31 and 30 days. EWMA gives something around 30. Adding 30 days to the 31st of January predicts the 2nd of March. That is wrong in a way that repeats every year. Calendar rules cannot be expressed as an interval, which is the weekday failure in a different costume.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating it as a new problem. It is the weekday failure again, and recognising the shared cause is the answer worth giving.",
+   "teach": {
+    "title": "The weekday problem, and the word Prophet",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#the-weekday-problem-and-the-word-prophet"
+   }
+  },
+  {
+   "id": "c07-e3",
+   "kind": "edges",
+   "q": "Somebody backfills six months of data by running a pipeline fifty times in one afternoon.",
+   "a": "Those collapse to a single distinct date, so the interval series barely notices. That is the unique-dates decision paying off. What it does leave is a large gap before that day and a large gap after it. Those will pull the forecast around for a few runs before it settles.",
+   "options": null,
+   "correct": null,
+   "flag": "Missing that unique dates already handles most of it. The residual effect is on the neighbouring intervals, not on the fifty runs.",
+   "teach": {
+    "title": "The five lines that do the work",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#the-five-lines-that-do-the-work"
+   }
+  },
+  {
+   "id": "c07-e5",
+   "kind": "edges",
+   "q": "The fleet spans timezones. Does that matter here?",
+   "a": "Yes, because everything is in whole days and a day boundary is timezone-dependent. A run at 23:30 in one zone and 00:30 in another are the same moment and different dates. That would show up as a zero or two-day interval that is not real. Normalising to one zone before taking distinct dates is the fix.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying it does not matter for daily granularity. Daily granularity is exactly what makes the boundary matter.",
+   "teach": {
+    "title": "The five lines that do the work",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#the-five-lines-that-do-the-work"
+   }
+  },
+  {
+   "id": "c07-e6",
+   "kind": "edges",
+   "q": "Why would an operator trust a generated plan more than their spreadsheet?",
+   "a": "Because the spreadsheet drifts and nothing tells you. It is maintained by hand, it goes stale quietly, and its errors are invisible until something does not run. The generated plan is derived from what actually happened, so it is wrong in ways you can measure. I would rather have a measurably imperfect plan than an unmeasurable one.",
+   "options": null,
+   "correct": null,
+   "flag": "Claiming it is more accurate. It is more <em>checkable</em>, and that is the better argument and the honest one.",
+   "teach": {
+    "title": "What alpha of 0.5 actually chooses",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#what-alpha-of-0-5-actually-chooses"
+   }
+  },
+  {
+   "id": "c07-e7",
+   "kind": "edges",
+   "q": "A brand new pipeline is onboarded. How does it get scheduled?",
+   "a": "It does not, by this layer, because there is no history to infer from. That is the cold-start gap and it is real. The sensible design is to fall back to the declared schedule until enough runs exist, then switch to inference. Roughly three or four intervals is where an alpha of 0.5 stops being dominated by one observation.",
+   "options": null,
+   "correct": null,
+   "flag": "Ignoring cold start. Any system that learns from history has one, and having a threshold in mind is what makes the answer concrete.",
+   "teach": null
+  },
+  {
+   "id": "c07-e8",
+   "kind": "edges",
+   "q": "What would you change, in order?",
+   "a": "Add a calendar-aware method, because the weekday and month-end failures are the same bug and they are the ones operators see. Then backtest alpha rather than leaving it at a default. Then a staleness rule for decommissioned pipelines. Implementing Prophet is one way to do the first, and a day-of-week histogram would cover most of it far more cheaply.",
+   "options": null,
+   "correct": null,
+   "flag": "Putting Prophet first as a library rather than as a capability. The requirement is calendar awareness, and there is a much cheaper way to get most of it.",
+   "teach": {
+    "title": "The weekday problem, and the word Prophet",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#the-weekday-problem-and-the-word-prophet"
+   }
+  },
+  {
+   "id": "0007-q1",
+   "kind": "quiz",
+   "q": "A pipeline runs every weekday. EWMA has just seen its Friday run. What does it predict next?",
+   "a": "<p>Saturday. The intervals are one, one, one, one, three, and their exponentially weighted mean is about 1.4, which rounds to one. Friday plus one day is Saturday, a day this pipeline has never run.</p>\n    <p>An interval average has no calendar in it. It cannot represent “not at weekends” because it only ever models the size of a gap. That is precisely the gap Prophet was meant to fill, and it is why the strategy branch exists.</p>",
+   "options": [
+    "Saturday, since the average interval is near one",
+    "Monday, since it detected the weekly working pattern",
+    "Tuesday, since it averages over the whole fortnight",
+    "Friday, since it repeats the most recent interval"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "The weekday problem, and the word Prophet",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#the-weekday-problem-and-the-word-prophet"
+   }
+  },
+  {
+   "id": "0007-q2",
+   "kind": "quiz",
+   "q": "A workflow is due today, and its parent is already on today's plan. What happens?",
+   "a": "<p>The child is left off. <code>_is_parent_scheduled</code> looks up the immediate parent and checks whether it is in the set scheduled in this pass. If it is, the child will be triggered when the parent finishes, so scheduling it separately would run it twice.</p>\n    <p>Worth being precise about the limit: this is one lookup against one level, not a graph traversal. A grandparent-parent-child chain where only the grandparent is planned will still schedule the child independently.</p>",
+   "options": [
+    "The child is skipped, as the parent triggers it",
+    "Both are scheduled, and the later one is discarded",
+    "The child runs first, so the parent reuses it",
+    "The parent is skipped, since the child covers it"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Dependency resolution, which prevents a double run",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#dependency-resolution-which-prevents-a-double-run"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“What happens to a job that only runs on weekdays?”",
+   "a": "<p>It predicts a weekend, and I would rather tell you than be asked. The intervals are one, one, one, one, three, and their weighted mean is about 1.4, rounding to one. Friday plus one is Saturday. An interval average has no calendar in it, so it cannot express “not at weekends.” That is exactly the gap a seasonality-aware method fills, and it is why the design has a second strategy slot.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The weekday problem, and the word Prophet",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#the-weekday-problem-and-the-word-prophet"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“Why alpha equals 0.5?”",
+   "a": "<p>It was a default rather than a derived value, and I would not pretend otherwise. What it buys is fast adaptation: the newest gap carries half the weight, so a genuine cadence change is tracked in a few runs, at the cost of being pulled around by one unusual gap. To justify it properly I would backtest, holding out each pipeline's last run and measuring error in days across several alphas. The history is already there, so it is about a day of work.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What alpha of 0.5 actually chooses",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#what-alpha-of-0-5-actually-chooses"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“Tell me about the Prophet part.”",
+   "a": "<p>Prophet is in the design and not in the implementation. There is an analysis-method enum and a branch that dispatches to <code>_analyze_with_prophet</code>, and that method is never defined. EWMA is the default and the only one that runs. The reason the slot exists is the weekday failure, which needs seasonality rather than a better average. I would also say a day-of-week histogram would cover most of that case far more cheaply than the library would.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The weekday problem, and the word Prophet",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#the-weekday-problem-and-the-word-prophet"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“What is the worst thing a wrong prediction causes?”",
+   "a": "<p>Running something that should not have run. A missed prediction is recoverable because the due test is greater than or equal, so anything overdue stays on the plan until it runs. A spurious prediction puts real work into production early, and for a pipeline with side effects that is the expensive direction. The parent check exists to stop the most likely version of that, which is a child being scheduled when its parent will trigger it anyway.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“A pipeline gets decommissioned. What does your planner do?”",
+   "a": "<p>It keeps predicting it forever. The last interval still exists, the predicted date passes, and because the test is greater than or equal it stays due permanently. So the plan slowly accumulates dead pipelines. The same property that rescues a missed run is what creates the ghosts. The fix is a staleness rule: if the last run is several intervals in the past, stop predicting and surface it for review instead.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The five lines that do the work",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0007-execution-forecasting.html#the-five-lines-that-do-the-work"
+   }
+  }
+ ]
+}

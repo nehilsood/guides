@@ -1,0 +1,147 @@
+{
+ "lesson": "ip-0011",
+ "label": "IP 0011",
+ "track": "ai",
+ "title": "The Half-Typed Line",
+ "url": "https://nehilsood.github.io/guides/interview-prep/guides/0011-the-half-typed-line.html",
+ "plain": [
+  {
+   "title": "In plain words",
+   "url": "https://nehilsood.github.io/guides/interview-prep/guides/0011-the-half-typed-line.html#plain-1"
+  }
+ ],
+ "questions": [
+  {
+   "id": "F1",
+   "kind": "follow-up",
+   "q": "“Fine — then just turn on token healing and ship it. What’s your objection?”",
+   "a": "<p>None, in principle. My objection is to shipping it <em>unmeasured</em>, and the reason is specific rather than procedural: healing backs off exactly one token, and after a cross-whitespace merge one token can be ten characters of a fused run, so one step may not reach a real boundary. The published numbers show the residual is uneven — <strong>94%</strong> on code, <strong>83%</strong> on German, and on German it lands <em>below</em> the aligned baseline.</p>\n    <p>And the property that makes this more than pedantry: <strong>healing’s failures look exactly like its successes.</strong> It always returns a fluent completion. So turning it on without measuring the residual does not reduce the risk, it removes the symptom you would have used to detect the risk. One number fixes this — the cursor-eval gap remaining after healing — and it takes an afternoon.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F2",
+   "kind": "follow-up",
+   "q": "“We’re training a much bigger model next quarter. Won’t that absorb this?”",
+   "a": "<p>No, and this is the most useful single fact in the area. The partial-token study scales it explicitly and finds larger variants are <strong>not</strong> more robust — several are <em>worse</em>.</p>\n    <p>The reason is structural. This is not a gap in what the model knows; it is a mismatch between two encodings of identical text. A larger model trained through the same tokenizer sees the same merged form in training and meets the same fragmented form at serving time, and it has learned the merged form <em>harder</em>. Scale sharpens the prior that makes the fragment unfamiliar. Which is exactly why this needs a gate now rather than a backlog item later: nothing you are already planning to do will touch it.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F3",
+   "kind": "follow-up",
+   "q": "“We use fill-in-the-middle, so the model sees the code after the cursor. Doesn’t the suffix rescue the prefix?”",
+   "a": "<p>It helps with the semantics and makes the second boundary worse. FIM cuts the file twice at the same offset: the prefix ends mid-token, and the suffix <em>begins</em> mid-token. Token healing reaches the first and cannot reach the second, because healing is a constraint on the first token the model emits and the suffix is never emitted — it is read.</p>\n    <p>The suffix boundary is also the quieter one. A broken prefix boundary can produce visibly malformed output; a broken suffix boundary produces a well-formed completion conditioned on mildly corrupted evidence, which is indistinguishable from the model simply being a bit worse. And in suffix-prefix-middle ordering the suffix sits adjacent to the generation point, so the guaranteed-mis-segmented token is the one with the most influence on the prediction. I’d want that measured on our stack before I formed a view on the size of it.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Autocomplete has two boundaries, not one",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0011-the-half-typed-line.html#autocomplete-has-two-boundaries-not-one"
+   }
+  },
+  {
+   "id": "F4",
+   "kind": "follow-up",
+   "q": "“Why is code worse than prose here?”",
+   "a": "<p>Three reasons that compound. Punctuation occurs in contiguous runs in source — <code>).get(</code>, <code>}});</code>, <code>=&gt; {</code> — and most pre-tokenizers let punctuation merge without limit, so code accumulates precisely the long multi-character tokens this failure needs. Published misalignment rates for Python sit near <strong>68%</strong> for the common pre-tokenizer family.</p>\n    <p>Second, identifiers are long, compound and open-class, so the caret spends most of its life inside one. Third, the cut distribution is adversarial in a way prose’s is not: a person writing prose pauses at word ends, while a person writing code pauses <em>inside</em> <code>self.cach</code> and waits for the editor to finish it. Autocomplete is a product built specifically around the offsets that are worst for the tokenizer.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F5",
+   "kind": "follow-up",
+   "q": "“Could we fix this in training instead — randomly split tokens so the model sees fragments?”",
+   "a": "<p>Yes, and it is the only option on the table that repairs the <em>training</em> distribution rather than patching at decode time. It exists in production: at least one frontier model randomly splits a proportion of multi-punctuation tokens during training. Note how narrow that is — multi-punctuation specifically, not everything — which is the design telling you the trade is real.</p>\n    <p>Because the cost is direct: stochastic tokenization spends the encoding efficiency you just bought, and the study that reports it declines to recommend it broadly for exactly that reason. The practical constraint is scheduling. It requires a pretraining run, so it is not available for <em>this</em> decision. It is the right thing to put in the next tokenizer’s design document, alongside the note that we will want cursor-conditioned evaluation before that run rather than after it.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What you check before approving",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0011-the-half-typed-line.html#what-you-check-before-approving"
+   }
+  },
+  {
+   "id": "F6",
+   "kind": "follow-up",
+   "q": "“You have one afternoon and a held-out corpus. What do you actually run?”",
+   "a": "<p>Two things, and the first needs no GPU at all. <strong>Boundary coverage</strong>: take a few thousand held-out files, encode each with both tokenizers, and count what fraction of character offsets are token boundaries. That is twenty lines, it runs in seconds, and it gives you the size of the margin being spent before you have asked anyone for inference budget. I would run it first because it cannot fail to produce a result and it decides whether the rest is worth doing.</p>\n    <p><strong>Then cursor evaluation.</strong> Same corpus, ten cut offsets per file sampled to match our caret telemetry, generate to end-of-line from each under both tokenizers, and score exact match and edit similarity against the real continuation. Bucket by context — on boundary, mid-identifier, just after an indent, after a dot. I would expect the on-boundary bucket to be flat or better and the mid-identifier bucket to carry the whole regression, and if that is the shape, the fix is narrow rather than a revert.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F7",
+   "kind": "follow-up",
+   "q": "“Suppose bits-per-byte also improves. Do you approve then?”",
+   "a": "<p>Not on that alone, and this is the follow-up that separates the two halves of the argument. Bits-per-byte repairs the <em>units</em> — it stops us comparing a per-token average across two different token counts. It does not repair the <em>sampling</em>. It is still computed on complete files read from the beginning, so an improvement in it is an improvement at cut point zero.</p>\n    <p>The cleanest way to say it: full-file BPB is cursor-conditioned BPB with the cut pinned to zero. It is one point of the distribution we care about, and the only point no user has ever occupied. So yes, I want BPB, and it is necessary; it is a repair to how we compare, not a measurement of what we ship.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F8",
+   "kind": "follow-up",
+   "q": "“It went out a month ago. What’s the fastest way to find out whether it hurt?”",
+   "a": "<p>Re-cut the metric you already have, retroactively, with no new logging. Acceptance rate is already recorded per suggestion, and the prompt prefix is in the request logs — which means the caret offset is recoverable, and so is whether it landed on a token boundary, under <em>either</em> tokenizer, computed after the fact. Segment historical acceptance by that and compare the before and after windows within each bucket.</p>\n    <p>The shape to look for is the giveaway: an aggregate that moved a couple of points while the on-boundary bucket held flat and the mid-identifier bucket fell hard. That is this bug’s signature, and it also explains why nobody caught it — the aggregate mixes a bucket that did not move with a bucket that collapsed, and the average lands somewhere unremarkable. Cost is a query. If the buckets move together instead, my hypothesis was wrong and something else regressed.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F9",
+   "kind": "follow-up",
+   "q": "“Why does stop behaviour break? Can’t we just stop on the newline string?”",
+   "a": "<p>You can, and you should, and it is not sufficient. Stop sequences are strings; sampling is tokens. If the newline has fused into a token that also carries the next line’s indent and its first word, then stopping on the string means truncating inside a token you already sampled — so part of what you generated is discarded, and the remainder is a string the model never chose to emit as a unit.</p>\n    <p>The deeper cost is to the distribution. When a single token means “end this line <em>and</em> begin a return statement”, the probability of stopping is entangled with the probability of what comes next, and you can no longer read “should I stop here” off the model’s output at all. That is a vocabulary problem, and no serving-layer change reaches it. It is also why the narrow fix is the right one: forbid merges that swallow a newline, keep everything else.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F10",
+   "kind": "follow-up",
+   "q": "“Set autocomplete aside. Isn’t more compression strictly better at fixed compute?”",
+   "a": "<p>No, and there is 2026 work on exactly this. A study training nearly a thousand models from 50M to 7B parameters over a wide range of compression rates finds that parameter count scales with data measured in <strong>bytes</strong>, not in tokens — which is already a correction to how most people reason about this — and that the compute-optimal compression rate is <em>not</em> the one byte-pair encoding lands on, and <strong>decreases as compute grows</strong>.</p>\n    <p>So the optimum is real, it is not at infinity, and it moves in the opposite direction from the intuition. Which makes “shorter is better” an unbounded claim about a quantity that has an interior maximum. Even without a single cursor anywhere in the argument, the right question is not how much shorter, it is whether we are on the correct side of the peak.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "A tokenizer is four things, and only one of them moved",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0011-the-half-typed-line.html#a-tokenizer-is-four-things-and-only"
+   }
+  },
+  {
+   "id": "F11",
+   "kind": "follow-up",
+   "q": "“Superword tokenization does exactly this and reports +8.2% on MMLU. Is your teammate wrong?”",
+   "a": "<p>Not about the model. That line of work — standard byte-pair encoding first, then a second phase with the whitespace constraint lifted — reports up to <strong>33% fewer tokens</strong>, <strong>+4.0% absolute across 30 downstream tasks</strong> including the <strong>+8.2%</strong>, and <strong>27% less inference compute</strong>. It is a good result and I would expect our teammate to reproduce a version of it.</p>\n    <p>Two things about it, though. Those benchmarks score complete prompts and complete answers; nothing in them ever ends a prompt inside a token, because nothing in them has a caret. And the method itself is a <em>curriculum</em> — it learns subwords first and only then lifts the constraint — which is the design conceding that boundary structure is worth building before it is worth spending. “Merge freely” is not what that paper did. The honest position is that this is a strong result on a workload we do not have, and I want the same result on the workload we do.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F12",
+   "kind": "follow-up",
+   "q": "“If there’s one thing you’d want a junior engineer to take from this, what is it?”",
+   "a": "<p>That every metric has a sampling distribution hidden inside it, and the name of the metric almost never mentions it. “Held-out loss” sounds like it means <em>how surprised is the model by text it has not seen</em>. What it actually means is <em>how surprised is the model by a file it has not seen, read from the beginning, all the way through</em>. The clause that does the damage is the one nobody says out loud.</p>\n    <p>So the habit is not scepticism about numbers — scepticism is cheap and it makes you useless in a review. It is one question, asked early and without any edge to it: <strong>where did this metric cut the data, and is that where we cut it?</strong> Here the answer is that the metric always cuts at offset zero and the product never does, and once that sentence is on the table the entire disagreement resolves into an afternoon of work.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What you check before approving",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0011-the-half-typed-line.html#what-you-check-before-approving"
+   }
+  }
+ ]
+}

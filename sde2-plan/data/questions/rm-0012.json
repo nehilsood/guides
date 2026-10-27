@@ -1,0 +1,584 @@
+{
+ "lesson": "rm-0012",
+ "label": "RM 0012",
+ "track": "project",
+ "title": "RAG and Evaluation",
+ "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "c12-t1",
+   "kind": "toolbox",
+   "q": "What is BM25, and why keep it once you have embeddings?",
+   "a": "BM25 is the ranking function classic search engines are built on. It works from three intuitions. A query word appearing more often is better, with sharply diminishing returns so repetition stops helping. A word that is rare across the collection counts for much more than a common one. And a long document is penalised, so it cannot win by containing everything. What that buys is exact matching on the tokens that carry the meaning. Keep it because embeddings blur exactly those. An error code, a product identifier or a column name is where vector search quietly returns something that reads similar and is wrong. Hybrid means running both and merging the ranked lists.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating keyword search as the old way. It beats embeddings on exact identifiers, and that is a large share of real queries.",
+   "teach": {
+    "title": "Reproducibility, measured rather than assumed",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#reproducibility-measured-rather-than-assumed"
+   }
+  },
+  {
+   "id": "c12-t2",
+   "kind": "toolbox",
+   "q": "What does a vector database actually do when you query it?",
+   "a": "Approximate nearest neighbour search. Finding the closest vectors exactly means comparing the query against every one, which does not scale past a few hundred thousand. Approximate search gives up a little correctness for an enormous speed gain. HNSW is the index almost everyone uses. It is a layered graph where the top layer has a few long-range links and each lower layer is denser. You enter at the top, walk greedily towards the query, drop a layer, and repeat. What it buys is millisecond search over millions of vectors, which is what makes this usable in a request path. Approximate means it can miss. Recall is a knob, and more of it costs latency.",
+   "options": null,
+   "correct": null,
+   "flag": "Assuming the search is exact. It is not, by design, and knowing recall is tunable is the difference between using a vector store and understanding one.",
+   "teach": null
+  },
+  {
+   "id": "c12-t3",
+   "kind": "toolbox",
+   "q": "If embeddings work, why re-rank at all?",
+   "a": "Because the two models are different shapes. A bi-encoder encodes query and document separately into vectors. Every document can therefore be embedded once in advance, and search becomes a distance comparison. A cross-encoder feeds the query and document through together, letting every word attend to every other, and outputs a relevance score. That is far more accurate and cannot be precomputed, because the score does not exist until the pair does. What the two-stage shape buys is accuracy where it counts and speed where it does not. You cannot cross-encode a million documents per query. You retrieve fifty cheaply and re-rank those, so first-stage recall caps everything the second stage can do.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing re-ranking as polish. It is a second model doing a harder job, and the reason it is second is pure arithmetic.",
+   "teach": {
+    "title": "What the retrieval half actually has",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#what-the-retrieval-half-actually-has"
+   }
+  },
+  {
+   "id": "c12-t4",
+   "kind": "toolbox",
+   "q": "How do you chunk documents, and what goes wrong?",
+   "a": "Documents are too long to retrieve whole, so they are split into pieces first. The split can be by fixed token count, by sentence, or along the document's own structure such as headings and tables. Overlap is usually added so an idea straddling a boundary survives in one of them. By structure where the document has any, and by token count with overlap where it does not. What it buys is precision, because retrieving a relevant paragraph beats retrieving the eighty-page document around it. What goes wrong is at both ends. Too small and the piece loses the context that made it meaningful. Too large and the embedding averages several topics into one point matching nothing well.",
+   "options": null,
+   "correct": null,
+   "flag": "Quoting a chunk size as though it were standard. The right size depends on the documents, and the honest answer says how you would find it.",
+   "teach": null
+  },
+  {
+   "id": "c12-t5",
+   "kind": "toolbox",
+   "q": "How do you show retrieval got better, separately from the answer?",
+   "a": "With retrieval metrics on a labelled set. Recall at k asks the blunt question of whether the right document appears in the top k at all. MRR takes one over the rank of the first correct hit, so finding it second is worth half of finding it first. nDCG allows graded relevance rather than yes or no, and discounts by position. What they buy is a measurement of the retriever alone, computable from labelled pairs with no model call. Measure these apart from generation, always. A bad answer from a good retrieval is a completely different bug from a bad answer from a bad one, and the fixes are different.",
+   "options": null,
+   "correct": null,
+   "flag": "Only ever scoring the final answer. It conflates two systems, and you will spend weeks tuning the wrong one.",
+   "teach": null
+  },
+  {
+   "id": "c12-t6",
+   "kind": "toolbox",
+   "q": "You list MLflow. Which part of it did you use?",
+   "a": "MLflow is four things wearing one name. Tracking records the parameters, metrics and artefacts of each run so experiments stay comparable afterwards. The registry versions models and moves them through stages such as staging and production. Projects package code. Serving deploys. What tracking buys is experiments you can compare weeks later, instead of results living in a notebook and a memory. Tracking alone is a complete and honest answer. Naming the registry implies a deployment and promotion process, so only say it if there was one.",
+   "options": null,
+   "correct": null,
+   "flag": "Letting the tool name stand for a practice. If nothing was built around it, that is a wording fix on the résumé rather than a story to construct.",
+   "teach": {
+    "title": "Three real experiments, which is the strongest material here",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#three-real-experiments-which-is-the-strongest"
+   }
+  },
+  {
+   "id": "c12-t7",
+   "kind": "toolbox",
+   "q": "How far do you trust a model judging another model?",
+   "a": "As far as you have calibrated it. Using a model to score outputs against a rubric exists because open-ended answers have no reference to compare against. There is nothing to assert equality with. What it buys is evaluation running on every change, instead of waiting for a human labelling round, which is what makes iteration possible at all. The known biases are consistent and documented. Judges prefer longer answers, prefer their own family's style, and shift when the judge model is upgraded underneath you. So pin the judge version, and check it against human labels at least once on a sample. Then quote the agreement rate alongside the score.",
+   "options": null,
+   "correct": null,
+   "flag": "Quoting a judge score with no human anchor. It is a number produced by the same class of system you are grading, and it needs one.",
+   "teach": {
+    "title": "The question underneath every evaluation decision",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#the-question-underneath-every-evaluation-decision"
+   }
+  },
+  {
+   "id": "c12-t8",
+   "kind": "toolbox",
+   "q": "How many samples does an A/B test need?",
+   "a": "Enough that the difference you saw is unlikely to be noise. The trap is that the number grows sharply as the effect you want to detect shrinks. Small improvements need far more data than people expect. What getting it right buys is the right to say a change helped, rather than that it appeared to. Decide the size before you look. A handful of runs per arm only detects a very large difference. The failure that voids a test is stopping the moment the result looks good. The threshold you crossed then no longer means what it claims, however clean everything else was.",
+   "options": null,
+   "correct": null,
+   "flag": "Reporting a winner without the sample size. It is the first thing a careful interviewer asks, and a small number is better said by you.",
+   "teach": {
+    "title": "Three real experiments, which is the strongest material here",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#three-real-experiments-which-is-the-strongest"
+   }
+  },
+  {
+   "id": "c12-f1",
+   "kind": "fundamentals",
+   "q": "When is LLM-as-a-judge the right tool?",
+   "a": "Only when nothing can decide correctness by running the answer. Scoring an interview response against written anchor prose has no oracle, so a judge is right there. Validating generated SQL does have one, because the database can plan it. Using a judge where an oracle exists is choosing to be less correct for no benefit.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying judges are unreliable. They are the correct tool for subjective questions. The skill is knowing which kind of question you have.",
+   "teach": {
+    "title": "The question underneath every evaluation decision",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#the-question-underneath-every-evaluation-decision"
+   }
+  },
+  {
+   "id": "c12-f2",
+   "kind": "fundamentals",
+   "q": "What is an embedding, in one sentence?",
+   "a": "A list of numbers representing a piece of text, arranged so similar meanings sit close together. Similarity is then a distance calculation. That is also the limitation: it measures closeness in meaning, which is not the same as being correct or being the right thing to retrieve.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it as a compressed representation. The useful property is that distance means something, not that it is smaller.",
+   "teach": {
+    "title": "The question underneath every evaluation decision",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#the-question-underneath-every-evaluation-decision"
+   }
+  },
+  {
+   "id": "c12-f3",
+   "kind": "fundamentals",
+   "q": "What does top-k retrieval do when nothing is relevant?",
+   "a": "Returns k things anyway. It returns the least dissimilar items, not the relevant ones. In the debugger that matters more than usual, because the retrieved incidents feed a routing decision. So an unfamiliar failure still gets a confident category built on five loose matches, and there is no similarity floor.",
+   "options": null,
+   "correct": null,
+   "flag": "Assuming a relevance threshold exists by default. It does not, and this is the most common unexamined assumption in a RAG system.",
+   "teach": null
+  },
+  {
+   "id": "c12-f4",
+   "kind": "fundamentals",
+   "q": "What is hybrid search, and have you built one?",
+   "a": "Fusing keyword and vector retrieval so exact tokens are not lost in a similarity space. It matters for things like error codes, where the literal string is the signal. I have not built one. My systems use web search in one place and vector retrieval in another, which is two mechanisms rather than a hybrid retriever.",
+   "options": null,
+   "correct": null,
+   "flag": "Counting two separate retrieval mechanisms as hybrid search. Hybrid means fused scoring in one retriever, and an interviewer will mean that.",
+   "teach": {
+    "title": "What the retrieval half actually has",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#what-the-retrieval-half-actually-has"
+   }
+  },
+  {
+   "id": "c12-f5",
+   "kind": "fundamentals",
+   "q": "And re-ranking?",
+   "a": "A second, more expensive model reordering the candidates retrieval returned. You fetch twenty cheaply and let the re-ranker choose the five that go in context. I have not shipped one. The screener retrieves five and uses all five, which is exactly the situation a re-ranker would improve.",
+   "options": null,
+   "correct": null,
+   "flag": "Explaining it well and letting that imply you built one. The honest version plus naming where it would help is stronger.",
+   "teach": {
+    "title": "What the retrieval half actually has",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#what-the-retrieval-half-actually-has"
+   }
+  },
+  {
+   "id": "c12-f6",
+   "kind": "fundamentals",
+   "q": "How do you make a model cite its sources?",
+   "a": "With the output schema, not the prompt. A claim carries a status and a sources array, and the decoder enforces that, so an uncited claim has no shape to arrive in. Asking nicely is advice a model can ignore. The limit is that a schema constrains shape and never string values, so citation fidelity is measured separately as a fabrication rate.",
+   "options": null,
+   "correct": null,
+   "flag": "Stopping at the schema. Naming the limit in the same breath is what makes the claim survive a follow-up.",
+   "teach": {
+    "title": "Three real experiments, which is the strongest material here",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#three-real-experiments-which-is-the-strongest"
+   }
+  },
+  {
+   "id": "c12-f7",
+   "kind": "fundamentals",
+   "q": "Tell me about an A/B test you ran.",
+   "a": "Transcript window size in the gateway, tested at 10, 20 and 40 entries against the live payload, eight runs per arm. It is a parameter people usually set by intuition. The honest caveat is the sample. Eight runs per arm cannot separate a small effect from noise. So it settles a large difference and not a subtle one.",
+   "options": null,
+   "correct": null,
+   "flag": "Quoting a result without the sample size. The design is the impressive part and the sample is the limit.",
+   "teach": {
+    "title": "Three real experiments, which is the strongest material here",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#three-real-experiments-which-is-the-strongest"
+   }
+  },
+  {
+   "id": "c12-f8",
+   "kind": "fundamentals",
+   "q": "And the model bake-off?",
+   "a": "One real evidence payload replayed through the actual report function, with only the model swapped. So the evidence is fixed and the model is the single variable. Label-free metrics: citations naming a URL not in the evidence, verified claims lacking independent support, and verdict instability within an arm. The cheaper model erred in the more dangerous direction.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it as a benchmark comparison. Replaying a fixed payload through the real code path is much stronger, and the difference is worth stating.",
+   "teach": {
+    "title": "Three real experiments, which is the strongest material here",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#three-real-experiments-which-is-the-strongest"
+   }
+  },
+  {
+   "id": "c12-f9",
+   "kind": "fundamentals",
+   "q": "Where does MLflow fit in what you built?",
+   "a": "It is a tracking component in the pipeline debugger's architecture. It is not something I built a workflow around. I would describe it as experiment and model tracking that was present, not as a system I designed. That is a thinner claim than the rest of this line, and I would rather say so.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing an MLflow workflow you did not own. It is a named component and the honest version is short.",
+   "teach": {
+    "title": "The question underneath every evaluation decision",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#the-question-underneath-every-evaluation-decision"
+   }
+  },
+  {
+   "id": "c12-f10",
+   "kind": "fundamentals",
+   "q": "What is the riskiest claim on this line?",
+   "a": "Hybrid search and re-ranking. They are the two an interviewer probes first on a RAG line, and neither appears in any system I built. MLflow is third, as a component rather than work. The evaluation half of this line is genuinely strong. The retrieval half is where it thins out.",
+   "options": null,
+   "correct": null,
+   "flag": "Naming LLM-as-a-judge. The Evaluator is a real judge deployment with a real bake-off behind it, and undervaluing it wastes the best item on the line.",
+   "teach": {
+    "title": "What the retrieval half actually has",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#what-the-retrieval-half-actually-has"
+   }
+  },
+  {
+   "id": "c12-d1",
+   "kind": "deep-dive",
+   "q": "Walk me through how you designed the bake-off.",
+   "a": "Fix everything except the variable. One real evidence payload, replayed through the actual report function, with only the model swapped. That matters because a benchmark run against synthetic inputs tells you about the benchmark. Replaying production code with production evidence tells you about your system.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing a benchmark suite. The strength here is that it is the real code path, not a proxy for it.",
+   "teach": {
+    "title": "Three real experiments, which is the strongest material here",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#three-real-experiments-which-is-the-strongest"
+   }
+  },
+  {
+   "id": "c12-d2",
+   "kind": "deep-dive",
+   "q": "What is a label-free metric and why use one?",
+   "a": "A measurement needing no ground-truth answer. Citations naming a URL not present in the evidence is checkable against the evidence itself. So is verdict instability across an arm's own repeated runs. They work where no labelled set exists, which is most real systems, and they are cheap to compute.",
+   "options": null,
+   "correct": null,
+   "flag": "Assuming evaluation needs labels. The best metrics in that bake-off need none, and that is why it could be run at all.",
+   "teach": {
+    "title": "Three real experiments, which is the strongest material here",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#three-real-experiments-which-is-the-strongest"
+   }
+  },
+  {
+   "id": "c12-d3",
+   "kind": "deep-dive",
+   "q": "Eight runs per arm. Is that enough?",
+   "a": "For a large effect, yes. For a subtle one, no, and I would say so before the result. Eight samples against a noisy latency distribution can separate a big difference and cannot settle a few percent. The design was sound and the sample bounds what it can conclude, which is a different statement from the result being wrong.",
+   "options": null,
+   "correct": null,
+   "flag": "Defending the sample. Naming what it can and cannot conclude is the answer, and it is the more confident position.",
+   "teach": {
+    "title": "What the retrieval half actually has",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#what-the-retrieval-half-actually-has"
+   }
+  },
+  {
+   "id": "c12-d4",
+   "kind": "deep-dive",
+   "q": "One claim in five flips between runs. What does that tell you?",
+   "a": "Where it flips is the finding. Nearly every flip is on the no-data versus partial boundary, not between verified and contradicted. Random sampling would scatter disagreements everywhere. Concentration on one boundary points at the prompt's definition of that line, which is also why pinning temperature to zero did not fix it.",
+   "options": null,
+   "correct": null,
+   "flag": "Reporting the rate without the location. The rate is a symptom and the location is the diagnosis.",
+   "teach": {
+    "title": "Reproducibility, measured rather than assumed",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#reproducibility-measured-rather-than-assumed"
+   }
+  },
+  {
+   "id": "c12-d5",
+   "kind": "deep-dive",
+   "q": "How do you know your judge is any good?",
+   "a": "Three ways, none of them complete. Agreement with a human on a sample. Self-consistency across repeated runs, which is the instability number. And whether its errors are biased in a direction that matters, which the bake-off found. The pro model was more conservative and the cheaper one erred towards over-claiming support.",
+   "options": null,
+   "correct": null,
+   "flag": "Only naming human agreement. Direction of error matters more here, because over-claiming support is far worse than being cautious.",
+   "teach": {
+    "title": "Three real experiments, which is the strongest material here",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#three-real-experiments-which-is-the-strongest"
+   }
+  },
+  {
+   "id": "c12-d6",
+   "kind": "deep-dive",
+   "q": "What is a fabrication rate and why measure it separately?",
+   "a": "How often a cited URL is not actually in the evidence that was provided. It has to be separate because the schema forces a sources array to exist and cannot force its contents to be real. Structure guarantees a citation is present. Only measurement tells you it is genuine.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating enforced citations as proof of grounding. The schema removes the uncited shape, not the wrong value.",
+   "teach": null
+  },
+  {
+   "id": "c12-d7",
+   "kind": "deep-dive",
+   "q": "You checked your own ground truth. What made you do that?",
+   "a": "Accuracy varied wildly by domain and the structural explanations all failed. When every hypothesis about the system fails, the next candidate is the measurement. So I ran the hand-written answer keys through the same processor. Only 28 of 49 produced valid output. Part of the benchmark was measuring against broken references.",
+   "options": null,
+   "correct": null,
+   "flag": "Presenting it only as an excuse for low scores. It cuts both ways and saying so is what makes it credible.",
+   "teach": {
+    "title": "Three real experiments, which is the strongest material here",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#three-real-experiments-which-is-the-strongest"
+   }
+  },
+  {
+   "id": "c12-d8",
+   "kind": "deep-dive",
+   "q": "Your debugger harness scores generated code by cosine similarity. Defend or fix.",
+   "a": "Fix. For the prose fields, similarity is defensible because an investigation has no exact match. For the corrected-code field it is the weakest part, because the production path already validates SQL with <code>EXPLAIN</code> and Python with a parse. Scoring that field with the validator makes it deterministic and reuses code that exists.",
+   "options": null,
+   "correct": null,
+   "flag": "Defending it for consistency. The chapter's own rule says use the oracle, and this is where the résumé breaks its own rule.",
+   "teach": {
+    "title": "The question underneath every evaluation decision",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#the-question-underneath-every-evaluation-decision"
+   }
+  },
+  {
+   "id": "c12-d9",
+   "kind": "deep-dive",
+   "q": "How would you choose k?",
+   "a": "By measuring what k changes downstream, not by measuring retrieval quality in isolation. In the debugger, k feeds a routing decision, so the number that matters is how stable the category is as k varies. Too few and a known issue is missed. Too many and unrelated incidents dilute the context and pull the category around.",
+   "options": null,
+   "correct": null,
+   "flag": "Citing recall at k. Recall is the intermediate metric, and the decision it feeds is what actually matters.",
+   "teach": {
+    "title": "Three real experiments, which is the strongest material here",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#three-real-experiments-which-is-the-strongest"
+   }
+  },
+  {
+   "id": "c12-d10",
+   "kind": "deep-dive",
+   "q": "What makes chunking hard?",
+   "a": "The chunk is both the retrieval unit and the context unit, and those want different sizes. Small chunks embed precisely and arrive without surrounding meaning. Large chunks carry context and blur the embedding. For an error log the natural boundary is the stack trace rather than a token count, and structure beats a fixed window whenever structure exists.",
+   "options": null,
+   "correct": null,
+   "flag": "Recommending a token count. The useful answer is to chunk on the document's own structure where it has one.",
+   "teach": {
+    "title": "Reproducibility, measured rather than assumed",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#reproducibility-measured-rather-than-assumed"
+   }
+  },
+  {
+   "id": "c12-d11",
+   "kind": "deep-dive",
+   "q": "What is different about retrieval on a device?",
+   "a": "The index has to fit alongside the model in a fixed memory budget. There is no server to fall back to. So the corpus is small and curated rather than large and general. It also cannot be updated by redeploying a service. That makes the freshness story completely different from a server-side system.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it as the same thing, smaller. The absence of a fallback and the update path are the real differences.",
+   "teach": {
+    "title": "What the retrieval half actually has",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#what-the-retrieval-half-actually-has"
+   }
+  },
+  {
+   "id": "c12-d12",
+   "kind": "deep-dive",
+   "q": "Rank your guardrails by how much they actually protect.",
+   "a": "Strongest is removing the shape: a schema with no field for an uncited claim, or an allowlist permitting only <code>SELECT</code> and <code>EXPLAIN</code>. Then deterministic validation before an action. Then output filters like the SAP name denylist. Weakest is prompt wording, which lowers a rate and guarantees nothing.",
+   "options": null,
+   "correct": null,
+   "flag": "Listing them without ordering. The ranking is the judgment, and prompt wording being last is the part that matters.",
+   "teach": {
+    "title": "Three real experiments, which is the strongest material here",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#three-real-experiments-which-is-the-strongest"
+   }
+  },
+  {
+   "id": "c12-e1",
+   "kind": "edges",
+   "q": "Retrieval returns five things and none are relevant. What happens downstream?",
+   "a": "The model answers anyway, using them. There is no similarity floor, so a genuinely novel input gets a confident answer built on loose matches. In the debugger that becomes a routing decision, so it is not a worse answer but a wrong branch. The fix is a distance threshold that fails towards the expensive path.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying the model will recognise irrelevant context. Sometimes it does, and that is not a property you can depend on.",
+   "teach": {
+    "title": "The question underneath every evaluation decision",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#the-question-underneath-every-evaluation-decision"
+   }
+  },
+  {
+   "id": "c12-e2",
+   "kind": "edges",
+   "q": "Somebody resolves an incident wrongly and it goes into the store.",
+   "a": "It becomes evidence and teaches the screener to repeat the mistake on similar logs. That is a data-quality problem with a control-flow consequence, which is worse than a data-quality problem alone. It argues for the store being curated rather than appended to automatically, and nothing currently curates it.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating the incident history as ground truth. People wrote it, under time pressure, at night.",
+   "teach": {
+    "title": "What the retrieval half actually has",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#what-the-retrieval-half-actually-has"
+   }
+  },
+  {
+   "id": "c12-e3",
+   "kind": "edges",
+   "q": "A fixed evaluation set was recorded once. What goes wrong over time?",
+   "a": "It ages, and a stale case is worse than no case. Ideal answers referencing tables that were since renamed will fail a correct system, and then passing them becomes the regression. Any fixed set needs an owner and a refresh cadence, and the 368-scenario set has neither documented.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating a recorded dataset as permanent. It is a snapshot of a system that kept moving.",
+   "teach": {
+    "title": "The question underneath every evaluation decision",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#the-question-underneath-every-evaluation-decision"
+   }
+  },
+  {
+   "id": "c12-e4",
+   "kind": "edges",
+   "q": "What if the judge shares the generator's blind spot?",
+   "a": "Then the evaluation is systematically flattering and nothing in the harness will show it. It is the strongest argument for label-free structural metrics, which do not depend on a model's judgment at all. Checking whether a cited URL is in the evidence is arithmetic, and no shared bias survives it.",
+   "options": null,
+   "correct": null,
+   "flag": "Proposing a different judge model. It reduces correlation and does not remove it, and structural checks do.",
+   "teach": {
+    "title": "Three real experiments, which is the strongest material here",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#three-real-experiments-which-is-the-strongest"
+   }
+  },
+  {
+   "id": "c12-e5",
+   "kind": "edges",
+   "q": "The interviewer asks about your re-ranking work.",
+   "a": "Say I have not shipped one. Then say where it would go. The screener retrieves five incidents and uses all five, so a re-ranker over a wider candidate set is exactly the improvement. That turns an absence into a design answer, which is the best available outcome for an item with nothing behind it.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing the technique fluently and letting it imply experience. The follow-up is always which model and on what data.",
+   "teach": {
+    "title": "What the retrieval half actually has",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#what-the-retrieval-half-actually-has"
+   }
+  },
+  {
+   "id": "c12-e6",
+   "kind": "edges",
+   "q": "Every claim has a citation and the report is still wrong.",
+   "a": "Entirely possible, and it is the honest limit of schema-enforced grounding. The schema removes uncited claims. It cannot check that the URL was in the evidence, that the source is reliable, or that the claim follows from it. Those are three separate problems and only the first is measured, as a fabrication rate.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating grounding as a correctness guarantee. It is a structural guarantee, and the difference is the whole answer.",
+   "teach": {
+    "title": "Reproducibility, measured rather than assumed",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#reproducibility-measured-rather-than-assumed"
+   }
+  },
+  {
+   "id": "c12-e7",
+   "kind": "edges",
+   "q": "You have no labelled data at all. How do you evaluate?",
+   "a": "Structural and consistency metrics first, because they need no labels. Is every citation present in the evidence. Does the same input give the same verdict across runs. Does the output satisfy an invariant. Then a small hand-labelled sample for calibration, sized for a regression gate rather than a population estimate.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying you cannot evaluate without labels. The best metrics in your own bake-off needed none.",
+   "teach": {
+    "title": "Three real experiments, which is the strongest material here",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#three-real-experiments-which-is-the-strongest"
+   }
+  },
+  {
+   "id": "c12-e8",
+   "kind": "edges",
+   "q": "What would you change about this line?",
+   "a": "Drop re-ranking and hybrid search, because neither appears in any system. Qualify MLflow as a component rather than work. Then add what is missing: the bake-off, the reproducibility measurement and the ground-truth audit are all stronger than the words currently on the line.",
+   "options": null,
+   "correct": null,
+   "flag": "Only trimming. The evaluation work here is better than the line describes, and the swap is what improves it.",
+   "teach": null
+  },
+  {
+   "id": "0012-q1",
+   "kind": "quiz",
+   "q": "When is LLM-as-a-judge the right tool for scoring an output?",
+   "a": "<p>When nothing can decide by running the answer. Scoring an interview response against written anchor prose has no oracle, so a judge is correct there. Validating generated SQL does have one, because the planner can bind it.</p>\n    <p>Cost is not the deciding factor, which makes the third option tempting and wrong. A judge is cheaper than executing some things and it is still the weaker answer whenever execution is possible, because it trades a fact for an opinion.</p>",
+   "options": [
+    "Only when no deterministic oracle exists for the task",
+    "Whenever a second opinion would raise confidence in it",
+    "Whenever running the output would be slow or costly",
+    "Only when the original model was a cheaper variant"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "The question underneath every evaluation decision",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#the-question-underneath-every-evaluation-decision"
+   }
+  },
+  {
+   "id": "0012-q2",
+   "kind": "quiz",
+   "q": "Your A/B on transcript window size used eight runs per arm. What is the main limitation?",
+   "a": "<p>Statistical power. Against a noisy latency distribution, eight samples per arm can settle a large difference and cannot settle a few percent. The design is sound and the sample bounds what it is allowed to conclude.</p>\n    <p>Saying that yourself is stronger than being asked. It converts “here is a result” into “here is a result and here is what it can support,” which is the difference between running an experiment and quoting one.</p>",
+   "options": [
+    "Eight runs cannot separate a small effect from noise",
+    "Eight runs cost more than the experiment was worth",
+    "Eight runs bias the result towards the first arm",
+    "Eight runs require a fresh model version each time"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Three real experiments, which is the strongest material here",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#three-real-experiments-which-is-the-strongest"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“How do you evaluate an LLM system?”",
+   "a": "<p>I start by asking whether an oracle exists. Three of my systems have one and use it: a subprocess running the real processor, a query planner explaining generated SQL, and a parser rather than a model on structured tables. Where none exists, three things I actually ran. A bake-off replaying one fixed evidence payload through the real code path with only the model swapped, on label-free metrics. An A/B on transcript window size at 10, 20 and 40 entries with eight runs an arm. And an audit of my own ground truth, which found only 28 of 49 reference files were valid.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Three real experiments, which is the strongest material here",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#three-real-experiments-which-is-the-strongest"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“How do you know your judge model is right?”",
+   "a": "<p>Three angles, none complete. Agreement with a human on a sample. Self-consistency across repeated runs, which for us is about one claim in five flipping on identical evidence. And the direction the errors go, which the bake-off measured: the pro model was more conservative, and the cheaper one erred towards calling unverifiable things partially supported. That last direction is the dangerous one, and it is why the tier choice was not just about cost.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Three real experiments, which is the strongest material here",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#three-real-experiments-which-is-the-strongest"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“Tell me about your hybrid search implementation.”",
+   "a": "<p>I have not built one, and I would rather say that than stretch. My systems use web search in one place and vector retrieval in another, which is two mechanisms rather than a fused retriever. Where it would genuinely help is the debugger's incident screener: error logs contain exact tokens like codes and table names, and those are precisely what a pure vector search loses. A keyword arm fused with the vector arm would improve that routing decision.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What the retrieval half actually has",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#what-the-retrieval-half-actually-has"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“Your retriever always returns five results. Is that a problem?”",
+   "a": "<p>Yes, and more than usual here, because those five feed a routing decision rather than an answer. Top-k always returns k, so a genuinely novel failure gets the five least dissimilar incidents and a confident category built on them. There is no similarity floor. What I would add is a distance threshold below which it routes to the expensive investigate branch by default, so an unfamiliar input fails towards spending money rather than towards silence.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“What is the weakest part of your evaluation work?”",
+   "a": "<p>The 368-scenario harness scoring generated code by embedding similarity. For the prose fields that is defensible, since an investigation has no exact match. For the corrected-code field it breaks my own rule, because the production path already validates SQL with <code>EXPLAIN</code> and Python with a parse. The oracle exists and the harness does not use it. That is the first thing I would change, and it is reusing code rather than writing any.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The question underneath every evaluation decision",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0012-rag-and-evaluation.html#the-question-underneath-every-evaluation-decision"
+   }
+  }
+ ]
+}

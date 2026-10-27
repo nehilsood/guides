@@ -1,0 +1,508 @@
+{
+ "lesson": "rm-0018",
+ "label": "RM 0018",
+ "track": "project",
+ "title": "Voice-Only Commerce on ONDC",
+ "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0018-voice-commerce-ondc.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "c18-t1",
+   "kind": "toolbox",
+   "q": "How is speech recognition measured, and what does a published number hide?",
+   "a": "Word error rate. It counts the insertions, deletions and substitutions needed to turn the transcript into what was actually said, over the number of words spoken. Twenty percent means one word in five is wrong. What it buys is a single comparable number for the stage everything else inherits from. What a published figure hides is the dataset, and the dataset is the real claim. Indian English carrying product names and Hindi words mid-sentence is a completely different distribution from whatever benchmark produced the number. So quote your own measurement on your own audio, or quote nothing.",
+   "options": null,
+   "correct": null,
+   "flag": "Citing a vendor's accuracy figure. It was measured on their data, and yours is the hardest case for this task.",
+   "teach": null
+  },
+  {
+   "id": "c18-t2",
+   "kind": "toolbox",
+   "q": "What is voice activity detection, and what does it have to do with barge-in?",
+   "a": "A very small and very cheap model whose only job is deciding, moment to moment, whether the audio contains speech. It runs continuously and costs almost nothing, which is what lets it sit in front of everything expensive. What it buys is two things. The ability to interrupt, which is what makes a voice assistant feel conversational rather than like a recording. And a gate that stops the costly recognition running on silence. Barge-in is built on it. Detect that the user has started talking, then stop the audio playing. The two failure modes pull opposite ways. Fire early and a cough cuts the assistant off. Fire late and the user talks over a sentence they already decided to interrupt.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating barge-in as a feature. It is a threshold with two costs, and saying which way you tuned it is the answer.",
+   "teach": null
+  },
+  {
+   "id": "c18-t3",
+   "kind": "toolbox",
+   "q": "Name the Beckn stages.",
+   "a": "Beckn is the open specification underneath ONDC. It lets independent buyer apps and seller platforms transact without integrating with each other directly. The buyer side sends search, select, init, confirm, then status. The seller side answers with on_search, on_select, on_init and on_confirm. The buyer app is called the BAP and the seller platform the BPP. A gateway broadcasts a search when the request names no specific seller. What the protocol buys is reach without partnerships. One implementation reaches every seller on the network, instead of a bilateral integration per merchant. Those verbs are the whole transaction, so knowing them is knowing the integration.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing ONDC as “India's open commerce network” and stopping. That is the press release. The verbs are the engineering.",
+   "teach": {
+    "title": "What RAG is doing here, precisely",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0018-voice-commerce-ondc.html#what-rag-is-doing-here-precisely"
+   }
+  },
+  {
+   "id": "c18-t4",
+   "kind": "toolbox",
+   "q": "Everything on this network is asynchronous. What does that force you to build?",
+   "a": "No call returns its answer. You send search and the receiver immediately acknowledges that it got the message, nothing more. The real results arrive later as a separate HTTP request to an endpoint you host. Every verb works this way. What that buys the network is the ability to include many independent sellers, since no one participant can be made to answer fast. What it costs you is a publicly reachable callback endpoint, and correlation of responses to requests by transaction id. You also need a timeout policy for sellers who never reply. You also need something to say while nothing has come back. That last one is the voice-specific part.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it as a slow API. It is not slow, it is inverted, and the difference changes the architecture rather than the timeout.",
+   "teach": {
+    "title": "The collision that defines the product",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0018-voice-commerce-ondc.html#the-collision-that-defines-the-product"
+   }
+  },
+  {
+   "id": "c18-t5",
+   "kind": "toolbox",
+   "q": "What is an idempotency key, and when is it generated?",
+   "a": "A unique identifier the client generates and attaches to a request. If the same request arrives again carrying that key, the server recognises it as a repeat. It returns the original result rather than doing the work twice. What that buys is retries becoming safe. Without it, any timeout leaves you unable to tell a lost request from a slow one, and both plausible choices are wrong. It has to be generated before the first attempt and stored by the server. A key invented at retry time is a different key, which makes it a different request, which places a second order. Voice plus retries plus callbacks is exactly where that happens.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying “we handle retries” without naming the key. Retries are the cause. The key is the control.",
+   "teach": {
+    "title": "What RAG is doing here, precisely",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0018-voice-commerce-ondc.html#what-rag-is-doing-here-precisely"
+   }
+  },
+  {
+   "id": "c18-t6",
+   "kind": "toolbox",
+   "q": "What is code-mixing, and what does it break first?",
+   "a": "Two languages inside a single sentence, switching mid-phrase rather than between turns. An English product name inside a Hindi clause, with English numbers and a Hindi verb. It is not an edge case or a mistake. It is how people ordinarily speak. What designing for it buys is a product usable by its actual users rather than an idealised monolingual one. It breaks language identification before it breaks transcription. A pipeline that picks one language per utterance and then runs a matching model has already failed at the first step. Handling it means a model trained on mixed speech, not a better single-language model.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating it as an accent problem. It is a language-identification problem, and that is a different stage with a different fix.",
+   "teach": null
+  },
+  {
+   "id": "c18-t7",
+   "kind": "toolbox",
+   "q": "Time to first sound. Where does it actually go?",
+   "a": "Endpointing, transcription, retrieval, model, then speech synthesis. Text to speech is the reverse of recognition, and modern systems are neural rather than concatenative. Critically, they can stream, producing the first chunk of audio before the sentence has finished generating. The largest avoidable chunk of the budget is usually here. What streaming buys is the reply becoming audible before it is finished, which for a voice-only interface is the product. A system that waits for a complete sentence adds its whole generation time to what the user feels. Nothing you tune upstream recovers that if the last stage buffers.",
+   "options": null,
+   "correct": null,
+   "flag": "Optimising the language model first. It is rarely the biggest slice, and the stage after it is the one the user hears.",
+   "teach": null
+  },
+  {
+   "id": "c18-f1",
+   "kind": "fundamentals",
+   "q": "In two sentences, what does this do?",
+   "a": "Somebody speaks what they want and an order gets placed, with no screen at any point. Behind it the catalogue is a public network rather than one shop. So the request has to be understood well enough to search. And the answers have to be delivered one sentence at a time.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it as a voice assistant for shopping. That skips the network, and the network is what makes the problem interesting.",
+   "teach": {
+    "title": "What RAG is doing here, precisely",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0018-voice-commerce-ondc.html#what-rag-is-doing-here-precisely"
+   }
+  },
+  {
+   "id": "c18-f2",
+   "kind": "fundamentals",
+   "q": "What does ONDC change about the engineering?",
+   "a": "The catalogue is not yours and the answers are asynchronous. You send one search to a gateway, it broadcasts to many seller platforms, and their replies arrive separately over the next few seconds. There is no single response to wait for.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating it as an API you call. It is a protocol with callbacks, and the shape of those callbacks is the reason this is hard in voice.",
+   "teach": {
+    "title": "The collision that defines the product",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0018-voice-commerce-ondc.html#the-collision-that-defines-the-product"
+   }
+  },
+  {
+   "id": "c18-f3",
+   "kind": "fundamentals",
+   "q": "Results are still arriving. When do you start speaking?",
+   "a": "That is the central design decision and it has no technical answer. A screen never faces it, because it can add rows. Voice has to commit. What I would do is acknowledge immediately, which buys network time. Then a deadline in the low seconds, and rank over whatever has arrived.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling it a timeout. A timeout is an error path. This is a normal-path decision about how much of the network you are willing to miss.",
+   "teach": {
+    "title": "The collision that defines the product",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0018-voice-commerce-ondc.html#the-collision-that-defines-the-product"
+   }
+  },
+  {
+   "id": "c18-f4",
+   "kind": "fundamentals",
+   "q": "Why does voice make ranking so much more important?",
+   "a": "Because you get three results. A screen shows twenty at a glance and a person scans them, so a mediocre ranking is recovered by the eye. In speech, anything outside the first three does not exist. Reading three product titles with sellers and prices is already thirty seconds.",
+   "options": null,
+   "correct": null,
+   "flag": "Proposing to read more results. Ten spoken results is two minutes, and nobody is listening by the fourth.",
+   "teach": {
+    "title": "Speech has a bandwidth of about three",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0018-voice-commerce-ondc.html#speech-has-a-bandwidth-of-about-three"
+   }
+  },
+  {
+   "id": "c18-f6",
+   "kind": "fundamentals",
+   "q": "What are the functions the model can call?",
+   "a": "The protocol stages. Search, select, init, confirm, then status and track. That is a good function set because it is small, fixed and already typed by somebody else. The important property is that everything before confirm is reversible and confirm is not.",
+   "options": null,
+   "correct": null,
+   "flag": "Inventing a wider set. The protocol already defines the vocabulary, and matching it keeps the model inside a space that has code behind every value.",
+   "teach": null
+  },
+  {
+   "id": "c18-f7",
+   "kind": "fundamentals",
+   "q": "What has to be true before confirm is called?",
+   "a": "An explicit spoken yes, after reading back the item, the quantity, the price and the address. Confirm is the one irreversible step, so it follows the rule from chapter 0013. Reversible actions can be taken and mentioned. Irreversible ones get asked about first.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating silence or a continuation as consent. In voice the user cannot see the cart, so nothing except a yes counts as having seen it.",
+   "teach": null
+  },
+  {
+   "id": "c18-f9",
+   "kind": "fundamentals",
+   "q": "What actually goes wrong most often?",
+   "a": "Speech recognition, not the model. Brand names, product names and numbers are where recognisers fail, and an order is made of exactly those. Quantities are the dangerous ones because small numbers sound alike and get code-mixed between languages.",
+   "options": null,
+   "correct": null,
+   "flag": "Focusing on model hallucination. It happens, and it is not the thing that breaks orders. The transcript is.",
+   "teach": {
+    "title": "Checkout is where the honest answers live",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0018-voice-commerce-ondc.html#checkout-is-where-the-honest-answers-live"
+   }
+  },
+  {
+   "id": "c18-f10",
+   "kind": "fundamentals",
+   "q": "What is the riskiest claim in this bullet?",
+   "a": "The word checkout. Voice search is easy to believe. Voice checkout invites two immediate questions, about address and about payment. The second risk is voice-only, because if a screen ever appeared, that word is doing more work than it should.",
+   "options": null,
+   "correct": null,
+   "flag": "Naming ONDC as the risk. It is the most credible part, since it is a public protocol somebody can check.",
+   "teach": {
+    "title": "What RAG is doing here, precisely",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0018-voice-commerce-ondc.html#what-rag-is-doing-here-precisely"
+   }
+  },
+  {
+   "id": "c18-d1",
+   "kind": "deep-dive",
+   "q": "What is the latency budget for one voice turn?",
+   "a": "Under about two seconds before a person thinks something is wrong. Then sum the chain. Recognition, intent, retrieval, a network search across sellers, ranking, generation, then speech synthesis. The network search alone can eat the whole budget, which is why acknowledging early is structural rather than cosmetic.",
+   "options": null,
+   "correct": null,
+   "flag": "Quoting a model latency. The model is one term in a chain of seven, and it is rarely the largest.",
+   "teach": null
+  },
+  {
+   "id": "c18-d2",
+   "kind": "deep-dive",
+   "q": "Where does streaming help?",
+   "a": "Twice, at both ends. Partial transcripts let intent work start before the person finishes speaking. And synthesis should start on the first sentence rather than the whole reply. That is the same argument as chapter 0002. What a person feels is time to first output, not total time.",
+   "options": null,
+   "correct": null,
+   "flag": "Only streaming the model. Generating fast and then synthesising the whole paragraph gives back everything you saved.",
+   "teach": null
+  },
+  {
+   "id": "c18-d3",
+   "kind": "deep-dive",
+   "q": "Why does barge-in matter more here than in a chat product?",
+   "a": "Because a wrong turn costs the listener the entire sentence. On a screen you skip a bad answer in a glance. In speech you sit through it unless you can interrupt. Barge-in is what makes a thirty-second read-out of three results tolerable at all.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling it a polish feature. Without it, the cost of a ranking mistake goes up by the length of the sentence.",
+   "teach": null
+  },
+  {
+   "id": "c18-d5",
+   "kind": "deep-dive",
+   "q": "One seller platform never answers the search.",
+   "a": "Then it is simply absent from the results. There is no error to report, because nothing said it was going to answer. That is the normal case rather than a failure. And the deadline is per request rather than per seller, so one slow platform cannot hold the turn.",
+   "options": null,
+   "correct": null,
+   "flag": "Waiting for all sellers. There is no list of who was going to answer, so there is nothing to wait for.",
+   "teach": {
+    "title": "The collision that defines the product",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0018-voice-commerce-ondc.html#the-collision-that-defines-the-product"
+   }
+  },
+  {
+   "id": "c18-d6",
+   "kind": "deep-dive",
+   "q": "How do you rank results from different sellers?",
+   "a": "Carefully, because the fields are not comparable. Different platforms describe the same product differently and price includes different things. Ranking on price alone rewards whoever excluded delivery. The workable version scores relevance to the spoken request first, then uses price as a tie-break within a band.",
+   "options": null,
+   "correct": null,
+   "flag": "Sorting by price. It looks neutral and it systematically favours whichever seller reports the number most optimistically.",
+   "teach": null
+  },
+  {
+   "id": "c18-d7",
+   "kind": "deep-dive",
+   "q": "Why keep a local catalogue at all?",
+   "a": "Because understanding the request and fulfilling it are different jobs. The local copy tells you what categories and attributes exist, so a vague sentence can become a valid search in milliseconds. The network is what actually returns buyable items with live prices. Using the cache for the second job is where staleness bites.",
+   "options": null,
+   "correct": null,
+   "flag": "Serving results from the cache. A price or an availability read from a stale copy is a broken order rather than a slow one.",
+   "teach": {
+    "title": "What RAG is doing here, precisely",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0018-voice-commerce-ondc.html#what-rag-is-doing-here-precisely"
+   }
+  },
+  {
+   "id": "c18-d8",
+   "kind": "deep-dive",
+   "q": "Quantities get spoken in mixed languages. What do you do?",
+   "a": "Treat number extraction as its own step rather than trusting the transcript. A recogniser hearing two languages in one phrase will produce plausible text with the wrong number in it. Then read the quantity back before confirm, always, because this is the field where a mistake costs real money.",
+   "options": null,
+   "correct": null,
+   "flag": "Handling it in the prompt. The error is upstream of the model, in the transcript the model is reading.",
+   "teach": null
+  },
+  {
+   "id": "c18-d9",
+   "kind": "deep-dive",
+   "q": "Where does the cart live during the conversation?",
+   "a": "Server side, keyed to the session, never in the conversation. The transcript records what was said, not what is true. If the cart only exists in the dialogue, a summarisation or a dropped turn silently changes an order. That is the same argument as the schedule in chapter 0015.",
+   "options": null,
+   "correct": null,
+   "flag": "Keeping state in the context window. It works until the conversation gets long, and then it fails quietly.",
+   "teach": {
+    "title": "What RAG is doing here, precisely",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0018-voice-commerce-ondc.html#what-rag-is-doing-here-precisely"
+   }
+  },
+  {
+   "id": "c18-d10",
+   "kind": "deep-dive",
+   "q": "How would you evaluate this?",
+   "a": "In three separate places, because one number hides everything. Recognition accuracy on product names and numbers specifically. Whether the right item was in the first three. And completion rate from first utterance to confirmed order. The middle one is the metric this product lives on.",
+   "options": null,
+   "correct": null,
+   "flag": "A single end-to-end success rate. It tells you something broke and never which of the three.",
+   "teach": {
+    "title": "Checkout is where the honest answers live",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0018-voice-commerce-ondc.html#checkout-is-where-the-honest-answers-live"
+   }
+  },
+  {
+   "id": "c18-d11",
+   "kind": "deep-dive",
+   "q": "Is voice-only a constraint or a feature?",
+   "a": "Both, and they point at different users. For somebody cooking it is convenience. For somebody who cannot read a screen it is access, and that is the stronger reason to build it. It also raises the bar, because a convenience feature can fail back to a screen and an access feature cannot.",
+   "options": null,
+   "correct": null,
+   "flag": "Only arguing convenience. The accessibility case is both more compelling and more demanding, and naming it shows you know which product you built.",
+   "teach": null
+  },
+  {
+   "id": "c18-d12",
+   "kind": "deep-dive",
+   "q": "Where does this break first in the real world?",
+   "a": "Noise and accent, long before anything architectural. A market, a kitchen, a bus. Recognition degrades and every stage downstream inherits it. The second place is patience. Every extra clarifying question is another turn, and people abandon a voice flow far faster than a form.",
+   "options": null,
+   "correct": null,
+   "flag": "Answering on scale. There is no traffic problem here that a normal service does not have.",
+   "teach": {
+    "title": "Speech has a bandwidth of about three",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0018-voice-commerce-ondc.html#speech-has-a-bandwidth-of-about-three"
+   }
+  },
+  {
+   "id": "c18-e1",
+   "kind": "edges",
+   "q": "The deadline passes and nothing has arrived.",
+   "a": "Say so plainly and offer to widen the search. The failure mode to avoid is filling the silence with something adjacent, because a listener cannot see that it is a substitute. On a screen a loose match is obviously a loose match. Spoken, it sounds like the answer.",
+   "options": null,
+   "correct": null,
+   "flag": "Reading out the nearest thing. Voice removes the user's ability to notice that the result is not what they asked for.",
+   "teach": {
+    "title": "The collision that defines the product",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0018-voice-commerce-ondc.html#the-collision-that-defines-the-product"
+   }
+  },
+  {
+   "id": "c18-e2",
+   "kind": "edges",
+   "q": "Mid-flow they change what they want.",
+   "a": "The state has to be discardable at any turn, which is easier said than built. A half-built order is server state, and a new intent has to invalidate it rather than merge with it. Merging is how somebody ends up with the old quantity attached to the new item.",
+   "options": null,
+   "correct": null,
+   "flag": "Carrying fields forward helpfully. It is invisible to the user, so the mistake only surfaces at read-back or after delivery.",
+   "teach": {
+    "title": "What RAG is doing here, precisely",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0018-voice-commerce-ondc.html#what-rag-is-doing-here-precisely"
+   }
+  },
+  {
+   "id": "c18-e3",
+   "kind": "edges",
+   "q": "The read-back is wrong and they say no.",
+   "a": "Then the useful design asks which part, rather than restarting. Restarting punishes the user for the system's mistake and it is the most common reason people abandon a voice flow. Item, quantity and address are three separate slots, so a correction should land on one of them.",
+   "options": null,
+   "correct": null,
+   "flag": "Starting over. Two more minutes of speaking to fix one wrong word is how a product loses somebody permanently.",
+   "teach": {
+    "title": "What RAG is doing here, precisely",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0018-voice-commerce-ondc.html#what-rag-is-doing-here-precisely"
+   }
+  },
+  {
+   "id": "c18-e4",
+   "kind": "edges",
+   "q": "Somebody else in the room says something.",
+   "a": "The system has no way to know, which is worth admitting. Speaker identification helps a little and is not reliable in a noisy room. The mitigation is the same read-back before confirm, because it catches a wrong slot regardless of who caused it.",
+   "options": null,
+   "correct": null,
+   "flag": "Claiming voice biometrics solve it. They are unreliable in exactly the conditions where this happens.",
+   "teach": {
+    "title": "What RAG is doing here, precisely",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0018-voice-commerce-ondc.html#what-rag-is-doing-here-precisely"
+   }
+  },
+  {
+   "id": "c18-e5",
+   "kind": "edges",
+   "q": "Between select and confirm, the item goes out of stock.",
+   "a": "The protocol will tell you at init or confirm, and the answer is to say it and offer the next candidate. What you must not do is quietly substitute. The user has no screen showing what is in the order, so a silent substitution is discovered at the door.",
+   "options": null,
+   "correct": null,
+   "flag": "Auto-substituting a similar item. Reasonable on a screen where it is visible, and not defensible when nothing is visible.",
+   "teach": null
+  },
+  {
+   "id": "c18-e6",
+   "kind": "edges",
+   "q": "They want to cancel after confirm.",
+   "a": "That is a protocol stage rather than a product feature, and the network decides what is still cancellable. The honest voice design says what the system actually knows. Asking the seller to cancel is not the same as having cancelled. Only one of those is true at that moment.",
+   "options": null,
+   "correct": null,
+   "flag": "Confirming a cancellation you have only requested. In voice there is no status screen to correct it later.",
+   "teach": {
+    "title": "What RAG is doing here, precisely",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0018-voice-commerce-ondc.html#what-rag-is-doing-here-precisely"
+   }
+  },
+  {
+   "id": "c18-e7",
+   "kind": "edges",
+   "q": "Defend “voice-only” in this bullet.",
+   "a": "Only if it was. If a screen was available for payment or for a new address, then it was voice-first and I would say that instead. The distinction matters because voice-only is a much harder claim, and it is the one an interviewer will probe on exactly those two flows.",
+   "options": null,
+   "correct": null,
+   "flag": "Defending it loosely. Payment and address are where a screen usually reappears, and those are the first two things anyone asks about.",
+   "teach": null
+  },
+  {
+   "id": "c18-e8",
+   "kind": "edges",
+   "q": "What would you change?",
+   "a": "Measure whether the right item was in the first three. That is the number this product lives on, and everything else is downstream of it. Put an idempotency key on confirm if there is not one. And stop treating clarifying questions as a failure, because one good question beats four spoken results.",
+   "options": null,
+   "correct": null,
+   "flag": "Proposing a better model. The binding constraints here are the transcript, the ranking and the network deadline.",
+   "teach": {
+    "title": "Speech has a bandwidth of about three",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0018-voice-commerce-ondc.html#speech-has-a-bandwidth-of-about-three"
+   }
+  },
+  {
+   "id": "0018-q1",
+   "kind": "quiz",
+   "q": "What does delivering results by speech do to the retrieval requirement?",
+   "a": "<p>A screen shows twenty results at a glance and the eye repairs a mediocre ranking. Speech delivers about three in ten seconds, and anything outside those three effectively does not exist.</p>\n    <p>That is why one narrowing question is cheaper than four more results. It halves the candidate set at the cost of a single turn, and the ranking then only has to be right about a smaller set.</p>",
+   "options": [
+    "Only the first three results ever get heard",
+    "Results must be summarised before they are spoken",
+    "The catalogue needs an index rebuilt every hour",
+    "Spoken queries are longer than typed ones are"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Speech has a bandwidth of about three",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0018-voice-commerce-ondc.html#speech-has-a-bandwidth-of-about-three"
+   }
+  },
+  {
+   "id": "0018-q2",
+   "kind": "quiz",
+   "q": "ONDC sellers answer a search separately, over seconds. What must voice decide?",
+   "a": "<p>A screen never faces this, because it can render three results and add four more as they arrive. The first sentence spoken is a commitment about what the answer is, so the system has to pick a moment.</p>\n    <p>There is also no list of who was going to reply, so there is nothing to wait for and no count to expect. The deadline belongs to the request, not to any seller.</p>",
+   "options": [
+    "When to stop waiting and begin speaking",
+    "Which seller platform should be queried first",
+    "Whether the user prefers speech or text",
+    "How many callbacks the gateway will send"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "The collision that defines the product",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0018-voice-commerce-ondc.html#the-collision-that-defines-the-product"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“What is ONDC, and why does it matter here?”",
+   "a": "<p>An open network for commerce in India. Instead of integrating with one marketplace, a buyer application sends a search to a gateway and the gateway broadcasts it to many seller platforms. Their answers come back separately as callbacks over the next few seconds. That matters here because there is no single response to wait for, and a voice channel can only say one thing at a time, so the system has to decide when it knows enough to speak.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The collision that defines the product",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0018-voice-commerce-ondc.html#the-collision-that-defines-the-product"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“How is this different from a voice wrapper over a normal shop?”",
+   "a": "<p>A normal shop gives you one response with a list in it. Here the results arrive over seconds from platforms that never told you they were going to reply. On a screen that is invisible, because you render three rows and add four more. In voice the first sentence is a commitment. So the design is to acknowledge immediately, which buys network time, then set a deadline on the request rather than on any seller, and rank over whatever arrived.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The collision that defines the product",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0018-voice-commerce-ondc.html#the-collision-that-defines-the-product"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“How does somebody give you a delivery address?”",
+   "a": "<p>They do not dictate one. A spoken address through a recogniser, in a kitchen or on a street, is a delivery failure waiting to happen. Saved addresses live in the profile and the system reads one back for a yes. Choosing between three saved addresses is a good voice interaction. Entering a new one is not, and that is a case where the right answer is that this flow does not belong in voice at all.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Checkout is where the honest answers live",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0018-voice-commerce-ondc.html#checkout-is-where-the-honest-answers-live"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“What stops a dropped connection from ordering twice?”",
+   "a": "<p>An idempotency key generated per order attempt and sent with every retry, so the network can recognise a repeat rather than create a second order. It matters more here than in most products because this is a mobile flow in India, so a dropped connection is the normal case and not an edge case. A timeout tells you nothing about whether the order was created, which is exactly why the client cannot decide on its own to try again.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“What breaks first in the real world?”",
+   "a": "<p>Speech recognition, and long before anything architectural. Brand names, product names and numbers are exactly where recognisers fail, and an order is made of those three things. Quantities are the worst, because small numbers sound alike and get code-mixed between languages. That is why the quantity is read back before confirm every single time, and why I would treat number extraction as its own step rather than trusting the transcript.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Checkout is where the honest answers live",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0018-voice-commerce-ondc.html#checkout-is-where-the-honest-answers-live"
+   }
+  }
+ ]
+}

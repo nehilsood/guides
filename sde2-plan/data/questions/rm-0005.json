@@ -1,0 +1,539 @@
+{
+ "lesson": "rm-0005",
+ "label": "RM 0005",
+ "track": "project",
+ "title": "Agentic Pipeline-Failure Debugging",
+ "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "c05-t1",
+   "kind": "toolbox",
+   "q": "What is CrewAI, and what is a Crew made of?",
+   "a": "CrewAI is a Python framework for building systems where several model-driven workers cooperate. A Crew is a set of agents and a set of tasks. Each agent has a role, a goal and tools it may use. Each task has a description, an expected output and an owner. You describe the team and the brief in Python. It handles the prompting, the tool calls, and the passing of one task's output into the next. What that buys here is separation. Each crew's prompt, tools and permissions are scoped to one kind of failure. The SQL specialist never sees infrastructure credentials, and its instructions stay short enough to be reliable. A Crew holds no state between runs and has no branching of its own.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing a Crew as the whole system. It is the worker. Everything about ordering and retries sits above it.",
+   "teach": null
+  },
+  {
+   "id": "c05-t2",
+   "kind": "toolbox",
+   "q": "What is a Flow, and why is it not just a bigger Crew?",
+   "a": "A Flow is CrewAI's orchestration layer, and a genuinely different thing. It is an ordinary Python class whose methods are wired together by decorators. Start marks the entry point, listen fires a method when a named earlier one finishes, and router branches by returning a label. A typed state object is threaded through every step. What that buys is a state machine you can read in one file and test without calling a model at all. The branching lives in Python, where it can be unit tested, rather than in a prompt, where it cannot. The Flow is deterministic code. Only the crews inside it ask a model anything, and being able to point at that line is the whole answer.",
+   "options": null,
+   "correct": null,
+   "flag": "Implying the model chooses the route. The router is a Python function reading state, and that is the reason the path is reproducible.",
+   "teach": {
+    "title": "The shape: a state machine, not a conversation",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#the-shape-a-state-machine-not-a"
+   }
+  },
+  {
+   "id": "c05-t3",
+   "kind": "toolbox",
+   "q": "What is DSPy, and what does a signature give you?",
+   "a": "DSPy lets you program a model instead of prompting it. Rather than writing prompt text, you declare a signature. That is named input fields, named output fields, and a line saying what the transformation is. A module implements that signature with a technique such as ReAct. DSPy then generates the actual prompt from the declaration. What it buys is prompts that stop being strings people edit by hand and hope about. The declaration is typed and version-controlled, and the wording underneath can be regenerated rather than argued over. An optimizer can go further and rewrite that prompt by testing candidates against a metric. Using the signatures without ever running an optimizer is a perfectly fair answer.",
+   "options": null,
+   "correct": null,
+   "flag": "Implying you compiled and optimized prompts if you did not. The declaration alone is worth having, and claiming the optimizer invites a question about the dev set.",
+   "teach": null
+  },
+  {
+   "id": "c05-t4",
+   "kind": "toolbox",
+   "q": "What is ReAct?",
+   "a": "A loop rather than a single call. The model writes down a thought, picks an action, and sees the result. Then it goes round again with that result in view, until it can answer. Reasoning and acting interleave instead of the model planning everything up front. What that buys is the ability to follow evidence. You cannot know which log to read second until you have read the first. A single-shot prompt has to guess the whole path in advance. The part worth naming is the iteration cap. The loop has no natural end and a confused model will go round forever. What happens when it runs out is a decision you made.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling it a prompting style. It is a control loop with a budget, and the budget is the part that reaches production.",
+   "teach": null
+  },
+  {
+   "id": "c05-t5",
+   "kind": "toolbox",
+   "q": "What is a vector store, and what is actually stored in it?",
+   "a": "Embeddings. A model reads a piece of text and outputs a fixed-length list of numbers, placed so that texts meaning similar things land close together. Each past incident goes in as one of those. Retrieval is nearest neighbour, usually by cosine distance, rather than keyword match. What that buys is matching on meaning instead of wording. Two incidents describing the same root cause in entirely different words still land near each other, which keyword search would never connect. On human-written error reports that is the only kind of similarity worth having. The catch is that vectors are only comparable within one embedding model. Changing the model makes every stored vector meaningless, so it is a migration rather than a config change.",
+   "options": null,
+   "correct": null,
+   "flag": "“It searches semantically” with nothing behind it. Say what is stored, how distance is measured, and what makes the distance meaningless.",
+   "teach": {
+    "title": "The shape: a state machine, not a conversation",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#the-shape-a-state-machine-not-a"
+   }
+  },
+  {
+   "id": "c05-t6",
+   "kind": "toolbox",
+   "q": "You said crews run in parallel. What does a thread pool actually give you in Python?",
+   "a": "Overlapped waiting, not overlapped computation. A thread pool takes callables and hands back futures, with the pool size capping how many run at once. The GIL means two threads never run Python bytecode at the same instant. It is released around blocking calls, so three crews waiting on model responses do overlap. What that buys is a total time close to the slowest crew rather than the sum of all of them. The cap is what stops four simultaneous model calls becoming forty. That is the whole benefit here, and it is enough, because none of the work is CPU-bound. Say it before the interviewer says it to you.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying “in parallel” and meaning cores. With threads in Python you get concurrency. Claiming parallelism invites the GIL question and you will lose it.",
+   "teach": {
+    "title": "The triage, which is the real idea",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#the-triage-which-is-the-real-idea"
+   }
+  },
+  {
+   "id": "c05-t7",
+   "kind": "toolbox",
+   "q": "What is exponential backoff, and what is missing from doubling alone?",
+   "a": "Backoff doubles the wait after each failure. One second, then two, then four, then eight. The idea is that a struggling dependency gets hit less often as it struggles more. Otherwise every client hammers it at a fixed rate at once. What that buys is retries that help instead of finishing the job off. A fixed-interval retry storm is how a recoverable outage becomes an unrecoverable one. What doubling alone lacks is jitter. Every client that failed at the same moment retries at the same moment. The pattern repeats at each step, so the herd survives the backoff. A real implementation randomises within the window. It also needs a ceiling and a give-up point.",
+   "options": null,
+   "correct": null,
+   "flag": "Stopping at “we retry with backoff.” Jitter and a cap are the two follow-ups, and naming them unprompted is what separates read-about from run-in-production.",
+   "teach": {
+    "title": "Where it retries itself, and why that is the weak spot",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#where-it-retries-itself-and-why-that"
+   }
+  },
+  {
+   "id": "c05-f1",
+   "kind": "fundamentals",
+   "q": "In two sentences, what does this system do?",
+   "a": "It reads a failed data pipeline's error log and decides what kind of failure it is. From there it does one of three things. It reruns the job, it ignores it, or it investigates properly. On that third path it proposes a fix it can apply and retrigger without a person.",
+   "options": null,
+   "correct": null,
+   "flag": "Opening with CrewAI. The framework is the least interesting fact about this system and it invites the weakest follow-up.",
+   "teach": null
+  },
+  {
+   "id": "c05-f2",
+   "kind": "fundamentals",
+   "q": "Why is it a state machine rather than agents talking to each other?",
+   "a": "Because the control path has to be readable. <code>PipelineDebuggerFlow</code> has decorated steps and explicit routers, so you can read what happens next in one file. A system where agents decide the sequence cannot answer why it did something, and this one can retrigger production.",
+   "options": null,
+   "correct": null,
+   "flag": "“That is how CrewAI works.” Flows are one option in CrewAI and crews talking is another. It was a choice.",
+   "teach": {
+    "title": "The shape: a state machine, not a conversation",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#the-shape-a-state-machine-not-a"
+   }
+  },
+  {
+   "id": "c05-f3",
+   "kind": "fundamentals",
+   "q": "What are the three triage categories?",
+   "a": "RETRY, OVERLOOK and INVESTIGATE. Retry is for transient faults like timeouts and connection resets. Overlook is for things outside our control, such as a file that never arrived. Investigate is everything else, and it is the only branch that costs real money.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it as classification. It is admission control, and saying so frames the whole system correctly.",
+   "teach": {
+    "title": "The triage, which is the real idea",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#the-triage-which-is-the-real-idea"
+   }
+  },
+  {
+   "id": "c05-f4",
+   "kind": "fundamentals",
+   "q": "What is in the vector store?",
+   "a": "Past incidents and known issues, in ChromaDB collections. The screener retrieves the top five most similar entries and puts them in context before deciding. So the triage decision is informed by what happened last time a log looked like this one.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling it RAG and stopping. Name what is retrieved and what it is used for, because the retrieval here feeds a routing decision rather than an answer.",
+   "teach": {
+    "title": "The triage, which is the real idea",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#the-triage-which-is-the-real-idea"
+   }
+  },
+  {
+   "id": "c05-f5",
+   "kind": "fundamentals",
+   "q": "Why is the screener written in DSPy when everything else is CrewAI?",
+   "a": "Because the screener's output is a decision, not prose. A DSPy signature declares typed fields, so <code>resolution_category</code> comes back as one of three literals with a confidence float. There is no parsing step and no chance of a fourth category appearing. For a routing decision that is worth a second framework.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying it was inherited. Two frameworks in one service needs a reason, and this one has a good one.",
+   "teach": {
+    "title": "What stands between a model's opinion and production",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#what-stands-between-a-models-opinion-and"
+   }
+  },
+  {
+   "id": "c05-f6",
+   "kind": "fundamentals",
+   "q": "What is a crew, concretely?",
+   "a": "A set of agents with tools and tasks, pointed at one kind of problem, run by a process. There are crews for code debugging, file issues and documentation lookups, plus a review crew that synthesises everything. Each one is a bundle of capability, not a personality.",
+   "options": null,
+   "correct": null,
+   "flag": "Anthropomorphising. “The SQL expert talks to the file expert” is how people describe systems they have not read.",
+   "teach": null
+  },
+  {
+   "id": "c05-f9",
+   "kind": "fundamentals",
+   "q": "What does the investigation return?",
+   "a": "A typed <code>PipelineDebugSolution</code>. It carries the investigation text and a step-by-step resolution. It also carries an action that is either apply or manual intervention required. Then optional corrected code with its type, and a confidence bounded between zero and one. The action being a two-value literal is the part that matters.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying it returns a recommendation. The shape is the safety property, in the same way the claim schema was in chapter 0001.",
+   "teach": {
+    "title": "What stands between a model's opinion and production",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#what-stands-between-a-models-opinion-and"
+   }
+  },
+  {
+   "id": "c05-f10",
+   "kind": "fundamentals",
+   "q": "What is the riskiest claim in this bullet?",
+   "a": "The word “parallel,” because the default configuration is sequential. The second riskiest is “infrastructure,” since infra is reached as a tool on the lead manager rather than as its own crew. Both are one question deep, so I would say them before being asked.",
+   "options": null,
+   "correct": null,
+   "flag": "Naming the autonomy as the risk. Autonomy is the impressive part and it is well gated. The wording is what will not survive contact.",
+   "teach": {
+    "title": "The word in the résumé that needs correcting",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#the-word-in-the-resume-that-needs"
+   }
+  },
+  {
+   "id": "c05-d1",
+   "kind": "deep-dive",
+   "q": "Walk me through the flow from failure to retrigger.",
+   "a": "Start loads the workflow data. The screener classifies. A router branches on the category. Investigate dispatches the lead manager or the parallel crews. Response review synthesises into a typed solution. An action router reads the recommendation. If it says apply, trigger retry calls <code>retrigger_pipeline</code> with the resolution attached.",
+   "options": null,
+   "correct": null,
+   "flag": "Skipping the routers. They are where the decisions live, and naming them shows you have read the control path rather than the README.",
+   "teach": null
+  },
+  {
+   "id": "c05-d2",
+   "kind": "deep-dive",
+   "q": "Why put triage in front at all? Why not investigate everything?",
+   "a": "Cost and latency. A full investigation is a large-model reasoning loop with up to ten tool calls. Most nightly failures are timeouts and missing files. If every one of those triggered an investigation, the system would be too slow and too expensive. It would be turned off, which means it would not exist.",
+   "options": null,
+   "correct": null,
+   "flag": "Framing it as accuracy. It is admission control, and the honest reason is that the expensive path has to be rare.",
+   "teach": {
+    "title": "The triage, which is the real idea",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#the-triage-which-is-the-real-idea"
+   }
+  },
+  {
+   "id": "c05-d3",
+   "kind": "deep-dive",
+   "q": "The retrieval feeds a routing decision rather than an answer. Why does that distinction matter?",
+   "a": "Because the failure modes are different. In normal retrieval, a bad chunk gives a worse answer. Here a bad chunk changes which branch runs. A misleading similar incident can turn an investigate into a retry, and the pipeline reruns and fails again with nobody looking. Retrieval quality becomes a control-flow property.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating this as ordinary RAG. The consequence of a bad retrieval here is a wrong action, not a wrong sentence.",
+   "teach": {
+    "title": "The shape: a state machine, not a conversation",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#the-shape-a-state-machine-not-a"
+   }
+  },
+  {
+   "id": "c05-d4",
+   "kind": "deep-dive",
+   "q": "Why k equals five, and what would you change it to?",
+   "a": "Five is a chosen default and I would say so. The tradeoff is real though. Too few and a genuinely known issue is missed. Too many and unrelated incidents dilute the context and pull the category around. What I would actually do is measure category stability as k varies, because that is the number that matters here.",
+   "options": null,
+   "correct": null,
+   "flag": "Justifying five after the fact. An unexamined k is normal and admitting it, then naming the experiment, is the stronger answer.",
+   "teach": {
+    "title": "The triage, which is the real idea",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#the-triage-which-is-the-real-idea"
+   }
+  },
+  {
+   "id": "c05-d5",
+   "kind": "deep-dive",
+   "q": "Lead manager or separate crews. Which is better and why is the flag defaulted where it is?",
+   "a": "They optimise different things. The lead manager reasons across tools, so it can use a file finding to direct a code lookup. Separate crews are faster because they run together, but they cannot see each other's findings. Defaulting to the manager trades latency for the ability to follow a thread.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying parallel is simply better. Parallel loses cross-tool reasoning, and knowing what you gave up is the point.",
+   "teach": {
+    "title": "The word in the résumé that needs correcting",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#the-word-in-the-resume-that-needs"
+   }
+  },
+  {
+   "id": "c05-d6",
+   "kind": "deep-dive",
+   "q": "Name everything between a model's opinion and a production rerun.",
+   "a": "Four things. The screener has to route to investigate. The solution's action field has to say apply rather than manual intervention required. The action router has to agree and return trigger retry. And <code>ENABLE_RETRIGGER_PIPELINE</code> has to be on, with a threshold bounding how many retriggers are allowed.",
+   "options": null,
+   "correct": null,
+   "flag": "Not having the list ready. This is the question the autonomy claim exists to invite, and hesitating here undoes the whole bullet.",
+   "teach": {
+    "title": "What stands between a model's opinion and production",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#what-stands-between-a-models-opinion-and"
+   }
+  },
+  {
+   "id": "c05-d7",
+   "kind": "deep-dive",
+   "q": "The response reviewer retries itself. Talk me through that.",
+   "a": "It wraps the crew call in a try block. On a model error it increments a counter and sleeps two to the power of that count. Then it calls itself again, to a maximum of three attempts. It is recursion rather than a loop. That is fine at three, and a higher bound would grow the stack.",
+   "options": null,
+   "correct": null,
+   "flag": "Not costing it. Three attempts with one, two and four second sleeps is seven seconds of sleep plus three synthesis runs, and that sits inside somebody's deadline.",
+   "teach": {
+    "title": "Where it retries itself, and why that is the weak spot",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#where-it-retries-itself-and-why-that"
+   }
+  },
+  {
+   "id": "c05-d8",
+   "kind": "deep-dive",
+   "q": "Both the screener and the solution return a confidence. What do you do with it?",
+   "a": "Honestly, less than we should. It is captured and available for thresholding but the routing is on category rather than on confidence. The obvious improvement is to require a minimum confidence before an autonomous retrigger, so a hesitant apply becomes a manual intervention instead of an action.",
+   "options": null,
+   "correct": null,
+   "flag": "Claiming it gates behaviour. If it does not, saying so and naming the improvement is better than being caught.",
+   "teach": {
+    "title": "What stands between a model's opinion and production",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#what-stands-between-a-models-opinion-and"
+   }
+  },
+  {
+   "id": "c05-d9",
+   "kind": "deep-dive",
+   "q": "The screener says RETRY and it is wrong. What happens?",
+   "a": "The pipeline reruns and fails the same way. That is mostly self-limiting, because a real fault does not fix itself, and the retrigger threshold bounds how many times. The genuine cost is delay: a real problem looks like a flaky one for another cycle, and nobody is paged in the meantime.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling it harmless. It is the cheaper of the two wrong answers, and it still burns a scheduling window.",
+   "teach": {
+    "title": "What stands between a model's opinion and production",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#what-stands-between-a-models-opinion-and"
+   }
+  },
+  {
+   "id": "c05-d10",
+   "kind": "deep-dive",
+   "q": "And a wrong OVERLOOK?",
+   "a": "That one is worse, and I would volunteer it. Overlook closes the failure with no action and no rerun. A real fault classified as beyond our control simply disappears, and downstream jobs fail for reasons nobody connects back. Retry is self-correcting and overlook is not, so overlook is where I would want precision measured.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating the three categories as equally risky. They are not, and knowing which one silently loses information is the senior observation.",
+   "teach": {
+    "title": "The triage, which is the real idea",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#the-triage-which-is-the-real-idea"
+   }
+  },
+  {
+   "id": "c05-d11",
+   "kind": "deep-dive",
+   "q": "Tell me about the feature flags and their defaults.",
+   "a": "Three matter. <code>USE_LEAD_MANAGER</code> defaults true, which is why the default path is sequential. <code>ENABLE_RETRIGGER_PIPELINE</code> defaults true, so the autonomous action is on. And <code>ENABLE_PIPELINE_VALIDATIONS</code> defaults <em>false</em>, which is the one I would raise myself in any conversation about safety.",
+   "options": null,
+   "correct": null,
+   "flag": "Not knowing the defaults. A flag whose default you cannot state is a behaviour you do not control.",
+   "teach": {
+    "title": "The word in the résumé that needs correcting",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#the-word-in-the-resume-that-needs"
+   }
+  },
+  {
+   "id": "c05-d12",
+   "kind": "deep-dive",
+   "q": "How would you measure whether this system is working?",
+   "a": "Per category, not overall. Overlook precision, because a wrong overlook loses a real failure. Retrigger success rate, meaning the share of autonomous reruns that then pass. And the fraction of investigations a human later disagreed with. A single accuracy number across all three categories would hide the only one that matters.",
+   "options": null,
+   "correct": null,
+   "flag": "Proposing one overall accuracy figure. The categories have different costs, so they need different metrics.",
+   "teach": {
+    "title": "The triage, which is the real idea",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#the-triage-which-is-the-real-idea"
+   }
+  },
+  {
+   "id": "c05-e1",
+   "kind": "edges",
+   "q": "The system applies a fix that makes things worse. What stops that?",
+   "a": "Less than I would like, and that is the honest answer. The action field and the feature flag gate whether a fix is applied at all. What is missing is a validation layer proving the fix before it runs, and <code>ENABLE_PIPELINE_VALIDATIONS</code> defaults to false. Chapter 0006 is about that layer, and its default is the thing to know.",
+   "options": null,
+   "correct": null,
+   "flag": "Claiming validation always runs. The flag default says otherwise, and an interviewer who reads config will find it.",
+   "teach": null
+  },
+  {
+   "id": "c05-e2",
+   "kind": "edges",
+   "q": "What stops an infinite retrigger loop?",
+   "a": "<code>RETRIGGER_PIPELINE_THRESHOLD</code>, which defaults to one. So a failure gets one autonomous rerun and then stops being eligible. That is a blunt instrument and the right kind of blunt. A counter that a model cannot reason its way past is worth more here than a smarter rule.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing a clever adaptive policy. For an autonomous production action, the boring hard limit is the feature.",
+   "teach": {
+    "title": "What stands between a model's opinion and production",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#what-stands-between-a-models-opinion-and"
+   }
+  },
+  {
+   "id": "c05-e3",
+   "kind": "edges",
+   "q": "A failure arrives that looks like nothing in the store. What happens?",
+   "a": "The screener retrieves five loosely similar incidents and still has to return a category. That is the uncomfortable case, because the retrieval is unconditional. There is no “nothing matched” branch. The safe design would be a similarity floor below which it routes to investigate by default, and that is not there.",
+   "options": null,
+   "correct": null,
+   "flag": "Assuming a low-similarity result is ignored. Top-k always returns k, and knowing that about your own retriever is the answer.",
+   "teach": {
+    "title": "The shape: a state machine, not a conversation",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#the-shape-a-state-machine-not-a"
+   }
+  },
+  {
+   "id": "c05-e4",
+   "kind": "edges",
+   "q": "Somebody resolves an incident incorrectly and it goes into the store. What then?",
+   "a": "It becomes evidence. The store is built from past incidents and their resolutions, so a wrong resolution teaches the screener to make the same mistake on similar logs. That is a data quality problem with a control-flow consequence, and it argues for the store being curated rather than appended to automatically.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating the incident history as ground truth. People wrote it, under time pressure, at night.",
+   "teach": {
+    "title": "The shape: a state machine, not a conversation",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#the-shape-a-state-machine-not-a"
+   }
+  },
+  {
+   "id": "c05-e5",
+   "kind": "edges",
+   "q": "Twenty pipelines fail at once from one upstream outage. What does the system do?",
+   "a": "Twenty independent investigations, because nothing correlates them. Each one sees its own log and reaches its own conclusion, and they will mostly agree, expensively. The right shape is to cluster failures within a window before triage, and that does not exist. It is the change I would make first at scale.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying the screener would catch it. The screener sees one log at a time and has no notion of a concurrent storm.",
+   "teach": {
+    "title": "The triage, which is the real idea",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#the-triage-which-is-the-real-idea"
+   }
+  },
+  {
+   "id": "c05-e6",
+   "kind": "edges",
+   "q": "ChromaDB is unavailable when a failure arrives.",
+   "a": "The screener loses its context and has to decide from the log alone. The important question is whether that degrades to investigate or to something cheaper. Failing towards investigate is the safe default, because it costs money rather than losing a failure. I would want that to be explicit rather than emergent.",
+   "options": null,
+   "correct": null,
+   "flag": "Not having a view. Every dependency has a failure behaviour, and the interviewer is asking which direction yours fails in.",
+   "teach": {
+    "title": "The triage, which is the real idea",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#the-triage-which-is-the-real-idea"
+   }
+  },
+  {
+   "id": "c05-e7",
+   "kind": "edges",
+   "q": "The system retriggers a pipeline at 3am and it corrupts a table. Who is accountable?",
+   "a": "The team that turned the flag on, and that is the correct answer rather than a deflection. The design makes it a deliberate decision. An operator sets <code>ENABLE_RETRIGGER_PIPELINE</code> and a threshold. What I would add before any post-mortem is an audit record. It should tie every autonomous action to the category, the solution and the confidence.",
+   "options": null,
+   "correct": null,
+   "flag": "Blaming the model. Autonomy is a configuration choice a human made, and saying so is what makes the design defensible.",
+   "teach": {
+    "title": "What stands between a model's opinion and production",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#what-stands-between-a-models-opinion-and"
+   }
+  },
+  {
+   "id": "c05-e8",
+   "kind": "edges",
+   "q": "What would you change first?",
+   "a": "Turn the validation flag on and make it required before any autonomous apply. Then add a similarity floor to the screener so an unfamiliar failure routes to investigate rather than guessing. Third, cluster concurrent failures before triage. The first one is a config change with a real safety payoff.",
+   "options": null,
+   "correct": null,
+   "flag": "Reaching for a better model. Everything limiting this system is a gate that is off or a policy that is missing.",
+   "teach": null
+  },
+  {
+   "id": "0005-q1",
+   "kind": "quiz",
+   "q": "The screener classifies a failure as RETRY. What happens next?",
+   "a": "<p>The router returns RETRY and the expensive branch is never entered. That is the point of the triage: transient faults are the common case and they must not cost an investigation.</p>\n    <p>Completing silently is what OVERLOOK does, and the difference matters. A wrong RETRY is mostly self-correcting because the job fails again. A wrong OVERLOOK closes the incident and loses it.</p>",
+   "options": [
+    "The flow retries it without dispatching any debugging crew",
+    "A lead manager investigates using all five available tools",
+    "Three specialist crews run in parallel against the logs",
+    "The failure is recorded and the flow completes silently"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "The triage, which is the real idea",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#the-triage-which-is-the-real-idea"
+   }
+  },
+  {
+   "id": "0005-q2",
+   "kind": "quiz",
+   "q": "With <code>USE_LEAD_MANAGER</code> at its default value, how do the specialist capabilities run?",
+   "a": "<p>The flag defaults to true, so one agent holds past incidents, file, code, lineage and infra as five tools and works through them in a ReAct loop. A ReAct loop is sequential by construction, because each tool is chosen after reading the last result.</p>\n    <p>The parallel option is real but it is the other branch, and it uses three worker threads over confluence, code and file. The résumé says parallel, which describes the branch that is switched off.</p>",
+   "options": [
+    "Sequentially, as tools inside a single reasoning loop",
+    "In parallel, across a pool of independent threads",
+    "Sequentially, but only once the screener has escalated",
+    "In parallel, spawning one crew per separate fault"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "The word in the résumé that needs correcting",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#the-word-in-the-resume-that-needs"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“What stops this from breaking production?”",
+   "a": "<p>Four gates, in order. The screener has to route to investigate rather than retry or overlook. The solution has to come back with its action field set to apply rather than manual intervention required. The action router has to agree. And a feature flag has to be on, with a threshold that defaults to a single retrigger per failure. I would also tell you what is missing: a validation layer exists and its flag defaults to off.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What stands between a model's opinion and production",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#what-stands-between-a-models-opinion-and"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“In parallel? Walk me through the dispatcher.”",
+   "a": "<p>I would correct my own wording there. The dispatcher branches on <code>USE_LEAD_MANAGER</code>, which defaults to true. On that path it is one agent with five tools, reasoning across them in sequence, capped at ten iterations. The other branch uses a three-worker thread pool over confluence, code and file, which is genuinely parallel, and it is not the default. Infrastructure is a tool rather than a crew in either case.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The word in the résumé that needs correcting",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#the-word-in-the-resume-that-needs"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“Which of your three categories is the dangerous one?”",
+   "a": "<p>Overlook. A wrong retry is largely self-correcting, because the job runs again and fails again, and the threshold bounds it. A wrong overlook closes the incident with no action and no rerun, so a real failure disappears and downstream jobs break for reasons nobody connects back to it. If I could measure one thing about this system it would be overlook precision.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“Your retriever always returns five results. What if nothing is actually similar?”",
+   "a": "<p>Then it returns the five least dissimilar things, and the screener still has to choose a category. There is no similarity floor and no nothing-matched branch, which is a real gap. The fix I would want is a distance threshold below which it routes to investigate by default, so an unfamiliar failure fails towards spending money rather than towards silence.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The triage, which is the real idea",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#the-triage-which-is-the-real-idea"
+   }
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“Twenty pipelines fail at once. What does your system do?”",
+   "a": "<p>Twenty independent investigations, because nothing correlates them. Each sees only its own log. They will mostly reach the same conclusion at twenty times the cost, and twenty retriggers may hit an upstream that is still down. The shape I would add is clustering failures inside a time window before triage, so one investigation covers the incident and the rest reference it.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The triage, which is the real idea",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0005-agentic-pipeline-debugging.html#the-triage-which-is-the-real-idea"
+   }
+  }
+ ]
+}

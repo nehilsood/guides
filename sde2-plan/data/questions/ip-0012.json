@@ -1,0 +1,159 @@
+{
+ "lesson": "ip-0012",
+ "label": "IP 0012",
+ "track": "ai",
+ "title": "The Twin in the Test Set",
+ "url": "https://nehilsood.github.io/guides/interview-prep/guides/0012-the-twin-in-the-test-set.html",
+ "plain": [
+  {
+   "title": "In plain words",
+   "url": "https://nehilsood.github.io/guides/interview-prep/guides/0012-the-twin-in-the-test-set.html#plain-1"
+  }
+ ],
+ "questions": [
+  {
+   "id": "F1",
+   "kind": "follow-up",
+   "q": "Why not just hash the files? Exact matching is cheap and has no threshold to argue about.",
+   "a": "<p>Because it has already been tried, by competent people, on a public corpus, and it was not enough. StarCoderData was decontaminated against HumanEval and MBPP with string matching before release. Riddell and colleagues then searched it and still found exact matches for <strong>18.9% of HumanEval</strong> and 20.8% of MBPP.</p>\n    <p>The mechanism is simple: a hash is a function of every byte, so a licence header, a version bump or one renamed identifier produces a completely unrelated digest. DéjàVu measured this directly — Java has 40% byte-identical duplicates and 46% near-duplicates, so moving from exact to near matching found a further sixth of the corpus. Exact hashing is a cheap <em>first</em> pass and I would still run it, because it is free and it removes the easy mass before the expensive stage.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Near-dedup, and the two places it breaks",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0012-the-twin-in-the-test-set.html#near-dedup-and-the-two-places-it"
+   }
+  },
+  {
+   "id": "F2",
+   "kind": "follow-up",
+   "q": "You run the pipeline and a third of your corpus ends up in one cluster. What happened?",
+   "a": "<p>Almost certainly transitive chaining. LSH produces pairs; connected components turns pairs into groups and in doing so asserts that near-duplication is transitive, which it is not. A single false-positive edge merges two unrelated clusters, and once a few of those exist the components cascade.</p>\n    <p>The second possibility is that it is <strong>correct</strong>, and I would check that before assuming a bug: DéjàVu’s largest clone group had over 65,000 files in it, and was real. So the diagnosis is re-verification, not a size cap — sample pairs from inside the component, compute true Jaccard, and see whether it is one dense blob or two blobs joined by one edge.</p>\n    <p>The fix that actually works is upstream of all of it: delete vendored paths before hashing. One popular package checked into ten thousand repositories links all ten thousand into one group, and removing it by path costs nothing and dissolves most of the problem.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F3",
+   "kind": "follow-up",
+   "q": "Defend 0.7. Why not 0.8, or 0.5?",
+   "a": "<p>Honestly: because it is what the open code corpora converged on, and because it was arrived at by someone moving off a worse value. SantaCoder started at unigram shingles with a 0.85 threshold, found unigrams generated far too many false positives, and moved to 5-grams at 0.7 — which removed a further 16–20% of files from an already-deduplicated dataset. The shingle size and the threshold trade off against each other and it is not meaningful to quote one without the other.</p>\n    <p>What I would not do is quote the same number for two different jobs. <strong>For a training filter and for a split, the error costs are asymmetric in different ways.</strong> Over-removing from training wastes a little data you have plenty of; BigCode found that skipping the verification step entirely and treating every LSH candidate as a duplicate actually gave the best downstream model. Over-removing from a split costs you test rows. Under-removing from a split leaves a twin across the line and silently invalidates the headline. So I would run the split clustering looser than the training filter, and say that is a deliberate choice rather than an oversight.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Near-dedup, and the two places it breaks",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0012-the-twin-in-the-test-set.html#near-dedup-and-the-two-places-it"
+   }
+  },
+  {
+   "id": "F4",
+   "kind": "follow-up",
+   "q": "Suppose the training corpus is already deduplicated. Do I still need a grouped split?",
+   "a": "<p>Yes, and the two are doing different jobs. Deduplicating the training corpus changes <em>what the model saw</em> — it reduces memorisation and, per the BigCode and SantaCoder results, generally improves the model. A grouped split changes <em>what the evaluation measures</em>. Neither implies the other.</p>\n    <p>The concrete case: dedup collapses a cluster of five copies to one surviving file. That file is still in the corpus, and a random split can still put it in training while a <em>near</em>-duplicate that fell under your threshold goes to test. Dedup reduces the number of twins; it does not change the rule that a random split assigns whatever twins remain independently.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F5",
+   "kind": "follow-up",
+   "q": "Is removing duplicates not throwing away signal? Real code is duplicated too — that is the deployment distribution.",
+   "a": "<p>This is the strongest objection on the list and it is partly right, so I would concede the valid half immediately. For <strong>training</strong>, duplication is a frequency question. Common idioms genuinely are common, and down-weighting a duplicated file is often better than deleting it, because deleting it distorts the prior in the other direction.</p>\n    <p>For <strong>evaluation</strong> the argument does not transfer, and the reason is specific. A test set is not supposed to reproduce the deployment distribution of <em>content</em>; it is supposed to estimate performance on inputs the model did not learn from. If your users really do write code that already exists in your training set, then you should measure <em>that</em> explicitly as its own bucket, not let it hide inside an aggregate that also claims to measure novel code. One sentence covers it: <strong>you may choose to train on duplicates; you may never score on them without saying so.</strong></p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The group is a property of the claim, not of the data",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0012-the-twin-in-the-test-set.html#the-group-is-a-property-of-the"
+   }
+  },
+  {
+   "id": "F6",
+   "kind": "follow-up",
+   "q": "Fine — I will split by repository. Is that enough?",
+   "a": "<p>It is the floor, not the answer, and it is a real improvement: a repository split blocks sibling files, which is the one leak no dedup catches. It cost MCMD 53% relative to a random split, so it is clearly doing something.</p>\n    <p>What it does not block is the largest source of duplication. Vendored code crosses repositories by definition — that is what vendoring is — so the same library sits in a thousand repositories, and a repository split puts some in train and some in test with no difficulty at all. Forks are separate repositories. A LeetCode solution pasted into four hundred personal repositories is four hundred repositories. The repository boundary is simply not the boundary duplication respects.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The group is a property of the claim, not of the data",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0012-the-twin-in-the-test-set.html#the-group-is-a-property-of-the"
+   }
+  },
+  {
+   "id": "F7",
+   "kind": "follow-up",
+   "q": "Walk me through the temporal split. Which timestamp do you use?",
+   "a": "<p>None of the available ones mean what I want, so the first move is to say what I actually need: the date the code was <em>written</em>, which a scrape does not contain. The commit timestamp is when it was committed to <em>this</em> repository, which for vendored code is the copy date and can be fifteen years late. <code>repo_created_at</code> is when somebody made the repository, which says nothing about the age of its contents. File mtime is when my scraper cloned it.</p>\n    <p>I would use <code>repo_created_at</code> anyway, because it is the most defensible of a bad set and it matches the deployment story — new repositories are what the model will meet. But I would record in the manifest that the field does not mean what its name suggests, and I would state the resulting hole explicitly: <strong>a 2014 library vendored into a 2026 repository lands on the test side while the original sits in training.</strong> Time orders events. Copying is not an event in a file’s timeline.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Time orders events. It does not order copies.",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0012-the-twin-in-the-test-set.html#time-orders-events-it-does-not-order"
+   }
+  },
+  {
+   "id": "F8",
+   "kind": "follow-up",
+   "q": "A temporal split makes the test set harder for reasons unrelated to leakage. How do you separate the two?",
+   "a": "<p>Re-run the previous model on the same temporal test set. The absolute scores are not what the announcement was about — the gap between the two models is.</p>\n    <p><strong>Distribution shift moves both models down together and preserves the gap</strong>, because the new test set is simply harder and both feel it equally. <strong>Leakage attacks the gap specifically</strong>, because the new model’s advantage lived in items that had already been seen, and removing those items removes the advantage. If both scores fall and the gap survives, I had a harder test set and a real improvement. If the gap collapses, I had a contaminated one.</p>\n    <p>That is one extra evaluation run of a checkpoint I already have, and it is the cheapest decisive measurement in this whole area.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What you check before you announce",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0012-the-twin-in-the-test-set.html#what-you-check-before-you-announce"
+   }
+  },
+  {
+   "id": "F9",
+   "kind": "follow-up",
+   "q": "Could you not just rank test items by loss and inspect the low-perplexity tail?",
+   "a": "<p>It is the obvious idea and it has been tested and it does not work. LessLeak-Bench looked directly and reported that “the Perplexity of leaked samples is not necessarily lower than that of non-leaked samples” — and that above a perplexity of 10, leaked samples actually outnumber clean ones.</p>\n    <p>Which makes sense once stated: perplexity confounds memorisation with difficulty, with length, with how stereotyped the code is, and with the model’s general competence on that language. Provenance is a question about <em>where a string came from</em>, and the instrument for that is searching the corpus, not interrogating the model about its own memory.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F10",
+   "kind": "follow-up",
+   "q": "Your audit shows the entire gain sits in the high-overlap bucket. Is the model worthless?",
+   "a": "<p>No — it is a model whose benefit you have now located, which is strictly better than a model whose benefit you were guessing about. Three cases, and they have different answers.</p>\n    <p>If the product is autocomplete inside a company’s own monorepo, then recognising code that resembles code already in that repository <em>is the job</em>, and memorisation is a feature rather than a bug. In that case I would stop calling it a generalisation benchmark and start measuring it on the population it serves. If the claim was generalisation to unfamiliar code, I have no evidence for it, and the correct action is to retract the claim rather than the model. And if the gain is large in the high-overlap bucket and merely small in the clean one, that is a genuine, narrower, defensible result — it is just a different announcement.</p>\n    <p>The output of a review like this should rarely be “ship” or “revert.” It is almost always <em>narrow the claim to the population the evidence covers</em>, which is why the manifest has a <code>narrow_to</code> field.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What you check before you announce",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0012-the-twin-in-the-test-set.html#what-you-check-before-you-announce"
+   }
+  },
+  {
+   "id": "F11",
+   "kind": "follow-up",
+   "q": "Now do it on a hundred terabytes. What breaks first?",
+   "a": "<p>Not the MinHash. A 256-permutation signature is about a kilobyte per file and computing it is embarrassingly parallel. LSH banding is a group-by on band hashes, which is a shuffle — large, but a solved kind of large.</p>\n    <p>What breaks is the <strong>union-find over the resulting edge set</strong>, because it is inherently sequential and the edge list runs to hundreds of millions of pairs. The practical answers are an iterative distributed algorithm — large-star / small-star contraction, which repeatedly points each node at the smallest id in its neighbourhood until the edges stabilise — or filtering hard enough that the graph fits on one big-memory machine.</p>\n    <p>The more useful answer is that <em>for a split audit you do not need the full clustering at all.</em> Full clustering is an all-pairs problem over the corpus. Checking whether test items have twins in training is a one-sided lookup: index the training side once, then query it with each test item. That is linear in the test set, which at 5% is twenty times cheaper, and it answers the question you actually asked.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Near-dedup, and the two places it breaks",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0012-the-twin-in-the-test-set.html#near-dedup-and-the-two-places-it"
+   }
+  },
+  {
+   "id": "F12",
+   "kind": "follow-up",
+   "q": "What is the generalisable lesson here, beyond code?",
+   "a": "<p>That every evaluation has a <strong>unit of independence</strong> hidden inside it, and the name of the evaluation almost never mentions it. “Held-out 5%” tells you the size and says nothing about the unit, and the unit is where the entire validity of the number lives. Medical imaging learned it as the patient, speech as the speaker, recommenders as the user, chemistry as the scaffold. Code has not settled on a word for it yet, which is exactly why a random file split still looks reasonable to a lot of people.</p>\n    <p>The habit is not suspicion of good results — suspicion is free and it makes you tiresome in a review. It is one question, asked early and without any edge to it, of any number anyone shows you including your own: <strong>what was one row of this a sample of?</strong> If nobody in the room can answer that in a sentence, nothing else about the number is worth discussing yet.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  }
+ ]
+}

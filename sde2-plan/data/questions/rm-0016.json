@@ -1,0 +1,508 @@
+{
+ "lesson": "rm-0016",
+ "label": "RM 0016",
+ "track": "project",
+ "title": "A Pretraining Data Pipeline at 150 GB",
+ "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0016-pretraining-data-pipeline.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "c16-t1",
+   "kind": "toolbox",
+   "q": "What does “C4-style quality filters” actually mean?",
+   "a": "A specific published list, deliberately simple and mechanical. Keep only lines that end in terminal punctuation. Drop documents under a length threshold. Drop boilerplate such as cookie and javascript notices. Drop any document containing blocklisted words. What that buys is a defensible starting point costing nothing to implement, instead of inventing quality heuristics and arguing about them. They were written for open web crawl, where the enemy is spam and navigation furniture. A Confluence export is not the open web. Filters tuned for one distribution discard good documents in another, and the punctuation rule alone will eat code blocks and tables.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying “standard quality filters” with no list. The rules are published and short, and knowing them is the difference between citing a paper and using one.",
+   "teach": {
+    "title": "Web filters on a company wiki",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0016-pretraining-data-pipeline.html#web-filters-on-a-company-wiki"
+   }
+  },
+  {
+   "id": "c16-t2",
+   "kind": "toolbox",
+   "q": "What did FineWeb actually contribute?",
+   "a": "The method, more than the filters. For each candidate rule they trained small models with and without it, and kept only the ones that measurably improved downstream results. The ablations were published. What that buys is evidence a filter helps, rather than a plausible story that it should. Several widely copied heuristics do not survive that test. It is the standard the field moved to, and it is the standard your own filters should be held to. If a filter was never ablated, you know it removed data and you do not know what it bought.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating it as a bigger C4. The contribution was the evidence, and copying the filters without the method misses the point entirely.",
+   "teach": {
+    "title": "Web filters on a company wiki",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0016-pretraining-data-pipeline.html#web-filters-on-a-company-wiki"
+   }
+  },
+  {
+   "id": "c16-t3",
+   "kind": "toolbox",
+   "q": "Why MinHash rather than comparing documents?",
+   "a": "Because pairwise comparison is quadratic and impossible at this size. First each document becomes a set of shingles, which are overlapping windows of consecutive words, so that reordering a sentence cannot hide a copy. MinHash then replaces that huge set with a short signature. It is built so the chance two signatures agree in any position equals the Jaccard similarity of the original sets. Banding hashes slices of those signatures, and only documents landing in the same bucket for some band are ever compared. What that buys is a quadratic problem becoming roughly linear. Comparing every pair here is not slow, it is impossible.",
+   "options": null,
+   "correct": null,
+   "flag": "Naming MinHash without naming the reason. Somebody will ask what it is approximating, and the answer is Jaccard similarity.",
+   "teach": {
+    "title": "MinHash and union-find are one algorithm",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0016-pretraining-data-pipeline.html#minhash-and-union-find-are-one-algorithm"
+   }
+  },
+  {
+   "id": "c16-t4",
+   "kind": "toolbox",
+   "q": "What do the band and row counts decide?",
+   "a": "The similarity threshold. More bands makes the filter more permissive and returns more candidates. Fewer makes it stricter and misses near matches. So choosing them is choosing what you are willing to call a duplicate. What that buys, done deliberately, is a threshold you can defend rather than one you inherited. It pairs with the shingle size, which is the other real knob. Short shingles match too readily and flag unrelated documents. Long ones miss small edits, and Confluence pages are very largely small edits of each other. Both are tuning decisions with a curve behind them, not defaults to take from an example.",
+   "options": null,
+   "correct": null,
+   "flag": "Using the tutorial values and calling it tuned. The honest version names the threshold you were aiming at and admits how you picked it.",
+   "teach": {
+    "title": "MinHash and union-find are one algorithm",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0016-pretraining-data-pipeline.html#minhash-and-union-find-are-one-algorithm"
+   }
+  },
+  {
+   "id": "c16-t5",
+   "kind": "toolbox",
+   "q": "Why run exact deduplication before near deduplication?",
+   "a": "Because exact is nearly free and near is expensive. Exact means hashing each document and grouping identical hashes. One pass, and it catches an enormous share of real duplication. A wiki export is full of those, since pages get copied wholesale and then edited. Near duplicates need the whole MinHash and locality-sensitive hashing machine, and cost orders of magnitude more. What running cheap first buys is the expensive pass operating on a much smaller corpus. It also changes the retention number, so say which pass a figure refers to. The word deduplication covers both, and the figures are very different.",
+   "options": null,
+   "correct": null,
+   "flag": "Quoting one deduplication number. Two passes remove different things, and a combined figure hides which one did the work.",
+   "teach": null
+  },
+  {
+   "id": "c16-t6",
+   "kind": "toolbox",
+   "q": "What does the 150 GB actually count?",
+   "a": "Say whether it is the raw export or the extracted text. A Confluence export is a dump of an internal wiki. Pages as HTML or XML, plus attachments, macros, inline comments and the full version history of every page. Those can easily dominate the byte total. So 150 gigabytes of export may contain far less prose than it sounds. What naming the source precisely buys is that every filter decision follows from the corpus being a wiki rather than the web. The number that means something for pretraining is tokens, and that is a different measurement again.",
+   "options": null,
+   "correct": null,
+   "flag": "Letting the byte count stand as the scale of the work. Tokens are the unit that matters, and converting is one more sentence.",
+   "teach": null
+  },
+  {
+   "id": "c16-t7",
+   "kind": "toolbox",
+   "q": "Where does this pipeline stop being embarrassingly parallel?",
+   "a": "At deduplication. The corpus is split into shards, each processed independently, and the results merged. Filtering is per document, so you shard and run everywhere, and throughput is proportional to cores. Deduplication is inherently global, because a document's duplicate may be in any other shard. That needs a shuffle. What the shuffle decides is the whole infrastructure question. It is why you reach for Spark or Ray rather than a process pool on one large machine. Repetition removal is per document again. So one of three stages sets the architecture, and it is not the one people plan for.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing the whole pipeline as parallel. One of the three stages is not, and it is the one that shapes the infrastructure.",
+   "teach": {
+    "title": "Why the order is the design",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0016-pretraining-data-pipeline.html#why-the-order-is-the-design"
+   }
+  },
+  {
+   "id": "c16-f1",
+   "kind": "fundamentals",
+   "q": "In two sentences, what does this pipeline do?",
+   "a": "It turns a company wiki export into text worth training on. Three passes. One judges each document, one removes near-copies across documents, and one removes documents that repeat themselves.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling it cleaning. That word is doing a lot of work here, and the next question is usually about what it does not clean.",
+   "teach": null
+  },
+  {
+   "id": "c16-f2",
+   "kind": "fundamentals",
+   "q": "Why do the stages run in that order?",
+   "a": "Cheapest and most destructive first. Quality filtering is one regex pass per document and it removes more than anything else. Deduplication has to compare documents against each other, so it should see the smallest corpus possible. Every document filtered earlier is one it never has to look at.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying the order does not matter. It is the only design decision in the bullet that costs nothing to get right and a lot to get wrong.",
+   "teach": {
+    "title": "Why the order is the design",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0016-pretraining-data-pipeline.html#why-the-order-is-the-design"
+   }
+  },
+  {
+   "id": "c16-f4",
+   "kind": "fundamentals",
+   "q": "How does MinHash actually work?",
+   "a": "Cut each document into overlapping short runs of words. Hash that set many times and keep the minimum each time. Two signatures agree at a position with probability equal to the overlap between the two sets. So counting agreements estimates similarity without comparing the documents.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it as a similarity hash and stopping. The property worth naming is that agreement probability equals set overlap, because that is why the estimate is unbiased.",
+   "teach": {
+    "title": "MinHash and union-find are one algorithm",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0016-pretraining-data-pipeline.html#minhash-and-union-find-are-one-algorithm"
+   }
+  },
+  {
+   "id": "c16-f5",
+   "kind": "fundamentals",
+   "q": "You have a pile of near-duplicate pairs. What now?",
+   "a": "Union-find, and this is the part people skip. A pair is a fact, not a decision. If A matches B and B matches C, deleting everything with a duplicate deletes all three. Keeping the first one seen makes the output depend on file order. Grouping first and keeping one per group fixes both.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating the pairs as the output. Order-dependence is the bug this causes, and it is invisible until someone reruns the pipeline.",
+   "teach": {
+    "title": "MinHash and union-find are one algorithm",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0016-pretraining-data-pipeline.html#minhash-and-union-find-are-one-algorithm"
+   }
+  },
+  {
+   "id": "c16-f6",
+   "kind": "fundamentals",
+   "q": "What is repetition removal, and how is it different from dedup?",
+   "a": "It looks inside one document rather than across documents. Duplicate lines, one phrase dominating the text, the same paragraph appearing three times. A page can be unique in the corpus and still be mostly its own navigation bar repeated.",
+   "options": null,
+   "correct": null,
+   "flag": "Conflating the two. They catch different things, and saying which is which is the cheapest way to show you built it rather than read about it.",
+   "teach": null
+  },
+  {
+   "id": "c16-f7",
+   "kind": "fundamentals",
+   "q": "The filters came from web-crawl work. Does that transfer?",
+   "a": "Only partly, and the mismatches matter. C4 drops any page with a curly brace because that means JavaScript on the web. On an engineering wiki it means a code block. The rule about lines ending in punctuation removes tables and API references. Those are the highest-value pages in the corpus.",
+   "options": null,
+   "correct": null,
+   "flag": "Naming fineWeb and C4 as a credential. The interesting answer is which of their rules are wrong here and why.",
+   "teach": {
+    "title": "Web filters on a company wiki",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0016-pretraining-data-pipeline.html#web-filters-on-a-company-wiki"
+   }
+  },
+  {
+   "id": "c16-f8",
+   "kind": "fundamentals",
+   "q": "150 GB went in. What came out?",
+   "a": "That is the number I want ready, because it is the first thing anyone asks. Per-stage counts, not just a total. A pipeline keeping ninety per cent barely ran. One keeping two per cent probably deleted something it should not have. The shape of the drop is what tells you which stage is misconfigured.",
+   "options": null,
+   "correct": null,
+   "flag": "Not knowing. It is the single most informative number about the whole pipeline and its absence reads as not having looked.",
+   "teach": {
+    "title": "The two questions the bullet invites",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0016-pretraining-data-pipeline.html#the-two-questions-the-bullet-invites"
+   }
+  },
+  {
+   "id": "c16-f10",
+   "kind": "fundamentals",
+   "q": "What is the riskiest claim in this bullet?",
+   "a": "“Distilling.” It collides with knowledge distillation, which is a completely different thing and appears on the same résumé. I would say reduced or filtered instead. The second risk is “pretraining data,” because 150 GB is sized for continued pretraining rather than training from scratch.",
+   "options": null,
+   "correct": null,
+   "flag": "Defending “distilling” as a figure of speech. On a résumé that also lists model optimisation, it reads as the technique.",
+   "teach": {
+    "title": "The two questions the bullet invites",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0016-pretraining-data-pipeline.html#the-two-questions-the-bullet-invites"
+   }
+  },
+  {
+   "id": "c16-d1",
+   "kind": "deep-dive",
+   "q": "How do you set the near-duplicate threshold?",
+   "a": "Through the band layout. Cut the signature into more bands and the threshold drops, because a match in any one band makes a pair a candidate. That gives an S-shaped curve rather than a hard cutoff. You are choosing where the curve is steep, which is really a choice about which mistake you prefer.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it as a similarity number you set. The number is a consequence of the band layout, and knowing that is the difference between using it and understanding it.",
+   "teach": {
+    "title": "MinHash and union-find are one algorithm",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0016-pretraining-data-pipeline.html#minhash-and-union-find-are-one-algorithm"
+   }
+  },
+  {
+   "id": "c16-d2",
+   "kind": "deep-dive",
+   "q": "Does shingle size matter?",
+   "a": "A lot. Short shingles make unrelated documents look similar, because everyday phrases collide. Long shingles miss real near-duplicates that differ by a word inserted every sentence. Five words is the usual starting point and it is a starting point rather than an answer.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling it an implementation detail. It is the parameter that decides what the word duplicate means in this pipeline.",
+   "teach": {
+    "title": "MinHash and union-find are one algorithm",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0016-pretraining-data-pipeline.html#minhash-and-union-find-are-one-algorithm"
+   }
+  },
+  {
+   "id": "c16-d3",
+   "kind": "deep-dive",
+   "q": "Within a duplicate group, which document survives?",
+   "a": "Whichever rule you can defend, as long as it is a rule. The longest, the most recently edited, or the one in the most canonical space. What you must not do is take an arbitrary member, because then two runs over the same input give two different corpora.",
+   "options": null,
+   "correct": null,
+   "flag": "Not having a rule. The wiki has version history and space names, so a sensible rule is available and skipping it is a choice.",
+   "teach": {
+    "title": "MinHash and union-find are one algorithm",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0016-pretraining-data-pipeline.html#minhash-and-union-find-are-one-algorithm"
+   }
+  },
+  {
+   "id": "c16-d4",
+   "kind": "deep-dive",
+   "q": "What goes wrong with connected components on a big corpus?",
+   "a": "Chaining. A resembles B, B resembles C, on down a long line, and the two ends have nothing in common. Connected components collapses the whole chain into one group and keeps a single document. On a wiki full of page templates that chain can get long.",
+   "options": null,
+   "correct": null,
+   "flag": "Not knowing this happens. It is the standard criticism of the technique and the interviewer probably knows it.",
+   "teach": {
+    "title": "MinHash and union-find are one algorithm",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0016-pretraining-data-pipeline.html#minhash-and-union-find-are-one-algorithm"
+   }
+  },
+  {
+   "id": "c16-d5",
+   "kind": "deep-dive",
+   "q": "How would you run the grouping across several machines?",
+   "a": "The candidate pairs are the awkward part, not the documents. Pairs come out of a distributed join, and grouping them is a global operation. At this size the pair list usually fits on one machine, so collecting it and running union-find locally is the honest answer. Iterative label propagation is the version that scales past that.",
+   "options": null,
+   "correct": null,
+   "flag": "Reaching for a distributed graph framework first. Checking whether the pair list fits in memory is the cheaper question and usually ends the discussion.",
+   "teach": {
+    "title": "MinHash and union-find are one algorithm",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0016-pretraining-data-pipeline.html#minhash-and-union-find-are-one-algorithm"
+   }
+  },
+  {
+   "id": "c16-d6",
+   "kind": "deep-dive",
+   "q": "How do you decide which quality filters to keep?",
+   "a": "By ablation, which is what fineWeb actually contributed. Build the corpus twice, once with a filter and once without, train a small model on each, and compare on a downstream eval. Borrowing a filter list without the ablation takes the answer and leaves the reasoning behind.",
+   "options": null,
+   "correct": null,
+   "flag": "Justifying filters by inspection. Reading a hundred documents tells you the filter fires, and it does not tell you whether the model got better.",
+   "teach": {
+    "title": "Web filters on a company wiki",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0016-pretraining-data-pipeline.html#web-filters-on-a-company-wiki"
+   }
+  },
+  {
+   "id": "c16-d7",
+   "kind": "deep-dive",
+   "q": "How do you know the output corpus is good?",
+   "a": "Three levels, and only the last is real. Per-stage counts tell you each stage did roughly what you expected. Reading a sample at each boundary catches the embarrassing mistakes. Training a small model on two variants is the only thing that answers the actual question, and it is the expensive one.",
+   "options": null,
+   "correct": null,
+   "flag": "Stopping at counts. Counts prove the code ran, which is not the same claim as the data being better.",
+   "teach": null
+  },
+  {
+   "id": "c16-d8",
+   "kind": "deep-dive",
+   "q": "Did this need a cluster?",
+   "a": "Probably not for stages one and three. Both are per-document passes, and the whole export streams through one machine in under an hour on a decent disk. Stage two has the genuine argument for distribution, because the candidate join is where the work is. Saying that is better than reaching for Spark by default.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating 150 GB as big data. It is one disk. Knowing when not to distribute reads better than knowing how.",
+   "teach": null
+  },
+  {
+   "id": "c16-d9",
+   "kind": "deep-dive",
+   "q": "The bullet says three stages. What is stage zero?",
+   "a": "Parsing, and it is usually where most of the real work went. A Confluence export is structured markup with macros, attachments, comment threads and per-page metadata. Getting text out of that without losing code blocks or keeping navigation chrome is fiddly, and nothing downstream can fix a bad job of it.",
+   "options": null,
+   "correct": null,
+   "flag": "Skipping it because it is not in the bullet. It is the stage that determines what the other three are even looking at.",
+   "teach": {
+    "title": "Web filters on a company wiki",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0016-pretraining-data-pipeline.html#web-filters-on-a-company-wiki"
+   }
+  },
+  {
+   "id": "c16-d10",
+   "kind": "deep-dive",
+   "q": "Is 150 GB a lot of pretraining data?",
+   "a": "No, and I would rather say so. Very roughly it is tens of billions of tokens before filtering and considerably fewer after. That is domain-adaptive pretraining, or continued pretraining on an existing model. Training from scratch wants two or three orders of magnitude more.",
+   "options": null,
+   "correct": null,
+   "flag": "Letting gigabytes stand in for tokens. Tokens are the unit that matters, and converting in your head is expected.",
+   "teach": null
+  },
+  {
+   "id": "c16-d12",
+   "kind": "deep-dive",
+   "q": "Someone asks you to rerun it next month. What has to be true?",
+   "a": "Same input and same code gives the same output. That needs the union-find grouping, a deterministic survivor rule, and pinned hash seeds. Without those three, the corpus quietly differs between runs and you can no longer attribute a model change to anything.",
+   "options": null,
+   "correct": null,
+   "flag": "Assuming determinism. Two of the three stages have order-dependent implementations that look correct.",
+   "teach": null
+  },
+  {
+   "id": "c16-e1",
+   "kind": "edges",
+   "q": "An API reference page is almost entirely repeated structure. Should it go?",
+   "a": "No, and this is where a web-tuned repetition filter is wrong. A parameter table repeats by design. It is also one of the more useful pages in the corpus. The fix is to measure repetition on prose and exclude structured blocks. Loosening the threshold until the filter stops firing is the lazy version.",
+   "options": null,
+   "correct": null,
+   "flag": "Loosening the threshold. That trades a precise fix for a blunt one and lets the real repetition back in.",
+   "teach": null
+  },
+  {
+   "id": "c16-e2",
+   "kind": "edges",
+   "q": "Four hundred pages share a template and differ in one field each.",
+   "a": "Near-duplicate detection groups them and keeps one, which is mostly right. But the differing field may be the only thing of value, and keeping one copy throws away three hundred and ninety-nine facts. The better move is to detect the shared boilerplate and strip it, then judge what is left.",
+   "options": null,
+   "correct": null,
+   "flag": "Accepting the group as a duplicate. The pages are duplicates by similarity and not by content, which is the case where the measure and the intent part ways.",
+   "teach": null
+  },
+  {
+   "id": "c16-e3",
+   "kind": "edges",
+   "q": "A page exists in v1, v2 and v3, all near-identical.",
+   "a": "Keep the newest and only the newest. This is the case where an arbitrary survivor is actively harmful, because two of the three are known to be out of date. The export carries modification dates, so the rule is available. Using it is the difference between deduplication and choosing correctly.",
+   "options": null,
+   "correct": null,
+   "flag": "Keeping the longest. Longest is a reasonable default in general and it is the wrong one when older versions are superseded.",
+   "teach": null
+  },
+  {
+   "id": "c16-e4",
+   "kind": "edges",
+   "q": "A forty-word page contains the one command everyone needs.",
+   "a": "A length filter removes it, and that is a real loss rather than a rounding error. Any threshold has this cost. The way to find out is to read the discarded set rather than only the kept one. Sampling what you threw away is the cheapest check in the pipeline.",
+   "options": null,
+   "correct": null,
+   "flag": "Only inspecting what survived. The discarded pile is where the expensive mistakes are.",
+   "teach": null
+  },
+  {
+   "id": "c16-e5",
+   "kind": "edges",
+   "q": "Part of the wiki is not in English.",
+   "a": "Then a language filter is a decision and not a cleanup step. Dropping it loses real content from teams who wrote in their own language. Keeping it changes what the model is being trained for. Either is defensible and it should be stated as a choice, since it is not a quality question at all.",
+   "options": null,
+   "correct": null,
+   "flag": "Filing it under quality. It is a scope decision wearing a filter's clothes.",
+   "teach": {
+    "title": "The two questions the bullet invites",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0016-pretraining-data-pipeline.html#the-two-questions-the-bullet-invites"
+   }
+  },
+  {
+   "id": "c16-e6",
+   "kind": "edges",
+   "q": "A page is well-written, unique, and factually wrong.",
+   "a": "Every stage keeps it. Nothing in this pipeline measures truth, only form and novelty. That is a genuine limit and it is worth saying plainly, because a stale internal wiki is full of confident, well-formed, out-of-date instructions.",
+   "options": null,
+   "correct": null,
+   "flag": "Suggesting a model could judge correctness. On an internal corpus there is no ground truth to judge it against.",
+   "teach": {
+    "title": "The two questions the bullet invites",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0016-pretraining-data-pipeline.html#the-two-questions-the-bullet-invites"
+   }
+  },
+  {
+   "id": "c16-e7",
+   "kind": "edges",
+   "q": "Defend the word “distilling” in this bullet.",
+   "a": "I would not. I would change it. On a résumé that also claims knowledge distillation, the word reads as the technique rather than as a figure of speech. Reduced or filtered says the same thing and costs nothing, and the interviewer's question then goes somewhere useful.",
+   "options": null,
+   "correct": null,
+   "flag": "Defending it. This is the rare case where conceding the wording is strictly better than winning the point.",
+   "teach": null
+  },
+  {
+   "id": "c16-e8",
+   "kind": "edges",
+   "q": "What would you change?",
+   "a": "Add the fourth stage for secrets and personal data, because nothing here looks for either. Publish per-stage retention and a sample of what each stage discarded. And ablate at least the two filters I inherited from web-crawl work, since those are the ones most likely to be wrong on a wiki.",
+   "options": null,
+   "correct": null,
+   "flag": "Proposing more filters. The gap is evidence and safety, not coverage.",
+   "teach": {
+    "title": "The two questions the bullet invites",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0016-pretraining-data-pipeline.html#the-two-questions-the-bullet-invites"
+   }
+  },
+  {
+   "id": "0016-q1",
+   "kind": "quiz",
+   "q": "Why use MinHash rather than hashing each document and comparing hashes?",
+   "a": "<p>An exact hash finds exact copies. The problem on a wiki is the same release note in four spaces, a template filled in differently, a page with one paragraph added. All of those hash differently and all of them are the same text.</p>\n    <p>Exact hashing is also the faster option, which is why speed is the wrong reason to reject it. MinHash estimates set overlap instead of equality, and that is the property the problem needs.</p>",
+   "options": [
+    "Near-duplicates survive an exact hash match every time",
+    "Exact hashing becomes impossibly slow at this scale",
+    "Hash collisions occur more often than people expect",
+    "Exact hashes cannot be computed across many machines"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "0016-q2",
+   "kind": "quiz",
+   "q": "Which stage should run first, and for what reason?",
+   "a": "<p>Quality filtering is one regex pass per document. It costs almost nothing and it removes more than the other stages do, so everything downstream sees a much smaller corpus.</p>\n    <p>Deduplication is the stage that benefits most from that. It compares documents against each other, so every document filtered earlier is one it never has to shingle, sign or join.</p>",
+   "options": [
+    "Quality filtering, because it eliminates the most",
+    "Deduplication, because it runs over everything twice",
+    "Repetition removal, because it rewrites each document",
+    "Tokenisation, because it dominates the elapsed time"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Why the order is the design",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0016-pretraining-data-pipeline.html#why-the-order-is-the-design"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“Why MinHash and not a hash?”",
+   "a": "<p>Because an exact hash only finds exact copies, and the problem on a wiki is near-copies. The same release note in four spaces, a page template with one field filled in differently, a document with a paragraph added. Every one of those hashes differently and they are all the same text. MinHash estimates how much two documents overlap as sets rather than testing whether they are equal, which is the property the problem actually needs.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "MinHash and union-find are one algorithm",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0016-pretraining-data-pipeline.html#minhash-and-union-find-are-one-algorithm"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“Walk me through the dedup stage.”",
+   "a": "<p>Cut each document into overlapping runs of words so it becomes a set. Hash that set many times, keep the minimum each time, and you have a signature whose positions agree as often as the sets overlap. Cut the signatures into bands and match whole bands to get candidate pairs cheaply. Then the part people skip: those pairs go into union-find, because a pair is a fact and a deletion is a decision. Group first, keep one per group under a stated rule, and the output stops depending on file order.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "MinHash and union-find are one algorithm",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0016-pretraining-data-pipeline.html#minhash-and-union-find-are-one-algorithm"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“150 gigabytes went in. What came out?”",
+   "a": "<p>Per stage rather than as a total, because the shape of the drop is what tells you anything. Quality filtering takes the largest bite, dedup takes the next, and repetition removal is usually small. If a pipeline keeps ninety per cent it barely ran, and if it keeps two per cent it probably deleted something it should not have. I would also show a sample of what each stage discarded, because reading the discarded pile is where the expensive mistakes turn up.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“How did you know the filters were the right ones?”",
+   "a": "<p>The only real test is an ablation. Build the corpus with and without a filter, train a small model on each, and compare on a downstream eval. That is what fineWeb actually contributed, and taking the filter list without the ablation is taking the answer and leaving the reasoning. It matters more here than on a web crawl, because several C4 rules are wrong on an engineering wiki. Dropping pages with curly braces removes code blocks, which are the best content in there.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Web filters on a company wiki",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0016-pretraining-data-pipeline.html#web-filters-on-a-company-wiki"
+   }
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“What stops a secret ending up in the training data?”",
+   "a": "<p>Nothing in these three stages, and I would raise it before being asked. A credential in a code block is unique, well-formed and not repetitive, so every filter I have keeps it. The same goes for pages about individual employees. Clean here means deduplicated and reasonably well-formed, and it does not mean safe to train on. Closing that gap needs a fourth stage doing secret scanning and entity detection, and it is the first thing I would add.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The two questions the bullet invites",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0016-pretraining-data-pipeline.html#the-two-questions-the-bullet-invites"
+   }
+  }
+ ]
+}

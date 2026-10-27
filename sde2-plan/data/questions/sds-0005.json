@@ -1,0 +1,111 @@
+{
+ "lesson": "sds-0005",
+ "label": "SDS 0005",
+ "track": "cs",
+ "title": "Stampede, Penetration, Avalanche",
+ "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0005-stampede-penetration-avalanche.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "0005-q1",
+   "kind": "quiz",
+   "q": "You add a per-key lock but forget to re-check the cache inside it. What happens under 200 concurrent misses?",
+   "a": "<p>The lock serialises them, it does not eliminate them. Each of the 200 waits its turn, acquires the lock, sees no reason to re-check, and computes — so you have converted 200 parallel 600 ms calls into 200 <em>sequential</em> ones. The last request now waits two minutes. You have made it dramatically worse while appearing to add a fix.</p>\n    <p>The double-check inside the lock is the entire mechanism. This is a real bug that ships regularly, and it is why the comment in the lab code is three lines long.</p>",
+   "options": [
+    "All 200 compute in turn, which is slower than before",
+    "Only one computes, because the lock on its own suffices",
+    "All 200 fail, because the lock will always time out",
+    "Half of them compute, as the lock covers late arrivals"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "The three failures",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0005-stampede-penetration-avalanche.html#the-three-failures"
+   }
+  },
+  {
+   "id": "0005-q2",
+   "kind": "quiz",
+   "q": "Which failure does single-flight <em>not</em> help with at all?",
+   "a": "<p>Coalescing works by merging concurrent requests <em>for the same key</em>. If every key is different there is nothing to merge, so penetration passes straight through. It needs a different fix — negative caching, or a Bloom filter where the keyspace is large.</p>\n    <p>Avalanche is the interesting near-miss: single-flight genuinely does help there, because an avalanche is many simultaneous per-key stampedes, and coalescing each one caps the damage. It just does not <em>solve</em> it — you still take a synchronised wave of misses, which is why jitter is the actual fix and coalescing is the safety net underneath.</p>",
+   "options": [
+    "Penetration, where every single requested key is a unique one",
+    "Avalanche, where a warmed keyspace all expires at one moment",
+    "Stampede, where one single popular hot key has just expired",
+    "Modal latency, where the cold code path runs much slower"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "The three failures",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0005-stampede-penetration-avalanche.html#the-three-failures"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“A popular cache key expires and you get 500 concurrent requests. Walk me through what happens.”",
+   "a": "<p>All 500 miss, because the value takes 600 ms to compute and there is nothing in the cache to stop them for that whole window. So you get 500 identical computations of one value, 500× the provider bill, and a latency spike on a path with a hard budget.</p>\n        <p>I have actually run this: 200 concurrent requests for one cold key gave exactly 200 embedding calls. The fix is a lock per key so one computes — and critically the waiters re-check the cache after acquiring it, which took it to one call.</p>\n        Invites · <b>“And if the process holding the lock dies?” — the lock needs a timeout longer than p99 of the compute, and the waiters need a decision: compute anyway, serve stale, or shed.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The three failures",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0005-stampede-penetration-avalanche.html#the-three-failures"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“You added a lock per key. What is the bug?”",
+   "a": "<p>The waiters have to <strong>re-check the cache after they get the lock</strong>. Without that, waiting taught them nothing: each one computes in turn, so 200 parallel misses become 200 serial ones. At 600 ms each that is two minutes, against 600 ms for the stampede I was fixing.</p>\n        <p>The second bug is scope. An <code>asyncio.Lock</code> covers one process, so with four uvicorn workers you get four computations, not one — better than 200 and not what the diagram claims. Beyond one replica it has to be a Redis lock, and then it needs a timeout and a fencing token.</p>\n        Invites · <b>“Is a naive Redis lock safe?” — no, and that is lesson 0030: a lock without a fencing token cannot stop a stalled holder from acting after its lease expired.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The three failures",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0005-stampede-penetration-avalanche.html#the-three-failures"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“Your cache hit rate is 2%. Is the cache helping?”",
+   "a": "<p>Almost certainly not, and I would want to know which of two very different problems it is. If the keys are unique per request — a user's raw query text, say — then there is nothing to hit and the cache is pure added latency plus a Redis to operate.</p>\n        <p>If the keys should repeat but do not, the key is wrong: too much in it, unnormalised text, or something per-request like a timestamp or a request id. That is a bug with a two-minute fix. And 2 % with high cardinality is the penetration shape, where the answer is caching negatives or a Bloom filter rather than a better key.</p>\n        Invites · <b>“So what hit rate would justify it?” — the break-even is where hit_rate × saving exceeds the added round trip on every miss, which for a 600 ms compute against a 1 ms GET is a very low bar.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The three failures",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0005-stampede-penetration-avalanche.html#the-three-failures"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“Why does latency spike every hour on the hour?”",
+   "a": "<p>Everything was written at the same time, so everything expires at the same time. A TTL of one hour set during a deploy or a warm-up loop means the entire keyspace has the same expiry instant, and on that instant every key is a miss simultaneously — an avalanche rather than a stampede.</p>\n        <p>Jitter fixes it: ±10 % on a 3600-second TTL smears expiry across 720 seconds. I verified the spread — stored keys came back with TTLs between 3266 and 3946 rather than all reading 3600.</p>\n        Invites · <b>“How much jitter is enough?” — size it: keys ÷ (2jT) is your recompute rate at the smear, so 20 000 keys at ±10 % of an hour is about 28 per second.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The three failures",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0005-stampede-penetration-avalanche.html#the-three-failures"
+   }
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“Would you rather serve a 5-minute-stale embedding or make the user wait 600 ms?”",
+   "a": "<p>Stale, easily, and for this data it is not even close. An embedding is a pure function of the text and the model version — a five-minute-old vector for unchanged text is not stale, it is <em>correct</em>. The model version is in the cache key, so the only thing that could invalidate it changes the key.</p>\n        <p>Which is the general form of the answer: the question is not how old the value is, it is what could have changed underneath it. For a rubric score I would answer the other way, because someone can re-run an evaluation and the old number is then wrong rather than old.</p>\n        Invites · <b>“So would you serve stale <em>while</em> refreshing?” — yes: stale-while-revalidate gives every caller a fast answer and lets one caller refresh, which is single-flight with the waiting removed.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The three failures",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0005-stampede-penetration-avalanche.html#the-three-failures"
+   }
+  }
+ ]
+}

@@ -1,0 +1,153 @@
+{
+ "lesson": "ip-0001",
+ "label": "IP 0001",
+ "track": "ai",
+ "title": "The Max-Iteration Trap",
+ "url": "https://nehilsood.github.io/guides/interview-prep/guides/0001-the-max-iteration-trap.html",
+ "plain": [
+  {
+   "title": "In plain words",
+   "url": "https://nehilsood.github.io/guides/interview-prep/guides/0001-the-max-iteration-trap.html#plain-1"
+  }
+ ],
+ "questions": [
+  {
+   "id": "F1",
+   "kind": "follow-up",
+   "q": "“Your verifier costs latency too. Haven't you just moved the problem?”",
+   "a": "<p>No, because the economics are asymmetric — and I'd show the arithmetic. A refine pass is a full generation: prefill plus hundreds of decode tokens. A verify step can be a unit-test run (milliseconds, no GPU), a schema validation (microseconds), or a small reward model doing a single forward pass with no long decode. Call refine 800 ms and verify 40 ms. Today I pay 4 × 800 = 3200 ms unconditionally. With a verifier I pay 40 ms × passes + 800 ms × passes_actually_needed, and passes-needed is 1 for most traffic. Expected cost drops even though I added a component.</p>\n      <p>The second half of the answer is that I only need the verifier to be right about <em>stopping</em>, not about grading. That's a much easier calibration problem, and I can tune the threshold asymmetrically: a false “keep going” costs one pass of latency; a false “stop” costs quality. I'd pick the operating point from that cost ratio, not from accuracy.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fix, in the order you'd actually do it",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0001-the-max-iteration-trap.html#the-fix-in-the-order-youd-actually"
+   }
+  },
+  {
+   "id": "F2",
+   "kind": "follow-up",
+   "q": "“There's no verifier for this task. Open-ended prose. Now what?”",
+   "a": "<p>Then I stop running a sequential loop, because sequential refinement without ground truth is the configuration the literature says degrades quality. Three moves, in order:</p>\n      <ul>\n        <li><strong>Find a proxy verifier.</strong> Fully open-ended is rarer than it looks — structural validity, schema conformance, factual claims checkable against retrieval, constraint satisfaction (“did it stay under 200 words / cite three sources / avoid the banned list”), or a tool that executes something. Partial ground truth is still ground truth.</li>\n        <li><strong>Switch depth for width.</strong> Independent samples plus aggregation, or plus a pairwise preference model. One wall-clock round, no error chaining.</li>\n        <li><strong>Escalate instead of iterating.</strong> A cascade: cheap model first, and on low confidence route once to a stronger model rather than looping the weak one. One escalation is bounded latency; a loop isn't.</li>\n      </ul>\n      <p>And if none of that is available, I'd say so plainly: then the honest design is a fixed small budget, and we should stop calling it self-correction and start calling it a fixed-cost second draft.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fix, in the order you'd actually do it",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0001-the-max-iteration-trap.html#the-fix-in-the-order-youd-actually"
+   }
+  },
+  {
+   "id": "F3",
+   "kind": "follow-up",
+   "q": "“p50 didn't move but p99 tripled. What does that fact alone tell you?”",
+   "a": "<p>That the regression is in the <em>tail of the iteration-count distribution</em> or in <em>load-induced queueing</em> — not in the base cost of a pass. If per-pass cost had risen, p50 would have risen too. So most requests are exiting after one pass (good — that means an early-exit signal partly exists, or the loop isn't always entered), and a minority are running to exhaustion.</p>\n      <p>The two candidates are distinguishable: replay identical traffic at low fixed load. If the tail survives, it's the algorithm — a hard slice genuinely runs long. If it collapses, it's contention, and my loop is stealing capacity from unrelated requests. I'd check the correlation between p99 and concurrent-request count before I'd check anything about the model.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F4",
+   "kind": "follow-up",
+   "q": "“Fine — how do you set the budget, if not a constant?”",
+   "a": "<p>Three inputs, none of them a hand-picked integer:</p>\n      <ul>\n        <li><strong>Difficulty.</strong> A cheap router or a difficulty estimate from the prompt assigns a budget per bucket. Optimal allocation varies ~7.5× across difficulty levels, so bucketing is where most of the win is.</li>\n        <li><strong>Deadline.</strong> Budget = remaining_deadline / expected_pass_cost, recomputed each pass and propagated from the caller. Time is what the SLO is written in, so time is what the loop should be governed by. An iteration count is a proxy that goes stale the moment prompt lengths change.</li>\n        <li><strong>Marginal value.</strong> Per bucket, stop where marginal accuracy per millisecond falls below a threshold you choose from the SLO. Published cost-balanced operating points land around 50% compute reduction for ~6% accuracy loss, or ~97% of peak accuracy at 60% of compute — pick the point deliberately, on an efficiency frontier, and treat it as a product decision rather than a tuning artefact.</li>\n      </ul>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fix, in the order you'd actually do it",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0001-the-max-iteration-trap.html#the-fix-in-the-order-youd-actually"
+   }
+  },
+  {
+   "id": "F5",
+   "kind": "follow-up",
+   "q": "“What if the loop never converges — it just oscillates between two answers?”",
+   "a": "<p>That's a real and common mode, and it's detectable rather than merely survivable. <strong>Fixed-point detection:</strong> if the diff between pass k and k+1 is below a threshold, you've converged — stop, don't spend the rest of the budget. <strong>Oscillation detection:</strong> track the answer across passes; a flip-flop pattern is the strongest single predictor of a correct→incorrect transition (r≈0.78). On detecting oscillation, don't pick the latest — return the earliest stable answer or aggregate across passes, because “latest” is a bad default when the process isn't contracting.</p>\n      <p>Framed properly, this is a control-stability question: the loop is a feedback system and it converges only if the correction rate dominates the error-introduction rate. If it's oscillating, the loop is not contracting, and no iteration budget will make it converge. That's the case where you stop iterating entirely rather than tuning the ceiling.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F6",
+   "kind": "follow-up",
+   "q": "“Isn't quality more important than latency here?”",
+   "a": "<p>Past a threshold, latency <em>is</em> quality — and past the client's timeout, latency is an error. If our timeout is 5 s and p99 is 7.2 s, we don't have a slow product, we have a &gt;1% failure rate, plus retry load that makes the tail worse. So it isn't a trade between two goods; it's a constraint.</p>\n      <p>The right framing is: set the SLO from actual user need, then maximise quality subject to it. And the SLO is workload-specific, not universal — voice agents need ~150 ms p99 TTFT because TTS adds 100–200 ms downstream; inline code completion needs sub-100 ms to feel native; a batch/async job can happily take 3 s. If this loop is serving an async review pipeline, tripling p99 might be entirely fine and I'd say so. The bug is that nobody wrote the number down, so we can't tell.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The answer, at three lengths",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0001-the-max-iteration-trap.html#the-answer-at-three-lengths"
+   }
+  },
+  {
+   "id": "F7",
+   "kind": "follow-up",
+   "q": "“Why not just add capacity? GPUs are cheaper than engineering time.”",
+   "a": "<p>Sometimes that's the right call, and I'd cost it rather than dismiss it. But three caveats. First, tail SLOs are bought with headroom, and headroom is superlinear: tightening p99 TTFT from 500 ms to 200 ms at the same RPS costs roughly 35% more infrastructure. Second, capacity fixes the queueing component and does nothing for the algorithmic component — if the tail persists on a low-load replay, no amount of hardware helps. Third, the loop's cost multiplier hits $/request as hard as it hits latency, so scaling up pays the multiplier at a higher unit count. Adding capacity to an uncontrolled amplification loop is how you get a bill that scales with a bug.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F8",
+   "kind": "follow-up",
+   "q": "“Walk me through how you'd ship the real fix safely.”",
+   "a": "<ul>\n        <li><strong>Write the SLO first</strong> — p99 E2E target, error budget, burn-rate alerts (a 14.4× burn over an hour pages).</li>\n        <li><strong>Offline first.</strong> Replay production traffic; compute paired per-request quality deltas, not aggregates; report the regression rate on the hard slice as a named guardrail metric.</li>\n        <li><strong>Shadow.</strong> Run the verifier in shadow mode to measure its stop-decision precision/recall against known outcomes before it controls anything.</li>\n        <li><strong>Canary</strong> on a small traffic slice, watching both the tail and the guardrail. Latency wins that cost quality must be visible in the same review.</li>\n        <li><strong>Kill switch and circuit breaker.</strong> Loop off entirely under tail-budget burn; degrade to one pass rather than dropping requests.</li>\n        <li><strong>Leave the cap in</strong>, as a fuse, and alert when it fires — because a firing cap now means the smarter mechanism failed, which is information.</li>\n      </ul>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fix, in the order you'd actually do it",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0001-the-max-iteration-trap.html#the-fix-in-the-order-youd-actually"
+   }
+  },
+  {
+   "id": "F9",
+   "kind": "follow-up",
+   "q": "“How does this interact with the inference engine specifically?”",
+   "a": "<p>Four concrete interactions. <strong>Prefix cache:</strong> refinement passes share a long prefix, so hit rate on passes 2..N should be near 1; if it isn't, we're re-prefilling a growing context N times and that alone can explain a 3× tail. <strong>Batch slots:</strong> loop requests are long-lived; concurrent-request count predicts tail TTFT better than GPU utilisation, so autoscale on concurrency, around 24–28 rather than waiting for 80% GPU. <strong>KV memory:</strong> long-lived requests raise cache pressure, and pressure causes preemption and re-prefill — a cliff that appears only in the tail. <strong>Scheduling:</strong> continuous batching removes queue-level head-of-line blocking but not the token-iteration-level version, and FCFS treats a 5th refinement pass as equal in priority to someone's first request. That's the policy I'd change first: refinement passes go in a lower-priority class so they can never crowd out first passes. That's the same “prioritise originals over retries” remedy used against retry storms.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F10",
+   "kind": "follow-up",
+   "q": "“You keep saying the loop is like a retry storm. Make that precise.”",
+   "a": "<p>A metastable failure needs a trigger and a sustaining positive feedback loop. Trigger: a load spike or a capacity loss. Sustaining loop: higher latency → more requests in flight → refinement passes queue behind first passes → less effective capacity for first passes → higher latency. The defining symptom is that the system stays degraded <em>after the trigger goes away</em>, because the amplified work is now self-sustaining. The remedies transfer directly: a <strong>global budget</strong> on in-flight refinement work (not per-request — total, so the amplification factor is bounded system-wide), a <strong>circuit breaker</strong> that drops to one pass, and <strong>separate queues</strong> so originals beat retries. I'd add: an uncapped loop is worse than a retry storm in one way, because it's <em>internal</em> — no client-side backoff will ever throttle it.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F11",
+   "kind": "follow-up",
+   "q": "“Suppose the extra passes genuinely do help, every time, measured properly. Is the cap fine then?”",
+   "a": "<p>Then the cap becomes an explicit, priced quality/latency decision rather than a band-aid — and that's a legitimate place to land, provided three things are true. One, the budget is <em>adaptive</em>, so the cap isn't spending easy requests' compute on nothing; a uniform cap wastes budget on easy items and starves hard ones even when refinement always helps. Two, the cap is expressed as a <em>deadline</em> and the algorithm is <em>anytime</em>, so you always return the best answer available at the deadline instead of a truncated one. Three, you've decided what happens to the requests that hit the ceiling — silently returning a worse answer is different from telling the caller “partial”, and for some products that distinction matters a lot.</p>\n      <p>So: same conclusion, different reason. Even in the best case the fix isn't “cap iterations”, it's “budget time, adaptively, and degrade gracefully.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F12",
+   "kind": "follow-up",
+   "q": "“Your teammate is in the room and is annoyed. What do you actually say to them?”",
+   "a": "<p>“Let's ship your cap this afternoon — the tail is bleeding and I'd rather have a fuse than an argument. I want to add a wall-clock deadline next to it, because prompt lengths drift and an iteration count won't hold. Then can we spend a day on instrumentation before we pick the number? If the tail turns out to be queueing, the cap is treating the wrong system, and I'd hate for us to tune a constant for a month over something that's a scheduler config.”</p>\n      <p><em>Why this matters:</em> the question includes a teammate on purpose. The failure mode candidates fall into is treating “band-aid” as an invitation to be contemptuous. Take the stopgap, name the follow-up, and keep the disagreement about the system rather than about the person.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fix, in the order you'd actually do it",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0001-the-max-iteration-trap.html#the-fix-in-the-order-youd-actually"
+   }
+  }
+ ]
+}

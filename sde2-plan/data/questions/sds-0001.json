@@ -1,0 +1,95 @@
+{
+ "lesson": "sds-0001",
+ "label": "SDS 0001",
+ "track": "hld",
+ "title": "Latency Budget Arithmetic",
+ "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0001-latency-budget-arithmetic.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "0001-q1",
+   "kind": "quiz",
+   "q": "Your ceiling is 8 s and the measured total is 2.1 s. What is that remaining 5.9 s actually for?",
+   "a": "<p>Headroom is not slack you have failed to spend — it is what absorbs variance. A median of 2.1 s against an 8 s ceiling says nothing about how often a turn breaches, because the median is the one statistic guaranteed to ignore the half of the distribution that breaches things. It is also what you draw on when a retry doubles a hop.</p>\n    <p>“Space for three more model calls” is the tempting wrong answer: it treats the budget as capacity to fill rather than variance to absorb, and it is how an 8 s budget quietly becomes a 9 s p99.</p>",
+   "options": [
+    "Headroom for the tail, retries, and slower hops",
+    "Nothing at all, because medians hide tail cost",
+    "Space to append three more sequential model calls",
+    "Assurance that no turn will ever breach budget"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0001-latency-budget-arithmetic.html#underneath-0001"
+   }
+  },
+  {
+   "id": "0001-q2",
+   "kind": "quiz",
+   "q": "Which single change to the table above buys you the most headroom?",
+   "a": "<p>The LLM hop is 880 ms of a 2102 ms turn — about 42%. Halving it saves 440 ms. Overlapping retrieval with ASR is a genuinely good idea and it is the <em>second</em> answer, but it can only ever save 165 ms, because that is all retrieval costs. Gateway ingress at 12 ms is not worth an afternoon.</p>\n    <p>The VAD window is a floor, not a hop you own: shortening it makes the detector cut candidates off mid-sentence, which trades a latency number for a product defect.</p>",
+   "options": [
+    "Cut time-to-first-token, by far the largest single hop",
+    "Shave gateway ingress, already the cheapest hop here",
+    "Shorten the VAD silence window, an external floor",
+    "Overlap retrieval with ASR, removing one serial hop"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“Walk me from the moment the candidate stops speaking to the moment the avatar starts. Give me the millisecond budget for each hop.”",
+   "a": "<p>Eight hops. Voice-activity detection has to wait out a silence window before it can conclude the turn ended — about 250 ms and not negotiable, because shortening it means interrupting people. Then speech recognition commits a final transcript, 300. Gateway ingress, 12. Retrieval — embed the query and search — 165. Time to first token, 880. Speech synthesis to first audio, 350. First video frame, 90. Network to the client, 55.</p>\n        <p>That sums to about 2.1 seconds, and the shape matters more than the total: <strong>one hop is 42 % of it</strong>, and the two hops I fully own are 3 % between them.</p>\n        Invites · <b>“Which of those did you measure and which did you estimate?” — the right answer names them separately, because a hop you cannot measure independently is a hop you cannot defend.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Your turn, decomposed",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0001-latency-budget-arithmetic.html#your-turn-decomposed"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“Is 2.1 s time-to-first-word or time-to-complete? Which one does the candidate actually experience?”",
+   "a": "<p>The one the candidate experiences is <strong>time to first word</strong> — the avatar starting to speak is the perceptible event, and after that they are listening rather than waiting. Time to complete matters for something different: whether they can interrupt, and how quickly the next turn can start.</p>\n        <p>So they are two numbers with two purposes, and quoting one figure without saying which is the actual weakness in how I had written it down.</p>\n        Invites · <b>“Which one is your 2.1 s?” — and if the honest answer is “I would have to check how that was gathered”, say that, then say what you would check.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0001-latency-budget-arithmetic.html#underneath-0001"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“You have 5.9 s of headroom. Why not add a second verification pass to every turn?”",
+   "a": "<p>Because the headroom is not spare capacity, it is the room reserved for things going wrong. Modelling the turn out, even p99.9 only reaches about 60 % of the ceiling — and that model contains no retry, no upstream stall and no cold model. A single retry on the largest hop is nearly another second on its own.</p>\n        <p>A second verification pass would double the hop that is already 42 % of the turn, and it would do it on <em>every</em> turn to catch a problem on a few. If it is worth doing, it belongs off the critical path or behind a confidence threshold.</p>\n        Invites · <b>“When <em>would</em> you spend the headroom?” — on a retry with a propagated deadline, which is lesson 0012: spend it on reliability you can bound, not on work you always do.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0001-latency-budget-arithmetic.html#underneath-0001"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“Which of those hops are on the critical path and which could run concurrently?”",
+   "a": "<p>The test is whether a hop consumes the previous hop's output. Recognition needs the audio, retrieval needs the transcript, the model needs the retrieved context — that chain is genuinely serial and no amount of concurrency touches it.</p>\n        <p>Two things can come off it. The avatar's first frame does not need the synthesised audio, so it can render under synthesis — about 90 ms. And retrieval can start on a partial transcript rather than the final one, hiding it under recognition — about 177. Both together are 267 ms, against 440 for halving the big hop, which is why I did the arithmetic before the refactor.</p>\n        Invites · <b>“Is overlapping retrieval with ASR actually free?” — no: it means embedding a partial transcript and possibly re-running on the final one, so it trades wasted work for latency.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Your turn, decomposed",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0001-latency-budget-arithmetic.html#your-turn-decomposed"
+   }
+  }
+ ]
+}

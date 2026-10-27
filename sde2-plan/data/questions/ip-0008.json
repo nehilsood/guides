@@ -1,0 +1,150 @@
+{
+ "lesson": "ip-0008",
+ "label": "IP 0008",
+ "track": "ai",
+ "title": "The Closed Loop",
+ "url": "https://nehilsood.github.io/guides/interview-prep/guides/0008-the-closed-loop.html",
+ "plain": [
+  {
+   "title": "In plain words",
+   "url": "https://nehilsood.github.io/guides/interview-prep/guides/0008-the-closed-loop.html#plain-1"
+  }
+ ],
+ "questions": [
+  {
+   "id": "F1",
+   "kind": "follow-up",
+   "q": "Isn’t this just prompt engineering with extra steps?",
+   "a": "<p>Structurally, yes — and that is the point rather than an objection. Everything here is prompt content. What changes is the <strong>admission rule</strong>. Ordinary prompt engineering admits text because someone thought it would help; this admits text because a measurement said it did. Same artefact, different epistemics, and the benchmarks separate them by 25 points.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F2",
+   "kind": "follow-up",
+   "q": "Your traces come from a mediocre agent. Aren’t you just compressing mediocrity?",
+   "a": "<p>Yes, and this is the sharpest objection on the list. Induction is bounded above by what the agent has managed to do, so you learn nothing about strategies it has never tried. Two honest answers.</p>\n    <p>First, the verification gate means you compress <em>successful</em> mediocrity, which is still a real lower bound — the routine worked, even if a better one exists. Second, you break the ceiling deliberately: keep a fraction of runs unskilled to preserve exploration, and let the failure-distillation path carry the information that the successful path cannot.</p>\n    <p>What you must not claim is that induction discovers optimal strategy. It compresses what worked. That is a different and more modest thing, and saying so is a credibility gain.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F3",
+   "kind": "follow-up",
+   "q": "How many runs before you trust a routine?",
+   "a": "<p>There is no universal number and confident-sounding ones are a bad signal. What you should have is the <em>shape</em>: the threshold trades off coverage against overfitting, and it should be set from the cost asymmetry of your domain. Where a wrong skill is cheap, a low threshold is fine and you learn faster. Where a wrong skill is expensive, raise it until a bad routine has to survive several independent successes.</p>\n    <p>The thing to actually say: <strong>it is a tuned parameter with a metric attached</strong> — sweep it and watch the post-ablation admission rate. If almost everything you admit passes ablation, your threshold is too high and you are leaving information on the floor.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Skill induction, concretely",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0008-the-closed-loop.html#skill-induction-concretely"
+   }
+  },
+  {
+   "id": "F4",
+   "kind": "follow-up",
+   "q": "We have no executable test for these tasks. Now what?",
+   "a": "<p>Then the gate is a judge and you inherit its error rate, so you spend effort on the judge instead of pretending the problem is gone. Validate it against human labels on a sample, and report the <strong>false-accept</strong> rate specifically, because false accepts are what put a wrong skill in the library while false rejects only cost you coverage.</p>\n    <p>Also look harder for a partial check. A weak executable signal — did the record exist afterwards, did the endpoint return the id, did the file parse — is usually available and is worth more as a gate than a fluent judgement, because it cannot be talked into agreeing.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What a skill should be built from",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0008-the-closed-loop.html#what-a-skill-should-be-built-from"
+   }
+  },
+  {
+   "id": "F5",
+   "kind": "follow-up",
+   "q": "The environment changed and a skill is now wrong. How do you find out?",
+   "a": "<p>This is the failure mode nobody designs for and it is the strongest argument for the provenance frontmatter. Three layers. A <strong>review date</strong> per skill, so staleness has a deadline rather than waiting for an incident. <strong>Periodic re-ablation</strong> on current traffic — the same A/B, run again, which is why it must be automated the first time. And <strong>an alert on inversion</strong>: if the lift of an admitted skill crosses zero, that is a page, not a quarterly review item.</p>\n    <p>The sting is that a stale skill degrades <em>exactly like</em> an a priori one — it was evidence once and it is now an assumption with a document behind it. Provenance without an expiry date decays into the thing it was meant to prevent.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F6",
+   "kind": "follow-up",
+   "q": "Two skills give contradictory instructions. What happens?",
+   "a": "<p>The model picks one, silently, and usually the one later in context or more specifically worded. There is no conflict resolution in the format — which is worth saying plainly because people assume there is.</p>\n    <p>Practically: detect it at induction time rather than at inference time. If a new candidate routine covers the same trigger as an existing skill, that is a merge or a replace decision for a human, not a second file. This is also the argument for delta updates over regeneration — amending a bullet keeps one document authoritative, whereas rewriting produces two documents that disagree.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Skill induction, concretely",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0008-the-closed-loop.html#skill-induction-concretely"
+   }
+  },
+  {
+   "id": "F7",
+   "kind": "follow-up",
+   "q": "Isn’t an induced skill just overfitting to your eval set?",
+   "a": "<p>It can be, and the test is already published. Induced workflows were evaluated <em>across</em> tasks, websites and domains, and the margin over baseline grew — 8.9 to 14.0 absolute points — as the train–test distribution gap widened. Memorisation does the opposite.</p>\n    <p>The reason is the recurrence gate: a routine that appears in twelve different verified runs is, by construction, not specific to one of them. Overfitting is what you get when you skip that gate and induce from single traces, which is exactly the append-only cache failure.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Skill induction, concretely",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0008-the-closed-loop.html#skill-induction-concretely"
+   }
+  },
+  {
+   "id": "F8",
+   "kind": "follow-up",
+   "q": "Why not just fine-tune on the verified trajectories instead?",
+   "a": "<p>Sometimes you should, and it is a fair question rather than a gotcha. The trade is legibility and latency of change. A skill is a text document: you can read it, diff it, argue with it in review, and delete it in one commit when the environment changes. Weights are none of those things, and the review-date discipline above is unimplementable against them.</p>\n    <p>The decision rule I would give: fine-tune for <em>behaviour</em> that is stable and high-volume, use skills for <em>procedure</em> that is specific and changes. If the routine is worth burning into weights, it has almost certainly earned a skill first — and the skill’s ablation number is the evidence for the fine-tune.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F9",
+   "kind": "follow-up",
+   "q": "What stops the library growing forever?",
+   "a": "<p>Nothing in the pipeline as described, which is why the eviction rule has to be explicit. Admission is not the only gate: a skill that has not been retrieved in the last <em>n</em> days is paying its description tax for nothing and should be archived automatically. A skill whose re-ablation comes back inside the noise band gets the same treatment.</p>\n    <p>Make the constraint a number people can see — a token budget for the always-loaded descriptions, sized as a fraction of the context window. Then adding a skill means something has to justify its place, and the +19.0 vs +10.1 result stops being a slide and starts being a budget.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The gates, and what dies at each one",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0008-the-closed-loop.html#the-gates-and-what-dies-at-each"
+   }
+  },
+  {
+   "id": "F10",
+   "kind": "follow-up",
+   "q": "This is a quarter of work. What do you ship in a week?",
+   "a": "<p>Instrument outcomes on traces, and run one ablation on the documents you already load. That is the week, and it is the right week because both are prerequisites for everything else and both frequently produce a result on their own.</p>\n    <p>In my experience the first ablation is the thing that changes the conversation. Most teams are carrying context documents that have never been measured, and the null result on one of them — or the negative — is more persuasive about the whole approach than any argument from first principles.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F11",
+   "kind": "follow-up",
+   "q": "Can the agent close the loop itself — induce, gate and promote, with no human?",
+   "a": "<p>Mechanically yes, and it is worth saying which part is actually load-bearing. The human is not there for the induction, which models do well. The human is there for <strong>intent</strong>: the agent can observe that a routine worked, but not that it is the routine we <em>want</em> — the fast path that skips the audit log also works.</p>\n    <p>So the split is: the agent proposes from evidence, the human edits for intent. And the autonomy you can safely extend scales with how executable your gate is. With a real test suite adjudicating outcomes, auto-promotion is defensible. With a judge model adjudicating, you have a model deciding what a model gets to believe, which is the closed loop again with more steps.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F12",
+   "kind": "follow-up",
+   "q": "What’s the general lesson — the one you’d put on a slide?",
+   "a": "<p><strong>A document’s authority should come from its provenance, not from its format.</strong> Everything on this page is that one sentence applied to skills. The reason an a priori skill is dangerous rather than merely useless is that the format grants it the same standing as a measurement, and nothing in the file says otherwise.</p>\n    <p>It generalises past agents, which is usually what the question is fishing for. The same failure is a runbook nobody has executed, a threshold copied from a blog post, a config comment that was true two migrations ago. In each case the artefact looks identical whether it was earned or assumed — so the fix is always the same: make the source a field, and make the field a requirement.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  }
+ ]
+}

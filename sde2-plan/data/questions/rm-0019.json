@@ -1,0 +1,544 @@
+{
+ "lesson": "rm-0019",
+ "label": "RM 0019",
+ "track": "project",
+ "title": "2D to 3D: NeRF, Instant-NGP, Splatting",
+ "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "c19-t1",
+   "kind": "toolbox",
+   "q": "Before any of this runs, what has to happen?",
+   "a": "Camera poses. You have forty photographs and no idea where the camera was for any of them. Structure from motion recovers that. It finds features appearing in several images, then works out the camera positions that make all those sightings consistent. A sparse cloud of 3D points falls out as a by-product. COLMAP is the standard implementation. What it buys is turning ordinary photographs into calibrated input, with no rig and no measured setup. Nothing downstream can start without it. It is also where a capture usually fails, because the method needs texture to match. Shiny, reflective and glass surfaces defeat it, and a jar is all three.",
+   "options": null,
+   "correct": null,
+   "flag": "Starting the story at the neural part. Pose estimation is the step that decides whether there is a reconstruction at all.",
+   "teach": null
+  },
+  {
+   "id": "c19-t2",
+   "kind": "toolbox",
+   "q": "Why can a plain NeRF not render in real time?",
+   "a": "Because of how it makes a pixel. A NeRF does not store a surface. It stores a function that, given a point in space and a viewing direction, returns a colour and a density. So to make one pixel you shoot a ray through it and sample many points along that ray. You ask the network at each, then composite front to back. What that representation buys is semi-transparency, soft edges and volumetric effects a mesh cannot express, because there is no surface to get wrong. What it costs is hundreds of network evaluations per pixel per frame. The cost is the sample count, not the hardware. No GPU makes that shape of work interactive.",
+   "options": null,
+   "correct": null,
+   "flag": "Blaming model size. It is the number of queries per pixel, and understanding that is what motivates everything that came after.",
+   "teach": {
+    "title": "A radiance field, without the word geometry",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#a-radiance-field-without-the-word-geometry"
+   }
+  },
+  {
+   "id": "c19-t3",
+   "kind": "toolbox",
+   "q": "What actually made Instant-NGP fast?",
+   "a": "The encoding. The original NeRF pushed a position through a large network. All the scene's detail lived in network weights, and every sample cost a full forward pass. This replaces most of that. A position is looked up in a stack of hash tables at several resolutions. The lookups are interpolated, concatenated, and fed to a very small network. What it buys is training in minutes rather than a day, which turns the method from an experiment into something a pipeline runs per object. Capacity moved from the network into the tables. Updates became sparse, because one sample touches only a few entries rather than every weight.",
+   "options": null,
+   "correct": null,
+   "flag": "“It uses CUDA optimisations.” Those help. The contribution is the encoding, and naming it is the difference between using the tool and knowing it.",
+   "teach": {
+    "title": "Why one of these is fast and the other is real-time",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#why-one-of-these-is-fast-and"
+   }
+  },
+  {
+   "id": "c19-t4",
+   "kind": "toolbox",
+   "q": "Why is Gaussian splatting faster to render than a radiance field?",
+   "a": "It rasterises instead of ray-marching. The scene is stored as a few million 3D Gaussians. Each is a soft blob with a position, a covariance describing its shape, an opacity and a colour. Rendering projects each blob onto the image plane and blends them in depth order. So the work is proportional to the number of primitives rather than to samples along every ray. That is exactly what graphics hardware was built to do. What it buys is real-time frame rates at comparable quality. That is the difference between a research result and something you can ship to a browser.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling it a faster NeRF. It is a different representation with a different rendering algorithm, and the algorithm is the reason.",
+   "teach": {
+    "title": "Why one of these is fast and the other is real-time",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#why-one-of-these-is-fast-and"
+   }
+  },
+  {
+   "id": "c19-t5",
+   "kind": "toolbox",
+   "q": "You say render quality rose 30%. Measured how?",
+   "a": "Name the metric, because the three disagree. PSNR is pixel-by-pixel error on a logarithmic scale, and its known weakness is rewarding blur. A blurry image has lower average error than a sharp one slightly misaligned. SSIM compares local structure, contrast and luminance instead. LPIPS compares features from a deep network and correlates best with what people actually judge to look right. What naming it buys is a quality claim somebody else can reproduce. A percentage on a decibel scale is not interpretable, so if the number came from PSNR, quote the decibels instead.",
+   "options": null,
+   "correct": null,
+   "flag": "“Quality improved 30%” with no metric. Any graphics interviewer asks which one, and the percentage form is itself a hint that it was not measured carefully.",
+   "teach": {
+    "title": "What the three-week number is actually comparing",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#what-the-three-week-number-is-actually"
+   }
+  },
+  {
+   "id": "c19-t6",
+   "kind": "toolbox",
+   "q": "What does it take to run this in a browser headset?",
+   "a": "A frame budget of about five milliseconds per eye at ninety frames a second. That single number rules out anything ray-marched. So the field is baked, which means converting the trained radiance field into a structure an ordinary renderer can draw. Usually a sparse voxel grid plus a tiny shader for the view-dependent part, which is what SNeRG does. What baking buys is rendering with no neural network at run time at all. It is drawn through WebGL or WebGPU under WebXR, which handles head pose and stereo. The cost is that quality freezes at bake time, and file size becomes the real product constraint.",
+   "options": null,
+   "correct": null,
+   "flag": "Talking about quality without the frame budget. In XR a dropped frame is nausea, so the deadline outranks the picture.",
+   "teach": {
+    "title": "Why one of these is fast and the other is real-time",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#why-one-of-these-is-fast-and"
+   }
+  },
+  {
+   "id": "c19-t7",
+   "kind": "toolbox",
+   "q": "Three weeks to 100 minutes. What is on each side of that?",
+   "a": "Say what each number includes. The process being replaced was a person modelling an object by hand in 3D software, so three weeks is human time. If 100 minutes is compute time, those are different units and the comparison needs saying out loud. What defining the baseline buys is turning the claim from marketing into a measurement. Also say whether capture, cleanup and review sit inside the 100 minutes. If the comparison is a human's wall clock against a machine's compute, say so plainly. The honest version is still a very good number.",
+   "options": null,
+   "correct": null,
+   "flag": "Defending the ratio. Nobody doubts the direction. They doubt that the two sides were measured the same way, and they are right to.",
+   "teach": {
+    "title": "What the three-week number is actually comparing",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#what-the-three-week-number-is-actually"
+   }
+  },
+  {
+   "id": "c19-f1",
+   "kind": "fundamentals",
+   "q": "Three weeks to a hundred minutes. What is being compared?",
+   "a": "A person against a program, not an old algorithm against a new one. Three weeks was somebody modelling the object by hand. A hundred minutes is a fitting run. The bracketed figure says it more honestly, because ninety-eight per cent less manual effort is a labour claim.",
+   "options": null,
+   "correct": null,
+   "flag": "Letting it sound like a three-hundred-fold speedup. There is no such speedup, and the follow-up asking how is unanswerable.",
+   "teach": {
+    "title": "What the three-week number is actually comparing",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#what-the-three-week-number-is-actually"
+   }
+  },
+  {
+   "id": "c19-f2",
+   "kind": "fundamentals",
+   "q": "Explain a NeRF without using the word geometry.",
+   "a": "It fits a function. Give it a point in space and a direction you are looking from, and it returns a colour and how solid things are there. To render a pixel you walk along its ray, ask that function at many points, and accumulate until the ray is blocked.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it as reconstructing a mesh. It never produces one, and that difference is what the rest of the conversation turns on.",
+   "teach": {
+    "title": "A radiance field, without the word geometry",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#a-radiance-field-without-the-word-geometry"
+   }
+  },
+  {
+   "id": "c19-f3",
+   "kind": "fundamentals",
+   "q": "Training needs to know where each photograph was taken from. Where does that come from?",
+   "a": "Structure from motion, run before anything else. It matches features across the photographs and solves for camera positions and orientations. It is the least glamorous stage and it is where almost all real failures happen.",
+   "options": null,
+   "correct": null,
+   "flag": "Assuming poses are given. On a phone they are not, and treating them as an input skips the stage that actually decides the outcome.",
+   "teach": {
+    "title": "The stage that actually fails",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#the-stage-that-actually-fails"
+   }
+  },
+  {
+   "id": "c19-f4",
+   "kind": "fundamentals",
+   "q": "Why is Instant-NGP so much faster to train?",
+   "a": "Because most of the capacity moved out of the network and into lookup tables. Feature vectors sit in hash tables at several resolutions, indexed by position. A very small network reads them. A table lookup is far cheaper than evaluating a large network, and training touches that function millions of times.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying it uses better hardware. The representation changed, and that is why the same hardware got orders of magnitude more done.",
+   "teach": {
+    "title": "Why one of these is fast and the other is real-time",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#why-one-of-these-is-fast-and"
+   }
+  },
+  {
+   "id": "c19-f5",
+   "kind": "fundamentals",
+   "q": "What does Gaussian splatting change?",
+   "a": "The representation, not the training. The scene becomes a few million fuzzy 3D blobs, each with a position, a shape, an opacity and a colour. Rendering is projecting them onto the screen and blending, which is what graphics hardware already does natively.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling it a faster NeRF. It is a different representation with different failure modes, and the speed comes from rasterising rather than from any training trick.",
+   "teach": {
+    "title": "Why one of these is fast and the other is real-time",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#why-one-of-these-is-fast-and"
+   }
+  },
+  {
+   "id": "c19-f6",
+   "kind": "fundamentals",
+   "q": "So why does splatting hit frame rate when a NeRF does not?",
+   "a": "Marching a ray means dozens of samples per pixel, each one a network evaluation. Rasterising means touching each blob once and blending it into the pixels it covers. Every graphics card on earth is built for the second thing and for none of the first.",
+   "options": null,
+   "correct": null,
+   "flag": "Answering with model size. A small network evaluated fifty times per pixel is still fifty times per pixel.",
+   "teach": {
+    "title": "Why one of these is fast and the other is real-time",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#why-one-of-these-is-fast-and"
+   }
+  },
+  {
+   "id": "c19-f7",
+   "kind": "fundamentals",
+   "q": "What is SNeRG doing in this bullet?",
+   "a": "Making a trained radiance field renderable in a browser. It bakes the field into a sparse grid holding colour, density and a small feature. Rendering is then a cheap walk through that grid, plus a tiny per-pixel step for shine. You do not run the original network at all.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it as compression. It is a change of representation for playback, and the original model is not what gets shipped.",
+   "teach": {
+    "title": "Why one of these is fast and the other is real-time",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#why-one-of-these-is-fast-and"
+   }
+  },
+  {
+   "id": "c19-f10",
+   "kind": "fundamentals",
+   "q": "What is the riskiest claim in this bullet?",
+   "a": "The thirty per cent, because it has no unit. After that, the density of named techniques. Four in one sentence invites a question about any of them. And two of the four are competing delivery paths rather than steps in one.",
+   "options": null,
+   "correct": null,
+   "flag": "Naming the three weeks. That one is defensible as soon as you say it is a labour comparison.",
+   "teach": {
+    "title": "What the three-week number is actually comparing",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#what-the-three-week-number-is-actually"
+   }
+  },
+  {
+   "id": "c19-d1",
+   "kind": "deep-dive",
+   "q": "Hash tables collide. Does that not corrupt the result?",
+   "a": "It would if anything tried to resolve the collisions, and nothing does. Two distant points can land on the same entry, and the small network learns to tell them apart from the other resolutions it also reads. Collisions in empty space cost nothing, because gradients there are tiny.",
+   "options": null,
+   "correct": null,
+   "flag": "Assuming a collision-handling scheme. The absence of one is the design, and it is the part that sounds wrong until you say why it works.",
+   "teach": {
+    "title": "Why one of these is fast and the other is real-time",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#why-one-of-these-is-fast-and"
+   }
+  },
+  {
+   "id": "c19-d2",
+   "kind": "deep-dive",
+   "q": "Where do the blobs come from, and how many?",
+   "a": "They start from the sparse points that structure from motion already produced, then the optimiser adds and removes them. Where the reconstruction is poor it clones or splits blobs to add detail. Where they are nearly transparent it deletes them. That control loop is most of why the method works.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing a fixed number of blobs. The count changes throughout training and that is the mechanism, not an implementation detail.",
+   "teach": {
+    "title": "Why one of these is fast and the other is real-time",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#why-one-of-these-is-fast-and"
+   }
+  },
+  {
+   "id": "c19-d3",
+   "kind": "deep-dive",
+   "q": "What does splatting cost that ray marching does not?",
+   "a": "A depth sort, every frame, for every view. Blending semi-transparent things is order-dependent, so the blobs have to be drawn back to front. On a headset that is two sorts per frame, over hundreds of thousands of items. It is the part that decides whether the frame budget holds.",
+   "options": null,
+   "correct": null,
+   "flag": "Presenting splatting as free. The sort is the hidden cost and naming it is what shows you rendered with it rather than read about it.",
+   "teach": {
+    "title": "Why one of these is fast and the other is real-time",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#why-one-of-these-is-fast-and"
+   }
+  },
+  {
+   "id": "c19-d4",
+   "kind": "deep-dive",
+   "q": "What has to be true for this to load in a browser?",
+   "a": "The asset has to be tens of megabytes, not gigabytes. And it has to render with what a browser has, not with a graphics toolkit. Both representations need reducing for delivery. A baked grid is pruned to occupied space. A splat set is trimmed and its colours stored at lower precision.",
+   "options": null,
+   "correct": null,
+   "flag": "Ignoring download size. On a phone the first thirty seconds are download, and no frame rate rescues that.",
+   "teach": {
+    "title": "Why one of these is fast and the other is real-time",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#why-one-of-these-is-fast-and"
+   }
+  },
+  {
+   "id": "c19-d5",
+   "kind": "deep-dive",
+   "q": "Somebody wants to change the object afterwards. What can they do?",
+   "a": "Very little, and this is the honest cost of the whole approach. Hand modelling produces a mesh an artist can edit. Neither of these produces anything with editable structure. Moving a part of a splat scene means selecting blobs, and nothing about them corresponds to a part of the object.",
+   "options": null,
+   "correct": null,
+   "flag": "Claiming a mesh can be extracted and edited. You can extract one, and it is usually worse than the render it came from.",
+   "teach": {
+    "title": "What the three-week number is actually comparing",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#what-the-three-week-number-is-actually"
+   }
+  },
+  {
+   "id": "c19-d6",
+   "kind": "deep-dive",
+   "q": "How would you state the quality improvement properly?",
+   "a": "Name the metric, give both values, and say what it was measured over. Peak signal-to-noise ratio is decibels on a log scale. A percentage is meaningless on it. If the number came from a perceptual metric, say which one. Those behave differently and track what people see rather more closely.",
+   "options": null,
+   "correct": null,
+   "flag": "Defending the percentage. Restating it precisely costs one sentence and removes the only easy attack on this bullet.",
+   "teach": {
+    "title": "A radiance field, without the word geometry",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#a-radiance-field-without-the-word-geometry"
+   }
+  },
+  {
+   "id": "c19-d7",
+   "kind": "deep-dive",
+   "q": "The bullet names both a baked radiance field and splatting. Why both?",
+   "a": "They are two different delivery paths and using both needs a reason. The plausible one is a sequence. Bake the trained field first, because that is what a browser could run. Then move to splatting once it looked better at the same frame rate. If they ran at once, that is worth explaining.",
+   "options": null,
+   "correct": null,
+   "flag": "Listing both as though they compose. One replaces the representation the other bakes, and anyone in graphics will notice.",
+   "teach": {
+    "title": "Why one of these is fast and the other is real-time",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#why-one-of-these-is-fast-and"
+   }
+  },
+  {
+   "id": "c19-d8",
+   "kind": "deep-dive",
+   "q": "What is the real deliverable for making this repeatable?",
+   "a": "A capture protocol. How many photographs, how much overlap between them, what lighting, and what surfaces to avoid. That document is what decides whether the hundred minutes produces something usable, and it is worth more than any parameter choice in the training.",
+   "options": null,
+   "correct": null,
+   "flag": "Answering with training hyperparameters. The input quality dominates, and the protocol is the only lever on it.",
+   "teach": {
+    "title": "The stage that actually fails",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#the-stage-that-actually-fails"
+   }
+  },
+  {
+   "id": "c19-d9",
+   "kind": "deep-dive",
+   "q": "Where does the hundred minutes actually go?",
+   "a": "Mostly not in the part people expect. Pose estimation over a few hundred photographs is a real chunk. Training is minutes with the hash-table approach. Then baking or trimming for delivery, plus whatever check confirms the result is acceptable. Saying which stage dominates is a good sign you ran it.",
+   "options": null,
+   "correct": null,
+   "flag": "Assuming training dominates. That was true before the fast encoding and it stopped being true, which is the whole point of it.",
+   "teach": {
+    "title": "The stage that actually fails",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#the-stage-that-actually-fails"
+   }
+  },
+  {
+   "id": "c19-d10",
+   "kind": "deep-dive",
+   "q": "The background comes along with the object. Is that a problem?",
+   "a": "Usually yes, for a product catalogue. The field learns the room as readily as the object, because nothing told it which was which. Masking the object during capture or before training is the practical fix, and it is another thing the capture protocol has to specify.",
+   "options": null,
+   "correct": null,
+   "flag": "Assuming the object is separated for you. Nothing in the method has a concept of an object at all.",
+   "teach": {
+    "title": "A radiance field, without the word geometry",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#a-radiance-field-without-the-word-geometry"
+   }
+  },
+  {
+   "id": "c19-d11",
+   "kind": "deep-dive",
+   "q": "A hundred objects rather than one. What changes?",
+   "a": "It becomes a scheduling problem and stops being a research one. Every object is an independent run on a machine with a graphics card. So it parallelises perfectly and the cost is linear. What needs building is the queue, the retry, and a check that catches a bad reconstruction automatically.",
+   "options": null,
+   "correct": null,
+   "flag": "Reaching for a shared model across objects. There is no shared model. Each one is its own fit.",
+   "teach": {
+    "title": "Why one of these is fast and the other is real-time",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#why-one-of-these-is-fast-and"
+   }
+  },
+  {
+   "id": "c19-d12",
+   "kind": "deep-dive",
+   "q": "This was a while ago. What has moved since?",
+   "a": "Splatting became the default for anything that has to render in real time, and the baked-grid route is now mostly historical. Saying that yourself is better than being told. It shows the work is dated without suggesting the understanding is.",
+   "options": null,
+   "correct": null,
+   "flag": "Presenting it as current practice. The field moved fast, and pretending otherwise is the thing that actually damages the claim.",
+   "teach": null
+  },
+  {
+   "id": "c19-e1",
+   "kind": "edges",
+   "q": "The object is glass, or polished metal.",
+   "a": "Both stages struggle. Feature matching fails because the surface has no stable texture to match, and what it does have moves with the camera. The field then tries to explain reflections as geometry and produces floating fragments. This is a capture limitation and there is no parameter that fixes it.",
+   "options": null,
+   "correct": null,
+   "flag": "Promising it works on anything. Reflective and transparent objects are the known hard case and saying so is more convincing than claiming coverage.",
+   "teach": {
+    "title": "The stage that actually fails",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#the-stage-that-actually-fails"
+   }
+  },
+  {
+   "id": "c19-e2",
+   "kind": "edges",
+   "q": "Something in the scene moved between photographs.",
+   "a": "The whole approach assumes the scene is still, so a moving thing gets explained as semi-transparent haze in several places at once. Those are the floating fragments people call floaters. The fix is capture discipline rather than anything in the pipeline.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating floaters as a training artefact to tune away. Most of them are the method faithfully representing inconsistent inputs.",
+   "teach": {
+    "title": "Why one of these is fast and the other is real-time",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#why-one-of-these-is-fast-and"
+   }
+  },
+  {
+   "id": "c19-e3",
+   "kind": "edges",
+   "q": "Someone submits twenty photographs instead of two hundred.",
+   "a": "Pose estimation may still succeed, which is the dangerous part, and the reconstruction will be confident and wrong between the views. The useful safeguard is to check coverage before training rather than after. A pose solution that used only half the photographs is a signal worth acting on.",
+   "options": null,
+   "correct": null,
+   "flag": "Relying on the result looking wrong. From the captured angles it will look fine, which is exactly the problem.",
+   "teach": {
+    "title": "Why one of these is fast and the other is real-time",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#why-one-of-these-is-fast-and"
+   }
+  },
+  {
+   "id": "c19-e4",
+   "kind": "edges",
+   "q": "Somebody views it from an angle nobody photographed.",
+   "a": "It will render something, and there is no signal that it is invented. The representation has no notion of unobserved space, so a gap in coverage looks like a smooth surface. For a product catalogue that matters, because the unphotographed side is often the underneath.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling it interpolation. It is extrapolation with no uncertainty attached, and it is the failure a buyer actually encounters.",
+   "teach": {
+    "title": "What the three-week number is actually comparing",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#what-the-three-week-number-is-actually"
+   }
+  },
+  {
+   "id": "c19-e5",
+   "kind": "edges",
+   "q": "The viewer's phone cannot hold the frame rate.",
+   "a": "In a headset that is not a quality issue, it is a comfort issue, and people stop within a minute. The lever is the number of blobs, so ship a reduced set for weaker devices. Deciding that from device capability before download is better than discovering it at runtime.",
+   "options": null,
+   "correct": null,
+   "flag": "Reducing resolution instead. Fewer blobs helps the sort and the blending together, and resolution only helps one of them.",
+   "teach": {
+    "title": "A radiance field, without the word geometry",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#a-radiance-field-without-the-word-geometry"
+   }
+  },
+  {
+   "id": "c19-e6",
+   "kind": "edges",
+   "q": "How do you catch a bad reconstruction without a person looking?",
+   "a": "Hold out some photographs, render from their camera positions, and compare. That gives a number per object and it catches the bad cases well. It will not catch a scene that is consistently wrong everywhere, which is why a human check on a sample stays in the loop.",
+   "options": null,
+   "correct": null,
+   "flag": "Checking only the training views. Those are what it was fitted to, so they always look good.",
+   "teach": null
+  },
+  {
+   "id": "c19-e8",
+   "kind": "edges",
+   "q": "What would you change?",
+   "a": "Put a unit on the quality number, or take it out. Say which stage of the hundred minutes dominates, because that is the detail that proves you ran it. And add the held-out view check, since an automatic quality gate is what turns one object into a hundred.",
+   "options": null,
+   "correct": null,
+   "flag": "Adding another technique to the list. Four named methods in one sentence is already more surface than the sentence can defend.",
+   "teach": {
+    "title": "What the three-week number is actually comparing",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#what-the-three-week-number-is-actually"
+   }
+  },
+  {
+   "id": "0019-q1",
+   "kind": "quiz",
+   "q": "Why does Instant-NGP train so much faster than a plain radiance field?",
+   "a": "<p>Feature vectors live in hash tables at several resolutions, indexed by position, and a very small network reads them. A table lookup is far cheaper than evaluating a large network, and training touches that function millions of times.</p>\n    <p>Pose estimation still runs, and it is a substantial part of the wall-clock time. The number of photographs and the render resolution are unchanged, which is what makes the comparison fair.</p>",
+   "options": [
+    "Most of the capacity sits in lookup tables",
+    "It trains on far fewer input photographs overall",
+    "The rendered images are at a lower resolution",
+    "It skips the slow camera pose estimation step"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Why one of these is fast and the other is real-time",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#why-one-of-these-is-fast-and"
+   }
+  },
+  {
+   "id": "0019-q2",
+   "kind": "quiz",
+   "q": "What lets Gaussian splatting render at frame rate where ray marching cannot?",
+   "a": "<p>Marching a ray means dozens of samples per pixel. Rasterising means touching each blob once and blending it into the pixels it covers, which is exactly what graphics hardware is built to do.</p>\n    <p>There is no neural network at render time at all. And the blobs are semi-transparent, so front faces do not occlude anything, which is why the method pays a depth sort every frame instead.</p>",
+   "options": [
+    "It rasterises the scene instead of marching rays",
+    "It uses a considerably smaller neural network inside",
+    "It draws only the visible front-facing surfaces first",
+    "It caches whole frames that were previously drawn"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Why one of these is fast and the other is real-time",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#why-one-of-these-is-fast-and"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“Three weeks to a hundred minutes. How?”",
+   "a": "<p>By replacing a person with a fitting procedure. Three weeks was somebody modelling the object by hand in a 3D package. A hundred minutes is recovering camera poses from photographs, fitting a radiance field, and preparing it for delivery. Nothing got three hundred times faster. The bracketed figure in the bullet says it more honestly, because ninety-eight per cent less manual effort is a labour claim and labour is what actually changed.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What the three-week number is actually comparing",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#what-the-three-week-number-is-actually"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“What is a NeRF, in your own words?”",
+   "a": "<p>It fits a function rather than reconstructing a shape. Give it a point in space and a direction you are looking from, and it returns a colour and how solid things are there. To render a pixel you walk along its ray, ask that function at many points, and accumulate colour weighted by density until the ray is blocked. Training minimises the difference between rendered pixels and the real photographs. And it is a fit per scene, so every object is its own training run.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "A radiance field, without the word geometry",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#a-radiance-field-without-the-word-geometry"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“Why is splatting real-time and a NeRF is not?”",
+   "a": "<p>Because it stops marching rays. A radiance field needs dozens of samples per pixel, each one a network evaluation. Splatting represents the scene as a few million fuzzy blobs with a position, a shape, an opacity and a colour, and rendering means projecting them onto the screen and blending. Graphics hardware is built for exactly that. The cost it pays instead is a depth sort every frame, per view, because blending semi-transparent things is order-dependent.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Why one of these is fast and the other is real-time",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#why-one-of-these-is-fast-and"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“What actually fails in production?”",
+   "a": "<p>Camera pose estimation, nearly every time. It matches features between photographs, so it needs texture, and a plain wall or a reflective surface or photos taken too far apart all break it. The worst part is that it reports success and produces poses anyway. The symptom appears two stages later as a soft or ghosted reconstruction, which looks like a model problem. That is why the real deliverable was a capture protocol rather than a parameter setting.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The stage that actually fails",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#the-stage-that-actually-fails"
+   }
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“Thirty per cent better quality on what?”",
+   "a": "<p>That is the figure I would restate. If it came from peak signal-to-noise ratio then a percentage is the wrong unit, because that number is decibels on a log scale and a percentage of it does not mean anything stable. The defensible version names the metric, gives both values, and says how many scenes it was measured over. If it came from a perceptual metric instead, that is worth saying, because those track what people actually see rather more closely.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What the three-week number is actually comparing",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0019-2d-to-3d-reconstruction.html#what-the-three-week-number-is-actually"
+   }
+  }
+ ]
+}

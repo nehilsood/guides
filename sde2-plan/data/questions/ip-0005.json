@@ -1,0 +1,171 @@
+{
+ "lesson": "ip-0005",
+ "label": "IP 0005",
+ "track": "ai",
+ "title": "The Silent Parser",
+ "url": "https://nehilsood.github.io/guides/interview-prep/guides/0005-the-silent-parser.html",
+ "plain": [
+  {
+   "title": "In plain words",
+   "url": "https://nehilsood.github.io/guides/interview-prep/guides/0005-the-silent-parser.html#plain-1"
+  }
+ ],
+ "questions": [
+  {
+   "id": "F1",
+   "kind": "follow-up",
+   "q": "You have prod logs and ten minutes. No repro, no staging. Find it.",
+   "a": "<p>“Three queries. First, group <code>finish_reason</code> by model revision across the deploy boundary — if <code>tool_calls</code> collapses into <code>stop</code> at a timestamp, I have the change window and it is configuration, not drift. Second, regex the <code>content</code> field for known markup; a hit tells me the model is still calling tools and the parser is deaf, which is the whole diagnosis. Third, check whether we are logging the rendered prompt at all — if we are not, that is the first thing I add afterwards, because without it the next incident is equally blind.”</p>\n      <p>“If I am fortunate the first query is enough, because the failure is a step function at a deploy, not a slope.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Ten minutes to a diagnosis",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0005-the-silent-parser.html#ten-minutes-to-a-diagnosis"
+   }
+  },
+  {
+   "id": "F2",
+   "kind": "follow-up",
+   "q": "You need to serve a brand-new model and your stack has no parser for it. What do you do?",
+   "a": "<p>“First, fail closed rather than serve it unparsed — an unmapped model should not boot, because serving it silently is strictly worse than not serving it. Then I write the parser, and the good news is I do not have to guess the format: <strong>the chat template is the specification.</strong> I render an assistant turn that contains a tool call through the model's own template and read what comes out. That gives me the exact markup the model was trained to produce.”</p>\n      <p>“Then a round-trip test: template-render a call, parse it back, assert I recover the original name and arguments. That test is cheap, it is derived from the vendor's own artifact, and it keeps working when they update the template. If I need something in production before the parser is ready, a generic pythonic or regex extractor behind a loud feature flag is acceptable for days, not months.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The dialects",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0005-the-silent-parser.html#the-dialects"
+   }
+  },
+  {
+   "id": "F3",
+   "kind": "follow-up",
+   "q": "Isn't this what structured outputs and constrained decoding are for? Just force the grammar.",
+   "a": "<p>“They solve a neighbouring problem, not this one. Constrained decoding — XGrammar is the default in vLLM and SGLang now — guarantees that generated tokens satisfy a grammar, and it is genuinely effective: unconstrained schema compliance sits around 90–94% and guided decoding pushes it past 96%, as high as 98.2%. But that is a guarantee about the <em>shape of the arguments</em>. My failure was that the harness never learned a call happened at all. You can constrain a model into perfect JSON and still drop it into <code>content</code> because nothing recognised the wrapper.”</p>\n      <p>“There is also a cost worth naming: forcing a grammar the model was not trained to emit fights the distribution. You get valid syntax and worse decisions. So I would use constrained decoding to harden argument validity <em>after</em> the parser and template are matched — complement, not substitute. It is a good follow-up precisely because the confident wrong answer is 'yes, that fixes it.'”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Fundamentals: the two layers of “tool calling”",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0005-the-silent-parser.html#fundamentals-the-two-layers-of-tool-calling"
+   }
+  },
+  {
+   "id": "F4",
+   "kind": "follow-up",
+   "q": "What exactly is in this “versioned contract”? Make it concrete.",
+   "a": "<p>“Three fields, checked into config together, treated as one unit: the model id with a pinned revision SHA rather than a floating tag; a hash of the chat template taken at boot; and the parser identifier. On every request and every span I stamp all three — the OpenTelemetry GenAI conventions give a standard home for model and finish-reason attributes, so it rides existing plumbing rather than becoming a bespoke logging project.”</p>\n      <p>“The point of the hash is that it catches the case with no deploy on my side: a vendor republishes <code>tokenizer_config.json</code> under the same tag and the layout moves underneath me. With a pinned SHA that cannot happen; with a hash, if it somehow does, the service notices instead of the users. And because the three fields live together, changing the model id in a pull request visibly touches the contract, which is the social half of the fix — a reviewer sees a format change rather than a one-line config tweak.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fix: a versioned contract between model and harness",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0005-the-silent-parser.html#the-fix-a-versioned-contract-between-model"
+   }
+  },
+  {
+   "id": "F5",
+   "kind": "follow-up",
+   "q": "Write me the canary test. What does it assert?",
+   "a": "<p>“A positive and a negative, both through the real serving path — not a mock, because the whole point is to exercise template and parser together.”</p>\n      <p><strong>Positive:</strong> one unambiguous single-tool request, for instance 'What is the price of SKU A17 in Japan?' with a single <code>get_price(sku, country)</code> tool. Assert four things: <code>len(tool_calls) ≥ 1</code>; the name equals <code>get_price</code>; the arguments parse as JSON and validate against the schema; and <code>finish_reason == \"tool_calls\"</code>. Deliberately not asserting the argument <em>values</em>, so the test fails on format breakage rather than on model variance.</p>\n      <p><strong>Negative:</strong> 'Say hello.' Assert <code>tool_calls</code> is empty and <code>content</code> matches no tool-call markup. Without this, a sloppy parser that hallucinates calls passes your suite, and an over-eager regex extractor is a real thing people ship.</p>\n      <p>“Both run per model revision, blocking, at temperature zero. And I would add a third tier over time as I find gaps — parallel calls, a multi-turn tool-result round trip, one long-context case — because the single easy prompt is a floor, not a guarantee.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fix: a versioned contract between model and harness",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0005-the-silent-parser.html#the-fix-a-versioned-contract-between-model"
+   }
+  },
+  {
+   "id": "F6",
+   "kind": "follow-up",
+   "q": "We use a hosted API, not vLLM. Does any of this apply?",
+   "a": "<p>“The parser stops being yours, so stage 4 is the provider's problem and is usually right. But the failure does not disappear — it moves up a layer into the adapter. Anything that translates between provider shapes, a gateway or a routing library, can drop <code>tool_choice</code>, flatten parallel calls into one, coerce an integer argument to a string, or silently discard a schema construct the target provider does not support. All of those are silent by exactly the same mechanism, because the adapter is also an extractor.”</p>\n      <p>“There are provider-side dialect differences too: strict-schema modes, whether parallel calls are supported, how a tool result is represented on the way back. So the contract is the same and only the fields change — provider plus model plus adapter version, and the same canary. If anything, I care <em>more</em> about the canary here, because I cannot read the parser's source when I want to know what it does.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Fundamentals: the two layers of “tool calling”",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0005-the-silent-parser.html#fundamentals-the-two-layers-of-tool-calling"
+   }
+  },
+  {
+   "id": "F7",
+   "kind": "follow-up",
+   "q": "Your eval suite ran green through all of this. Why?",
+   "a": "<p>“Because it scored the wrong object. Most suites grade the final text, and the agent still produced final text. Some tasks are partially answerable from parametric knowledge, so a tool-less answer can score non-zero and sometimes well — a currency question does not always need a live rate to look plausible. And many eval harnesses render prompts their own way, so they may not exercise the template and parser path production uses at all, which means they were never testing the thing that broke.”</p>\n      <p>“The correction is that an agent eval must assert on <em>invocation</em>, not just outcome: which tools were called, with what arguments, in what order. That is the axis BFCL evaluates on, with a deterministic AST matcher against a reference invocation. If my suite cannot express 'this task must have called <code>get_price</code> four times', it cannot detect a tool-calling regression by construction.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Why it was silent — three independent layers of quiet",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0005-the-silent-parser.html#why-it-was-silent-three-independent-layers"
+   }
+  },
+  {
+   "id": "F8",
+   "kind": "follow-up",
+   "q": "You are streaming responses. Does that change anything?",
+   "a": "<p>“It makes it worse, and it is where the real bugs are. A streaming tool-call parser is a state machine reassembling markup across chunk boundaries — a tag can split mid-token, arguments arrive as partial JSON, and the parser must decide when a call is complete without having seen the end. These parsers are empirically the buggier path; vLLM has open issues on streaming tool-call handling specifically.”</p>\n      <p>“So two things. I assert the contract on the non-streaming path in CI, where the surface is smallest and the failure is unambiguous. Then I add a reconciliation test: run the same prompt streamed and unstreamed, assemble the streamed deltas, and assert the two <code>tool_calls</code> structures are identical. That catches the boundary bugs without making my primary contract test depend on the flakiest component in the stack.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fix: a versioned contract between model and harness",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0005-the-silent-parser.html#the-fix-a-versioned-contract-between-model"
+   }
+  },
+  {
+   "id": "F9",
+   "kind": "follow-up",
+   "q": "We fine-tuned this model ourselves. Does the template still matter?",
+   "a": "<p>“It matters more, because now there are two ways to be wrong. Fine-tuning teaches a format — whatever format your training data was rendered in. If you trained on ChatML and serve through a template that emits something else, you have manufactured a distribution mismatch in-house and it will show up as degraded quality that no upstream vendor can explain to you.”</p>\n      <p>“So the rule is that the rendering used to build training data and the template used to serve must be the <em>same artifact</em>, versioned in the same repo, applied by the same code path. If they can drift, they will, and the drift is invisible: the model still answers, just worse. Concretely I would make the data-prep script import the serving template rather than reimplement it, and add a test asserting a training example round-trips through the serving path unchanged.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The compounding bug: the chat template trap",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0005-the-silent-parser.html#the-compounding-bug-the-chat-template-trap"
+   }
+  },
+  {
+   "id": "F10",
+   "kind": "follow-up",
+   "q": "You route between three models for cost. How do you architect so this cannot happen?",
+   "a": "<p>“Template and parser become per-route properties rather than global configuration — that is the whole design. Each route carries its own contract triple, and the router's only job is to pick a route, never to know about formats. Behind the route I normalise into one internal tool-call type as early as possible, so everything downstream — the loop, the executor, the traces — sees a single shape regardless of which model produced it.”</p>\n      <p>“Then the canary runs per route, not once, and the deploy gate is the conjunction: no route ships without a green contract test. I would also alarm on tool-call rate sliced by route, because with routing the classic failure is partial — the cheap model gets the bug, it handles 15% of traffic, and the aggregate barely moves. An aggregate metric over a heterogeneous fleet is how you hide exactly this bug from yourself.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fix: a versioned contract between model and harness",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0005-the-silent-parser.html#the-fix-a-versioned-contract-between-model"
+   }
+  },
+  {
+   "id": "F11",
+   "kind": "follow-up",
+   "q": "Parser matches, template is right, and 2% of calls still come back unparsed. Now what?",
+   "a": "<p>“That 2% is real and expected — Qwen's own documentation says outright that the model is not guaranteed to follow the protocol and that production code should have countermeasures in place. So I treat it as a measured error budget rather than a mystery.”</p>\n      <p>“Three moves. <strong>Log the raw text</strong>, always, or none of the rest is possible. <strong>Bounded repair</strong>: one deterministic pass that fixes the known failure shapes — a missing closing tag, a trailing comma, arguments emitted as a JSON string instead of an object — and if repair fails, one re-ask with the parse error fed back, then give up and surface a real error. Never an unbounded retry loop; that is how a 2% parse problem becomes a latency incident. <strong>Measure the repair rate</strong> as a first-class metric, because a rising repair rate is the earliest possible warning that a checkpoint or template has drifted, well before the canary would trip.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fix: a versioned contract between model and harness",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0005-the-silent-parser.html#the-fix-a-versioned-contract-between-model"
+   }
+  },
+  {
+   "id": "F12",
+   "kind": "follow-up",
+   "q": "Suppose you fix all of it and Qwen genuinely is worse. Were you just defending the new model?",
+   "a": "<p>“No — I was defending the measurement. 'The model is worse' is a perfectly good conclusion; it just cannot be the <em>first</em> one, because until the template and parser are correct, my instrument is broken and every number I have is uninterpretable. Order matters: fix the harness, then compare.”</p>\n      <p>“And when I do compare, I compare on invocation rather than prose. A golden set of tasks with reference tool-call sequences, scored by deterministic AST match — did it call the right function with arguments equivalent to the reference — which is how BFCL keeps its results reproducible without an LLM judge. If Qwen loses that on a matched harness, then it loses, and I will say so with the numbers attached.”</p>\n      <p>“The thing I would push back on is reverting <em>before</em> that test. Not because I like the model, but because the conclusion 'swaps are dangerous' is far more expensive than one bad swap — it is how a team ends up permanently unable to take a cost win.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What the interviewer is actually testing",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0005-the-silent-parser.html#what-the-interviewer-is-actually-testing"
+   }
+  }
+ ]
+}

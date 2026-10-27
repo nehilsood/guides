@@ -1,0 +1,162 @@
+{
+ "lesson": "ip-0022",
+ "label": "IP 0022",
+ "track": "ai",
+ "title": "The Ranker That Reads",
+ "url": "https://nehilsood.github.io/guides/interview-prep/guides/0022-the-ranker-that-reads.html",
+ "plain": [
+  {
+   "title": "In plain words",
+   "url": "https://nehilsood.github.io/guides/interview-prep/guides/0022-the-ranker-that-reads.html#plain-1"
+  }
+ ],
+ "questions": [
+  {
+   "id": "F1",
+   "kind": "follow-up",
+   "q": "Why not just prompt GPT-style models with the history and ask for recommendations?",
+   "a": "<p>Because the paper lists what goes wrong: they over-recommend globally popular titles, hallucinate titles that aren’t in the catalog, ignore business rules, and personalise poorly. They also need a decode loop per member. Outside studies agree the problems are real but vary by model: most LLMs invent under 5% of items, a few invent over 20%. GenRec makes invented titles impossible with a catalog head, fixes personalisation by training on Netflix data, and fixes cost by never decoding.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "One pass, a score for every title",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0022-the-ranker-that-reads.html#one-pass-a-score-for-every-title"
+   }
+  },
+  {
+   "id": "F2",
+   "kind": "follow-up",
+   "q": "What exactly is “prefill-only”, and why is it cheaper?",
+   "a": "<p>Prefill is the pass that reads the prompt, all positions in parallel. Decode writes the answer one token at a time, each step waiting for the previous one. GenRec stops after prefill and reads the scores off the hidden state through the catalog head. One pass ranks every candidate, and the expensive, sequential part of LLM inference never happens.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fundamentals, in plain words first",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0022-the-ranker-that-reads.html#the-fundamentals-in-plain-words-first"
+   }
+  },
+  {
+   "id": "F3",
+   "kind": "follow-up",
+   "q": "How does it handle a title that launched today?",
+   "a": "<p>The prompt describes it: title, synopsis, release date, how fast it is rising. A model that understands language can use that on day one, which a feature ranker can’t. The open question is the title’s learned vector in the head, which has had no training yet. The paper doesn’t say how that is set. Netflix’s earlier foundation model warm-starts new titles from an average or from similar titles by metadata. For GenRec I would start it from the model’s own encoding of the title’s description and let the daily training update it, and I would check it with the new-titles slice from check 04.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F4",
+   "kind": "follow-up",
+   "q": "“40× fewer labels” sounds too good. What’s the catch?",
+   "a": "<p>It counts Phase 2 labelled examples only. Phase 1 adapted the model on a large amount of Netflix data first. So the claim is that a foundation model makes ranking labels far more efficient, which is the same reason fine-tuning a pre-trained LLM needs less data than training from scratch. It’s still a strong result. It just isn’t “needs little data”.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F5",
+   "kind": "follow-up",
+   "q": "+0.006% online. Is that even worth shipping?",
+   "a": "<p>It is statistically significant because the test ran on about 10% of Netflix traffic for four weeks. It was also the model trained on far less data and fewer signals than production, and the paper says offline metrics keep improving as both are scaled up, so this is closer to a floor than a ceiling. On a core metric, a small relative lift across hundreds of millions of members can be worth a lot. But the right question is lift per unit of cost, and the paper doesn’t give the cost of a ranking compared with production. That is the first number I would ask for.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F6",
+   "kind": "follow-up",
+   "q": "Why keep a language-modelling loss in a ranking model?",
+   "a": "<p>The model’s edge comes from understanding text. Train only on ranking and it can lose that skill over time. The β · L_language term keeps it a language model, so it can still read a synopsis or a strange new kind of event it hasn’t seen before.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Two phases of training",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0022-the-ranker-that-reads.html#two-phases-of-training"
+   }
+  },
+  {
+   "id": "F7",
+   "kind": "follow-up",
+   "q": "Why a reward-weighted loss and not RL?",
+   "a": "<p>The team tried GRPO and saw gains in early runs, but the overhead was high. Weighting each example by reward models gets much of the effect inside normal supervised training: no rollouts, no extra infrastructure. It is also easier to debug, because you can inspect the weights. RL is listed as future work.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Rewards: teaching it what a good play is",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0022-the-ranker-that-reads.html#rewards-teaching-it-what-a-good-play"
+   }
+  },
+  {
+   "id": "F8",
+   "kind": "follow-up",
+   "q": "How would you make it work in real time?",
+   "a": "<p>Shrink both cost terms: distil to a smaller model, keep the prompt at its elbow, and cache the parts of the prompt that don’t change per request (the instructions, the member’s older history) so only the new events need prefilling. I would still keep the old ranker as a fallback with a latency budget, and A/B it on one real-time surface first. The paper does not show any of this working yet.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The results, and how to read them",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0022-the-ranker-that-reads.html#the-results-and-how-to-read-them"
+   }
+  },
+  {
+   "id": "F9",
+   "kind": "follow-up",
+   "q": "Doesn’t context engineering bring back all the problems of feature engineering?",
+   "a": "<p>Some of them, yes. The verbalizer must produce the same text in training and serving, template changes need versioning, and a careless sentence can leak the label. What you gain: one input format for every surface, meaning that transfers from pre-training, and a direct token price for each piece of context, so you can measure what it buys.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Context engineering is the new feature engineering",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0022-the-ranker-that-reads.html#context-engineering-is-the-new-feature-engineering"
+   }
+  },
+  {
+   "id": "F10",
+   "kind": "follow-up",
+   "q": "How is this different from Meta’s HSTU or Kuaishou’s OneRec?",
+   "a": "<p>Those are trained on sequences of user actions or semantic IDs, not on natural-language text, and OneRec produces items by decoding. HSTU is the scaling story: 1.5 trillion parameters and +12.4% online. OneRec is the cost story: one generative model replacing the whole cascade at about a tenth of the running cost. Netflix’s own 2025 foundation model also reads interaction tokens rather than text. GenRec starts from a language model, reads text, and outputs scores through a head. The paper positions this as avoiding beam search while keeping language understanding.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The results, and how to read them",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0022-the-ranker-that-reads.html#the-results-and-how-to-read-them"
+   }
+  },
+  {
+   "id": "F11",
+   "kind": "follow-up",
+   "q": "How do you evaluate it offline without fooling yourself?",
+   "a": "<p>Split by time, never at random, so the model never sees the future. Check the verbalizer for leaks: nothing in the prompt may come from after the moment being predicted. Compare against the production ranker on the same split. Report MRR overall and by slice. Then confirm online, because offline ranking metrics and long-term member satisfaction don’t always move together.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fundamentals, in plain words first",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0022-the-ranker-that-reads.html#the-fundamentals-in-plain-words-first"
+   }
+  },
+  {
+   "id": "F12",
+   "kind": "follow-up",
+   "q": "Would you build this at a company with a thousandth of Netflix’s traffic?",
+   "a": "<p>Probably not first. The win is a small lift on a huge base, paid for with GPUs and a new serving stack. At smaller scale I would take the cheaper ideas: verbalized item descriptions to help cold start, an LLM to generate item embeddings offline, and a reward-weighted loss in the existing ranker. Then I would run check 02, and only build the full system if it wins at a cost we can pay.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The results, and how to read them",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0022-the-ranker-that-reads.html#the-results-and-how-to-read-them"
+   }
+  }
+ ]
+}

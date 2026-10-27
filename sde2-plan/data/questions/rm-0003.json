@@ -1,0 +1,553 @@
+{
+ "lesson": "rm-0003",
+ "label": "RM 0003",
+ "track": "project",
+ "title": "Five-Stage Multi-Agent Schematization",
+ "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "c03-t1",
+   "kind": "toolbox",
+   "q": "What is Google ADK?",
+   "a": "On its own a model call is one question and one answer. A framework is what turns that into a pipeline. ADK is Google's open-source Python one. It gives you an agent type and a way to hang ordinary Python functions off it as tools. It also gives you a shared dictionary to leave results in, and a runner that drives the loop and records every event. What it buys is the plumbing you would otherwise write and debug yourself. Ordering, state passing, tool dispatch, retry, and a trace you can read afterwards. The trace matters most, because an agent failure with no trace is unfixable. It is not a model. Gemini does the thinking. ADK decides what runs and what each step can see.",
+   "options": null,
+   "correct": null,
+   "flag": "Talking about ADK as though it were the intelligence. It is the wiring. Saying so is what shows you know where the boundary is.",
+   "teach": {
+    "title": "The loop, and the ten things in it",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#the-loop-and-the-ten-things-in"
+   }
+  },
+  {
+   "id": "c03-t2",
+   "kind": "toolbox",
+   "q": "What is the difference between an LLM agent and a workflow agent?",
+   "a": "An LLM agent decides what to do next by asking the model. A workflow agent asks nothing, because the order is written in code. SequentialAgent runs its children in a fixed order. ParallelAgent runs them at once. LoopAgent repeats until a child escalates or the iteration cap is hit. What that buys is determinism wherever you do not actually need judgement, which is most places. The order is readable in the source and testable without a model, so it costs nothing to verify. It also cannot drift. A pipeline that asks a model what to run next can answer differently tomorrow for reasons nobody can reconstruct.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling all five stages agents in the autonomous sense. Four of them are functions in a fixed order, and claiming otherwise oversells the system.",
+   "teach": {
+    "title": "The loop, and the ten things in it",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#the-loop-and-the-ten-things-in"
+   }
+  },
+  {
+   "id": "c03-t3",
+   "kind": "toolbox",
+   "q": "How do two ADK agents pass anything to each other?",
+   "a": "Through session state, not by calling each other. Session state is a dictionary the runner carries from one step to the next for the length of a run. Each agent reads the keys it needs and writes its result back under an output key it declares. That is the whole mechanism. What it buys is stages that do not know about each other. The validator leaves its failures where the feedback agent will look, and neither one imports the other or takes it as an argument. So a stage can be reordered, tested alone or swapped without touching its neighbours. The cost is that state keys are a fragile interface. Renaming one raises no error and fails no test. The next stage just finds nothing.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing agents as calling each other. That is the architecture this one deliberately does not have, and the distinction is the good half of the answer.",
+   "teach": {
+    "title": "The loop, and the ten things in it",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#the-loop-and-the-ten-things-in"
+   }
+  },
+  {
+   "id": "c03-t4",
+   "kind": "toolbox",
+   "q": "What is a tool, and what does the model actually see of it?",
+   "a": "A tool is a normal Python function the model is allowed to ask for. It never sees your code and never runs anything. It sees the name, the docstring and the parameter types, turned into a schema. It replies with a name and a set of arguments. The framework then calls the real function and hands the return value back into the conversation. What this buys is that everything which must be exact leaves the model. Arithmetic, lookups, file reads and validation happen in Python, where they are correct and testable. The model is left doing the part it is good at, which is choosing. So the docstring is a prompt, not documentation, and a vague one is a real bug.",
+   "options": null,
+   "correct": null,
+   "flag": "“It calls the function.” It cannot. It emits a request to call one, and something in your process decides whether to honour it.",
+   "teach": null
+  },
+  {
+   "id": "c03-t5",
+   "kind": "toolbox",
+   "q": "What is structured output, and what actually enforces it?",
+   "a": "You give the API a schema up front and generation is constrained to fit it. It is not a prompt asking nicely for JSON, and it is not a parse-and-retry loop. The decoder is restricted so tokens that would break the shape are never produced. What that buys is the disappearance of a whole family of failures. No stray prose before the brace, no trailing comma, no markdown fence around the JSON, and none of the code that used to handle them. What it does not buy is truth. A field can be required, present, correctly typed and completely wrong. That gap is exactly why the deterministic validator runs downstream of the model.",
+   "options": null,
+   "correct": null,
+   "flag": "Offering schema-constrained output as the correctness story. It buys you a parse, and a parse is not a check.",
+   "teach": null
+  },
+  {
+   "id": "c03-t6",
+   "kind": "toolbox",
+   "q": "What is Cloud Run, and what do concurrency and timeout mean on it?",
+   "a": "Cloud Run is the serverless way to run container images. There is no cluster to create, size or patch. You hand it an image, it starts copies as requests arrive, and it stops them all when traffic stops, so idle costs nothing. Two settings define its capacity model. Concurrency is how many requests one instance handles at once, and ours is eighty. Timeout is how long one request may run, with a ceiling of sixty minutes. Requests divided by concurrency gives you instances, and the timeout decides what is allowed to be a request at all. What it buys here is no infrastructure to own for work that is genuinely request-shaped, and no bill between runs.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying “it autoscales” without the two settings. They are the whole configuration surface, and an interviewer asks for them by name.",
+   "teach": {
+    "title": "The loop, and the ten things in it",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#the-loop-and-the-ten-things-in"
+   }
+  },
+  {
+   "id": "c03-t7",
+   "kind": "toolbox",
+   "q": "What is IAP, and what does it save you writing?",
+   "a": "Identity-Aware Proxy is a Google-run checkpoint in front of the service. Every request goes through it first. It signs the user in, checks them against an access policy, and only then forwards the request with a verified identity attached. Your code never sees an unauthenticated caller. What it buys is three subsystems you do not build. A login page, a session store, and auth middleware. It also means the service cannot be reached at all without passing the policy, rather than depending on every route remembering to check. The service is left deciding what a known user may do, never who they are.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating IAP as the whole of authorisation. It answers who. What they may do is still yours, and forgetting that is how internal tools leak.",
+   "teach": {
+    "title": "The part most people would have left out",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#the-part-most-people-would-have-left"
+   }
+  },
+  {
+   "id": "c03-f1",
+   "kind": "fundamentals",
+   "q": "In two sentences, what does this pipeline do?",
+   "a": "It turns a public statistics spreadsheet into a mapping. The mapping says what each column means in a shared vocabulary. A model writes it. A real program then checks it by running it. The errors go back as feedback until it works or stops improving.",
+   "options": null,
+   "correct": null,
+   "flag": "Leading with “multi-agent.” It tells the interviewer nothing and invites the question you least want first, which is what makes it agents rather than functions.",
+   "teach": null
+  },
+  {
+   "id": "c03-f2",
+   "kind": "fundamentals",
+   "q": "What is a PVMAP, for someone who has never seen one?",
+   "a": "A file that translates a spreadsheet into a shared vocabulary. For each column it says which property that column represents and what its values mean. Without it, two countries' unemployment tables cannot be compared, because nothing says the two columns are the same thing.",
+   "options": null,
+   "correct": null,
+   "flag": "Defining it as “a config file.” True and useless. Name what becomes possible once it exists.",
+   "teach": null
+  },
+  {
+   "id": "c03-f3",
+   "kind": "fundamentals",
+   "q": "Name the five stages.",
+   "a": "Sampling, schema selection, PVMAP generation, validation, evaluation. Sampling makes a representative slice so the model sees data rather than headers. Schema selection picks one of seven categories. Generation writes the map, validation runs it, and evaluation scores it against a hand-written one.",
+   "options": null,
+   "correct": null,
+   "flag": "Getting the order wrong, or merging validation and evaluation. They are different questions: did it run, and was it right.",
+   "teach": {
+    "title": "The shape: five stages, and a loop inside two of them",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#the-shape-five-stages-and-a-loop"
+   }
+  },
+  {
+   "id": "c03-f4",
+   "kind": "fundamentals",
+   "q": "You said “deterministic validation.” What makes it deterministic?",
+   "a": "It is a subprocess, not a model call. The generated map is converted and run through <code>stat_var_processor.py</code>, and the result is whether real data rows came out. Same input, same verdict, every time. A second model grading the first would give you neither of those properties.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying an LLM checks the output. That is the single most common way this kind of pipeline is built, and it is the thing the question is testing for.",
+   "teach": null
+  },
+  {
+   "id": "c03-f5",
+   "kind": "fundamentals",
+   "q": "What exactly is the loop retrying?",
+   "a": "Generation, with the validator's real errors added to the prompt. It is not a blind retry of the same call. Each iteration gets the previous iteration's error text, so the model is correcting a named failure rather than rolling the dice again.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it as retry-on-failure. That is a network policy. This is a correction loop, and the difference is the feedback.",
+   "teach": null
+  },
+  {
+   "id": "c03-f6",
+   "kind": "fundamentals",
+   "q": "Why Google ADK rather than writing the loop yourself?",
+   "a": "The loop, the sub-agent sequencing and the early-exit signal come from the framework. <code>LoopAgent</code> runs the sub-agents in order and any of them can raise escalate to break out. Session state carries data between iterations. Writing that by hand is a week of work that is not the interesting part.",
+   "options": null,
+   "correct": null,
+   "flag": "“It was the standard.” Name what the framework gave you, or admit it was a constraint rather than a choice.",
+   "teach": {
+    "title": "Three ways the loop stops",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#three-ways-the-loop-stops"
+   }
+  },
+  {
+   "id": "c03-f7",
+   "kind": "fundamentals",
+   "q": "What ends the loop?",
+   "a": "Three things. Quality evaluation escalates when the result is acceptable or has stopped improving. The max-retries check escalates when the attempt budget is gone. And <code>max_iterations</code> is a backstop if neither fires. The stagnation exit is the one worth mentioning, because it stops a hopeless dataset eating the whole budget.",
+   "options": null,
+   "correct": null,
+   "flag": "Naming only success and max retries. Every loop has those. Stagnation detection is the part that shows you thought about cost.",
+   "teach": {
+    "title": "Three ways the loop stops",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#three-ways-the-loop-stops"
+   }
+  },
+  {
+   "id": "c03-f8",
+   "kind": "fundamentals",
+   "q": "Where does this run?",
+   "a": "Cloud Run behind IAP, with two CPUs and 4 GB. The request timeout is 3600 seconds and concurrency is 80. Not GKE. A dataset takes about 45 seconds and the work is stateless per request. There is nothing here that needs a cluster.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying GKE because the other CloudSufi service is on GKE. Two services, two deployment targets, and you should be able to say why each one is right.",
+   "teach": null
+  },
+  {
+   "id": "c03-f9",
+   "kind": "fundamentals",
+   "q": "The README says 100% success rate. Success at what?",
+   "a": "At completing. It means the pipeline ran end to end on four test datasets without falling over. It does not mean the mappings were correct. Correctness is the PV accuracy number, and that is a completely different figure. I would separate those two before anyone asks.",
+   "options": null,
+   "correct": null,
+   "flag": "Letting 100% stand as an accuracy claim. It is a reliability claim, and conflating them is the kind of thing that ends an interview quietly.",
+   "teach": {
+    "title": "The part most people would have left out",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#the-part-most-people-would-have-left"
+   }
+  },
+  {
+   "id": "c03-f10",
+   "kind": "fundamentals",
+   "q": "What is the riskiest claim in this bullet?",
+   "a": "The three hours to thirty minutes. It is a time-saving claim, and the repository has no before-and-after study in it. The measured artefacts are PV accuracy and processing time per dataset. I would present the time figure as a field estimate. The accuracy numbers are the measured ones.",
+   "options": null,
+   "correct": null,
+   "flag": "Defending the number as if it were instrumented. Volunteering that it is an estimate costs nothing. Being caught costs the room.",
+   "teach": {
+    "title": "Three ways the loop stops",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#three-ways-the-loop-stops"
+   }
+  },
+  {
+   "id": "c03-d1",
+   "kind": "deep-dive",
+   "q": "Walk me through the ten sub-agents.",
+   "a": "State preparation sets up the iteration. StatVar discovery looks up candidates. The generator writes the PVMAP. Metadata generation builds the processor config. A spot check pre-validates cheaply. Validation runs the real thing. Error resolution tries to fix known failures. Quality evaluation decides whether to stop. Conditional feedback writes the next prompt. The max-retries check is the backstop.",
+   "options": null,
+   "correct": null,
+   "flag": "Listing ten names with no grouping. Say which three can end the loop and which three are conditional, or it sounds like a directory listing.",
+   "teach": {
+    "title": "The loop, and the ten things in it",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#the-loop-and-the-ten-things-in"
+   }
+  },
+  {
+   "id": "c03-d2",
+   "kind": "deep-dive",
+   "q": "Why not have a second model check the first model's work?",
+   "a": "Because the question has an oracle. There is a real processor that either turns this mapping into data rows or does not. When an oracle exists, using a model instead is a choice to be less correct for no benefit. A judge model is for questions with no ground truth, and this is not one of them.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying LLM-as-a-judge is bad. It is the right tool where nothing can be executed. The point is knowing which situation you are in.",
+   "teach": null
+  },
+  {
+   "id": "c03-d3",
+   "kind": "deep-dive",
+   "q": "You mentioned the loop stops on “stagnant” quality. Define it and defend it.",
+   "a": "Quality stopped improving between iterations, so another attempt is not expected to help. It matters because retries are not free. A dataset from a domain the vocabulary barely covers will fail the same way seven times. Detecting no movement and exiting turns a hopeless dataset from seven model calls into two or three.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating it as an optimisation. It is a cost control, and on a 49-dataset run it is the difference between a batch that finishes and one that does not.",
+   "teach": {
+    "title": "Three ways the loop stops",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#three-ways-the-loop-stops"
+   }
+  },
+  {
+   "id": "c03-d4",
+   "kind": "deep-dive",
+   "q": "Each retry adds error text to the prompt. How do you stop it overflowing?",
+   "a": "Compaction, and it is section-aware rather than a blind truncate. The skeleton is split on its numbered headers. Some sections are dropped entirely from feedback because they are generation-only content, and others are compacted to a lower level of detail. That keeps the errors, which are the useful part, and sheds the instructions the model has already followed.",
+   "options": null,
+   "correct": null,
+   "flag": "“We truncate.” Blind truncation cuts the newest errors first, which are exactly the ones the retry exists to address.",
+   "teach": {
+    "title": "The loop, and the ten things in it",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#the-loop-and-the-ten-things-in"
+   }
+  },
+  {
+   "id": "c03-d5",
+   "kind": "deep-dive",
+   "q": "What is the retry policy on the model calls themselves, and why those numbers?",
+   "a": "Seven attempts, starting at five seconds, doubling to a sixty-second cap, with jitter, on 408, 429 and the 5xx family. Those are transient-failure codes, so retrying is the correct response. Jitter is there because 49 datasets running together would otherwise retry in lockstep and rebuild the spike that caused the failure.",
+   "options": null,
+   "correct": null,
+   "flag": "Forgetting jitter. Exponential backoff without it synchronises every client, and that is the classic retry-storm answer an interviewer is listening for.",
+   "teach": null
+  },
+  {
+   "id": "c03-d6",
+   "kind": "deep-dive",
+   "q": "What did the benchmark actually measure?",
+   "a": "PV accuracy. How many property-value pairs the generated mapping got right against a hand-written one for the same dataset, across 49 datasets. The README also reports a comparison against raw Gemini, at 26.8% versus 8.1%. That is a relative claim and it is the more defensible one, because both arms were measured the same way.",
+   "options": null,
+   "correct": null,
+   "flag": "Quoting the absolute accuracy without the comparison. The absolute number sounds bad alone and the relative one is what the work actually earned.",
+   "teach": null
+  },
+  {
+   "id": "c03-d7",
+   "kind": "deep-dive",
+   "q": "You ran a statistical analysis on the results. What did it find?",
+   "a": "That structure does not predict accuracy and domain does. Seven structural features were tested with Spearman correlations. The strongest was numeric-to-categorical ratio at r=0.20, p=0.16, which is not significant. Column count came out at r=-0.10 and row count at r=-0.05. Domain averages were 39.3% against 2.6%, a gap nothing structural explains.",
+   "options": null,
+   "correct": null,
+   "flag": "Reporting r=0.20 as a finding. Quoting the p-value unprompted is the whole difference between analysis and decoration.",
+   "teach": {
+    "title": "The benchmark, which is the best material here",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#the-benchmark-which-is-the-best-material"
+   }
+  },
+  {
+   "id": "c03-d8",
+   "kind": "deep-dive",
+   "q": "You found the ground truth was partly broken. What did you do?",
+   "a": "Ran the hand-written PVMAPs through the same processor, and only 28 of 49 produced valid output. The rest fail on keys not matching their CSV headers, or on API timeouts. Human-written maps pass at about 20%. I reported it, because it changes how every other number should be read.",
+   "options": null,
+   "correct": null,
+   "flag": "Presenting it only as an excuse for low scores. It also means the benchmark is noisy in both directions, and saying that is what makes the first half credible.",
+   "teach": {
+    "title": "The part most people would have left out",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#the-part-most-people-would-have-left"
+   }
+  },
+  {
+   "id": "c03-d9",
+   "kind": "deep-dive",
+   "q": "What is MCP doing in this pipeline?",
+   "a": "Giving the agents live access to the target knowledge graph instead of a snapshot. Three sub-agents use it: StatVar discovery, the spot check, and error resolution. All three are conditional, so the pipeline still runs with MCP off. The spot check is the useful one, because it catches a bad mapping before the expensive subprocess runs.",
+   "options": null,
+   "correct": null,
+   "flag": "Explaining MCP as a protocol. Say what it buys here, which is a cheap pre-check against live vocabulary.",
+   "teach": {
+    "title": "The loop, and the ten things in it",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#the-loop-and-the-ten-things-in"
+   }
+  },
+  {
+   "id": "c03-d10",
+   "kind": "deep-dive",
+   "q": "Your other service is on GKE. Why is this one on Cloud Run?",
+   "a": "Different shape of work. This is a stateless request that runs for about 45 seconds and then ends. No long-lived connections, no session state, nothing that needs a migration job to land before the new version serves. Cloud Run with IAP in front gives us auth and scale-to-zero without owning a cluster.",
+   "options": null,
+   "correct": null,
+   "flag": "Answering with a preference. Name the property of the workload that decided it, which here is that nothing is stateful.",
+   "teach": {
+    "title": "The loop, and the ten things in it",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#the-loop-and-the-ten-things-in"
+   }
+  },
+  {
+   "id": "c03-d11",
+   "kind": "deep-dive",
+   "q": "A run takes around 45 seconds. What does the user see?",
+   "a": "Progress over a WebSocket. There is a dedicated progress channel in the API layer. Stages report as they complete, rather than the client polling a job row. It matters because a 45-second wait with no output reads as a hang. A batch of datasets reads as a much longer one.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying it does not matter because it is a batch tool. The person running it is watching, and perceived progress is the difference between a tool people use and one they suspect.",
+   "teach": {
+    "title": "The part most people would have left out",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#the-part-most-people-would-have-left"
+   }
+  },
+  {
+   "id": "c03-d12",
+   "kind": "deep-dive",
+   "q": "The bullet says engineers refine rather than author. What actually changed for them?",
+   "a": "They start from a draft that has already been run. The mapping arrives with the processor output beside it, so they can see which columns produced rows and which did not. The work shifts from writing a file against documentation to correcting a file against evidence. That is a different and much faster task.",
+   "options": null,
+   "correct": null,
+   "flag": "Claiming it removes the engineer. It does not, and the claim invites a question about accuracy that the 2.6% domain answers badly.",
+   "teach": null
+  },
+  {
+   "id": "c03-e1",
+   "kind": "edges",
+   "q": "You run all 49 datasets at once, each with up to seven retries. What happens?",
+   "a": "You build your own spike. The retry policy has jitter, which stops the attempts landing in lockstep. But jitter only spreads a storm. It does not cap one. Nothing limits how many datasets are in flight, so concurrency control belongs at the batch level. It is not there today.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying backoff handles it. Backoff is what each client does after being refused. It is not admission control, and the difference is the question.",
+   "teach": {
+    "title": "Three ways the loop stops",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#three-ways-the-loop-stops"
+   }
+  },
+  {
+   "id": "c03-e2",
+   "kind": "edges",
+   "q": "The mapping validates and produces rows, but the rows are wrong. How would you know?",
+   "a": "Not from validation. It only proves the mapping is well-formed enough to execute, which is a syntax-level guarantee. Semantic correctness is what the evaluation stage is for, and it needs a hand-written map to compare against. That is why both stages exist, and why a dataset with no ground truth can only ever be checked for the weaker property.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating a passing validator as a correctness guarantee. It answers “did it run,” and the interviewer is asking “was it right.”",
+   "teach": {
+    "title": "The part most people would have left out",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#the-part-most-people-would-have-left"
+   }
+  },
+  {
+   "id": "c03-e3",
+   "kind": "edges",
+   "q": "The loop exhausts its retries. What does the engineer get?",
+   "a": "The best attempt so far, plus the validator output that says why it failed. That is deliberately more useful than nothing. A failing map with real error text still tells the engineer which columns are the problem. The review pass starts from evidence rather than a blank file.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying it returns an error. Returning the partial artefact is the product decision, and it is the one that keeps the bullet's claim true on hard datasets.",
+   "teach": {
+    "title": "The loop, and the ten things in it",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#the-loop-and-the-ten-things-in"
+   }
+  },
+  {
+   "id": "c03-e4",
+   "kind": "edges",
+   "q": "One domain scores 2.6%. Would you ship that?",
+   "a": "Yes, with the number attached. At 2.6% the draft is still a starting point, with the validator output beside it. The engineer was going to write that file from scratch anyway. What you must not do is ship it silently. The pipeline should say which domain tier a dataset is in, so nobody is surprised.",
+   "options": null,
+   "correct": null,
+   "flag": "Either “no, it is not ready” or “yes, it is fine.” The answer is that it ships with its own accuracy expectation visible.",
+   "teach": {
+    "title": "Why the validator is a subprocess",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#why-the-validator-is-a-subprocess"
+   }
+  },
+  {
+   "id": "c03-e5",
+   "kind": "edges",
+   "q": "A run dies after the generation stage. Is it safe to re-run?",
+   "a": "For this pipeline, yes, because nothing outside it has been touched. Every stage writes its own artefacts and the run is re-driven from the start. That holds only while the stages have no external side effects. The moment one of them writes to the knowledge graph, the stages need to be genuinely repeatable rather than accidentally so.",
+   "options": null,
+   "correct": null,
+   "flag": "Claiming idempotency as a design property. Here it is a consequence of the pipeline being read-only outside itself, and saying so is the more accurate answer.",
+   "teach": {
+    "title": "The shape: five stages, and a loop inside two of them",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#the-shape-five-stages-and-a-loop"
+   }
+  },
+  {
+   "id": "c03-e6",
+   "kind": "edges",
+   "q": "Defend the three hours to thirty minutes.",
+   "a": "I would present it as a field estimate, not an instrumented measurement. And I would say so before being asked. What is measured in the repository is per-dataset processing time of about 45 seconds. Also PV accuracy against ground truth, and a comparison against raw Gemini. The time saving comes from the team who did the hand-mapping before.",
+   "options": null,
+   "correct": null,
+   "flag": "Improvising a methodology for it. If you describe a study that was not run, one follow-up question finds out.",
+   "teach": null
+  },
+  {
+   "id": "c03-e7",
+   "kind": "edges",
+   "q": "What is the failure mode of deterministic validation?",
+   "a": "It is only as good as the processor it runs. If the processor accepts something it should reject, the loop happily exits on a bad mapping. That is the same class of problem as the broken ground truth, and it is why the evaluation stage matters. Two independent checks fail independently, which is the point of having both.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying deterministic means correct. It means repeatable. A repeatably wrong answer is still wrong, and naming that is the senior version of this answer.",
+   "teach": {
+    "title": "The part most people would have left out",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#the-part-most-people-would-have-left"
+   }
+  },
+  {
+   "id": "c03-e8",
+   "kind": "edges",
+   "q": "What would you build next?",
+   "a": "Two things, in order. Clean the ground truth, because 21 broken answer keys make every accuracy number unreliable and that is cheap to fix. Then add domain tiering to the pipeline, so a dataset from a thinly covered domain is routed differently or flagged rather than silently scoring 2.6%. Prompt work is third, and the analysis says it will not help much.",
+   "options": null,
+   "correct": null,
+   "flag": "Reaching for a bigger model or better prompts first. The analysis already says the ceiling is vocabulary coverage, so that answer contradicts your own data.",
+   "teach": {
+    "title": "The part most people would have left out",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#the-part-most-people-would-have-left"
+   }
+  },
+  {
+   "id": "0003-q1",
+   "kind": "quiz",
+   "q": "The validator fails on iteration three, and the quality score is identical to iteration two. What does the loop do?",
+   "a": "<p>It stops. Quality evaluation escalates on <em>acceptable or stagnant</em>, and stagnant is exactly this case: another attempt is not expected to move the number, so spending one is waste.</p>\n    <p>Running to the full budget is what a loop without stagnation detection does, and on a 49-dataset batch it is the difference between finishing and not. Restarting from sampling would throw away the accumulated error feedback, which is the only thing making each iteration better than the last.</p>",
+   "options": [
+    "It escalates and stops here, because quality stopped improving",
+    "It continues until the entire attempt budget is exhausted",
+    "It restarts everything from the original sampling stage again",
+    "It switches the generator to a substantially larger model"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Three ways the loop stops",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#three-ways-the-loop-stops"
+   }
+  },
+  {
+   "id": "0003-q2",
+   "kind": "quiz",
+   "q": "Census datasets average 39.3% PV accuracy and Crime datasets 2.6%. What best explains the gap?",
+   "a": "<p>Vocabulary coverage. A column can only be mapped to a property that exists in Data Commons, so a domain the graph barely models cannot be mapped well no matter how good the prompt is.</p>\n    <p>The structural explanations were tested and rejected: column count came out at r=-0.10 with p=0.50, and row count at r=-0.05. One dataset with 56 columns reaches 89% accuracy, which kills the width theory on its own.</p>",
+   "options": [
+    "Coverage of that domain in the target schema vocabulary",
+    "Column count and the overall width of source tables",
+    "Row volume and the sampling rate for every dataset",
+    "Model temperature and the size of the retry budget"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "The benchmark, which is the best material here",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#the-benchmark-which-is-the-best-material"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“How do you know the generated mapping is correct?”",
+   "a": "<p>Two different checks, because they answer different questions. Validation runs the mapping through the real processor as a subprocess and asks whether data rows came out. That is a well-formedness guarantee and it is deterministic. Evaluation compares the result against a hand-written mapping and gives PV accuracy, which is the semantic check. A dataset with no hand-written mapping can only ever get the first one.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The loop, and the ten things in it",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#the-loop-and-the-ten-things-in"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“Why is it agents rather than five functions?”",
+   "a": "<p>The five stages genuinely are a sequence and could be functions. The loop is where the agent framework earns itself. Ten sub-agents run in order, any of them can raise escalate to break out, and session state carries the feedback between iterations. I would be honest that the outer pipeline is orchestration and the framework matters most inside the loop.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“Your accuracy on some domains is under three percent. Is this working?”",
+   "a": "<p>On those domains it is producing a weak draft rather than a good one, and I know why. I tested seven structural hypotheses and all of them failed. The driver is coverage of that domain in the target vocabulary, which is a 39.3% against 2.6% gap. No prompt fixes a missing property. The fix is schema coverage, and until then the pipeline should flag the tier rather than hand over a draft silently.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The benchmark, which is the best material here",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#the-benchmark-which-is-the-best-material"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“Where did three hours to thirty minutes come from?”",
+   "a": "<p>It is the team's estimate of the hand-mapping work it replaces, not a study I ran. What I measured is about 45 seconds of processing per dataset, PV accuracy against ground truth, and a comparison against raw Gemini at 26.8% versus 8.1%. I would rather give you the measured numbers and be clear which one is an estimate.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The part most people would have left out",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#the-part-most-people-would-have-left"
+   }
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“You said the ground truth was broken. Does that not invalidate your benchmark?”",
+   "a": "<p>It weakens it in both directions, and I would not use it only as an excuse. Twenty-eight of 49 answer keys validate, and human-written maps pass at about 20%. That means our accuracy understates the pipeline on some datasets, and it also means no single percentage from this benchmark is settled. The right next step is cleaning the keys, which is cheap, before doing anything else with the numbers.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The part most people would have left out",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0003-multi-agent-schematization.html#the-part-most-people-would-have-left"
+   }
+  }
+ ]
+}

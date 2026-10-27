@@ -1,0 +1,159 @@
+{
+ "lesson": "ip-0015",
+ "label": "IP 0015",
+ "track": "ai",
+ "title": "The Half-Life of an Instruction",
+ "url": "https://nehilsood.github.io/guides/interview-prep/guides/0015-the-half-life-of-an-instruction.html",
+ "plain": [
+  {
+   "title": "In plain words",
+   "url": "https://nehilsood.github.io/guides/interview-prep/guides/0015-the-half-life-of-an-instruction.html#plain-1"
+  }
+ ],
+ "questions": [
+  {
+   "id": "F1",
+   "kind": "follow-up",
+   "q": "So it <em>is</em> a prompting bug — you just want a better prompt?",
+   "a": "<p>No, and the distinction is the answer. A better prompt raises the first-turn compliance rate, and the first turn is the part that already worked. The failure is entirely in the tail. <strong>You cannot word your way out of a half-life problem</strong>, because the decay is a property of where the sentence sits in the context, not of what it says.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F2",
+   "kind": "follow-up",
+   "q": "Would re-injecting the rule on every turn fix it?",
+   "a": "<p>It genuinely helps and it is cheap, so do it. It is the same mechanism behind the recovery result in <a href=\"https://nehilsood.github.io/guides/interview-prep/guides/0015-the-half-life-of-an-instruction.html#s05\">05</a> — restating the content close to the point of use restored performance to 95% of single-turn.</p>\n    <p>Three caveats. It still only reweights, so it does not survive a sufficiently strong prior. It competes with every other thing you re-inject, and that budget fills up fast. And you pay its tokens on every turn forever. <strong>Prefer a hook that re-surfaces the rule on the tool calls where it actually applies</strong> — the edit, the write, the run — over a banner on all of them, which is how a reminder becomes wallpaper.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Rank the fixes by how long they last",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0015-the-half-life-of-an-instruction.html#rank-the-fixes-by-how-long-they"
+   }
+  },
+  {
+   "id": "F3",
+   "kind": "follow-up",
+   "q": "Where exactly should the rule live in <code>AGENTS.md</code>?",
+   "a": "<p>On the best available evidence, close to anywhere. Top, centre and bottom produced no detectable contrast across 16,050 observations, and neither did file size, file count, or a flatly contradicting instruction in an adjacent file. Spend the effort on the gate.</p>\n    <p>Say the limits as you say it, though — one study, two TypeScript repos, one trivial instruction, and two of the four nulls are failures to reject rather than affirmative nulls. <strong>“Smaller than people think” is well supported. “Zero” is not.</strong></p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Somebody measured the fix everybody recommends",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0015-the-half-life-of-an-instruction.html#somebody-measured-the-fix-everybody-recommends"
+   }
+  },
+  {
+   "id": "F4",
+   "kind": "follow-up",
+   "q": "If you owned the model, would you just train on more Rust?",
+   "a": "<p>Yes — it is the only fix on the list that moves <code>P(language)</code> rather than the likelihood term, so it is the only one that changes the default rather than outweighing it.</p>\n    <p>But note what the Rust evidence says about <em>how</em>. The dominant failure was 44.5% of tasks never reaching a patch attempt, because the environment would not reproduce. <strong>Training the policy does not fix a gym that does not start</strong>, and the reason there is no Rust gym is not that nobody wants one — it is that standing up and running arbitrary Rust projects at scale is the hard part. Budget for the harness, not the data.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Three causes, and the popular one is the weakest",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0015-the-half-life-of-an-instruction.html#three-causes-and-the-popular-one-is"
+   }
+  },
+  {
+   "id": "F5",
+   "kind": "follow-up",
+   "q": "Why Python specifically for <em>checking</em> its work, rather than writing?",
+   "a": "<p>Because checking is the only action an agent has that returns ground truth instead of another prediction, and roughly sixty-three thousand reinforced trajectories taught it exactly one way to perform that action. <strong>Reaching for the interpreter is not a style preference, it is an epistemics habit.</strong></p>\n    <p>Which is also why the verifier is the fix that works. You are not contradicting a preference; you are replacing the loop with a different one and making that one cheap.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Where the loop closed",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0015-the-half-life-of-an-instruction.html#where-the-loop-closed"
+   }
+  },
+  {
+   "id": "F6",
+   "kind": "follow-up",
+   "q": "Is this just instruction drift? Or sycophancy?",
+   "a": "<p>Same surface, different mechanism, and conflating them sends you to the wrong fix. Drift usually means the instruction is being overridden by something <em>in the conversation</em> — a later request, a user correction, a tool result. The remedy there is hierarchy and placement.</p>\n    <p>Here the competitor is the prior itself, which is present in every forward pass and is not in the conversation at all. <strong>You cannot outrank something that is not in the ordering.</strong> That is why the fix has to leave the context window and become a property of the repo or the check.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Rank the fixes by how long they last",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0015-the-half-life-of-an-instruction.html#rank-the-fixes-by-how-long-they"
+   }
+  },
+  {
+   "id": "F7",
+   "kind": "follow-up",
+   "q": "What if the user is wrong and Python is the right call for the follow-ups?",
+   "a": "<p>A live possibility and worth one sentence in the room, because it costs nothing and shows you are not just executing. Ask what the port was <em>for</em>. If it was throughput on a hot path, the rewrite earns itself there and almost nowhere else — and a glue script or a one-off migration that happens to be Python is not a defect, it is the agent allocating effort sensibly.</p>\n    <p>The defensible version of the policy is narrow: <strong>gate the hot path, not the repository.</strong> “Everything must be Rust” is a statement about tidiness; “the pipeline is Rust and its tooling may be anything” is a statement about why you paid for the port.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Five checks, and one of them is the whole diagnosis",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0015-the-half-life-of-an-instruction.html#five-checks-and-one-of-them-is"
+   }
+  },
+  {
+   "id": "F8",
+   "kind": "follow-up",
+   "q": "Does a bigger or newer model make this go away?",
+   "a": "<p>It narrows, and it does not invert. Across every published per-language table, the stronger model scores higher in each column and Python stays on top: the best agent in the Multi-SWE-bench results is still 52.20% Python against 15.90% Rust. Capability moves the level; the harness set the ordering, and the ordering is what produces the default.</p>\n    <p>Be careful with the stronger claim, though. These are different models on a benchmark with its own biases, and “the gap closes at rate X” is not something the published tables support. <strong>Say the direction, not the slope.</strong></p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Somebody measured the fix everybody recommends",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0015-the-half-life-of-an-instruction.html#somebody-measured-the-fix-everybody-recommends"
+   }
+  },
+  {
+   "id": "F9",
+   "kind": "follow-up",
+   "q": "Would you ever let the agent choose the language?",
+   "a": "<p>For scratch work, yes, happily — see <a href=\"https://nehilsood.github.io/guides/interview-prep/guides/0015-the-half-life-of-an-instruction.html#s09\">09</a>. For the artefact, no, and the reason is worth saying because it sounds counter-intuitive: <strong>the model’s choice is a well-calibrated estimate of where it will succeed, and that is precisely the wrong objective.</strong></p>\n    <p>It is optimising the probability this task completes. You are optimising a decade of somebody maintaining it. Those come apart exactly when the right language is the one the model is worse at, which is this situation, every time.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F10",
+   "kind": "follow-up",
+   "q": "How would you know the environment fix worked rather than the prompt?",
+   "a": "<p>Vary one. Keep the archive and the gate, delete the sentence, and measure the curve from check 02. Most teams ship all three changes on the same afternoon and then attribute the result to the one they personally wrote, which is usually the prompt, because it is the one they can see.</p>\n    <p>If you want the cheapest honest version: the baseline in check 01 and the curve in check 02 are two runs, and between them they attribute the whole effect.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Five checks, and one of them is the whole diagnosis",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0015-the-half-life-of-an-instruction.html#five-checks-and-one-of-them-is"
+   }
+  },
+  {
+   "id": "F11",
+   "kind": "follow-up",
+   "q": "Where else does this pattern show up?",
+   "a": "<p>Anywhere a default sits in the weights and a preference sits in the context. Ask for a dashboard, get React. Ask to load a CSV, get pandas. The repo has an internal HTTP client and the agent imports <code>requests</code>; the house test runner is custom and the agent writes pytest; the product is British and the copy drifts American by the third paragraph; the tone-of-voice document holds for exactly as long as the tone-of-voice document is on screen.</p>\n    <p>The test is always the same, and it is one question: <strong>is the thing I want a sentence, or is it a fact about the environment the agent is standing in?</strong> If it is only a sentence, assume it expires. Then find the cheapest way to make it a fact — which is very often a lint rule, an import ban, or a failing check, none of which have to be remembered by anybody.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F12",
+   "kind": "follow-up",
+   "q": "What is the lesson you actually took from this?",
+   "a": "<p>That I had been writing instructions as though the model were a configuration file, and it is a reader. Every rule I write now gets one question before it ships: <strong>what would have to be true for this to still be working at turn twenty?</strong> Most of the time the honest answer is “someone would have to re-read it,” and nobody is going to.</p>\n    <p>So I write the smallest number of sentences I can, keep them because they are cheap and they do help on the turns that matter most, and then spend the rest of the effort on things the agent cannot avoid meeting: what the repository contains, what the command returns, what the check refuses. <strong>The model is not disobeying me. It is doing what I actually set up, which is a different thing from what I actually said</strong> — and the whole job is the gap between those two.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  }
+ ]
+}

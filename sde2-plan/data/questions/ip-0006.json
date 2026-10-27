@@ -1,0 +1,162 @@
+{
+ "lesson": "ip-0006",
+ "label": "IP 0006",
+ "track": "ai",
+ "title": "The Orphaned Call",
+ "url": "https://nehilsood.github.io/guides/interview-prep/guides/0006-the-orphaned-call.html",
+ "plain": [
+  {
+   "title": "In plain words",
+   "url": "https://nehilsood.github.io/guides/interview-prep/guides/0006-the-orphaned-call.html#plain-1"
+  }
+ ],
+ "questions": [
+  {
+   "id": "F1",
+   "kind": "follow-up",
+   "q": "A production session is wedged right now and the user is blocked. You have ten minutes. Go.",
+   "a": "<p>“Read the error body first — it tells me which direction broke, and the two directions have different causes. Then run the pairing check over the stored history to get the exact message index. Then repair: inject an <code>is_error</code> result for any unanswered call, save, and let the run continue. That unblocks the user, and it is the whole of the urgent work.”</p>\n      <p>“What I would not do in those ten minutes is decide what happened to the side effect. If the interrupted tool was <code>issue_refund</code>, that question needs the payment provider's records, not my guess, and it is not on the same clock as unblocking a session. I would flag the call id into a reconciliation queue and come back to it. Merging those two jobs under time pressure is how you turn an outage into a double payment.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fix, as five things that each stop something different",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0006-the-orphaned-call.html#the-fix-as-five-things-that-each"
+   }
+  },
+  {
+   "id": "F2",
+   "kind": "follow-up",
+   "q": "Why not just delete the orphaned tool_use? It is one line, and the API accepts the result.",
+   "a": "<p>“Because it is a lie that the model will act on. Deleting rewrites history so the model believes it never made the call. Its most natural next move is to make it again — and it will do so confidently, because from its point of view nothing has been tried. I would have used a repair to manufacture the duplicate side effect I was trying to avoid.”</p>\n      <p>“The synthetic error result costs the same one line and says something true: this was attempted, it was interrupted, the outcome is unknown, check before you act. That is information the model can use — it will typically look up the order status before refunding again, which is exactly the behaviour I want. There is also a cheaper reason: deleting a message in the middle invalidates every cached prefix after it, so on a long session I pay for the whole history again.”</p>\n      <p>“Deletion is a legitimate tool in one place — pair-aware compaction, where I remove the call <em>and</em> its result together and I am deliberately shortening the record. That is a different operation from erasing one half of a pair.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fix, as five things that each stop something different",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0006-the-orphaned-call.html#the-fix-as-five-things-that-each"
+   }
+  },
+  {
+   "id": "F3",
+   "kind": "follow-up",
+   "q": "Your synthetic result says “outcome unknown.” Isn't that just passing the buck to the model?",
+   "a": "<p>“It is delegating, and it is delegating to the only component that can do anything useful with it. I genuinely do not know whether the tool ran — that is not a gap in my engineering, it is the actual epistemic state after a crash mid-call. Writing anything more definite would be fabricating.”</p>\n      <p>“What makes the delegation work is that I pair it with a way to find out. The error content should not just say 'unknown', it should say what to do: <em>'call <code>get_refund_status(order_id)</code> before retrying.'</em> Now the model has a cheap, read-only route to ground truth, and models are good at taking that route when it is offered. If the tool has no such route — a fire-and-forget email send, say — then the model cannot resolve it either, and the honest design is to escalate to a human rather than pretend.”</p>\n      <p>“And it is not an exotic mechanism. <code>is_error</code> results are the normal way a failed tool is reported; the model is trained to handle them. I am using the documented path for exactly what it is for.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fix, as five things that each stop something different",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0006-the-orphaned-call.html#the-fix-as-five-things-that-each"
+   }
+  },
+  {
+   "id": "F4",
+   "kind": "follow-up",
+   "q": "Make the turn commit actually atomic. Your history is in Postgres and the tool hits a third-party API.",
+   "a": "<p>“I can't, and I would say so immediately, because pretending otherwise is the trap. There is no atomic commit spanning my database and someone else's API — that is a distributed transaction, and even with two-phase commit the remote side would have to participate, which a payments API is never going to do. So the honest goal is not atomicity across the boundary, it is <em>recoverability</em> across it.”</p>\n      <p>“Concretely, the write-ahead variant. Inside one Postgres transaction I write the assistant turn and an intent row: call id, tool, arguments, idempotency key, status pending. Commit. Then dispatch. Then a second transaction writes the result and flips the intent to done. A crash anywhere leaves exactly one of three states, all of them recoverable: no intent — nothing happened; intent pending — may or may not have happened, reconcile it; intent done — it happened. The bad state, 'something happened and there is no trace', is the one I have made unrepresentable.”</p>\n      <p>“This is the outbox pattern with a reconciliation loop instead of an ordering guarantee, and the same shape you would use for any effect that escapes your transaction boundary. If the team is already running a durable execution engine, I would let it own this rather than hand-roll — but the engine provides the same three states, it does not conjure a cross-system transaction either.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fix, as five things that each stop something different",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0006-the-orphaned-call.html#the-fix-as-five-things-that-each"
+   }
+  },
+  {
+   "id": "F5",
+   "kind": "follow-up",
+   "q": "Parallel tool calls. Five go out, four return in 200 ms, one hangs for ten minutes. What do you commit?",
+   "a": "<p>“Nothing, until the set is complete — which is the constraint the protocol imposes rather than a choice I am making. All the results have to arrive in one message, so partial commits are not expressible. That makes the slowest tool the latency of the turn, and it makes a hung tool an indefinite hang of the entire agent.”</p>\n      <p>“Which means timeouts are load-bearing, not hygiene. Every tool in a fan-out gets a deadline, and a deadline that fires must produce a <code>tool_result</code> with <code>is_error</code> saying it timed out — not an exception that drops the block. So the turn commits at the deadline, with four real results and one explicit failure, and the model decides whether to retry that one call, proceed without it, or tell the user. Those are all reasonable, and the model can only choose if I told it.”</p>\n      <p>“Two refinements if it matters. Give the deadline per-tool rather than per-turn, because a database read and a web crawl do not deserve the same budget. And if a genuinely long tool is a real requirement, do not model it as a blocking call at all — return a handle immediately and add a <code>check_status</code> tool, which turns a ten-minute hang into two fast turns the agent can interleave with other work.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F6",
+   "kind": "follow-up",
+   "q": "Your idempotency key is the tool call id. On resume the model regenerates the call and gets a new id. Now what?",
+   "a": "<p>“That is the sharp edge in the whole design, and it is worth being precise about when the id works and when it doesn't. The call id is a perfect key for <em>replaying a persisted call</em> — I crashed after dispatch, I still have the row, I re-dispatch with the same key, the downstream deduplicates. That covers my own retry path completely.”</p>\n      <p>“It is the wrong key for a <em>regenerated</em> call, because a new id is a new key and deduplication silently stops working. The model deciding to call <code>issue_refund</code> again after seeing my interrupted-result is a new intent as far as the key is concerned, even though it is the same real-world action.”</p>\n      <p>“So the key has to be derived from the intent, not the message. For anything with real money attached I would key on something semantically stable — refund for order 8812, or a hash of (tool name, canonicalised arguments, task id) — and keep the call id as the key only for the mechanical replay path. The general rule: <strong>a key generated by the model protects you from your own retries; a key derived from the operation protects you from the model's.</strong> And where neither is available, the guard is not a key at all, it is the read-only status check before acting — which is why the repair message points at one.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fix, as five things that each stop something different",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0006-the-orphaned-call.html#the-fix-as-five-things-that-each"
+   }
+  },
+  {
+   "id": "F7",
+   "kind": "follow-up",
+   "q": "Compaction is the real-world cause. How do you shorten a long history without breaking the invariant?",
+   "a": "<p>“Operate on turns, never on messages. A turn is the assistant message plus the user message answering it; that is the atom. Anything a compactor removes, replaces or summarises has to be a whole number of turns.”</p>\n      <p>“In practice I would do it in that order of aggression. First, replace old tool <em>results</em> with short placeholders but keep the calls, so the model still knows what it did and the pairing survives — that is where almost all the tokens are, and it is the cheapest thing that works. Then drop whole old turns, both halves together. Only then summarise, and a summary replaces a contiguous run of complete turns with a single message, never splits one.”</p>\n      <p>“Anthropic ships this server-side now, which I would point at as confirmation rather than as the whole answer: the tool-clearing strategy fires at a token threshold, preserves block pairing, and keeps the calls unless you explicitly ask it to clear inputs too. That shape is the naive compactor's bug already fixed. And whichever route I take, the send-path validator runs afterwards — compaction is exactly the code most likely to reintroduce this, so it is the code I least want to trust.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fix, as five things that each stop something different",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0006-the-orphaned-call.html#the-fix-as-five-things-that-each"
+   }
+  },
+  {
+   "id": "F8",
+   "kind": "follow-up",
+   "q": "The response came back with <code>stop_reason: \"max_tokens\"</code> partway through a tool_use block. What do you persist?",
+   "a": "<p>“Nothing from that turn. A truncated tool call is not a tool call — the arguments are partial JSON or empty, so executing it means running a real tool with wrong inputs, and persisting it without executing means an orphan. Both bad, and the third option is clean: discard the partial assistant turn and re-request the same prefix with a larger <code>max_tokens</code>. The prefix is unchanged, so it is a cache hit and cheap.”</p>\n      <p>“The thing I would flag is that this depends on a signal that is easy to lose. Several SDKs, proxies and format translators have shipped bugs where any started tool block overwrites the stop reason with <code>tool_use</code>, so a truncated generation is reported as a completed call and you execute it with empty arguments. So I check <code>stop_reason</code> before I commit anything, and I would add a cheap belt-and-braces assertion: if a tool call's arguments fail schema validation, treat it as a truncation candidate rather than dispatching it.”</p>\n      <p>“The same care applies to <code>pause_turn</code> on long server-tool runs — there the correct move is the opposite, append the assistant content unchanged and continue, and the documented mistake is fabricating an empty client result to fill the gap. Both are cases of 'the turn is not finished', and both go wrong when code assumes every response is a complete turn.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F9",
+   "kind": "follow-up",
+   "q": "Why hand-roll any of this? Use Temporal, Restate or a checkpointing framework and move on.",
+   "a": "<p>“For a long-running agent I probably would, and I would say why in one sentence: durable execution gives me the crash-consistency and the replay semantics for free, which is layers one and two done properly by people who do only that. Checkpoint after each step, replay the event history on recovery, and completed steps are not re-executed.”</p>\n      <p>“What I would not do is treat it as the end of the conversation, because the guarantee has a specific edge. The engine gives exactly-once semantics for <em>workflow steps</em>, by replaying its own history. Activities that touch the outside world are at-least-once by default, and they have to be: when a network call times out, the caller cannot know whether the far side committed. No engine can close that, because the uncertainty is in the network, not in the engine. So idempotency keys and reconciliation stay my job either way.”</p>\n      <p>“And there is a fit question. These engines want deterministic workflow code, and an agent loop calling a nondeterministic model is a slightly awkward guest — the usual pattern is to push every model call into an activity so its output is recorded and replayed rather than regenerated. Worth knowing before you adopt. If the agent is short-lived and in-process, the WAL-and-reconcile pattern is a few hundred lines and no new infrastructure, and I would start there.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F10",
+   "kind": "follow-up",
+   "q": "How do you test this? “Crash it” is not a test plan.",
+   "a": "<p>“Three tiers. The crash matrix first: a fault-injection hook in the history layer, one scripted turn with an observable side effect, abort at each of the six interesting instants, restart, and assert the history always validates and the effect never fires twice. Six deterministic tests, and the failure is deterministic so they are not flaky.”</p>\n      <p>“Then a property test for the histories I did not enumerate — generate random histories with fan-outs, errors and interleaved text, apply a random mutation from the four known causes, and assert that repair always yields something the validator accepts and that repair is idempotent. That second property matters more than it sounds: a repair that appends a fresh block every run grows the history by a message per restart, and you only notice weeks later.”</p>\n      <p>“Then a compaction regression: take a long real history, compact it at a spread of target sizes, assert validity at every one. That is the tier that catches the cause that actually fires in production.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fix, as five things that each stop something different",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0006-the-orphaned-call.html#the-fix-as-five-things-that-each"
+   }
+  },
+  {
+   "id": "F11",
+   "kind": "follow-up",
+   "q": "What does all this cost, and when would you not do it?",
+   "a": "<p>“The layers are not equally priced, so I would not buy them as a bundle. The send-path validator is microseconds against a call that takes seconds — I would put that in any agent on day one, including a prototype, because it costs nothing and converts a mystery into a message. Pair-aware compaction is free too; it is a constraint on code you were writing anyway.”</p>\n      <p>“Atomic turn commits cost a schema change and some care around the transaction boundary. Worth it the moment the agent runs long enough to be worth resuming — if a crash means 'start over' and nobody minds, there is no orphan to repair because there is no resume.”</p>\n      <p>“Idempotency is the expensive one and the only one with a real scope question, because it is not a change to my agent, it is a change to every tool and sometimes to services other teams own. So I would scope it by blast radius rather than apply it uniformly: read-only tools need nothing, cheap-to-repeat writes need nothing, and the small set that moves money, sends messages to humans, or provisions resources gets a key and a reconciliation path. In most agents that set is under ten tools, and naming it is a half-day of thinking that saves an incident.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fix, as five things that each stop something different",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0006-the-orphaned-call.html#the-fix-as-five-things-that-each"
+   }
+  },
+  {
+   "id": "F12",
+   "kind": "follow-up",
+   "q": "The tool was <code>issue_refund</code>. On resume you genuinely cannot tell whether it ran. What do you actually do?",
+   "a": "<p>“Ask the system that knows. Almost every side effect worth worrying about leaves a record somewhere I can query — the payment provider has the refund, the mail service has the send, the cloud API has the resource. So the first move is a read-only reconciliation query keyed on my own reference: did a refund for order 8812 land in the window between my intent row and now? That is why the intent row carries a timestamp and a business reference, not just the call id.”</p>\n      <p>“If the answer is yes, I write the outcome, repair the turn with a result saying it succeeded, and the agent proceeds correctly. If no, I re-dispatch under the same idempotency key, which is safe by construction. Either way the uncertainty is resolved by evidence rather than by guessing, and that is the whole design goal — not to avoid uncertainty, which is impossible, but to make sure every uncertainty has a cheap way to be settled.”</p>\n      <p>“And if there is genuinely no way to check — a fire-and-forget call with no read path — then I would not let the agent decide. It goes to a human queue with the full context. That is not a failure of the design; it is the design telling the truth about a tool that should never have been fire-and-forget. The lesson I would take back to the tool authors is that <strong>every side-effecting tool needs a read-only twin</strong>, and that requirement belongs in the tool review, not in the incident.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fix, as five things that each stop something different",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0006-the-orphaned-call.html#the-fix-as-five-things-that-each"
+   }
+  }
+ ]
+}

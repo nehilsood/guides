@@ -1,0 +1,111 @@
+{
+ "lesson": "sds-0013",
+ "label": "SDS 0013",
+ "track": "cs",
+ "title": "Admit, Queue, or Shed",
+ "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0013-admit-queue-or-shed.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "0013-q1",
+   "kind": "quiz",
+   "q": "At 48 requests a second the unbounded queue served 255 of 576 and the bounded one served 247. What did bounding the queue actually buy?",
+   "a": "<p>Goodput was <strong>44 % against 43 %</strong> — unchanged, and fractionally worse. Capacity is set by the upstream and refusing work does not create any. What the bound bought was <strong>p99 7 991 ms → 1 711 ms</strong>, and 329 requests that failed in both cases finding out in a millisecond rather than after most of eight seconds.</p>\n    <p>This is the part worth saying unprompted, because the instinctive claim — “we added shedding and throughput improved” — is the one a measurement refutes. Peak queue did fall, but memory was never the constraint; the constraint was that a queue converts your p99 into a function of how many people arrived.</p>",
+   "options": [
+    "The same goodput at one quarter of the latency",
+    "More goodput since fewer requests got shed at all",
+    "Lower peak queue depth and lower peak memory use",
+    "Extra upstream capacity freed up by a shorter queue"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "The queue nobody chose is the one that decides your p99",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0013-admit-queue-or-shed.html#the-queue-nobody-chose-is-the-one"
+   }
+  },
+  {
+   "id": "0013-q2",
+   "kind": "quiz",
+   "q": "On a 256-deep queue, checking “has this request's deadline passed?” before running it discarded how many of 576 requests?",
+   "a": "<p>Zero, out of 576. A request arriving at the front with <strong>166 ms remaining</strong> has not expired, so the check passes it — and then it needs <strong>380 ms</strong>, burns an upstream slot, and returns to a client that has gone. The entire improvement that row showed over unbounded came from the 256 cap, not from the check.</p>\n    <p>Changing the question to <em>“does a call still fit in what is left?”</em> discarded <strong>92</strong> and served <strong>29 more</strong>. That is <code>Deadline.fits()</code> from lesson 0012 used one layer earlier. The Builders' Library flags the difficulty honestly: “this is still pretty complicated, because we don't know how long the request is likely to take” — so you need a latency estimate, and a wrong estimate sheds work that would have made it.</p>",
+   "options": [
+    "None at all, because none had actually expired yet",
+    "Ninety-two, the ones that could not fit a call",
+    "All of the requests that were queued behind others",
+    "Roughly half, which is what the cap already did"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "The queue nobody chose is the one that decides your p99",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0013-admit-queue-or-shed.html#the-queue-nobody-chose-is-the-one"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“Now scale it to a million concurrent.”",
+   "a": "<p>Today it queues, and the queue has no length limit — that is the default that arrives with a semaphore rather than a decision anyone made. I measured it at roughly twice capacity: goodput fell to <strong>44 %</strong>, the queue reached <strong>345 deep</strong>, and the upstream's failure rate was <strong>zero</strong> throughout, because every call succeeded and simply arrived after the client's deadline.</p>\n        <p>So the first change is not more capacity, it is a door. Bound the queue from a Little's-law target, price admission in tokens rather than requests, and return a fast <code>429</code> with <code>Retry-After</code>. That does not serve more people — goodput went 44 % to 43 — it means the people you do serve get an answer inside the budget and everybody else finds out immediately.</p>\n        Invites · <b>“So what would you actually add capacity for?” — to move the knee, which is the only thing that raises goodput.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The queue nobody chose is the one that decides your p99",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0013-admit-queue-or-shed.html#the-queue-nobody-chose-is-the-one"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“How did you choose the queue depth?”",
+   "a": "<p>From Little's law, <code>L = λW</code>. Rearranged, the time an item waits is the depth divided by the rate the queue drains at. We serve about 21 a second, so a depth of 16 is <strong>762 ms</strong> of queueing on top of about 390 ms of service — a predicted p50 of 1 167. Measured 1 197, within 3 %.</p>\n        <p>The reason to do it that way round is that it inverts the usual argument. People treat queue depth as a capacity knob and pick a number that feels safe. It is a <strong>p99 knob</strong>: choosing 256 instead of 16 is choosing twelve seconds of waiting against an eight-second budget, which is a promise broken before the request does anything.</p>\n        Invites · <b>“What if your service rate varies?” — then so does the promise, which is an argument for bounding age as well as depth.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The queue nobody chose is the one that decides your p99",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0013-admit-queue-or-shed.html#the-queue-nobody-chose-is-the-one"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“You have a queue you do not control — a load balancer, a broker. What do you do?”",
+   "a": "<p>The standard advice is to check on dequeue whether the request has already expired and throw it away if so. I implemented that and measured it discarding <strong>nothing at all — zero of 576</strong>. A request reaching the front with 166 ms left has not expired, so it gets admitted, and then it needs 380 ms.</p>\n        <p>The check has to be <em>“does a call still fit in the time remaining?”</em>, not “has it expired?” That discarded 92 and served 29 more. It needs a latency estimate, which the Builders' Library is honest about being hard — cache hits and misses cost differently and you do not know which you have — but a rough estimate beats a check that never fires. For the load balancer itself, the fix is configuration: spillover rather than a surge queue, which is why AWS's Application Load Balancer rejects excess instead of queueing it.</p>\n        Invites · <b>“What if your estimate is wrong?” — you shed work that would have made it, so estimate low and bound the age too.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The queue nobody chose is the one that decides your p99",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0013-admit-queue-or-shed.html#the-queue-nobody-chose-is-the-one"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“What do you shed first?”",
+   "a": "<p>First, the thing worth being clear about: ordering does not change <em>how many</em> you serve. I measured four policies at the same offered load and served 247, 234, 246, 247 — capacity had already decided that. It changes <em>who</em>, and by a lot: a priority floor took interactive requests from about <strong>132 of 311 to 230</strong>, while retries went from 67 to <strong>3 of 161</strong>.</p>\n        <p>For us the live interview turn is protected and batch re-scoring and retries go first, because a late token in a live session is worthless and the session is unrecoverable. The honest weakness is that “this is a retry” is self-reported, so a client that lies gets served better — which is why the Builders' Library pushes the classification to the edge rather than deriving it at each hop.</p>\n        Invites · <b>“Who signs off on that ranking?” — the product owner, and it should be written down before the incident.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0013-admit-queue-or-shed.html#underneath-0013"
+   }
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“Your rate limit is 100 requests per second per tenant. What is wrong with that here?”",
+   "a": "<p>It prices a 200k-token context and a twenty-token ping the same. I measured a tenant sending <strong>17 % of the requests and consuming 65 % of the capacity</strong>, because prefill time is roughly linear in prompt length. A request-counting limiter reports that tenant as a minor user right up to the moment everyone else's latency triples.</p>\n        <p>So the bucket is priced in tokens, and per tenant rather than globally — a single global bucket cannot be fair because the tenant draining it looks identical to legitimate aggregate demand. With per-tenant buckets the quiet tenant went from about 400 to <strong>480 of 480 served</strong> and her p50 from about 500 ms to <strong>87</strong>. The sizing trap worth mentioning: the burst has to exceed your largest single request, or that request is refused forever rather than throttled.</p>\n        Invites · <b>“How do you price it before you have run it?” — you cannot, which is why the limit is derived from a load test rather than chosen.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0013-admit-queue-or-shed.html#underneath-0013"
+   }
+  }
+ ]
+}

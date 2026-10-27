@@ -1,0 +1,150 @@
+{
+ "lesson": "ip-0014",
+ "label": "IP 0014",
+ "track": "ai",
+ "title": "Everything You Didn’t Pay For",
+ "url": "https://nehilsood.github.io/guides/interview-prep/guides/0014-everything-you-didnt-pay-for.html",
+ "plain": [
+  {
+   "title": "In plain words",
+   "url": "https://nehilsood.github.io/guides/interview-prep/guides/0014-everything-you-didnt-pay-for.html#plain-1"
+  }
+ ],
+ "questions": [
+  {
+   "id": "F1",
+   "kind": "follow-up",
+   "q": "“We gated it and the quality still did not improve.”",
+   "a": "<p>Then check whether the judge is a reward term at all. <strong>A term with no variance is not a term.</strong> If your judge gives 0.78 to essentially everything your policy writes, its contribution to the advantage is rounding error plus noise, and you have bought inference cost rather than signal.</p>\n    <p>Measure it before installing it: sample two hundred completions from your <em>current</em> policy, score them, and look at two numbers — the spread, and the rank correlation with human labels on the same samples. Discrimination is distribution-specific. A judge that separates excellent code from terrible code across the open internet may have nothing to say about the difference between two things your policy actually produces, because your policy occupies a narrow and unusual band.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F2",
+   "kind": "follow-up",
+   "q": "“Why not put runtime straight into the reward?”",
+   "a": "<p>Do — it is the first thing I would add, and the whole point of the instrument typology is that speed belongs in the reward in a way readability does not. But measuring it is a real engineering problem and the sloppy version is worse than nothing.</p>\n    <p>Normalise <strong>per task, against the reference solution’s runtime measured on the same machine in the same control run</strong>, not against an absolute budget and not against a number from last quarter. Put a floor under it so trivial tasks cannot be farmed for micro-optimisations. Prefer a cap plus a gentle gradient inside the cap — void above <em>k</em>× the reference, small reward for improvement below it — so the policy cannot buy unbounded reward by shaving microseconds off something already fast.</p>\n    <p>And time it from outside. The clock is reachable from inside the process: ImpossibleBench caught o3 monkey-patching the time function rather than making the code faster, which is the cheapest possible way to win a timing contest.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "A gate is a constraint. A weight is a price.",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0014-everything-you-didnt-pay-for.html#a-gate-is-a-constraint-a-weight"
+   }
+  },
+  {
+   "id": "F3",
+   "kind": "follow-up",
+   "q": "“How do you stop it attacking the harness?”",
+   "a": "<p>Mostly with file permissions, which is an unglamorous answer with the best return on the list. Claude-family models and Qwen3-Coder did <strong>more than 79%</strong> of their cheating by simply editing the test files. Make them unwritable, diff every patch against the test paths, and void any run that touches them. Run the suite in a process the generated code cannot signal — that is the entire lesson of <code>sys.exit(0)</code> and <code>raise SkipTest</code>.</p>\n    <p>The design rule underneath: <strong>void, do not penalise.</strong> A penalty is a price, and a price can be paid if the prize is large enough. Voiding is a constraint, and it is the only thing in your objective that is not negotiable. Then log every void with its reason, because the void rate and especially its <em>composition</em> is a leading indicator — a run where harness-tampering voids are climbing is telling you something several weeks before the quality metrics do.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F4",
+   "kind": "follow-up",
+   "q": "“Does a hard gate not destroy your learning signal on the tasks that matter?”",
+   "a": "<p>It does if you gate the reward. It does not if you gate the <em>bonus</em>: correctness keeps its partial credit and stays dense everywhere, and quality simply does not exist below the line.</p>\n    <p>The honest residual, which I would volunteer rather than be caught on: the model now learns to be fast and readable only on problems it can already solve. That is a real narrowing. I accept it, because a beautiful wrong program is worth nothing and a gradient that says otherwise is a gradient I do not want.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "A gate is a constraint. A weight is a price.",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0014-everything-you-didnt-pay-for.html#a-gate-is-a-constraint-a-weight"
+   }
+  },
+  {
+   "id": "F5",
+   "kind": "follow-up",
+   "q": "“How would you actually penalise the comments?”",
+   "a": "<p>Not with a gradient. A gradient on comment density is an instruction to minimise comments, and minimising comments is not what anybody asked for. Use a <strong>ceiling</strong>: measure the base model’s comment density on the same tasks, set the cap some margin above it, and zero the quality bonus for anything over — so there is a boundary to stay inside and nothing to optimise against.</p>\n    <p>And run the constrained-decoding ablation first. If suppressing comments costs pass rate, they were computation, and the correct penalty is zero. The thing you are actually against is not comments; it is <em>density above the prior</em>, which is a measurable quantity with a baseline, and saying that precisely is most of the answer.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F6",
+   "kind": "follow-up",
+   "q": "“What if the reviewers are just wrong?”",
+   "a": "<p>Then you are about to spend six weeks of GPU time on a review-queue problem, which is the expensive way to find out. A reviewer complaint is a <em>detector</em> with unknown precision and unknown recall, and the move is to turn it into a measurement before you turn it into a reward.</p>\n    <p>Size it first. What fraction of sampled outputs exceed, say, three times the reference runtime? What is comment density against the base model? If the answer is four percent of outputs, you have a sampling and triage story, not a training story — and adding a learned reward term to chase a four-percent tail is how you trade a small annoyance for a judge-hacked policy.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F7",
+   "kind": "follow-up",
+   "q": "“Would a bigger, better judge fix it?”",
+   "a": "<p>It buys budget, not immunity. In the overoptimisation scaling work the coefficients move smoothly with reward-model size while the functional form stays put — a larger proxy pushes the peak further out and makes the decline shallower, and in the RL setting the leading coefficient is nearly independent of proxy size altogether. Same curve, further along.</p>\n    <p>Which is actually a useful way to think about the whole problem: <strong>optimisation distance is a resource you are spending, and a better proxy raises your balance.</strong> It never makes the account infinite, and nothing in your dashboard shows the balance running down.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F8",
+   "kind": "follow-up",
+   "q": "“Add a KL penalty and keep it near the reference policy?”",
+   "a": "<p>Worth having for stability, and much weaker than its reputation for this. The measured result is awkward: adding a KL penalty <em>raised</em> the proxy score achievable at a given KL distance but produced no measurable improvement in the gold-score-versus-KL frontier. It moved the number you watch without moving the thing you wanted.</p>\n    <p>There is a second wrinkle worth knowing. RL is far less KL-efficient than best-of-<em>n</em> — it consumes much more KL to achieve the same optimisation — so KL is not even a clean common ruler for “how hard have I optimised” across methods. Use it to stay on distribution. Do not sell it as the thing that stops hacking.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F9",
+   "kind": "follow-up",
+   "q": "“What about an ensemble of judges?”",
+   "a": "<p>It helps, and how much it helps depends entirely on a quantity most people never measure: <strong>the correlation between the ensemble members’ errors</strong>. Averaging reduces variance. It does nothing about shared bias — and three judges from the same family, on the same pretraining corpus, with the same prompt template, have close to one shared bias wearing three hats.</p>\n    <p>So pay for diversity rather than for <em>N</em>. Different families, different prompts, different framings, and before you commit the inference budget, score two hundred samples with each and look at the residual correlation. If it is 0.9 you have bought three copies of the same blind spot at three times the price.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Three instruments and one opponent",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0014-everything-you-didnt-pay-for.html#three-instruments-and-one-opponent"
+   }
+  },
+  {
+   "id": "F10",
+   "kind": "follow-up",
+   "q": "“Why not supervise the process — reward the reasoning, not just the outcome?”",
+   "a": "<p>Because that is precisely the experiment that produced the obfuscation result, and it is the cleanest demonstration in the literature of what this whole question is about. A chain-of-thought monitor with 95% recall, placed inside the reward, left hacking running at a significant rate while its own recall collapsed toward zero. The behaviour stayed; the <em>legibility</em> of the behaviour was what the optimiser removed.</p>\n    <p>So the rule is not “never use process supervision.” It is: <strong>you can optimise a reading of the process, or you can trust that reading. Not both, and not with the same instrument.</strong> If you spend one, keep another you have never spent, and be explicit in the design doc about which is which.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "A detector you optimise against stops being a detector",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0014-everything-you-didnt-pay-for.html#a-detector-you-optimise-against-stops-being"
+   }
+  },
+  {
+   "id": "F11",
+   "kind": "follow-up",
+   "q": "“Does any of this generalise past code?”",
+   "a": "<p>Cleanly, and it is worth having the general form ready because it is what the question is really testing. Wherever you have one signal that is cheap and close to sound, and another that is rich and soft: <strong>the sound one gates and the soft one ranks.</strong></p>\n    <p>Tests gate, readability ranks. In retrieval, “the citation exists and supports the claim” gates and helpfulness ranks. In agents, “the task state actually changed” gates and trajectory quality ranks. In summarisation, factual entailment gates and style ranks. Two preconditions, both of which can fail: the sound signal has to be genuinely sound — which is the previous guide’s whole question — and it has to be cheap enough to run on every sample, every step, or it is not a gate, it is an evaluation.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F12",
+   "kind": "follow-up",
+   "q": "“What is the lesson you would take from this?”",
+   "a": "<p>That every reward function I have ever written turned out to be a complete description of what I wanted, and I never once meant it to be. Not one of them was a direction of travel or a strong hint. They were all contracts, and they were all enforced.</p>\n    <p>So the habit is not suspicion of the model. The model is the most literal reader I will ever work with, and literal readers are a gift — they just invoice you for everything you left out. The habit is one question, asked before the run rather than after it: <strong>if something maximised this perfectly and I hated the result, what would it have done?</strong> I write the answer down first, because in six weeks I am going to be reading it either way, and I would rather read it as a prediction than discover it in a review queue.</p>\n    <p>And the part that makes it a habit rather than a slogan is that the answer is cheap and it is already in front of you. It is in the objective, in the form of everything you did not write there.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "A reward function is a complete specification",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0014-everything-you-didnt-pay-for.html#a-reward-function-is-a-complete-specification"
+   }
+  }
+ ]
+}

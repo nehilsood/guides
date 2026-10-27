@@ -1,0 +1,105 @@
+{
+ "lesson": "sds-0004",
+ "label": "SDS 0004",
+ "track": "cs",
+ "title": "Eviction, and Why LRU Is Wrong",
+ "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0004-eviction-and-why-lru-is-wrong.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "0004-q1",
+   "kind": "quiz",
+   "q": "Redis hits <code>maxmemory</code> under the default policy. What does your service observe?",
+   "a": "<p>The default is <code>noeviction</code>: Redis refuses commands that would add data and serves reads as normal. This is the quiet failure mode — hit rate decays as the working set drifts while every health check stays green, because health checks read.</p>\n    <p>“Oldest keys dropped” describes what you probably assumed was happening, and it is only true once you have explicitly chosen an <code>allkeys-*</code> policy. Choosing it is the fix; the point of this lesson is that nobody chose it for you.</p>",
+   "options": [
+    "Writes begin to fail while reads keep working normally",
+    "Reads and writes alike fail until memory is released",
+    "The oldest keys are dropped and nothing visibly changes",
+    "Redis restarts itself and comes back with nothing stored"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "First: eviction is not automatic",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0004-eviction-and-why-lru-is-wrong.html#first-eviction-is-not-automatic"
+   }
+  },
+  {
+   "id": "0004-q2",
+   "kind": "quiz",
+   "q": "A nightly batch embeds 20,000 unique texts. Which policy protects your interactive hot set?",
+   "a": "<p>LFU. Every swept key has a frequency counter of one, making them the first candidates for eviction, so your hot interactive entries survive the sweep. Under LRU the swept keys are the <em>most</em> recently used and therefore the best protected — the batch job flushes the cache that your 8-second-budget path depends on.</p>\n    <p>The TTL answer is a genuinely good instinct pointing at the wrong mechanism: giving batch writes a short TTL and using <code>volatile-ttl</code> would also work, and it is more explicit. It costs memory per key for the expiry and it requires the batch path to know it is a batch path. Worth mentioning in an interview as the alternative.</p>",
+   "options": [
+    "LFU, because every swept key is used just once",
+    "LRU, because the batch keys are the most recent",
+    "Random, because it treats all the keys the same",
+    "TTL, because the batch keys expire before the rest"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Why LRU is the wrong default here",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0004-eviction-and-why-lru-is-wrong.html#why-lru-is-the-wrong-default-here"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“What is your Redis eviction policy?”",
+   "a": "<p>“It depends who provisioned it, and I have checked mine.” Open-source Redis ships <code>noeviction</code>, which refuses writes rather than evicting; Memorystore and ElastiCache ship <code>volatile-lru</code>, which evicts only keys with a TTL and therefore evicts nothing at all if nothing in the keyspace has one. Both of those are a frozen cache wearing different labels.</p>\n        <p>Then give the number: on our workload I measured <code>allkeys-lru</code> keeping 5 of 200 hot keys through a batch sweep against 200 of 200 under <code>allkeys-lfu</code>, so we run LFU with <code>lfu-decay-time</code> set deliberately.</p>\n        Invites · <b>“How much headroom is there between <code>maxmemory</code> and the pod's memory limit?” — because <code>maxmemory</code> is an admission check, not a wall, and one Lua script can carry you 3.6× past it.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0004-eviction-and-why-lru-is-wrong.html#underneath-0004"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“Your batch job runs at 2 a.m. and interactive latency is bad at 8 a.m. Why?”",
+   "a": "<p>The 2 a.m. sweep evicted the 8 a.m. hot set. Every key the batch touched looked freshly used to a recency policy, so it displaced the entries the interactive path depends on, and the morning starts cold.</p>\n        <p>The fix is not more memory, it is the right sort key: LFU puts every once-touched batch key at a count of one and evicts those first. If you cannot change the policy, give batch writes a short TTL and run <code>volatile-ttl</code>, which is more explicit and costs memory per key for the expiry.</p>\n        Invites · <b>“How would you have caught this from a dashboard?” — <code>evicted_keys</code> against the <code>keyspace_hits</code>/<code>keyspace_misses</code> ratio, correlated by hour. Neither alone shows it.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "First: eviction is not automatic",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0004-eviction-and-why-lru-is-wrong.html#first-eviction-is-not-automatic"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“Is Redis's LRU a true LRU?”",
+   "a": "<p>No, and it does not need to be. A true LRU list costs pointers per object, which on small values is a large slice of the thing you were trying to store. Redis samples <code>maxmemory-samples</code> keys per round — five by default — and keeps a pool of the best candidates across rounds.</p>\n        <p>It works because you never need <em>the</em> coldest key, only a key from the cold tail. If the hot fraction is 20 %, the chance all five samples are hot is 0.2⁵, about 0.03 %. That is why the same default holds from ten thousand keys to ten million: the error depends on skew, not on size.</p>\n        Invites · <b>“So when would you raise <code>maxmemory-samples</code>?” — when the hot fraction is large, near 50 %, where the error is 3 % rather than 0.03 %. On a sharply skewed cache it buys nothing but CPU.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0004-eviction-and-why-lru-is-wrong.html#underneath-0004"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“On the TV, you had a hard memory ceiling. How did you decide what to keep resident?”",
+   "a": "<p>At the time, by hand and by instinct — I kept the function definitions that got invoked most and let the long tail reload. What I could not do then was name it, and it was a frequency policy with a manual decay.</p>\n        <p>Said properly now: a fixed ceiling with a heavily skewed access pattern is exactly the condition where recency and frequency diverge, because a handful of TV functions account for most invocations. Anything that walks the full function catalogue once — a sync, a reindex — is a sweep, and under a recency rule it evicts the handful that matter.</p>\n        Invites · <b>“What would you measure to prove the policy was right?” — hot-set survival across a sweep, which is the one experiment in this lesson and takes ten minutes.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“What is your prefix-cache hit rate, and what evicts a prefix?”",
+   "a": "<p>A shared system prompt is the hottest possible key and the one you least want evicted, because a prefix miss is not a slower read — it is re-running prefill and paying for it in GPU time. So this is an eviction question with a line-item cost.</p>\n        <p>What evicts a prefix is another tenant's traffic filling the same KV cache, and under a recency rule a burst of unrelated long prompts will do it. That is the case for frequency over recency in the place where it is most expensive, and it is also why routing has to be prefix-aware — round-robin across replicas throws the hit away at the load balancer.</p>\n        Invites · <b>“So how do you route to keep the prefix warm?” — which is lesson 0009, and the honest answer today is that I do not yet, and that is the gap.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  }
+ ]
+}

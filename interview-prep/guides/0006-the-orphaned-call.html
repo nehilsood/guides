@@ -563,7 +563,7 @@ figure.fc{margin:30px 0 36px;padding:0;border:0;border-radius:0;box-shadow:none;
   </div>
 </section>
 
-<aside class="plain"><p class="plain-label">In plain words</p><p>When the model asks for a tool, the request carries an id, and the result you send back must carry the same id. The API, the service you send the conversation to, checks that every request has exactly one matching result in the very next message. Each message can be fine on its own while a pair is broken, which is why nothing looks wrong. So the saved history has to be handled as matched pairs, never as loose messages.</p></aside>
+<aside class="plain" id="plain-1"><p class="plain-label">In plain words</p><p>When the model asks for a tool, the request carries an id, and the result you send back must carry the same id. The API, the service you send the conversation to, checks that every request has exactly one matching result in the very next message. Each message can be fine on its own while a pair is broken, which is why nothing looks wrong. So the saved history has to be handled as matched pairs, never as loose messages.</p></aside>
 <section class="part">
   <div class="parthead"><div class="pnum">02</div><h2 id="fundamentals-the-history-is-a-ledger">Fundamentals: the history is a ledger</h2></div>
   <p class="lede">The mental model almost everyone starts with is &#8220;a list of messages I append to.&#8221; That model is correct for a chatbot and wrong for an agent, and this question exists to find out which one you are carrying.</p>
@@ -592,7 +592,7 @@ figure.fc{margin:30px 0 36px;padding:0;border:0;border-radius:0;box-shadow:none;
   </div>
 </section>
 
-<aside class="plain"><p class="plain-label">In plain words</p><p>There is a gap between saving the tool request and saving its result, and it lasts as long as the tool runs. A crash in that gap leaves the saved record missing half a pair, which you fix by saving both halves together. The tool may also have already acted, for example by sending a refund, and no database write can undo that. So the tool itself must be safe to run twice.</p></aside>
+<aside class="plain" id="plain-2"><p class="plain-label">In plain words</p><p>There is a gap between saving the tool request and saving its result, and it lasts as long as the tool runs. A crash in that gap leaves the saved record missing half a pair, which you fix by saving both halves together. The tool may also have already acted, for example by sending a refund, and no database write can undo that. So the tool itself must be safe to run twice.</p></aside>
 <section class="part">
   <div class="parthead"><div class="pnum">03</div><h2 id="the-unsafe-window">The unsafe window</h2></div>
   <p class="lede">You cannot find this bug by reading code, because no line of code is wrong. It lives in the interval between two writes &#8212; so the way to see it is to lay out one turn on a timeline and ask, at each tick, what a <code>kill -9</code> would leave behind.</p>
@@ -627,7 +627,7 @@ figure.fc{margin:30px 0 36px;padding:0;border:0;border-radius:0;box-shadow:none;
   </div>
 </section>
 
-<aside class="plain"><p class="plain-label">In plain words</p><p>Retrying helps when a failure comes from something that changes over time, like a busy server or a dropped connection. This error is a verdict on the exact messages you sent, so the same messages fail the same way every time. Retrying only adds delay and cost, and a process that keeps restarting and retrying can loop forever. The fix is to repair the history, not to send it again unchanged.</p></aside>
+<aside class="plain" id="plain-3"><p class="plain-label">In plain words</p><p>Retrying helps when a failure comes from something that changes over time, like a busy server or a dropped connection. This error is a verdict on the exact messages you sent, so the same messages fail the same way every time. Retrying only adds delay and cost, and a process that keeps restarting and retrying can loop forever. The fix is to repair the history, not to send it again unchanged.</p></aside>
 <section class="part">
   <div class="parthead"><div class="pnum">04</div><h2 id="why-retries-cannot-help">Why retries cannot help</h2></div>
   <p class="lede">The question plants a wrong answer on purpose, and it is a wrong answer that works almost everywhere else. Being able to say exactly why it fails <em>here</em> is worth more than the fix itself.</p>
@@ -717,7 +717,7 @@ def violations(messages):
   </div>
 </section>
 
-<aside class="plain"><p class="plain-label">In plain words</p><p>Save a tool request and its result as one unit, so a crash leaves both or neither. On restart, answer any request left without a result with an error that says the outcome is unknown. Deleting the request instead makes the model think it never asked, so it asks again. Give every tool that changes the outside world a unique key for each action, so a repeat is spotted and not carried out twice.</p></aside>
+<aside class="plain" id="plain-4"><p class="plain-label">In plain words</p><p>Save a tool request and its result as one unit, so a crash leaves both or neither. On restart, answer any request left without a result with an error that says the outcome is unknown. Deleting the request instead makes the model think it never asked, so it asks again. Give every tool that changes the outside world a unique key for each action, so a repeat is spotted and not carried out twice.</p></aside>
 <section class="part">
   <div class="parthead"><div class="pnum">07</div><h2 id="the-fix-as-five-things-that-each">The fix, as five things that each stop something different</h2></div>
   <p class="lede">The newsletter gives three layers. Three is the right answer and it is not quite the whole one &#8212; two more steps cover the production causes from section 05, and the value of listing all five is being able to say what each one does <em>not</em> stop.</p>

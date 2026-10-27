@@ -1,0 +1,536 @@
+{
+ "lesson": "rm-0010",
+ "label": "RM 0010",
+ "track": "project",
+ "title": "Model Optimization",
+ "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "c10-t1",
+   "kind": "toolbox",
+   "q": "Walk me from FP32 down to INT4. What are they and what breaks?",
+   "a": "A model is billions of numbers, and this is how many bits each one gets. FP32 is four bytes a weight, the format models are usually trained in. FP16 and BF16 are two bytes. BF16 keeps FP32's full exponent range and gives up precision instead, which is why training is stabler in it. INT8 and INT4 drop to integers, with a shared scale factor per group of weights. What it buys is memory, directly. At FP32 a seven-billion-parameter model is 28 GB. At FP16 it is 14 GB, and at INT4 it is under 4 GB. That is a data-centre GPU against a laptop. What breaks first is outliers, because one extreme weight drags the scale for its whole group.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying four-bit is four times faster. It is about four times smaller. Speed depends on whether you were bandwidth-bound, and often you were.",
+   "teach": null
+  },
+  {
+   "id": "c10-t2",
+   "kind": "toolbox",
+   "q": "What is GGUF?",
+   "a": "A file format, not a quantization method. It holds already-quantized weights together with everything needed to run them. The tokenizer, the architecture metadata, and the quantization levels used. Those run from Q2_K at the small and lossy end to Q8_0 at the large and faithful one. It also lets you split layers between CPU and GPU when the whole model will not fit. What it buys is one file that runs. No framework install, no separate config, no matching library versions. That is what made local models usable by people who are not ML engineers. Saying you quantized to GGUF is like saying you compressed to ZIP. The container is named. The setting is not.",
+   "options": null,
+   "correct": null,
+   "flag": "Listing GGUF alongside GPTQ and AWQ as a third method. They answer different questions, and mixing them up is the tell.",
+   "teach": null
+  },
+  {
+   "id": "c10-t3",
+   "kind": "toolbox",
+   "q": "GPTQ, AWQ, bitsandbytes. When would you use each?",
+   "a": "GPTQ and AWQ are both post-training four-bit methods for serving. Both use a small calibration set to see which weights matter, and neither retrains the model. GPTQ works layer by layer, rounding weights while adjusting the rest to compensate for error already introduced. AWQ starts from the observation that a small fraction of weights matter disproportionately, finds them by activation magnitude, protects those, and quantizes the rest hard. What they buy is a fourfold size cut for minutes of calibration, with no training run and no labels. Bitsandbytes is the odd one out. It is for four-bit fine-tuning on a small GPU, not for deployment, and its inference speed is not competitive.",
+   "options": null,
+   "correct": null,
+   "flag": "Naming bitsandbytes as a serving format. It is the QLoRA library, and putting it in the deployment answer says you have read about this rather than done it.",
+   "teach": {
+    "title": "Pruning and distillation are not the same move",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#pruning-and-distillation-are-not-the-same"
+   }
+  },
+  {
+   "id": "c10-t4",
+   "kind": "toolbox",
+   "q": "What is ONNX for, and where does it stop?",
+   "a": "A common file format describing a model as a graph of standard operations, plus a runtime that executes that graph. The point is decoupling. A model trained in PyTorch can run on a phone, in a browser or on an embedded board whose runtime has never heard of PyTorch. What it buys is one export and many targets, with no Python interpreter at the far end. It also unlocks hardware accelerators through the same interface. It stops at control flow. Export is clean for a fixed graph and awkward for anything that branches on data. An unsupported operator is a wall, not a slowdown, so it fails at export rather than degrading.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating export as a formality. It is where on-device projects actually stall, and saying so shows you shipped one.",
+   "teach": null
+  },
+  {
+   "id": "c10-t5",
+   "kind": "toolbox",
+   "q": "What is paged attention, and what problem did it solve?",
+   "a": "Generating text requires keeping a cache of attention keys and values for every token so far. That is the KV cache, and it grows as the reply grows. Before vLLM it was one contiguous block per request, sized for the longest possible reply. You cannot know in advance how long an answer runs. So most of that reservation sat unused. Paged attention stores the cache in fixed-size blocks allocated on demand, exactly the way an operating system pages virtual memory. What it buys is far more concurrent requests on one GPU, because the memory reserved for replies that never got long is no longer wasted.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing vLLM as “faster inference.” It is a memory result that shows up as throughput, and the mechanism is the answer.",
+   "teach": null
+  },
+  {
+   "id": "c10-t6",
+   "kind": "toolbox",
+   "q": "What is LoRA, and what does QLoRA add?",
+   "a": "Full fine-tuning updates every weight. That needs memory for the model, its gradients and the optimiser state, usually several times the model size. LoRA freezes the original weights entirely and trains small low-rank matrices alongside them. Well under one percent of parameters are updated. QLoRA does the same while the frozen base sits in four bits, cutting memory again. What that buys is a training run that fits on one GPU, and an output measured in megabytes rather than tens of gigabytes. The adapter stays separate, which changes serving too. You can hold several against one base model and switch per request.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling it cheaper full fine-tuning. It is a different thing with a rank you chose, and the rank is the knob an interviewer will ask about.",
+   "teach": {
+    "title": "Pruning and distillation are not the same move",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#pruning-and-distillation-are-not-the-same"
+   }
+  },
+  {
+   "id": "c10-t7",
+   "kind": "toolbox",
+   "q": "You shrank a model. How do you know it still works?",
+   "a": "Perplexity first, because it is cheap. It measures how surprised the model is by text it has not seen, and lower is better. Informally it is how many equally likely options the model feels it is choosing between at each token. It needs no labels and no task, just held-out text. What that buys is a fast regression signal. If perplexity jumps, something is definitely broken, and you know before running a benchmark. Then a task benchmark, because perplexity can hold almost exactly while instruction following degrades. Quote both, with the sizes and the hardware. A compression claim without a quality number beside it is not a result.",
+   "options": null,
+   "correct": null,
+   "flag": "Quoting a size reduction alone. Anyone can make a model smaller. The claim is that it stayed useful, and that needs its own number.",
+   "teach": null
+  },
+  {
+   "id": "c10-f1",
+   "kind": "fundamentals",
+   "q": "What is quantization, in one sentence?",
+   "a": "Storing each weight in fewer bits than it was trained in. Sixteen-bit floats become eight-bit or four-bit integers, with a scale factor to map them back. The model keeps its shape and its parameter count. Only the precision of each number changes.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying it makes the model smaller without saying how. The mechanism is bits per number, and that is what every follow-up builds on.",
+   "teach": {
+    "title": "The arithmetic you should be able to do out loud",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#the-arithmetic-you-should-be-able-to"
+   }
+  },
+  {
+   "id": "c10-f2",
+   "kind": "fundamentals",
+   "q": "A one-billion-parameter model. How much memory for the weights?",
+   "a": "Parameters times bytes per parameter. At sixteen-bit that is two bytes each, so two gigabytes. At eight-bit, one gigabyte. At four-bit, half a gigabyte. Then add the KV cache separately, which is roughly two times layers times key-value heads times head dimension times bytes, per token.",
+   "options": null,
+   "correct": null,
+   "flag": "Forgetting the cache. On a long conversation it can rival the weights, and unlike the weights it grows as the user keeps talking.",
+   "teach": {
+    "title": "The arithmetic you should be able to do out loud",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#the-arithmetic-you-should-be-able-to"
+   }
+  },
+  {
+   "id": "c10-f3",
+   "kind": "fundamentals",
+   "q": "Why does a smaller model generate faster?",
+   "a": "Because generation is memory-bandwidth bound rather than compute bound. Producing one token means reading essentially every weight, and the chip can do far more arithmetic than it can be fed. Halve the bytes per weight and you roughly halve the data moved per token.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying the arithmetic is faster. On most hardware it is not the bottleneck, and naming bandwidth is what shows you have thought about it.",
+   "teach": {
+    "title": "Quantization, and what it actually buys",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#quantization-and-what-it-actually-buys"
+   }
+  },
+  {
+   "id": "c10-f4",
+   "kind": "fundamentals",
+   "q": "Post-training quantization or quantization-aware training?",
+   "a": "Post-training first, because it is cheap and often good enough. It needs a small calibration set and no training run. Quantization-aware training simulates the precision loss during training so the model adapts to it. It holds accuracy better at low bit widths and costs a training run, so it is the answer when four-bit post-training is not acceptable.",
+   "options": null,
+   "correct": null,
+   "flag": "Naming the expensive one by default. The right answer is to try the cheap one and measure before paying for the other.",
+   "teach": {
+    "title": "Pruning and distillation are not the same move",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#pruning-and-distillation-are-not-the-same"
+   }
+  },
+  {
+   "id": "c10-f5",
+   "kind": "fundamentals",
+   "q": "What does quantization cost you?",
+   "a": "Accuracy, unevenly. Outliers are the reason: one extreme value in a group stretches the scale, so every ordinary value in that group loses resolution. That is why per-channel scales beat per-tensor ones. Weight-only quantization is safer than quantizing activations too, because activations have worse outliers.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying it costs a little accuracy and stopping. Naming outliers is what separates having read about it from having done it.",
+   "teach": {
+    "title": "Quantization, and what it actually buys",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#quantization-and-what-it-actually-buys"
+   }
+  },
+  {
+   "id": "c10-f6",
+   "kind": "fundamentals",
+   "q": "Layer pruning or unstructured sparsity?",
+   "a": "Layer pruning, on ordinary hardware. Removing whole blocks is structured, so the model genuinely runs faster. Unstructured sparsity zeroes scattered weights, which shrinks the model on paper while the hardware still multiplies by those zeros. Sparsity only pays off with specific hardware support.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating parameter count as the goal. The goal is latency and memory, and one of those two techniques delivers both.",
+   "teach": {
+    "title": "Pruning and distillation are not the same move",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#pruning-and-distillation-are-not-the-same"
+   }
+  },
+  {
+   "id": "c10-f7",
+   "kind": "fundamentals",
+   "q": "What is knowledge distillation?",
+   "a": "Training a small student model against a large teacher's full output distribution instead of against hard labels. The soft probabilities say what the teacher thought was nearly right, and that extra signal is what transfers. It needs a training run and a teacher, which makes it much more expensive than quantization.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it as training on the teacher's answers. The distribution is the point. Hard answers alone would be ordinary supervised learning.",
+   "teach": {
+    "title": "Pruning and distillation are not the same move",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#pruning-and-distillation-are-not-the-same"
+   }
+  },
+  {
+   "id": "c10-f8",
+   "kind": "fundamentals",
+   "q": "Why run a model on a device at all?",
+   "a": "Privacy and latency, in that order. The data never leaves the device, which for a television means what somebody says in their living room stays there. And there is no network round trip, so a short response is fast. It is not about quality, because the device model will be worse.",
+   "options": null,
+   "correct": null,
+   "flag": "Leading with cost. Inference cost matters at scale and it is rarely why a consumer device runs a model locally.",
+   "teach": null
+  },
+  {
+   "id": "c10-f10",
+   "kind": "fundamentals",
+   "q": "What is the riskiest claim on this line?",
+   "a": "Knowledge distillation, because nothing supports it and there is a near-miss on the same résumé. The 150 GB preprocessing pipeline <em>distilled</em> Confluence exports into training data, which is data curation rather than model distillation. If those blur together in an answer, an interviewer will separate them for me.",
+   "options": null,
+   "correct": null,
+   "flag": "Using the preprocessing work to cover it. Same word, completely different operation, and the conflation is exactly what gets caught.",
+   "teach": {
+    "title": "What is actually behind each of the four",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#what-is-actually-behind-each-of-the"
+   }
+  },
+  {
+   "id": "c10-d1",
+   "kind": "deep-dive",
+   "q": "Why do per-channel scales beat per-tensor ones?",
+   "a": "Because one scale has to cover every value it is shared with. Per tensor, a single outlier anywhere stretches the scale for the whole tensor and everything else loses resolution. Per channel, the damage is contained to that channel. The cost is storing more scale factors, which is small next to the weights.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying it is more accurate without the mechanism. The mechanism is that outliers only ruin the group they are in.",
+   "teach": {
+    "title": "Quantization, and what it actually buys",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#quantization-and-what-it-actually-buys"
+   }
+  },
+  {
+   "id": "c10-d2",
+   "kind": "deep-dive",
+   "q": "Why is weight-only quantization safer than quantizing activations?",
+   "a": "Weights are fixed and can be inspected before deployment, so their distribution is known. Activations depend on the input and have much worse outliers, which vary run to run. Quantizing them risks a scale chosen from calibration data that does not cover what arrives in production.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating them as the same operation. Static versus input-dependent is the whole difference in risk.",
+   "teach": {
+    "title": "Quantization, and what it actually buys",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#quantization-and-what-it-actually-buys"
+   }
+  },
+  {
+   "id": "c10-d3",
+   "kind": "deep-dive",
+   "q": "When would you quantize the KV cache rather than the weights?",
+   "a": "When context length is the constraint rather than model size. Weight quantization is a fixed one-off saving. Cache quantization scales with conversation length, so on a device holding a long session it buys more. They are independent decisions and it is worth saying so, because people assume one implies the other.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating quantization as a single switch. Weights and cache are separate, and they buy different things.",
+   "teach": {
+    "title": "Quantization, and what it actually buys",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#quantization-and-what-it-actually-buys"
+   }
+  },
+  {
+   "id": "c10-d4",
+   "kind": "deep-dive",
+   "q": "Where does four-bit quantization hurt most?",
+   "a": "On anything needing precision rather than fluency. Arithmetic, exact recall of rare tokens, and long-context tasks where small errors compound. Conversational fluency survives four-bit surprisingly well, which is dangerous, because the model still sounds fine while getting specific things wrong.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying accuracy drops uniformly. It does not, and the uneven damage is what makes evaluation after quantization necessary rather than optional.",
+   "teach": {
+    "title": "The arithmetic you should be able to do out loud",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#the-arithmetic-you-should-be-able-to"
+   }
+  },
+  {
+   "id": "c10-d5",
+   "kind": "deep-dive",
+   "q": "If you were pruning layers, how would you choose which?",
+   "a": "Measure how much each block changes the hidden state, by comparing its input and output representations. Blocks that barely move it are the cheapest to remove. In practice the middle and later blocks are usually the redundant ones, and the first few are not. The first blocks do the most structural work.",
+   "options": null,
+   "correct": null,
+   "flag": "Proposing to prune uniformly. The whole finding that makes layer pruning viable is that redundancy is not evenly distributed.",
+   "teach": {
+    "title": "Pruning and distillation are not the same move",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#pruning-and-distillation-are-not-the-same"
+   }
+  },
+  {
+   "id": "c10-d6",
+   "kind": "deep-dive",
+   "q": "After removing blocks, what do you do?",
+   "a": "A short healing fine-tune, because the remaining blocks were trained expecting the ones that are gone. Without it the drop is much worse than the parameter reduction suggests. That is also why pruning is more expensive than quantization in practice, even though the removal itself is trivial.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating pruning as free. Deletion is free and recovering the accuracy is not.",
+   "teach": {
+    "title": "Pruning and distillation are not the same move",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#pruning-and-distillation-are-not-the-same"
+   }
+  },
+  {
+   "id": "c10-d7",
+   "kind": "deep-dive",
+   "q": "Why does distillation use a temperature on the teacher's outputs?",
+   "a": "To soften the distribution so the student sees more than the top answer. A confident teacher puts almost all mass on one token, and the information worth transferring is the relative ordering of the rest. Raising temperature flattens it, exposing what the teacher thought was nearly right.",
+   "options": null,
+   "correct": null,
+   "flag": "Confusing it with sampling temperature at inference. Same word, different use, and knowing that distinction is the question.",
+   "teach": {
+    "title": "Pruning and distillation are not the same move",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#pruning-and-distillation-are-not-the-same"
+   }
+  },
+  {
+   "id": "c10-d8",
+   "kind": "deep-dive",
+   "q": "You need a model four times smaller. Which technique?",
+   "a": "Quantization first, because four-bit from sixteen-bit is exactly a factor of four and it costs no training run. Only if that fails accuracy would I look further, and then it depends on whether I have a training budget. Pruning needs a healing run and distillation needs a full one.",
+   "options": null,
+   "correct": null,
+   "flag": "Reaching for distillation first. It is the most expensive option and it is rarely the first thing to try.",
+   "teach": null
+  },
+  {
+   "id": "c10-d9",
+   "kind": "deep-dive",
+   "q": "Why does batching not help on a device?",
+   "a": "Because there is one user and one request. In a server, batching amortises the cost of reading weights across many sequences, so bandwidth is shared. On a device every token pays the full weight read. That is exactly why quantization matters more on device than it does in a datacentre.",
+   "options": null,
+   "correct": null,
+   "flag": "Missing the connection. The absence of batching is the reason the bandwidth argument is so much stronger on device.",
+   "teach": {
+    "title": "Quantization, and what it actually buys",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#quantization-and-what-it-actually-buys"
+   }
+  },
+  {
+   "id": "c10-d11",
+   "kind": "deep-dive",
+   "q": "What does sustained load do to an on-device model?",
+   "a": "Heat, then throttling. A benchmark run cold gives a latency number the device cannot hold. A smaller model helps twice here: less data moved per token, and less sustained power, so the throttle point arrives later. It is a real constraint that server-side work never has.",
+   "options": null,
+   "correct": null,
+   "flag": "Quoting only cold latency. On a consumer device the sustained number is the one users experience.",
+   "teach": {
+    "title": "Quantization, and what it actually buys",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#quantization-and-what-it-actually-buys"
+   }
+  },
+  {
+   "id": "c10-d12",
+   "kind": "deep-dive",
+   "q": "When would you not shrink a model?",
+   "a": "When the task needs precision the small model cannot hold, and the data is allowed to leave the device. Then a server call with a larger model is simply better. The on-device argument is privacy and latency, and if neither is binding, the constraint is self-imposed.",
+   "options": null,
+   "correct": null,
+   "flag": "Assuming on-device is always the goal. It is a constraint with benefits, not a virtue.",
+   "teach": {
+    "title": "What is actually behind each of the four",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#what-is-actually-behind-each-of-the"
+   }
+  },
+  {
+   "id": "c10-e1",
+   "kind": "edges",
+   "q": "Your quantized model sounds fine and gets specific facts wrong. What happened?",
+   "a": "Exactly what quantization does. Fluency is robust to precision loss and exact recall is not, so the model keeps its register while losing rare tokens and precise values. It is the dangerous failure, because nothing looks broken. It is only caught by task-specific evaluation.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling it a regression to debug. It is the expected shape of the damage, and expecting it is the answer.",
+   "teach": null
+  },
+  {
+   "id": "c10-e2",
+   "kind": "edges",
+   "q": "Post-training quantization goes badly. First thing you check?",
+   "a": "The calibration set. Scales are chosen from it, so if it does not resemble production inputs the ranges are wrong from the start. After that, whether scales are per tensor rather than per channel, and whether activations were quantized along with the weights.",
+   "options": null,
+   "correct": null,
+   "flag": "Jumping to a different bit width. The usual cause is calibration, and changing the width hides it rather than fixing it.",
+   "teach": {
+    "title": "Quantization, and what it actually buys",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#quantization-and-what-it-actually-buys"
+   }
+  },
+  {
+   "id": "c10-e3",
+   "kind": "edges",
+   "q": "A quantized model has to choose between fifty similar functions. What is the risk?",
+   "a": "This is the worst case for quantization. Discriminating between near-identical options depends on small differences in the output distribution, and that is exactly the resolution you spent. The model still produces a confident choice, just a slightly wrong one. It is why the evaluation has to be the function-selection task itself.",
+   "options": null,
+   "correct": null,
+   "flag": "Assuming a structured output format protects you. A schema guarantees a valid function name, not the right one.",
+   "teach": {
+    "title": "What is actually behind each of the four",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#what-is-actually-behind-each-of-the"
+   }
+  },
+  {
+   "id": "c10-e4",
+   "kind": "edges",
+   "q": "The KV cache grows past the device's memory mid-conversation.",
+   "a": "Something has to go, and the choice is a product decision rather than a technical one. Evict the oldest turns, summarise them, or refuse to continue. Quantizing the cache buys headroom and does not remove the ceiling. The failure to avoid is silently dropping context while continuing to answer confidently.",
+   "options": null,
+   "correct": null,
+   "flag": "Only naming a bigger cache. It grows without bound and the interesting answer is what you drop and whether the user knows.",
+   "teach": {
+    "title": "Quantization, and what it actually buys",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#quantization-and-what-it-actually-buys"
+   }
+  },
+  {
+   "id": "c10-e5",
+   "kind": "edges",
+   "q": "The interviewer asks what you distilled.",
+   "a": "Say plainly that I have not shipped model distillation. I understand it well, including why the temperature on the teacher's outputs matters. What is on my résumé nearby is data distillation, which is filtering and deduplicating a corpus. Same word, different operation, and I would not let them blur.",
+   "options": null,
+   "correct": null,
+   "flag": "Answering with the preprocessing pipeline as though it were the same thing. That is the specific trap this line sets.",
+   "teach": {
+    "title": "What is actually behind each of the four",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#what-is-actually-behind-each-of-the"
+   }
+  },
+  {
+   "id": "c10-e6",
+   "kind": "edges",
+   "q": "Is presenting a technique to a division the same as having used it?",
+   "a": "No, and I would draw the line myself. Preparing a division-wide session on layer pruning means I understood it well enough to teach it and answer questions. It does not mean I pruned a production model. Both are real, and saying which one is which is what keeps the rest of the list credible.",
+   "options": null,
+   "correct": null,
+   "flag": "Blurring them. Teaching is genuinely strong evidence of understanding, and it is undermined by being passed off as deployment.",
+   "teach": {
+    "title": "What is actually behind each of the four",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#what-is-actually-behind-each-of-the"
+   }
+  },
+  {
+   "id": "c10-e7",
+   "kind": "edges",
+   "q": "Why is the word “distilled” a problem on this résumé specifically?",
+   "a": "Because it appears twice with two meanings. The skills line names knowledge distillation, a model technique. The Samsung bullet says a pipeline distilled 150 GB into pretraining data, which is corpus curation. A reader who connects them concludes the first is evidenced, and it is not.",
+   "options": null,
+   "correct": null,
+   "flag": "Not having noticed. An interviewer reading both lines will, and being the one who points it out is much better.",
+   "teach": {
+    "title": "What is actually behind each of the four",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#what-is-actually-behind-each-of-the"
+   }
+  },
+  {
+   "id": "c10-e8",
+   "kind": "edges",
+   "q": "What would you change about this line?",
+   "a": "Drop knowledge distillation, and mark layer pruning as taught if the format allows it. That leaves quantization and small-model deployment, both shipped and both defensible in detail. I would also rather the Samsung bullet said which quantization, because the bit width is the interesting part.",
+   "options": null,
+   "correct": null,
+   "flag": "Keeping four items for breadth. Two defended items read stronger than four where half collapse under one question.",
+   "teach": {
+    "title": "What is actually behind each of the four",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#what-is-actually-behind-each-of-the"
+   }
+  },
+  {
+   "id": "0010-q1",
+   "kind": "quiz",
+   "q": "You quantize weights from sixteen-bit to four-bit on a memory-bound device. What is the primary win?",
+   "a": "<p>A quarter of the memory, and a speed-up that follows from it. Generation is memory-bandwidth bound, so moving a quarter of the bytes per token makes it faster. The arithmetic itself is not the bottleneck, which is why the second option is the tempting wrong one.</p>\n    <p>Context length is a separate decision. The KV cache is not the weights, and quantizing it is an independent choice that scales with conversation length rather than model size.</p>",
+   "options": [
+    "Weights now occupy roughly a quarter of previous memory",
+    "Arithmetic runs four times quicker on the same silicon",
+    "Accuracy rises because the model generalises a bit better",
+    "The usable context window grows by exactly that factor"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Quantization, and what it actually buys",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#quantization-and-what-it-actually-buys"
+   }
+  },
+  {
+   "id": "0010-q2",
+   "kind": "quiz",
+   "q": "Layer pruning removes entire transformer blocks and often costs less accuracy than expected. Why?",
+   "a": "<p>Redundancy is not evenly spread. Measuring how much each block moves the representation between its input and output shows that many middle and later blocks move it very little, so removing a few of those costs less than removing the same parameter count from everywhere.</p>\n    <p>The early blocks are the opposite: they do the most structural work and are the worst candidates. That is why pruning is chosen by measurement rather than applied uniformly, and why a short healing fine-tune follows it.</p>",
+   "options": [
+    "Deeper blocks barely change the hidden state they receive",
+    "Early blocks hold almost none of the model's knowledge",
+    "Removing blocks lets the rest be retrained far faster",
+    "The attention heads are duplicated across all the blocks"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Pruning and distillation are not the same move",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#pruning-and-distillation-are-not-the-same"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“How much memory does a 7B model need at 4-bit?”",
+   "a": "<p>About 3.5 gigabytes for the weights, since four-bit is half a byte per parameter. Then the KV cache on top, which is two for keys and values, times layers, times key-value heads, times head dimension, times bytes per element, per token. On a long conversation that can rival the weights. The trap is using attention heads rather than key-value heads, which overstates it by four or more under grouped-query attention.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The arithmetic you should be able to do out loud",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#the-arithmetic-you-should-be-able-to"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“Why does quantization speed things up?”",
+   "a": "<p>Bandwidth. Generating a token means reading essentially every weight, and modern accelerators can do far more arithmetic than they can be fed. Halving the bytes per weight roughly halves the data moved per token, so throughput follows. On a device the effect is stronger still, because there is one user and no batching to amortise the weight read across sequences.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Quantization, and what it actually buys",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#quantization-and-what-it-actually-buys"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“What did quantization cost you in accuracy?”",
+   "a": "<p>The honest answer is that the damage is uneven, so the number depends entirely on what you measure. Fluency survives low bit widths well, which is dangerous because the model still sounds right. What degrades is precise discrimination, and choosing between fifty similar functions is exactly that. So the evaluation had to be the function-selection task rather than perplexity, which barely moves.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“Tell me about the distillation you did.”",
+   "a": "<p>I have not shipped model distillation, and I would rather say that than reach for something adjacent. I understand it: a student trained against the teacher's softened output distribution rather than hard labels, where the value is in what the teacher thought was nearly right. The pipeline on my réésumé that distilled 150 gigabytes was corpus curation, which shares the word and not the operation.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“Pruning or quantization, if you had to pick one?”",
+   "a": "<p>Quantization, almost always first. Sixteen-bit to four-bit is exactly a factor of four, it needs no training run, and it is reversible if the accuracy is unacceptable. Pruning removes blocks and then needs a healing fine-tune, because the remaining blocks were trained expecting the ones you deleted. So the deletion is trivial and recovering the accuracy is not, which makes it the second thing to try rather than the first.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Pruning and distillation are not the same move",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0010-model-optimization.html#pruning-and-distillation-are-not-the-same"
+   }
+  }
+ ]
+}

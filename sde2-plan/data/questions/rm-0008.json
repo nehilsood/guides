@@ -1,0 +1,536 @@
+{
+ "lesson": "rm-0008",
+ "label": "RM 0008",
+ "track": "project",
+ "title": "Languages: Python, SQL, C++",
+ "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "c08-t1",
+   "kind": "toolbox",
+   "q": "What is CPython, and what is the GIL a property of?",
+   "a": "Python is a language specification. CPython is the program that actually runs it, written in C. It is what you get when you type python. It compiles your source into bytecode and executes that on a stack machine. Memory is managed by counting references, with a cycle collector behind it. What that buys is predictable memory behaviour and the whole C extension ecosystem, which is why numpy and pandas are fast at all. The GIL is a property of that implementation, not of the language. Other implementations do without one, and recent CPython ships an experimental free-threaded build. So the careful sentence is about CPython, not about Python.",
+   "options": null,
+   "correct": null,
+   "flag": "“Python can't do parallelism.” It is a statement about one interpreter, it is being actively unwound, and saying it flatly dates you.",
+   "teach": {
+    "title": "What actually backs each of the three",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#what-actually-backs-each-of-the-three"
+   }
+  },
+  {
+   "id": "c08-t2",
+   "kind": "toolbox",
+   "q": "Threads, processes or asyncio. How do you choose?",
+   "a": "By what the code is waiting on. They are three genuinely different things. Threads live in one process and share memory, so passing data is free, but the GIL stops them running Python code at the same time. Processes each get their own interpreter and real parallelism, paying for it by copying data across a boundary. Coroutines are one thread switching voluntarily at each await. So waiting on a network picks asyncio, because one thread can hold thousands of those. Waiting inside a library that blocks and has no async version picks threads. Burning CPU picks processes. Choosing right is the difference between a tenfold speedup and no change.",
+   "options": null,
+   "correct": null,
+   "flag": "Reaching for threads by default. They are the middle answer, and the reason to pick them is almost always that a library gave you no choice.",
+   "teach": null
+  },
+  {
+   "id": "c08-t3",
+   "kind": "toolbox",
+   "q": "What do Python type hints actually enforce?",
+   "a": "Nothing, on their own. The interpreter reads them and moves on. What makes them useful is the tools that consume them. A checker such as mypy or pyright runs ahead of time and fails your build. Editors use them for completion. A library such as Pydantic reads them at runtime and validates real data against them. What that buys is one declaration doing three jobs, rather than three that drift apart. Documentation, static checking and runtime validation all come from the same line. That last path is what everything else here leans on, from FastAPI request models to schema-constrained model output.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling Python statically typed because the code has annotations. Annotated and checked are different, and only one of them is in your pipeline.",
+   "teach": {
+    "title": "What actually backs each of the three",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#what-actually-backs-each-of-the-three"
+   }
+  },
+  {
+   "id": "c08-t4",
+   "kind": "toolbox",
+   "q": "You have written SQL against Postgres, Snowflake and BigQuery. What actually differs?",
+   "a": "The language barely changes. The machine underneath changes completely. Postgres stores rows together and is built for transactions: fetch this customer, update that order. Snowflake and BigQuery store columns together and are built for scans: average this field over a billion rows. Columnar storage means a query touching three columns reads three columns, not the whole table. So in Postgres indexes are central. In the other two they are largely absent, and the levers are partitioning, clustering and how many bytes the query is forced to read. Knowing which is which stops you carrying transactional habits into a warehouse, where they are expensive and useless.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating SQL as one skill. The dialect is the easy part. Knowing which engine rewards which shape is the part being tested.",
+   "teach": {
+    "title": "What actually backs each of the three",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#what-actually-backs-each-of-the-three"
+   }
+  },
+  {
+   "id": "c08-t5",
+   "kind": "toolbox",
+   "q": "What is a B-tree index, and when does the planner ignore one?",
+   "a": "Without an index, finding a row means reading every row. A B-tree is a balanced tree of sorted keys where each node points at a page of the next level. A lookup in a million rows costs three or four page reads instead of a million. Because the keys are stored in order, the same structure also serves ranges and sorting for free. What it buys is lookups that stay fast as the table grows. The planner ignores it when the query is going to read most of the table anyway, since reading sequentially beats jumping around. You find that out with explain rather than by guessing.",
+   "options": null,
+   "correct": null,
+   "flag": "“Add an index” as a reflex. An index that the planner never picks is write cost with no read benefit.",
+   "teach": null
+  },
+  {
+   "id": "c08-t6",
+   "kind": "toolbox",
+   "q": "Which C++ do you actually write?",
+   "a": "Say the standard. C++ is revised every three years, and the revision decides what counts as idiomatic. C++11 was the break point: move semantics, auto, lambdas, smart pointers. C++17 added structured bindings and optional. C++20 added ranges, concepts and coroutines. Code written against different standards looks like different languages. Pre-11 code full of raw new and delete genuinely is one. What naming the version buys is that an interviewer knows how you write before seeing a line. It turns a one-word skills entry into a claim somebody can check.",
+   "options": null,
+   "correct": null,
+   "flag": "Listing C++ with no era attached. The interviewer's next question is which standard, and having no answer suggests the entry is old coursework.",
+   "teach": null
+  },
+  {
+   "id": "c08-t7",
+   "kind": "toolbox",
+   "q": "What do move semantics buy, and what is a moved-from object?",
+   "a": "Before C++11, returning a large container by value copied every element. Move semantics added a second option. The new object takes the old one's pointer to its data, and the old one is left empty. A move constructor takes an rvalue reference, which is the compiler's way of marking a value nobody will use again. What that buys is returning big objects by value for free. The ugly workarounds stop being necessary, meaning output parameters and raw pointers everywhere. The moved-from object is not destroyed and not garbage. It is valid but unspecified. You may destroy it or assign to it, and you must not read it.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying the source becomes invalid. It stays valid on purpose, because its destructor still has to run.",
+   "teach": null
+  },
+  {
+   "id": "c08-t8",
+   "kind": "toolbox",
+   "q": "What is undefined behaviour, and why is it worse than an ordinary bug?",
+   "a": "It is an operation the standard deliberately gives no meaning to at all. Reading past an array, dereferencing a dangling pointer, overflowing a signed integer. The standard does not say these fail. It says anything may happen, and the compiler may assume they never occur. What that assumption buys is speed, honestly. The optimiser is fast precisely because it may assume you did not do these things. The cost is that it does not fail where you wrote it. It can delete a null check three functions away, because earlier code proved the pointer could not be null. The program works until the optimisation level changes.",
+   "options": null,
+   "correct": null,
+   "flag": "“It crashes.” Crashing is the good outcome. The dangerous one is code that runs correctly for a year and then does not.",
+   "teach": null
+  },
+  {
+   "id": "c08-f1",
+   "kind": "fundamentals",
+   "q": "Of the three, which are you strongest in, and what proves it?",
+   "a": "Python, and the rest of the page proves it. Async services on FastAPI, async SQLAlchemy over asyncpg, pandas in the forecasting layer, pydantic schemas constraining model output, pytest suites, and three different agent frameworks. SQL is second and specific. C++ is the weakest and I would say so unprompted.",
+   "options": null,
+   "correct": null,
+   "flag": "Claiming all three equally. The list is ordered on the page and an interviewer reads that order as a ranking anyway.",
+   "teach": {
+    "title": "What actually backs each of the three",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#what-actually-backs-each-of-the-three"
+   }
+  },
+  {
+   "id": "c08-f2",
+   "kind": "fundamentals",
+   "q": "What is the GIL and why does it matter to you?",
+   "a": "A lock that lets only one thread execute Python bytecode at a time. It means threads do not speed up CPU-bound work. They do help with work that waits. Everything I build is IO-bound, waiting on models and databases. So the GIL is mostly irrelevant to me until something starts computing.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying Python cannot do parallelism. It can, with processes. The GIL constrains threads, not the language.",
+   "teach": {
+    "title": "The Python question that separates people",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#the-python-question-that-separates-people"
+   }
+  },
+  {
+   "id": "c08-f4",
+   "kind": "fundamentals",
+   "q": "What does <code>await</code> actually do?",
+   "a": "It suspends the current coroutine and hands control back to the event loop. The loop is then free to run something else until the awaited thing is ready. It is a yield point, not a wait. That is why a function with no await never gives the loop a chance.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it as “waiting for the result.” It is the opposite: it is the point where this task stops occupying the thread.",
+   "teach": null
+  },
+  {
+   "id": "c08-f5",
+   "kind": "fundamentals",
+   "q": "When would you return a generator rather than a list?",
+   "a": "When the caller consumes items one at a time and the whole collection need not exist. The planner does exactly this. It pulls workflows from a queue and processes each immediately, so memory stays at one workflow. The cost is that you can only walk it once.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying generators are faster. They are lazier. Total work is the same and peak memory is not.",
+   "teach": {
+    "title": "What actually backs each of the three",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#what-actually-backs-each-of-the-three"
+   }
+  },
+  {
+   "id": "c08-f6",
+   "kind": "fundamentals",
+   "q": "What does <code>WHERE col &lt;&gt; 'x'</code> return for rows where <code>col</code> is NULL?",
+   "a": "Nothing. Those rows are dropped. Comparing anything with NULL gives unknown rather than true or false, and <code>WHERE</code> only keeps rows that are true. To include them you need <code>col &lt;&gt; 'x' OR col IS NULL</code>. The same trap makes <code>NOT IN</code> against a subquery with a NULL return no rows at all.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying they are included because NULL is different from x. It is the single most common SQL misconception and it is exactly what the question is testing.",
+   "teach": {
+    "title": "The SQL question that separates people",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#the-sql-question-that-separates-people"
+   }
+  },
+  {
+   "id": "c08-f7",
+   "kind": "fundamentals",
+   "q": "What do you look at first in a query plan?",
+   "a": "Whether the estimated row counts match the actual ones. If the estimate is wrong the whole plan is built on a wrong premise, and everything else you might fix is downstream of that. After that, scan types and join order. In the debugger, <code>EXPLAIN</code> is also a correctness check rather than a performance one.",
+   "options": null,
+   "correct": null,
+   "flag": "Going straight to indexes. An index cannot fix a plan built on a cardinality estimate that is out by three orders of magnitude.",
+   "teach": {
+    "title": "The SQL question that separates people",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#the-sql-question-that-separates-people"
+   }
+  },
+  {
+   "id": "c08-f8",
+   "kind": "fundamentals",
+   "q": "When does an index not help?",
+   "a": "When the query touches a large fraction of the table, because a sequential scan beats random lookups past a certain share. Also when the predicate is not sargable, like wrapping the column in a function. And every index costs write throughput and space, so an unused one is pure overhead.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating indexes as free. Naming the write cost is what makes the answer sound like production experience.",
+   "teach": {
+    "title": "The SQL question that separates people",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#the-sql-question-that-separates-people"
+   }
+  },
+  {
+   "id": "c08-f10",
+   "kind": "fundamentals",
+   "q": "What is the riskiest claim on this line?",
+   "a": "C++, because nothing else on the page supports it. Python and SQL are both evidenced by the work described in every other bullet. C++ appears once, as a word, with no project behind it. Either it earns a line somewhere in the experience section or it should come off the skills line.",
+   "options": null,
+   "correct": null,
+   "flag": "Naming SQL. It is well supported by Postgres invariants and Snowflake plan validation, and undervaluing it wastes a genuine strength.",
+   "teach": {
+    "title": "What actually backs each of the three",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#what-actually-backs-each-of-the-three"
+   }
+  },
+  {
+   "id": "c08-d1",
+   "kind": "deep-dive",
+   "q": "A handler does 200 ms of CPU work inside an <code>async def</code>. What happens?",
+   "a": "Every other request in that process waits 200 ms. The event loop is one thread, and a coroutine holds it until it awaits. Nothing about the function being async helps, because async is about yielding at IO. The fix is <code>asyncio.to_thread</code> for blocking calls, or a process pool if it is genuinely CPU-heavy.",
+   "options": null,
+   "correct": null,
+   "flag": "Thinking only that request is slowed. The whole point of the question is that the cost lands on everybody else.",
+   "teach": {
+    "title": "The Python question that separates people",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#the-python-question-that-separates-people"
+   }
+  },
+  {
+   "id": "c08-d2",
+   "kind": "deep-dive",
+   "q": "You <code>gather</code> three calls and one raises. What happens to the other two?",
+   "a": "By default <code>gather</code> propagates the first exception immediately, and the other tasks keep running unless you cancel them. That is how you leak work. With <code>return_exceptions=True</code> you get results and exceptions together and can decide. In the Scout's three concurrent calls that distinction decides whether a partial result is usable.",
+   "options": null,
+   "correct": null,
+   "flag": "Assuming siblings are cancelled automatically. They are not, and that surprise is the reason the question gets asked.",
+   "teach": {
+    "title": "The Python question that separates people",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#the-python-question-that-separates-people"
+   }
+  },
+  {
+   "id": "c08-d3",
+   "kind": "deep-dive",
+   "q": "You need to call an async function from synchronous code. How?",
+   "a": "<code>asyncio.run</code> if there is no loop yet, which is the script case. If a loop is already running you cannot nest. The work then goes to the existing loop as a task, or onto a separate thread with its own loop. The real answer is usually that the boundary is in the wrong place.",
+   "options": null,
+   "correct": null,
+   "flag": "Reaching for a nested event loop patch. It works and it hides a structural problem that will resurface.",
+   "teach": {
+    "title": "The Python question that separates people",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#the-python-question-that-separates-people"
+   }
+  },
+  {
+   "id": "c08-d4",
+   "kind": "deep-dive",
+   "q": "Pydantic model or dataclass?",
+   "a": "Dataclass when the data is already trusted and I want structure. Pydantic when it crosses a boundary and has to be validated or coerced. Everything coming back from a model is a boundary, which is why the scout claim schema and the debug solution are both pydantic. The validation is the feature, and it costs construction time.",
+   "options": null,
+   "correct": null,
+   "flag": "Using pydantic for everything. It is a parser, and paying parsing cost on internal objects is waste.",
+   "teach": {
+    "title": "What actually backs each of the three",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#what-actually-backs-each-of-the-three"
+   }
+  },
+  {
+   "id": "c08-d5",
+   "kind": "deep-dive",
+   "q": "Why is a mutable default argument a bug?",
+   "a": "Because the default is evaluated once, when the function is defined, not on each call. So one list is shared by every call that omits the argument, and it accumulates. The fix is a <code>None</code> default and building the real value inside. It is the most common Python trap that survives code review.",
+   "options": null,
+   "correct": null,
+   "flag": "Knowing the rule without the reason. The reason is definition-time evaluation, and that explains several other Python behaviours too.",
+   "teach": {
+    "title": "The SQL question that separates people",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#the-sql-question-that-separates-people"
+   }
+  },
+  {
+   "id": "c08-d6",
+   "kind": "deep-dive",
+   "q": "What problem do context managers solve?",
+   "a": "Releasing something on every exit path, including exceptions, without repeating the cleanup. A database session is the case I care about: the middleware opens one per request and commits or rolls back on exit. That is also why background work cannot borrow it, because the request's scope has already closed.",
+   "options": null,
+   "correct": null,
+   "flag": "Explaining the protocol methods. The question is about guaranteed cleanup, not about <code>__enter__</code>.",
+   "teach": null
+  },
+  {
+   "id": "c08-d7",
+   "kind": "deep-dive",
+   "q": "When do you reach for a window function?",
+   "a": "When I need a per-row value computed over related rows without collapsing them. Ranking runs within a workflow, or a running total, or comparing each row to its group's average. <code>GROUP BY</code> would fold the rows away and I would have to join back. A window keeps every row and adds the number.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it as a faster GROUP BY. It answers a different question, and the difference is whether rows survive.",
+   "teach": {
+    "title": "The SQL question that separates people",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#the-sql-question-that-separates-people"
+   }
+  },
+  {
+   "id": "c08-d8",
+   "kind": "deep-dive",
+   "q": "Explain a partial unique index and why you used one.",
+   "a": "A unique index built only over rows matching a condition. In the rubric model it enforces at most one live version and at most one draft per rubric. Without it that rule lives in application code, which means a check-then-insert that two concurrent requests can both pass. The database makes it impossible rather than unlikely.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying the application checks it. That is the answer the question exists to reject, because check-then-act races.",
+   "teach": {
+    "title": "What actually backs each of the three",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#what-actually-backs-each-of-the-three"
+   }
+  },
+  {
+   "id": "c08-d9",
+   "kind": "deep-dive",
+   "q": "What goes wrong holding a database session across an await on a model call?",
+   "a": "The session and its connection are held for the whole model call, which can be seconds. Pool connections are finite, so enough concurrent turns exhaust the pool and requests queue for a connection they do not need yet. Any transaction open across that window also holds locks for its duration.",
+   "options": null,
+   "correct": null,
+   "flag": "Framing it as style. It is a capacity bug, and it appears under load rather than in review.",
+   "teach": null
+  },
+  {
+   "id": "c08-d10",
+   "kind": "deep-dive",
+   "q": "How is writing SQL for Snowflake different from writing it for Postgres?",
+   "a": "Different shapes of problem. Postgres is row-oriented and transactional, so indexes, isolation and constraints matter. Snowflake is columnar and analytical, so pruning, clustering and how much data a query scans matter, and there are no indexes to add. A query tuned for one is often nonsense in the other.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating SQL as portable. Working with both is the interesting part of this claim and flattening them wastes it.",
+   "teach": {
+    "title": "What actually backs each of the three",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#what-actually-backs-each-of-the-three"
+   }
+  },
+  {
+   "id": "c08-d11",
+   "kind": "deep-dive",
+   "q": "Why do parameterised queries prevent injection when escaping does not?",
+   "a": "Because the query and the data travel separately. The statement is parsed first and the parameters are bound afterwards. So a value can never become syntax. Escaping instead tries to neutralise data inside a string that will still be parsed as one. That protection depends on getting the escaping exactly right every time.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying parameters escape the input. They are not escaped, they are never parsed as SQL at all, and that difference is the whole answer.",
+   "teach": {
+    "title": "The SQL question that separates people",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#the-sql-question-that-separates-people"
+   }
+  },
+  {
+   "id": "c08-d12",
+   "kind": "deep-dive",
+   "q": "What is RAII, and what is the Python equivalent?",
+   "a": "Tying a resource's lifetime to an object's scope. Leaving the scope releases it, and an exception cannot skip that. The Python equivalent is a context manager, with <code>with</code> playing the role of the destructor. It is the C++ concept I am most confident about, because I use its equivalent constantly.",
+   "options": null,
+   "correct": null,
+   "flag": "Over-extending into move semantics or templates. Answer the concept you own and let the follow-up go where it goes.",
+   "teach": {
+    "title": "What to do about C++",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#what-to-do-about-c"
+   }
+  },
+  {
+   "id": "c08-e1",
+   "kind": "edges",
+   "q": "The interviewer opens a shared editor and asks you to write C++.",
+   "a": "I would say up front that I will be slow and will want to check syntax, then attempt it anyway. Refusing is worse than struggling. What I would not do is pretend fluency while writing Python with semicolons. If it goes badly, I would solve the problem in pseudocode. The algorithm is the part I am confident about.",
+   "options": null,
+   "correct": null,
+   "flag": "Declining outright. It confirms the line is decoration, which is worse than writing imperfect code.",
+   "teach": null
+  },
+  {
+   "id": "c08-e2",
+   "kind": "edges",
+   "q": "You get a Python question you genuinely do not know.",
+   "a": "Say so in one sentence. Then say what I would do to find out. Then offer the nearest thing I do know. Something like: I do not know how that is implemented. I would check the source. The related thing I am sure of is this. Guessing confidently is the only way to actually lose points.",
+   "options": null,
+   "correct": null,
+   "flag": "Filling the silence with plausible reasoning. An interviewer who asked the question knows the answer, and a confident wrong one is worse than a gap.",
+   "teach": {
+    "title": "What actually backs each of the three",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#what-actually-backs-each-of-the-three"
+   }
+  },
+  {
+   "id": "c08-e3",
+   "kind": "edges",
+   "q": "Tell me about a time async made something slower.",
+   "a": "The general shape is a blocking call inside a coroutine. A synchronous client library, or a CPU step, sits in the middle of an async handler. Everything serialises behind it. Throughput falls below what a plain threaded server would have managed, because now there is one thread and it is busy.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying it has never happened. It happens in every async codebase, and the useful answer is how you spot it, which is latency rising for unrelated endpoints.",
+   "teach": {
+    "title": "The Python question that separates people",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#the-python-question-that-separates-people"
+   }
+  },
+  {
+   "id": "c08-e4",
+   "kind": "edges",
+   "q": "A SQL bug that passed code review. What kind?",
+   "a": "A NULL one, almost always, because it reads correctly. A <code>NOT IN</code> against a subquery that can contain NULL returns no rows, and the query looks perfect. Nothing errors, the result is just empty, which reads as “no matches” rather than as a bug. It is the SQL equivalent of a confident empty report.",
+   "options": null,
+   "correct": null,
+   "flag": "Reaching for a performance example. The question says review, and review catches slow queries far more often than it catches three-valued logic.",
+   "teach": {
+    "title": "The SQL question that separates people",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#the-sql-question-that-separates-people"
+   }
+  },
+  {
+   "id": "c08-e5",
+   "kind": "edges",
+   "q": "Does the order of the three languages matter?",
+   "a": "Yes, and it is read as a ranking whether or not it was meant as one. Python first is right. C++ last is right. What the order cannot fix is that the third item has no supporting evidence. Position does not substitute for a project.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying it is alphabetical or arbitrary. Every list on a résumé is read as ordered by strength.",
+   "teach": {
+    "title": "The Python question that separates people",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#the-python-question-that-separates-people"
+   }
+  },
+  {
+   "id": "c08-e6",
+   "kind": "edges",
+   "q": "What would you have to do before adding a fourth language to this line?",
+   "a": "Ship something in it that appears in the experience section. My own rule is that a skills line should only name things another bullet already proves. That test is what C++ currently fails, and applying it consistently is what makes the rest of the list credible.",
+   "options": null,
+   "correct": null,
+   "flag": "A threshold based on time spent. Months of exposure are not checkable and a shipped project is.",
+   "teach": {
+    "title": "The SQL question that separates people",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#the-sql-question-that-separates-people"
+   }
+  },
+  {
+   "id": "c08-e8",
+   "kind": "edges",
+   "q": "What would you change about this line?",
+   "a": "Either earn C++ or drop it. If the Samsung on-device work involved it, that belongs in the bullet rather than only here. If it did not, the line is stronger as Python and SQL, because two supported items beat three where one collapses under a single question.",
+   "options": null,
+   "correct": null,
+   "flag": "Keeping it because removing things from a résumé feels like losing ground. An unbacked item is a liability, not a spare point.",
+   "teach": {
+    "title": "What actually backs each of the three",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#what-actually-backs-each-of-the-three"
+   }
+  },
+  {
+   "id": "0008-q1",
+   "kind": "quiz",
+   "q": "A FastAPI handler declared <code>async def</code> spends 200 ms on pure computation with no <code>await</code>. What is the effect?",
+   "a": "<p>Everything waits. The event loop is a single thread and a coroutine holds it until it reaches an <code>await</code>. Two hundred milliseconds of arithmetic is two hundred milliseconds where no other request in the process can make progress, including ones that were about to finish.</p>\n    <p>Declaring a function <code>async</code> does not move it anywhere. The fix is explicit: <code>asyncio.to_thread</code> for a blocking call, or a process pool for real CPU work, because threads still cannot run Python bytecode in parallel.</p>",
+   "options": [
+    "The whole event loop blocks and every request waits",
+    "The request is moved to a background worker thread",
+    "Only that one request is slowed by the computation",
+    "The framework logs a warning and retries it later"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "The Python question that separates people",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#the-python-question-that-separates-people"
+   }
+  },
+  {
+   "id": "0008-q2",
+   "kind": "quiz",
+   "q": "A table has rows where <code>col</code> is NULL. What does <code>WHERE col &lt;&gt; 'x'</code> do with them?",
+   "a": "<p>They are dropped. NULL is the absence of a value, so comparing it to anything yields unknown rather than true or false, and <code>WHERE</code> keeps only rows where the condition is true. You need <code>col &lt;&gt; 'x' OR col IS NULL</code> to include them.</p>\n    <p>The second option is the intuition almost everybody has, and it is why this is a good interview question. The same rule is what makes <code>NOT IN</code> against a subquery containing a single NULL return no rows at all, which is a much harder bug to find.</p>",
+   "options": [
+    "Excluded, because a comparison with NULL is unknown",
+    "Included, because NULL differs from that string value",
+    "Excluded, although only when that column is indexed",
+    "Included, as the planner rewrites the whole predicate"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "The SQL question that separates people",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#the-sql-question-that-separates-people"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“Tell me about your C++.”",
+   "a": "<p>It is the weakest of the three and I would rather tell you than have you find it. It comes from academic and on-device work rather than production services, and it is at the level of reading and modifying rather than designing. The concept I am genuinely confident about is RAII, partly because Python's context managers are the same idea. If this role is C++ heavy, that is worth establishing now.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What to do about C++",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#what-to-do-about-c"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“What happens if you do CPU work inside an async handler?”",
+   "a": "<p>Every other request in the process waits. The loop is one thread and a coroutine holds it until it awaits, so two hundred milliseconds of computation is two hundred milliseconds where nothing else progresses, including requests that were nearly done. The tell in production is latency rising on endpoints that have nothing to do with the slow one. The fix is a thread for a blocking call, or a process for real CPU work.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The Python question that separates people",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#the-python-question-that-separates-people"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“How would you enforce that only one version of a record can be live?”",
+   "a": "<p>A partial unique index, in the database. A unique index over only the rows where the status is live means the second insert fails rather than succeeding. The application-level version is a check then an insert, and two concurrent requests can both pass the check. That is exactly how the rubric model does it, and there is a second partial index for drafts.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What actually backs each of the three",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#what-actually-backs-each-of-the-three"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“Give me a SQL bug you have actually shipped.”",
+   "a": "<p>The NULL family, because they read as correct. A <code>NOT IN</code> against a subquery that contains a single NULL returns no rows at all, and nothing errors. The query looks right, the result is empty, and empty reads as “no matches” rather than as a bug. It is the same failure shape as a research step that soft-fails and returns a confident empty report.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The SQL question that separates people",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0008-languages.html#the-sql-question-that-separates-people"
+   }
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“Rate your Python out of ten.”",
+   "a": "<p>I would rather give you a boundary than a number, because the scale is not shared. I am comfortable with async services, the concurrency model, the data layer and testing. I am weaker on C extensions and interpreter internals, and I have never needed to profile at that level. That tells you where I would be productive immediately and where I would need time.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  }
+ ]
+}

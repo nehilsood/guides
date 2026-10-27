@@ -1,0 +1,545 @@
+{
+ "lesson": "rm-0002",
+ "label": "RM 0002",
+ "track": "project",
+ "title": "The Gateway and the Move to Streaming",
+ "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "c02-t1",
+   "kind": "toolbox",
+   "q": "What does “OpenAI-compatible” actually mean?",
+   "a": "It is an agreement about the shape of the JSON, and nothing more. A client posts to <code>/chat/completions</code> with a messages array and gets back a choices array and a token count. Because OpenAI got there first, almost every client library and tool speaks that shape. Serving it makes you a drop-in replacement. Nothing about the model behind it is implied. Google publishes the same shim, so our gateway and Gemini's own endpoint accept the same body. The value is that a caller switches to us by changing one base URL. No new SDK, no rewritten call sites, no migration project. That is what makes a gateway adoptable rather than a thing teams route around.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating it as a statement about the model. It is a statement about the envelope, and the whole point is that the envelope outlives the model inside it.",
+   "teach": {
+    "title": "Why a gateway at all",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#why-a-gateway-at-all"
+   }
+  },
+  {
+   "id": "c02-t2",
+   "kind": "toolbox",
+   "q": "What is REST here, and why is it the wrong shape for a spoken turn?",
+   "a": "REST here means one request and one complete response. The client sends, then waits doing nothing, then gets the whole answer at once. It is a good default and you should not give it up lightly. One request and one response is easy to retry, easy to cache and easy to debug with a single command. It is right for a form and wrong for speech, and for one reason. The unit of delivery is the finished answer, so nothing can be said aloud until the last token lands. Streaming changes the unit from the answer to the token. The first word leaves while the rest is still being generated.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling REST slow. It is not slower. It delivers later, which is a different fault and the one that matters here.",
+   "teach": {
+    "title": "Buffered, then streamed — and what streaming actually bought",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#buffered-then-streamed-and-what-streaming-actually"
+   }
+  },
+  {
+   "id": "c02-t3",
+   "kind": "toolbox",
+   "q": "What is SSE, and when would you reach for a WebSocket instead?",
+   "a": "Server-sent events is a way of keeping an ordinary HTTP response open and writing to it over time. The server sends text frames, each a line starting with <code>data:</code>, for as long as it likes. Traffic goes one way only. Browsers implement it natively and reconnect on their own. What it buys is streaming without a new protocol. It is still an HTTP response, so load balancers, auth headers and logging all keep working. A WebSocket is two-way and needs an upgrade handshake to switch protocols. Use SSE when only the server talks. Use a WebSocket when the client must also send mid-turn, which is what audio does.",
+   "options": null,
+   "correct": null,
+   "flag": "“WebSocket because it is real-time.” Both are real-time. Direction is the deciding property, and half-duplex is cheaper to operate.",
+   "teach": {
+    "title": "Three failures that look identical and are not",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#three-failures-that-look-identical-and-are"
+   }
+  },
+  {
+   "id": "c02-t4",
+   "kind": "toolbox",
+   "q": "What is the Gemini Live API, and what is underneath it?",
+   "a": "Most model APIs are stateless. You resend the whole conversation every turn and the server remembers nothing. Live inverts that. It is a stateful session with the model over a WebSocket, at the <code>BidiGenerateContent</code> endpoint. You open it and send one setup message, naming the model and the output modality. After that you stream input and receive output on the same socket for the whole conversation. Audio goes up as 16-bit PCM at 16 kHz and comes back at 24 kHz. The session is the unit, not the request. That removes a round trip and a re-upload of context from every turn, and it removes two format conversions from the middle of the budget.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it as “streaming Gemini” and leaving it there. Stateful is the word that matters, because state is what you have to recover after a drop.",
+   "teach": {
+    "title": "Three failures that look identical and are not",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#three-failures-that-look-identical-and-are"
+   }
+  },
+  {
+   "id": "c02-t5",
+   "kind": "toolbox",
+   "q": "What has to be true for streaming to work all the way to the client?",
+   "a": "Every hop has to forward bytes as they arrive. The model streams to the gateway. The gateway streams to the client. Nothing in between buffers a whole response. HTTP normally announces a response's size up front, which you cannot do if you have not written it yet. Chunked transfer encoding is the alternative, sending length-prefixed pieces ending with a zero-length one. That is the mechanism that lets a token leave before the answer exists. Without it, streaming is not expressible at the HTTP level at all. A proxy that buffers the body for inspection quietly turns the whole thing back into REST. The page still works, nobody sees an error, and the latency win is gone.",
+   "options": null,
+   "correct": null,
+   "flag": "Claiming the win without naming the hops. The number is a property of the whole path, and any one buffer in it is enough to erase the result.",
+   "teach": {
+    "title": "Buffered, then streamed — and what streaming actually bought",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#buffered-then-streamed-and-what-streaming-actually"
+   }
+  },
+  {
+   "id": "c02-t6",
+   "kind": "toolbox",
+   "q": "What do p50 and p90 mean, and why quote both?",
+   "a": "Sort every measured turn from fastest to slowest. p50 is the one in the middle, so half of turns were faster. p90 is nine tenths along, so one turn in ten was slower. p50 describes the typical experience and p90 describes the bad days. What percentiles buy you is an honest view of the tail. Nobody experiences an average. They experience their own turn, and the people who give up are in the tail. Quote both because they move for different reasons. A better median usually means the common path got shorter. A better p90 usually means a retry, a timeout or a queue got fixed.",
+   "options": null,
+   "correct": null,
+   "flag": "Quoting an average. One long turn drags the mean and moves neither percentile, so the mean hides the thing you were fixing.",
+   "teach": {
+    "title": "Three failures that look identical and are not",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#three-failures-that-look-identical-and-are"
+   }
+  },
+  {
+   "id": "c02-t7",
+   "kind": "toolbox",
+   "q": "Why is the audio raw PCM, and what does that cost?",
+   "a": "PCM is sound stored as plain numbers. Thousands of times a second the waveform's height is measured and kept as an integer, with no codec involved. So nothing has to be decoded before the model sees it, and nothing has to be decoded before the speaker plays it. That is zero decode time on both legs. At 16 kHz and 16 bits it costs 32 kilobytes a second going up. Compressed audio would be smaller on the wire and would add an encode and a decode to the path. On a turn budget measured in hundreds of milliseconds, bandwidth is the cheaper thing to spend.",
+   "options": null,
+   "correct": null,
+   "flag": "Assuming smaller is better. On this path the expensive resource is time, and compression buys bytes with milliseconds.",
+   "teach": {
+    "title": "Three failures that look identical and are not",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#three-failures-that-look-identical-and-are"
+   }
+  },
+  {
+   "id": "c02-t8",
+   "kind": "toolbox",
+   "q": "What is a token, and what exactly is time to first token measuring?",
+   "a": "A model does not read characters or words. Text is cut into tokens first, each roughly three quarters of a word in English, and each becomes a number the model consumes. Output comes out the same way, one token at a time. Billing is per token in both directions. What the unit buys you is a way to split latency into two independent halves. Time to first token is the gap between sending the request and the first one arriving. It measures the queue and the prefill, the work of reading your prompt. Everything after that is governed by tokens per second. Trimming a system prompt moves the first number. Changing model tier usually moves the second.",
+   "options": null,
+   "correct": null,
+   "flag": "Using it as a single latency number. It splits the budget in two, and a fix moves one half or the other, never both.",
+   "teach": {
+    "title": "Three failures that look identical and are not",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#three-failures-that-look-identical-and-are"
+   }
+  },
+  {
+   "id": "c02-f1",
+   "kind": "fundamentals",
+   "q": "What does this gateway actually do?",
+   "a": "It presents an OpenAI-compatible chat-completions endpoint to the avatar platform. Behind that it runs our interview logic: questionnaire state, the Host agent, the Gemini call. It returns a reply in the shape the avatar expects. The avatar posts once per utterance and knows nothing about interviews.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling it a proxy. A proxy forwards; this one holds conversation state and decides what to say, which is the whole job.",
+   "teach": {
+    "title": "Why a gateway at all",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#why-a-gateway-at-all"
+   }
+  },
+  {
+   "id": "c02-f2",
+   "kind": "fundamentals",
+   "q": "Why build to OpenAI's API shape rather than your own?",
+   "a": "Because we do not control the caller. The avatar platform speaks one dialect, and offers a hook for a custom endpoint in that dialect. Conforming to it is what let us keep all the interview logic on our side. Pushing that logic into their platform was never on offer.",
+   "options": null,
+   "correct": null,
+   "flag": "Presenting it as a portability decision. Portability is a nice side effect; the reason is that the integration contract was fixed by someone else.",
+   "teach": {
+    "title": "Why a gateway at all",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#why-a-gateway-at-all"
+   }
+  },
+  {
+   "id": "c02-f3",
+   "kind": "fundamentals",
+   "q": "You said the route never fails after auth. Is that not hiding errors?",
+   "a": "It hides them from the vendor, deliberately, and from nobody else. Every path is logged and metered. The reasoning is that a conversation has no error page. An avatar that goes silent mid-interview in front of a customer is worse than one that says something bland while we fix it. Auth failures still return real 4xx.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying errors are swallowed. If you cannot immediately say where they surface instead, it sounds like an accident rather than a decision.",
+   "teach": {
+    "title": "Why a gateway at all",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#why-a-gateway-at-all"
+   }
+  },
+  {
+   "id": "c02-f6",
+   "kind": "fundamentals",
+   "q": "What exactly does time-to-first-word measure here?",
+   "a": "From the utterance arriving at our gateway to the first spoken character going back. That spans the settle beat, our own state work, the Gemini call's own first token, and the extraction. It is the metric that matters for a conversation. The perceived pause ends when the avatar starts talking, not when it stops.",
+   "options": null,
+   "correct": null,
+   "flag": "Measuring to the first network byte instead of the first token. Those differ, sometimes by seconds, and confusing them is a classic instrumentation bug.",
+   "teach": null
+  },
+  {
+   "id": "c02-f7",
+   "kind": "fundamentals",
+   "q": "What is the per-turn budget, and where does it come from?",
+   "a": "Seconds, not milliseconds, and it comes from conversation rather than from engineering. A human interviewer pauses before replying. The tolerable pause is a product constraint, which we then budget hop by hop. Everything on the server side has to fit inside it, alongside a deliberate wait we chose to spend.",
+   "options": null,
+   "correct": null,
+   "flag": "Quoting a budget without saying where it came from. If the number has no source, it is a target somebody made up.",
+   "teach": {
+    "title": "Why a gateway at all",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#why-a-gateway-at-all"
+   }
+  },
+  {
+   "id": "c02-f8",
+   "kind": "fundamentals",
+   "q": "Why pin an exact model version instead of using a “latest” alias?",
+   "a": "Because an alias can start resolving to a model that refuses a parameter we send. We originally used aliases, reasoning that a fallback would catch one that stopped resolving. But the failure that actually happened was the other kind. It presented as a model error rather than a payload error.",
+   "options": null,
+   "correct": null,
+   "flag": "“For reproducibility.” True but generic. The specific failure is much more convincing and you have it.",
+   "teach": {
+    "title": "Three failures that look identical and are not",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#three-failures-that-look-identical-and-are"
+   }
+  },
+  {
+   "id": "c02-f10",
+   "kind": "fundamentals",
+   "q": "Where does conversation state live between turns?",
+   "a": "Server-side, keyed by interview, because the caller sends one independent request per utterance and carries nothing between them. That is what makes the service stateful in the way that matters for deploys and load balancing. A turn is short, but a session is long.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it as a stateless REST service. It looks like one per request and behaves like a session, and that gap is where the deploy questions live.",
+   "teach": {
+    "title": "Why a gateway at all",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#why-a-gateway-at-all"
+   }
+  },
+  {
+   "id": "c02-d1",
+   "kind": "deep-dive",
+   "q": "Walk me through the streaming integration. What is the transport to the model?",
+   "a": "Server-sent events over Gemini's OpenAI-compatible endpoint with <code>stream: true</code>. So it is SSE streaming over REST, not the bidirectional Live API. I would correct my own résumé wording there. “Gemini Live” overstates it, and the accurate description is buffered REST to streaming REST. The live-media piece in the product is the avatar vendor's SDK on the frontend, not our inference path.",
+   "options": null,
+   "correct": null,
+   "flag": "Defending “Gemini Live” as written. One question about a bidi session or a WebSocket handshake ends it, and the recovery is much worse than the correction.",
+   "teach": {
+    "title": "Buffered, then streamed — and what streaming actually bought",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#buffered-then-streamed-and-what-streaming-actually"
+   }
+  },
+  {
+   "id": "c02-d2",
+   "kind": "deep-dive",
+   "q": "You quoted p50 and p90. Give me p95 and p99.",
+   "a": "p95 4703 ms and p99 5205, with a max of 5678 ms. Those sit against p50 2504 and p90 4468, measured over 86 Host turns across six interviews in one dev window. I would flag the denominator myself. That is a dev-window sample, not a month of production. The honest framing is that the distribution is healthy, not that the number is settled.",
+   "options": null,
+   "correct": null,
+   "flag": "Not having the tail. Quoting a median against a hard budget invites this question immediately — it is the most predictable follow-up on the whole résumé.",
+   "teach": {
+    "title": "Why a gateway at all",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#why-a-gateway-at-all"
+   }
+  },
+  {
+   "id": "c02-d3",
+   "kind": "deep-dive",
+   "q": "Is there anything in this path you made deliberately slower?",
+   "a": "Yes, and it is the best part. The settle beat went from half a second to two seconds. That is the second-largest bar in the whole latency breakdown, and it is pure added delay, chosen. It buys something real. It stops the Host interrupting a vendor mid-thought, and we have the record of what interruptions cost when it was too short. I could improve my headline median tomorrow by deleting it, and the product would be worse.",
+   "options": null,
+   "correct": null,
+   "flag": "Presenting the latency work as monotonic optimisation. Every strong latency story has something the engineer chose to spend, and not having one suggests you never faced the tradeoff.",
+   "teach": null
+  },
+  {
+   "id": "c02-d4",
+   "kind": "deep-dive",
+   "q": "The model returns JSON but you need to speak it. How does streaming work at all?",
+   "a": "Field order. The Host asks for an object with <code>reply</code> and <code>answer_complete</code>, with <code>reply</code> declared first. A strict schema then guarantees the reply string is the first value emitted. So the characters the avatar needs arrive before anything else. An incremental extractor pulls them out of the partial JSON as they land. The trailing field is parsed once the object completes.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying you stream plain text and parse later. Then you have given up the structured output that the rest of the turn logic depends on, and the interviewer will ask what happened to it.",
+   "teach": {
+    "title": "Buffered, then streamed — and what streaming actually bought",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#buffered-then-streamed-and-what-streaming-actually"
+   }
+  },
+  {
+   "id": "c02-d5",
+   "kind": "deep-dive",
+   "q": "A chunk boundary splits a unicode escape in half. What does your extractor do?",
+   "a": "Nothing — it waits. It never advances past a fragment it cannot fully decode, so a dangling escape at a delta boundary just holds until the next feed. That is the rule that makes the whole thing safe: emit only what is unambiguously decodable, never what is probably fine. It also deliberately does not recombine surrogate pairs in the paths whose callers only need an index.",
+   "options": null,
+   "correct": null,
+   "flag": "“We decode what we have and fix it up later.” These characters go straight to text-to-speech; there is no later.",
+   "teach": {
+    "title": "Buffered, then streamed — and what streaming actually bought",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#buffered-then-streamed-and-what-streaming-actually"
+   }
+  },
+  {
+   "id": "c02-d6",
+   "kind": "deep-dive",
+   "q": "You get an HTTP error from the model provider. What do you do?",
+   "a": "It depends which of three it is, and keeping them apart is the whole job. A 404 means the model is gone, so retry once on a pinned fallback. A 400 naming the thinking level means our payload is wrong for this model. Replay once with the effort lowered, and log at ERROR. No retry fixes a misconfiguration. Somebody has to change a value. Any other 400 may be spurious, and the identical payload often succeeds on replay.",
+   "options": null,
+   "correct": null,
+   "flag": "One retry policy for all errors. That is exactly how the four-day incident happened, and it is the most common design in the wild.",
+   "teach": {
+    "title": "Three failures that look identical and are not",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#three-failures-that-look-identical-and-are"
+   }
+  },
+  {
+   "id": "c02-d7",
+   "kind": "deep-dive",
+   "q": "Tell me about a production incident you took too long to find.",
+   "a": "Four days where every interview ran slow and nothing showed why. We used model aliases rather than pinned versions. The test standing in for a model error was a 400 whose body contained the word “model” anywhere in it. That is also the provider's own wording for a model that refuses a parameter. So every turn was diagnosed as an outage, silently retried on the fallback, and still returned a 200 response. That is <strong>236 warnings, 100% of turns, no alert</strong>. The fix was pinning the models and replacing the substring test with three explicit classes.",
+   "options": null,
+   "correct": null,
+   "flag": "Telling it as a bug story. The lesson is about observability — a 100% failure rate that produces only warnings is invisible, and that is a monitoring design flaw, not a coding one.",
+   "teach": {
+    "title": "Three failures that look identical and are not",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#three-failures-that-look-identical-and-are"
+   }
+  },
+  {
+   "id": "c02-d8",
+   "kind": "deep-dive",
+   "q": "The vendor starts talking again while you are generating. What happens?",
+   "a": "The newer fragment cancels the in-flight turn before contending for the turn lock. Cancellation unwinds the loser out of the lock, so it is free immediately rather than after another model call completes. The abandoned turn touches no state. Ordering matters: cancel first, then acquire. Otherwise the new utterance waits behind work nobody wants any more.",
+   "options": null,
+   "correct": null,
+   "flag": "Letting both turns finish and picking one. You have then paid for two model calls and the avatar may speak the stale one.",
+   "teach": {
+    "title": "Buffered, then streamed — and what streaming actually bought",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#buffered-then-streamed-and-what-streaming-actually"
+   }
+  },
+  {
+   "id": "c02-d9",
+   "kind": "deep-dive",
+   "q": "The streaming flag defaults to off in code but is on in both deployed environments. Why?",
+   "a": "So that production behaviour is unchanged by merging the code. Turning it on is a separate, revertible act in config. It is a rollout pattern rather than an accident. The code ships dark, the values files enable it per environment, and rollback is a value change rather than a deploy. The honest cost is that the default in the source no longer describes what runs. The source is misleading to a new reader unless they check the chart.",
+   "options": null,
+   "correct": null,
+   "flag": "Not knowing the deployed value differs from the code default. That is the sort of gap that suggests you shipped it and stopped watching.",
+   "teach": null
+  },
+  {
+   "id": "c02-d10",
+   "kind": "deep-dive",
+   "q": "The JSON is malformed — but only after the reply field. What does the vendor experience?",
+   "a": "Nothing wrong. The reply characters were already emitted correctly and have been spoken. Finalize raises, the caller leaves state unchanged, and that matches the buffered path's soft-fail exactly. It is a deliberate property. The streaming path degrades to the same behaviour as the path it replaced, rather than inventing a new failure mode.",
+   "options": null,
+   "correct": null,
+   "flag": "Discarding the turn because parsing failed. The words are already out of the avatar's mouth; pretending otherwise desynchronises state from what the vendor heard.",
+   "teach": {
+    "title": "Buffered, then streamed — and what streaming actually bought",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#buffered-then-streamed-and-what-streaming-actually"
+   }
+  },
+  {
+   "id": "c02-d11",
+   "kind": "deep-dive",
+   "q": "How do you deploy a new version while interviews are live?",
+   "a": "This is the genuinely hard one. A turn is short but a session is long, and state is server-side per interview. The honest answer is that session draining is the requirement. Stop admitting new interviews to a pod, let existing ones finish, then cycle it. A migration job running to completion before the new version serves is already part of the release. Version pinning per session is the pattern I would reach for next.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating it like a stateless rolling update. It looks stateless per request, which is exactly what makes this trap easy to fall into.",
+   "teach": {
+    "title": "Buffered, then streamed — and what streaming actually bought",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#buffered-then-streamed-and-what-streaming-actually"
+   }
+  },
+  {
+   "id": "c02-d12",
+   "kind": "deep-dive",
+   "q": "Break the turn down. Where does the time actually go?",
+   "a": "Server-side it is essentially two things: one model call, and the deliberate two-second wait. That is the useful shape, because it says immediately where the remaining headroom is and where it is not. There is no third mystery hop to go hunting in. The rest of the perceived turn lives in the avatar vendor's speech pipeline, which we do not own.",
+   "options": null,
+   "correct": null,
+   "flag": "Not separating what you own from what you do not. End-to-end perceived latency includes speech recognition and rendering you have no control over, and conflating them makes every number unfalsifiable.",
+   "teach": null
+  },
+  {
+   "id": "c02-e1",
+   "kind": "edges",
+   "q": "“Zero mid-interview session drops” — is that exactly true?",
+   "a": "It is true of <em>sessions</em>, and I would immediately narrow it to that. In the same period we had a reliability problem one layer over. In one analysed window, four of six interviews were never scored. That included a complete ten-minute run lost to three stacked sixty-second model timeouts. The conversation held. The post-interview scoring did not. Those were found and fixed, and the telemetry that made mid-interview problems visible at all came out of that work.",
+   "options": null,
+   "correct": null,
+   "flag": "Letting “zero drops” stand unqualified. If they ask “so nothing was ever lost?” and you say no, the correction later is fatal rather than merely awkward.",
+   "teach": {
+    "title": "Three failures that look identical and are not",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#three-failures-that-look-identical-and-are"
+   }
+  },
+  {
+   "id": "c02-e2",
+   "kind": "edges",
+   "q": "Where do the before-and-after latency figures come from?",
+   "a": "The gateway emits per-turn timing on every request: time to first token, utterance duration, total elapsed. So percentiles are reconstructable from logs, and that is the basis for the comparison. What I would say plainly is that the before/after pair is my own measurement. It is not a benchmark committed to the repo. The reproducible artefact is the current distribution, not the delta.",
+   "options": null,
+   "correct": null,
+   "flag": "Implying a committed benchmark exists. If they ask to see the harness, the answer has to already have been “it was a measurement, not a checked-in benchmark.”",
+   "teach": {
+    "title": "Why a gateway at all",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#why-a-gateway-at-all"
+   }
+  },
+  {
+   "id": "c02-e3",
+   "kind": "edges",
+   "q": "The model stops emitting tokens halfway through a sentence. What does the vendor hear?",
+   "a": "Half a sentence, and that is the real cost of streaming. You have committed to words you cannot take back. The buffered path could discard a bad reply wholesale. The streaming path cannot. So the design keeps state unchanged on a late failure and matches the buffered soft-fail, but the audio already happened. That asymmetry is the honest price of starting to speak early.",
+   "options": null,
+   "correct": null,
+   "flag": "Claiming you can roll back. Once the characters are spoken they are spoken; the only question is whether your state agrees with what was heard.",
+   "teach": {
+    "title": "Buffered, then streamed — and what streaming actually bought",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#buffered-then-streamed-and-what-streaming-actually"
+   }
+  },
+  {
+   "id": "c02-e4",
+   "kind": "edges",
+   "q": "Three sixty-second timeouts stacked and cost you a whole interview's scorecard. What is the lesson?",
+   "a": "That a retry ladder's worst case is the number that matters, not its typical case. Three attempts at a minute each is three minutes. If nothing above it enforces a ceiling, the ladder <em>is</em> the deadline. The fix pattern is the one used elsewhere in this system. An outer deadline with a catch-all, sized so the inner ladder provably fits inside it. And a test pinning the arithmetic, rather than a comment asserting it.",
+   "options": null,
+   "correct": null,
+   "flag": "Reducing retries as the fix. That trades one failure for another; the structural answer is that somebody must own the ceiling.",
+   "teach": {
+    "title": "Three failures that look identical and are not",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#three-failures-that-look-identical-and-are"
+   }
+  },
+  {
+   "id": "c02-e5",
+   "kind": "edges",
+   "q": "How would you know your latency instrument is measuring the right thing?",
+   "a": "By checking it measures the first <em>token</em> and not the first <em>byte</em>. Those diverge whenever anything sits in front of the stream. A compression header or a proxy's first flush arrives long before any content does. An instrument timing that reports a number nobody cares about. It is the single easiest way to accidentally report a great result.",
+   "options": null,
+   "correct": null,
+   "flag": "Assuming the instrument is right because the number looks plausible. Plausible is exactly what a wrong instrument produces.",
+   "teach": {
+    "title": "Buffered, then streamed — and what streaming actually bought",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#buffered-then-streamed-and-what-streaming-actually"
+   }
+  },
+  {
+   "id": "c02-e6",
+   "kind": "edges",
+   "q": "A vendor speaks in many short fragments. What breaks?",
+   "a": "Each fragment cancels the previous turn during the settle window. So a stuttering speaker can supersede repeatedly. If any fragment escapes the window, it starts a model call that is then abandoned. The beat collapses most of that, which is why a longer beat is worth more than it costs. The tail is wasted calls. That is the case I would instrument before raising the beat any further.",
+   "options": null,
+   "correct": null,
+   "flag": "Assuming cancellation is free. An abandoned call still consumed a request and possibly tokens; the cost moved, it did not vanish.",
+   "teach": {
+    "title": "Buffered, then streamed — and what streaming actually bought",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#buffered-then-streamed-and-what-streaming-actually"
+   }
+  },
+  {
+   "id": "c02-e7",
+   "kind": "edges",
+   "q": "What does never failing after auth cost you?",
+   "a": "Observability pressure, and it is the same shape as the four-day incident. If every response is a 200, then error rate is structurally blind to this service. And error rate is the metric every dashboard defaults to. You have to alert on internal signals instead: canned-reply rate, retry rate, fallback-model usage. Choosing to always succeed means choosing to build your own definition of failure.",
+   "options": null,
+   "correct": null,
+   "flag": "Naming it as purely a resilience win. It is a trade, and the thing traded away is the industry's default alerting signal.",
+   "teach": null
+  },
+  {
+   "id": "c02-e8",
+   "kind": "edges",
+   "q": "One million concurrent avatar interviews. What breaks first?",
+   "a": "Do the conversion <em>before</em> the architecture. A million concurrent <em>sessions</em> is not a million concurrent generations. At roughly eight seconds a turn against thirty seconds of human speech, that is on the order of 267 thousand in-flight decodes. That number, not the pod count, is what the design has to answer. At that point KV cache is the wall: smaller models, quantised cache, prefix caching on the shared preamble, and cache-aware routing. Our gateway becomes the bottleneck before the accelerators do, because it holds a stateful session per interview.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying “add replicas and a queue.” Say the 267 thousand first. Naming the number before naming a technology is the entire test.",
+   "teach": {
+    "title": "Why a gateway at all",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#why-a-gateway-at-all"
+   }
+  },
+  {
+   "id": "0002-q1",
+   "kind": "quiz",
+   "q": "Why can the avatar start speaking before the model has finished generating?",
+   "a": "<p>Field order in the strict schema. <code>reply</code> is declared before <code>answer_complete</code>, so the reply string is the first value emitted and its characters can be forwarded as they land. That is a design decision in the prompt's output schema, not a property of streaming.</p>\n    <p>The prediction answer is worth rejecting explicitly, because it describes something no correct system does: the extractor deliberately never advances past a fragment it cannot fully decode. Waiting is the safety property. And the canned line is real, but it belongs to the error path — it is what makes the route never fail after auth, not what makes streaming work.</p>",
+   "options": [
+    "The reply field is declared first, so its characters emerge first",
+    "The extractor predicts the remaining characters out of a partial object",
+    "The gateway sends a canned opening line while generation still runs",
+    "The model returns the plain text first and structured fields afterwards"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Buffered, then streamed — and what streaming actually bought",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#buffered-then-streamed-and-what-streaming-actually"
+   }
+  },
+  {
+   "id": "0002-q2",
+   "kind": "quiz",
+   "q": "Every turn silently retries on the fallback model and still returns 200. What made this invisible?",
+   "a": "<p>Severity, not volume. 236 warnings across 100% of turns is a total failure wearing a non-critical label, and no alert fires on a warning. The lesson generalises past this incident: <strong>a failure that every request experiences can be quieter than one that happens rarely</strong>, because rare failures get investigated and universal ones become the baseline.</p>\n    <p>The race-condition answer is the instinctive one and it is wrong in an instructive way — this was perfectly deterministic. It reproduced on every single request, which is the easiest kind of bug to find <em>once you are looking</em>, and the entire difficulty was that nothing pointed anyone at it.</p>",
+   "options": [
+    "A 100% failure rate produced only warnings, which nothing alerted on",
+    "A rare race condition arose only under peak concurrent interview load",
+    "The fallback model gave answers that looked wrong to human reviewers",
+    "The logs were written at debug level and discarded before ingestion"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Three failures that look identical and are not",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#three-failures-that-look-identical-and-are"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“You said 2.2 s median. Give me p95 and p99.”",
+   "a": "<p>p95 4703 ms, p99 5205, max 5678, against p50 2504 and p90 4468 — 86 Host turns across six interviews. And the honest caveats, both of which I would rather give you than have you find: that is a dev-window sample, and a deliberate two-second settle beat is inside every one of those numbers.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Why a gateway at all",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#why-a-gateway-at-all"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“Walk me through the Gemini Live integration.”",
+   "a": "<p>I should correct my own wording — it is SSE over Gemini's OpenAI-compatible REST endpoint with stream set true, not the bidirectional Live API. The change was buffered REST to streaming REST. The live-media piece in the product is the avatar vendor's SDK on the frontend, which is a different layer from our inference path.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“Is there anything in this system you made deliberately slower?”",
+   "a": "<p>The settle beat, from half a second to two. It stops the Host interrupting a vendor who was only pausing mid-thought. It is the second-largest bar in the latency breakdown, it is inside every number I quote, and deleting it tomorrow would improve my median and make the product worse.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“Tell me about a bug that took too long to find.”",
+   "a": "<p>Four days of every interview running slow. Model aliases plus a substring test meant every turn was misdiagnosed as a model outage, silently retried on the fallback, and still returned 200. 236 warnings, a hundred percent of turns, no alert — because nothing alerts on warnings. I pinned the models and split one retry policy into three explicit failure classes, and I would now alert on fallback-model usage directly.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Three failures that look identical and are not",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#three-failures-that-look-identical-and-are"
+   }
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“How do you ship a new version with live interviews in progress?”",
+   "a": "<p>A turn is short but a session is long and state is server-side per interview, so a plain rolling update drops conversations. The requirement is session draining — stop admitting new interviews to a pod, let the in-flight ones finish, then cycle. The migrate job already gates the release on schema, and version pinning per session is the next thing I would add.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Buffered, then streamed — and what streaming actually bought",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0002-llm-gateway-and-streaming.html#buffered-then-streamed-and-what-streaming-actually"
+   }
+  }
+ ]
+}

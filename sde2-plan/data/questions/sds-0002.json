@@ -1,0 +1,111 @@
+{
+ "lesson": "sds-0002",
+ "label": "SDS 0002",
+ "track": "cs",
+ "title": "p50 Is a Lie",
+ "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0002-p50-is-a-lie.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "0002-q1",
+   "kind": "quiz",
+   "q": "A closed-loop generator with 8 workers hits a 30-second server freeze. How many slow samples does it record?",
+   "a": "<p>Exactly one per worker. The workers are each blocked inside a single in-flight request, and while frozen the generator issues nothing new — so a 30-second outage and a 3-second outage contribute the identical <em>number</em> of samples, differing only in magnitude. Eight samples will not move p99 in any run of meaningful length.</p>\n    <p>This is why the reported tail scales with your worker count. It is a property of the harness, and it is why the fix is a different scheduling model rather than a bigger run.</p>",
+   "options": [
+    "Eight, one for each worker blocked inside a request",
+    "Hundreds, since the freeze lasted a full thirty seconds",
+    "None at all, because a frozen server records nothing",
+    "Eight thousand, matching the requests a user would send"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Coordinated omission",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0002-p50-is-a-lie.html#coordinated-omission"
+   }
+  },
+  {
+   "id": "0002-q2",
+   "kind": "quiz",
+   "q": "One turn makes five sequential calls, each with a p99 of 200 ms. What is the turn's p99, roughly?",
+   "a": "<p>The <em>magnitude</em> of a single slow hop stays around 200 ms — one call went slow, not all five. What compounds is the <em>probability</em>: <code>0.99⁵ ≈ 0.951</code>, so roughly 5% of turns now contain at least one tail event. A once-in-a-hundred problem has become a one-in-twenty problem purely by adding stages.</p>\n    <p>“The p99 values add up” is the seductive wrong answer. It would be right for the <em>worst case</em>, but percentiles are not additive, and treating them as such over-provisions badly. The correct instinct is that adding stages to a pipeline degrades the tail even when every stage is individually fine — which is precisely the risk profile of a five-stage schematization pipeline.</p>",
+   "options": [
+    "Roughly 200 ms, though reached by 5% of turns",
+    "Exactly 200 ms, no matter how many stages run",
+    "About 1000 ms, because the five values add up",
+    "Around 40 ms, as the delay splits across calls"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Why the median is the wrong statistic",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0002-p50-is-a-lie.html#why-the-median-is-the-wrong-statistic"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“You said 2.1 s median. What is p95, p99, and how did you measure them?”",
+   "a": "<p>The “how” is the important half, so I would lead with it: it depends entirely on the load model, and most tools give you a number that cannot see your worst minutes. I ran the same server through an identical two-second freeze twice — fixed workers reported p99 at 149 ms, rate-scheduled arrival reported 1934 ms. Thirteen times apart.</p>\n        <p>And I can show it is structural rather than bad luck: six workers over 1200 requests is 0.5 % of samples, so nothing below p99.5 could have contained the freeze at all.</p>\n        Invites · <b>“So what is your real p99?” — the open-loop one, and it is the number I would put an SLO on because it includes queueing, which is what the user feels.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Coordinated omission",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0002-p50-is-a-lie.html#coordinated-omission"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“Your pipeline has five stages. If each is fast at p99, why is the whole thing slow at p99?”",
+   "a": "<p>Because percentiles do not compose by addition. If each of five serial stages independently meets its p99, the chance a turn misses <em>every</em> tail is 0.99⁵, which is 0.951 — so <strong>4.9 % of turns hit at least one stage's tail</strong>.</p>\n        <p>Which means a stage's p99 is roughly the pipeline's <em>p95</em>. The parts each look fine and the whole is not, and no stage owner is wrong. It is also why averaging p99s across services produces a figure with no interpretation — to combine tails you need the distributions, which is what histograms are for.</p>\n        Invites · <b>“So how do you fix it?” — either shorten the critical path so there are fewer tails to hit, or bound each stage with a propagated deadline, which is lesson 0012.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Why the median is the wrong statistic",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0002-p50-is-a-lie.html#why-the-median-is-the-wrong-statistic"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“How would you know if your gateway froze for two seconds last Tuesday?”",
+   "a": "<p>Honestly? Right now, probably not — and that is the uncomfortable half of this lesson. A two-second freeze inside an 8-second budget breaches nothing, so no alert fires, and if the dashboard is a median or even a p99 from a fixed-worker probe, six samples out of thousands will not move it.</p>\n        <p>What would catch it is a histogram rather than pre-aggregated percentiles, so the tail is still reconstructable after the fact, plus an alert on the <em>rate of change</em> of the tail rather than on a threshold. A synthetic prober at a fixed arrival rate would also see it, because it cannot stop asking.</p>\n        Invites · <b>“What would you alert on, concretely?” — and the honest answer is that I have the measurement discipline now and not yet the alerting, which is lesson 0033.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Coordinated omission",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0002-p50-is-a-lie.html#coordinated-omission"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“Would you rather have a p50 of 2 s or a p50 of 3 s with a much tighter p99?”",
+   "a": "<p>The 3-second one, without much hesitation, because I have a <em>budget</em> rather than a target. Nothing rewards me for finishing a turn in two seconds instead of three — the conversation is human-paced. What hurts is a turn that breaches 8 seconds, because at that point the candidate is sitting in silence wondering if it broke.</p>\n        <p>So the second option is strictly better: it converts headroom I was not using into variance I no longer have. The general form is that a hard ceiling makes the tail the thing you optimise, and the median mostly a comfort.</p>\n        Invites · <b>“Is that always true?” — no. If the median sat close to the ceiling, or if cost scaled with time, I would be trading real money for variance and would want the numbers first.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0002-p50-is-a-lie.html#underneath-0002"
+   }
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“What is the difference between service time and response time here?”",
+   "a": "<p>Service time is how long the work took once it started. Response time is how long the caller waited, which includes queueing before it started. For one turn that is the difference between “the model took 880 ms” and “the candidate waited 2.9 seconds”.</p>\n        <p>And it is exactly what the two tables measure. A closed-loop worker cannot queue behind itself — it is never waiting for two things at once — so it reports something close to service time. Open loop lets requests pile up and measures from when each was <em>due</em>, which is a response time. They are not two measurements of one quantity.</p>\n        Invites · <b>“Which one does your dashboard show?” — server-side spans are service time, and if that is all you have you are blind to queueing at the edge by construction.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Coordinated omission",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0002-p50-is-a-lie.html#coordinated-omission"
+   }
+  }
+ ]
+}

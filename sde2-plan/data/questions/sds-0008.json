@@ -1,0 +1,105 @@
+{
+ "lesson": "sds-0008",
+ "label": "SDS 0008",
+ "track": "hld",
+ "title": "KV Cache and Prefix Caching",
+ "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0008-kv-cache-and-prefix-caching.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "0008-q1",
+   "kind": "quiz",
+   "q": "You start caching the KV blocks of a shared system prompt. Which measurement improves?",
+   "a": "<p>Time to first word, and only that. Prefix caching removes <em>prefill</em> work — measured here as a flat warm TTFW of about 98 ms whether the shared prefix was 128 tokens or 2 048, against a cold cost that grew to 815.</p>\n    <p>The inter-token answer is the tempting one because it sounds like the same idea, and it is wrong for a structural reason worth knowing: decode still reads the <strong>whole</strong> KV cache at every step, cached or not. A block being reused does not make it smaller. Inter-token latency stayed at 18 ms per token in every row of that table.</p>",
+   "options": [
+    "Time to first word, because prefill skips the cached tokens",
+    "Time between tokens, because decode reads a much smaller cache",
+    "Total generation time, as fewer output tokens must be produced",
+    "Output quality, as the model sees a consistent instruction set"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Prefill sets the first word; decode sets the rest",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0008-kv-cache-and-prefix-caching.html#prefill-sets-the-first-word-decode-sets"
+   }
+  },
+  {
+   "id": "0008-q2",
+   "kind": "quiz",
+   "q": "You fix a typo in the first line of a 2 048-token shared system prompt. What happens to the cache?",
+   "a": "<p>All of it. Each block's hash is computed over its <strong>parent block's hash</strong> plus its own token ids, so changing anything in block one changes the identity of every block after it. Modelled here as 97 ms to 817 — and then back to 100 ms on the very next call, because the edited prefix immediately becomes the cached one.</p>\n    <p>The single-block answer is what a per-block hash <em>without</em> chaining would give you, and it is worth understanding why nobody builds it that way: identical token runs appearing at different positions are not interchangeable, because their keys and values depend on everything before them. The chain is what makes the reuse correct rather than merely fast.</p>",
+   "options": [
+    "Every cached block following the edit is invalidated at once",
+    "Only the single block holding the edited token is invalidated",
+    "Nothing changes, since the hash covers whole prompts not blocks",
+    "Only the decode phase slows, because prefill was already cached"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0008-kv-cache-and-prefix-caching.html#underneath-0008"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“How much memory does one conversation cost on the GPU?”",
+   "a": "<p>It is computable: two — for keys and values — times layers, times key-value heads, times head dimension, times sequence length, times bytes per element. On a Llama-3-8B shape that is thirty-two layers and eight key-value heads at head dimension one twenty-eight, so <strong>128 KiB per token</strong>, which at an 8k context is <strong>exactly one gibibyte per conversation</strong>.</p>\n                <p>The reason I care is capacity. An 80 GiB card minus 16 of weights and a few for activations leaves about sixty conversations, and that is the real concurrency limit of a replica — not CPU and not requests per second. It is also why the key-value head count matters: using attention heads instead would have told me fifteen, and I would have provisioned four times the hardware.</p>\n        Invites · <b>“And at 128k context?” — three conversations a card, which is the answer to why long context is priced the way it is.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“Your system prompt is 2 000 tokens. Isn't that wasteful?”",
+   "a": "<p>Not on a hit, and that surprised me too. Because it is the same prefix every call, its key-value blocks are already resident, so prefill only covers the part that differs — in my measurements first-word time was flat whether the shared prefix was 128 tokens or 2 048. And the blocks are shared, so a thousand concurrent sessions store one copy of it rather than a thousand.</p>\n        <p>The condition is that it has to be byte-identical and it has to be at the <em>front</em>. Anything varying near the top — a timestamp, a tenant name — invalidates everything below it, and then that 2 000 tokens is pure cost on every single request. So the rule I follow is not “keep it short”, it is “keep it identical, and put anything that varies after it”.</p>\n        Invites · <b>“What varies in yours today?” — which is a question about whether I have actually read the prompt-assembly code, and the honest answer is that I found two fields that should move.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0008-kv-cache-and-prefix-caching.html#underneath-0008"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“Scale it to a million concurrent interviews. What breaks first?”",
+   "a": "<p>First, a million concurrent <em>sessions</em> is not a million concurrent <em>generations</em>. If a turn takes eight seconds and a person speaks every thirty, then eight thirtieths are in flight — about <strong>267 000 concurrent decodes</strong>. That is the number that sizes everything, and it is four times smaller than the one in the question.</p>\n        <p>Then the key-value cache is what breaks, before the gateway and long before CPU. At a gibibyte per conversation that is <strong>260 TiB</strong> of cache, roughly four thousand accelerators for cache alone, which is not a scaling plan — so the design has to change shape. Smaller model, quantized cache to halve the bytes, shorter contexts with aggressive session eviction, and prefix sharing so the common preamble is stored once. Those are multiplicative, and together they are the difference between impossible and expensive.</p>\n        Invites · <b>“How do sessions land on replicas, then?” — because prefix reuse only works if the same conversation returns to the same replica, which is lesson 0009.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0008-kv-cache-and-prefix-caching.html#underneath-0008"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“First word is fine but the answer reads slowly once it starts. What do you do?”",
+   "a": "<p>That is decode, not prefill, so everything I would do for first-word time is irrelevant to it. Decode generates one token at a time and reads the whole key-value cache at each step, so it is bound by memory bandwidth rather than compute — in my measurements inter-token latency did not move at all when prefix caching took first word from 815 ms to 99.</p>\n        <p>The levers that do apply are different: a smaller or quantized cache so each step moves fewer bytes, a smaller model, better batching so the bandwidth is amortised across concurrent sequences, or simply generating fewer tokens by asking for a shorter answer. I would measure inter-token latency separately from first word before touching any of them, because they are two metrics and one number hides both.</p>\n        Invites · <b>“Why would batching help if it adds queueing?” — because decode is bandwidth-bound, so concurrent sequences share the weight reads; and it is a genuine latency-versus-throughput trade.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“You said the cache has a fixed ceiling. What happens when it fills?”",
+   "a": "<p>Something gets evicted, and which something is a policy decision I should be able to defend. It is the same structure as any bounded cache with a skewed access pattern: a small set of blocks — the shared preamble — is worth enormous amounts, and a long tail of per-conversation blocks is worth almost nothing once that conversation ends.</p>\n        <p>Which means it has the scan problem too. A burst of one-off long contexts is a sweep of cold blocks under a recency policy, and it can push out the shared prefix that thousands of sessions were hitting — exactly the failure I reproduced in Redis with a batch job under <code>allkeys-lru</code>. The difference is the cost of being wrong: there a miss was a round trip, here it is prefill time and a queue.</p>\n        Invites · <b>“So would you pin the shared prefix?” — yes, and that is a real feature in serving stacks; the honest follow-up is that I have not measured the eviction pattern on ours.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Prefill sets the first word; decode sets the rest",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0008-kv-cache-and-prefix-caching.html#prefill-sets-the-first-word-decode-sets"
+   }
+  }
+ ]
+}

@@ -1,0 +1,533 @@
+{
+ "lesson": "rm-0014",
+ "label": "RM 0014",
+ "track": "project",
+ "title": "Agentic Journaling and Semantic Routing",
+ "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "c14-t1",
+   "kind": "toolbox",
+   "q": "What is semantic routing, and how is it different from a classifier?",
+   "a": "Both decide which handler should answer a request. A classifier is trained on labelled data and outputs a calibrated probability. Routing skips the training. You write a handful of example utterances per route and embed them once. An incoming request is embedded and sent to whichever route's examples it lands nearest. What that buys is a new capability costing three example phrases, rather than a labelling round and a retrain. For a product still finding its shape that is a day against a sprint. It is weaker on confidence, because there is no calibrated threshold at which to say you are unsure. And two routes with overlapping examples degrade quietly.",
+   "options": null,
+   "correct": null,
+   "flag": "Using the two words interchangeably. One is a nearest-neighbour lookup and the other is a trained model, and they fail in different ways.",
+   "teach": {
+    "title": "What the router actually chooses between",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#what-the-router-actually-chooses-between"
+   }
+  },
+  {
+   "id": "c14-t2",
+   "kind": "toolbox",
+   "q": "What is actually embedded and searched here?",
+   "a": "The user's own timeline entries, one index per person. An embedding is a fixed-length list of numbers a model produces from text, arranged so similar meanings land close together. What that buys is matching on meaning rather than wording. An entry about “that place by the river we kept going back to” is findable from a query about a favourite restaurant. The per-user part is unusual for retrieval work. The corpus is small, perhaps a few thousand entries, so exact search is affordable and the approximate-index question mostly disappears. What arrives instead is operational. You now have one index per user to build, back up and delete on request.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it like a document corpus. Per-user indexes change the cost model and the deletion story, and that is the interesting half.",
+   "teach": {
+    "title": "Why a timeline is harder than a document store",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#why-a-timeline-is-harder-than-a"
+   }
+  },
+  {
+   "id": "c14-t3",
+   "kind": "toolbox",
+   "q": "How does recency weighting work, and what does it cost you?",
+   "a": "Retrieval by similarity alone treats a note from three years ago exactly like yesterday's. Recency weighting multiplies each score by a factor that shrinks with age, normally an exponential decay with a chosen half-life. A journal is a time series, so for most questions last week should outrank last year. What it buys is answers reflecting who the user is now. Without it an old and strongly-worded entry outranks a recent, more relevant one forever. The cost is that the half-life is a product decision dressed as maths. Too short and it forgets a standing preference. Too long and it recommends what they stopped liking. There is no correct value, only a chosen one.",
+   "options": null,
+   "correct": null,
+   "flag": "Presenting the decay constant as tuned when it was picked. Saying you chose it by feel is fine. Implying it was fitted is not.",
+   "teach": {
+    "title": "Why a timeline is harder than a document store",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#why-a-timeline-is-harder-than-a"
+   }
+  },
+  {
+   "id": "c14-t4",
+   "kind": "toolbox",
+   "q": "What makes a workflow agentic, and is this one?",
+   "a": "Agentic means the model chooses the next step, something executes, the result comes back, and the model decides again with it in view. The defining property is that the sequence is not known in advance. A fixed chain of prompts is not that, however many links it has. What the loop buys is the ability to follow evidence, because a second retrieval may only make sense once the first came back. Planning a trip across several dependent retrievals qualifies. Routing and then generating is two steps in a fixed order. Narrow the claim to the part that actually loops, because that is the part of this line most likely to be pulled apart.",
+   "options": null,
+   "correct": null,
+   "flag": "Defending the whole system as agentic. One branch qualifies. Saying which one is stronger than defending all of it.",
+   "teach": {
+    "title": "Why a timeline is harder than a document store",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#why-a-timeline-is-harder-than-a"
+   }
+  },
+  {
+   "id": "c14-t5",
+   "kind": "toolbox",
+   "q": "The corpus is somebody's diary. What does that change?",
+   "a": "It moves storage location, retention and deletion out of compliance and into architecture. A journal is close to the most sensitive corpus a person owns. Where the index lives is a design decision. Who can read it is a design decision. What naming this buys is a defensible design, because a system handling diaries with no answer here is not an achievement whatever its retrieval quality. Deletion is the hard one. Removing an entry has to remove its vector, its summaries, any cached retrieval results, and anything else derived from it. Derived artefacts are exactly what people forget, and they are still personal data.",
+   "options": null,
+   "correct": null,
+   "flag": "Answering with encryption at rest. That is table stakes. The question is about what happens to derived data when a user asks to be forgotten.",
+   "teach": null
+  },
+  {
+   "id": "c14-t6",
+   "kind": "toolbox",
+   "q": "What is cold start here, and what do you do about it?",
+   "a": "A brand new user has an empty timeline, so a system that personalises from history has nothing to work with. Every quality claim on this line is implicitly about users who have already written a great deal. It matters more than it sounds, because new users are exactly the ones deciding whether to keep the app. What having an answer buys is a product that stays usable during that window. The options are a generic non-personalised path, an explicit onboarding question or two, or defaults drawn from the population until history builds. Any of the three is fine. Pick one deliberately and say which.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating it as an edge case. It is the first experience every single user has, and a personalisation system with no answer for it is broken at the front door.",
+   "teach": null
+  },
+  {
+   "id": "c14-t7",
+   "kind": "toolbox",
+   "q": "How would you know the recommendations are any good?",
+   "a": "Two ways, and they answer different questions. Offline, you replay recorded history and check whether the system would have surfaced what the person actually went on to choose. That is cheap and repeatable. Online, you put it in front of real people and measure whether suggestions get accepted. What offline evaluation buys is daily iteration without shipping anything, which is the only way to tune retrieval and weighting at reasonable speed. Quote the offline number carefully. It can only score what the user was shown and chose. It is blind to the recommendation they would have loved and never saw, which is the exact failure personalisation is prone to.",
+   "options": null,
+   "correct": null,
+   "flag": "“Users liked it.” If there is no number, say there is no number. Inventing a satisfaction figure is the fastest way to lose the room.",
+   "teach": {
+    "title": "The failure that matters most",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#the-failure-that-matters-most"
+   }
+  },
+  {
+   "id": "c14-f1",
+   "kind": "fundamentals",
+   "q": "In two sentences, what does this application do?",
+   "a": "Somebody keeps a journal, and the application reads it back to offer things. Recollections of what happened, recommendations shaped by what they seem to enjoy, and plans for trips or events built from both.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling it a chatbot over notes. The output shapes are different per request type, and that difference is the design.",
+   "teach": null
+  },
+  {
+   "id": "c14-f2",
+   "kind": "fundamentals",
+   "q": "What does the semantic router choose between?",
+   "a": "Modes, not topics. Is this asking what happened, asking what to do, or asking for a plan. Each needs different retrieval and produces a different output shape. A recollection wants a narrow slice and a faithful answer. A plan wants preferences plus outside information.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying it routes by subject. Subject routing is a topic classifier and it would not change the output shape.",
+   "teach": {
+    "title": "What the router actually chooses between",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#what-the-router-actually-chooses-between"
+   }
+  },
+  {
+   "id": "c14-f3",
+   "kind": "fundamentals",
+   "q": "Why not handle everything in one branch?",
+   "a": "Because the output schemas differ. A recollection cites the entry it came from. A plan is a structured itinerary. One branch would need a schema loose enough to hold both. And a loose schema cannot catch a wrong answer in either shape.",
+   "options": null,
+   "correct": null,
+   "flag": "Citing prompt length. The real cost is a schema that stops constraining anything.",
+   "teach": {
+    "title": "What the router actually chooses between",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#what-the-router-actually-chooses-between"
+   }
+  },
+  {
+   "id": "c14-f5",
+   "kind": "fundamentals",
+   "q": "Recency and frequency both matter. What does each tell you?",
+   "a": "Recency tells you whether something is still true of the person. Frequency tells you whether it is a preference or a one-off. Something mentioned once is a data point and something mentioned monthly is a pattern, and pure similarity search cannot distinguish them.",
+   "options": null,
+   "correct": null,
+   "flag": "Only naming recency. The frequency signal is what separates a habit from an incident, and it needs counting rather than matching.",
+   "teach": {
+    "title": "Why a timeline is harder than a document store",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#why-a-timeline-is-harder-than-a"
+   }
+  },
+  {
+   "id": "c14-f6",
+   "kind": "fundamentals",
+   "q": "What makes this agentic rather than a single call?",
+   "a": "Only the planning branch, and I would say so. A recollection is one retrieval and one answer. A trip plan needs preferences, then options, then a schedule, and a constraint found at one step changes the next. That is a path that depends on what is found, which is the test.",
+   "options": null,
+   "correct": null,
+   "flag": "Claiming the whole application is agentic. Conceding that one branch is and the others are not is both true and more convincing.",
+   "teach": {
+    "title": "What makes it agentic, honestly",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#what-makes-it-agentic-honestly"
+   }
+  },
+  {
+   "id": "c14-f7",
+   "kind": "fundamentals",
+   "q": "A brand new user has three entries. What happens?",
+   "a": "Personalisation has nothing to work with, and the honest design admits that rather than inventing preferences from three data points. The system should fall back to generic suggestions and say it is still learning. A confident personalised recommendation from three entries is worse than an obviously generic one.",
+   "options": null,
+   "correct": null,
+   "flag": "Claiming it personalises anyway. Three entries cannot support it, and pretending they can is the failure the next question is about.",
+   "teach": null
+  },
+  {
+   "id": "c14-f8",
+   "kind": "fundamentals",
+   "q": "Why ground a suggestion in a specific entry?",
+   "a": "So the person can see why it was offered and correct it. It converts an opaque recommendation into an inspectable one. It also gives the system a cheap correction signal, because a person disagreeing with the entry tells you more than a thumbs-down on the suggestion.",
+   "options": null,
+   "correct": null,
+   "flag": "Framing it only as transparency. The correction signal is the engineering benefit and it is the more interesting half.",
+   "teach": {
+    "title": "The failure that matters most",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#the-failure-that-matters-most"
+   }
+  },
+  {
+   "id": "c14-f10",
+   "kind": "fundamentals",
+   "q": "What is the riskiest claim in this bullet?",
+   "a": "“Agentic workflows” as a blanket description, since only the planning branch genuinely qualifies. And “personalized” invites a question about how personalisation was evaluated. That is hard for a system where the ground truth is a person's own preference.",
+   "options": null,
+   "correct": null,
+   "flag": "Naming semantic routing. That is the strongest and most specific part of the bullet.",
+   "teach": null
+  },
+  {
+   "id": "c14-d1",
+   "kind": "deep-dive",
+   "q": "How should the router's output be shaped?",
+   "a": "As a typed literal over the modes, with a confidence. That mirrors the screener in chapter 0005. A mode parsed out of prose can come back as a fourth value. There would be no branch behind it. Three named modes and nothing else means every possible output has code waiting for it.",
+   "options": null,
+   "correct": null,
+   "flag": "Letting the router answer in prose. It is control flow, so it needs the same discipline as any other routing decision.",
+   "teach": {
+    "title": "What the router actually chooses between",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#what-the-router-actually-chooses-between"
+   }
+  },
+  {
+   "id": "c14-d2",
+   "kind": "deep-dive",
+   "q": "How do you combine similarity, recency and frequency?",
+   "a": "A weighted score, with recency as a decay rather than a cutoff, so nothing disappears abruptly. Frequency counts distinct entries rather than mentions. One long entry repeating a place should not look like a habit. The weights are per mode. Recollection wants similarity dominant, and recommendation wants recency and frequency to matter more.",
+   "options": null,
+   "correct": null,
+   "flag": "One global ranking. The modes want different weightings, which is another reason routing comes first.",
+   "teach": null
+  },
+  {
+   "id": "c14-d3",
+   "kind": "deep-dive",
+   "q": "A person has a few hundred entries. What does that change?",
+   "a": "Almost everything about the engineering. Exhaustive scoring over a few hundred items is trivial, so approximate indexes and their recall trade-offs are irrelevant. The work moves entirely to what you score on. It also means per-user data is small enough to keep on a device, which matters for this product.",
+   "options": null,
+   "correct": null,
+   "flag": "Reaching for a vector database. At this size it adds infrastructure and buys nothing.",
+   "teach": {
+    "title": "Why a timeline is harder than a document store",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#why-a-timeline-is-harder-than-a"
+   }
+  },
+  {
+   "id": "c14-d4",
+   "kind": "deep-dive",
+   "q": "Why extract structured facts rather than matching raw text?",
+   "a": "Because places, people and dates are what queries are actually about, and they are buried in prose. Extracting them once gives you fields to filter and count on. Frequency of a place is countable only if the place was extracted. Raw similarity cannot answer “how often” at all.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying embeddings capture it. They capture similarity, and counting needs an entity rather than a direction in space.",
+   "teach": null
+  },
+  {
+   "id": "c14-d5",
+   "kind": "deep-dive",
+   "q": "How do you chunk a journal?",
+   "a": "By entry, because the entry is the natural unit and it carries its date. Splitting one entry loses the date association unless every chunk carries it. Merging entries destroys the boundary that makes recency meaningful. This is the case where the document's own structure obviously beats a token window.",
+   "options": null,
+   "correct": null,
+   "flag": "Proposing a fixed token size. The entry boundary carries the timestamp, which is half the relevance signal.",
+   "teach": {
+    "title": "Why a timeline is harder than a document store",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#why-a-timeline-is-harder-than-a"
+   }
+  },
+  {
+   "id": "c14-d6",
+   "kind": "deep-dive",
+   "q": "Walk me through the planning branch.",
+   "a": "Read preferences from the timeline. Generate candidate options against those. Then build a schedule that fits the candidates together, checking constraints like travel time or opening hours. Step three regularly invalidates a candidate from step two, which is why it is a loop rather than a pipeline.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it as three sequential calls. The feedback from scheduling into selection is what makes it agentic.",
+   "teach": {
+    "title": "What makes it agentic, honestly",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#what-makes-it-agentic-honestly"
+   }
+  },
+  {
+   "id": "c14-d7",
+   "kind": "deep-dive",
+   "q": "A step in the plan fails. What does the user get?",
+   "a": "A partial plan with the gap named, rather than nothing. If options were found and scheduling failed, showing the options is still useful. The failure to avoid is a plan that silently omits what could not be arranged. The person cannot tell the difference between not suggested and not possible.",
+   "options": null,
+   "correct": null,
+   "flag": "Returning an error. A partial answer with an honest gap is more useful than nothing.",
+   "teach": {
+    "title": "Why a timeline is harder than a document store",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#why-a-timeline-is-harder-than-a"
+   }
+  },
+  {
+   "id": "c14-d8",
+   "kind": "deep-dive",
+   "q": "How do you evaluate a personalised recommendation?",
+   "a": "Not against a ground truth, because there is not one. What you can measure is whether the retrieved entries supported the suggestion, which is a grounding check. And whether the person accepted it. The first is checkable offline and the second needs users, so the offline metric is about faithfulness rather than quality.",
+   "options": null,
+   "correct": null,
+   "flag": "Proposing a labelled test set. Somebody else's judgment of what this person would like is not ground truth.",
+   "teach": {
+    "title": "The failure that matters most",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#the-failure-that-matters-most"
+   }
+  },
+  {
+   "id": "c14-d9",
+   "kind": "deep-dive",
+   "q": "What feedback signal would you want?",
+   "a": "Disagreement with the grounding rather than with the suggestion. If a recommendation cites an entry and the person says that entry does not represent them any more, that is a precise correction. A thumbs-down on the output tells you something was wrong and not which part.",
+   "options": null,
+   "correct": null,
+   "flag": "Collecting ratings on the suggestion. It is the coarsest possible signal and it is what everyone builds first.",
+   "teach": null
+  },
+  {
+   "id": "c14-d10",
+   "kind": "deep-dive",
+   "q": "Somebody's circumstances change completely. How does the system catch up?",
+   "a": "Through recency decay, and the speed of that decay is the whole design question. Too slow and it recommends based on a life the person has left. Too fast and it forgets stable preferences that took years to establish. It is the same trade as the alpha in chapter 0007, and I would measure it the same way.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating it as a data freshness problem. It is a weighting decision with a cost on both sides.",
+   "teach": {
+    "title": "The failure that matters most",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#the-failure-that-matters-most"
+   }
+  },
+  {
+   "id": "c14-d11",
+   "kind": "deep-dive",
+   "q": "Should this run on the device?",
+   "a": "There is a strong argument. The corpus is one person's private journal, it is small enough to fit, and the retrieval is cheap at a few hundred entries. What pushes against it is the planning branch, which needs outside information, so that branch cannot be local anyway. A split design is the honest answer.",
+   "options": null,
+   "correct": null,
+   "flag": "Answering all or nothing. The modes have different data requirements, so they can sit in different places.",
+   "teach": null
+  },
+  {
+   "id": "c14-d12",
+   "kind": "deep-dive",
+   "q": "Where does this break as a user's history grows?",
+   "a": "Not on retrieval cost, because a decade of daily entries is still only a few thousand. It breaks on drift: a ten-year timeline describes several different people, and any single weighting is wrong for some of them. That is when you need segmentation by period rather than a single decayed score.",
+   "options": null,
+   "correct": null,
+   "flag": "Answering with index scaling. The corpus stays small and the semantic problem is what grows.",
+   "teach": null
+  },
+  {
+   "id": "c14-e1",
+   "kind": "edges",
+   "q": "The timeline contains a period the person would rather not revisit.",
+   "a": "Then retrieval has to be able to avoid it. No purely semantic system knows which period that is. The workable answer is user control. Let entries or ranges be marked as not for suggestions. That is a product feature rather than a model improvement, and it is the only honest mitigation.",
+   "options": null,
+   "correct": null,
+   "flag": "Proposing sentiment detection. Inferring that somebody is sad and silently excluding it is a decision the system should not make alone.",
+   "teach": {
+    "title": "The failure that matters most",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#the-failure-that-matters-most"
+   }
+  },
+  {
+   "id": "c14-e2",
+   "kind": "edges",
+   "q": "Two entries contradict each other about a preference.",
+   "a": "People are inconsistent, so this is normal rather than an error. Recency weighting resolves most of it by preferring the later statement. Where both are recent, the honest output acknowledges both. Picking a side sounds confident about a person who is not.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating it as data to clean. The contradiction is the truth about the person.",
+   "teach": {
+    "title": "What the router actually chooses between",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#what-the-router-actually-chooses-between"
+   }
+  },
+  {
+   "id": "c14-e3",
+   "kind": "edges",
+   "q": "Somebody wrote daily for a year, then stopped six months ago.",
+   "a": "Recency decay makes everything stale at once, so the system has very little weight anywhere. That is arguably correct, since it genuinely does not know what has happened since. The right behaviour is to say so rather than to confidently recommend from six-month-old data as if it were current.",
+   "options": null,
+   "correct": null,
+   "flag": "Falling back to the whole history unweighted. That is exactly the case where the system is most likely to describe somebody who has changed.",
+   "teach": {
+    "title": "The failure that matters most",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#the-failure-that-matters-most"
+   }
+  },
+  {
+   "id": "c14-e4",
+   "kind": "edges",
+   "q": "Should a recommendation ever be something with no precedent in the timeline?",
+   "a": "Yes, and it is the interesting half of recommendation. A system that only suggests what somebody already did is a search engine over their past. The value is generalising from preferences to something new. The cost is that it cannot be grounded in an entry, so it has to be presented differently.",
+   "options": null,
+   "correct": null,
+   "flag": "Insisting everything is grounded. That makes recollection safe and recommendation useless.",
+   "teach": {
+    "title": "Why a timeline is harder than a document store",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#why-a-timeline-is-harder-than-a"
+   }
+  },
+  {
+   "id": "c14-e5",
+   "kind": "edges",
+   "q": "The entries mention other people by name.",
+   "a": "Then the journal contains third-party personal data that those people never consented to. It constrains what can leave the device and what can be used for anything beyond this user. It is a genuine reason to favour on-device processing, and it is a legal question rather than only a technical one.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating it all as the author's data. Other people appear in it and did not agree to anything.",
+   "teach": {
+    "title": "What the router actually chooses between",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#what-the-router-actually-chooses-between"
+   }
+  },
+  {
+   "id": "c14-e6",
+   "kind": "edges",
+   "q": "A user deletes an entry. What has to happen?",
+   "a": "It leaves the index, any extracted structure derived from it, and any cached preference that used it. Deletion in a derived system is harder than deletion in a store. The entry's influence has spread. If a preference was computed from it, that preference has to be recomputed rather than merely orphaned.",
+   "options": null,
+   "correct": null,
+   "flag": "Only deleting the row. The derived artefacts are where the data actually survives.",
+   "teach": {
+    "title": "Why a timeline is harder than a document store",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#why-a-timeline-is-harder-than-a"
+   }
+  },
+  {
+   "id": "c14-e7",
+   "kind": "edges",
+   "q": "Defend “agentic workflows” in this bullet.",
+   "a": "Partially. The planning branch is genuinely agentic, because scheduling feeds back into option selection and the path depends on what is found. Recollection and recommendation are single retrievals with one generation. I would describe it as one agentic branch behind a router rather than an agentic application.",
+   "options": null,
+   "correct": null,
+   "flag": "Defending all three branches. Conceding two of them makes the third claim believable.",
+   "teach": {
+    "title": "What makes it agentic, honestly",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#what-makes-it-agentic-honestly"
+   }
+  },
+  {
+   "id": "c14-e8",
+   "kind": "edges",
+   "q": "What would you change?",
+   "a": "Make the grounding visible on every recollection and recommendation, so corrections are precise rather than a thumbs-down. Add user control over which periods feed suggestions. And tune the recency decay against real behaviour rather than choosing it, which is the same experiment as tuning alpha in the forecasting layer.",
+   "options": null,
+   "correct": null,
+   "flag": "Proposing a better model. Every one of the real problems here is about weighting, control and feedback.",
+   "teach": {
+    "title": "The failure that matters most",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#the-failure-that-matters-most"
+   }
+  },
+  {
+   "id": "0014-q1",
+   "kind": "quiz",
+   "q": "The semantic router misclassifies a request. What is the consequence?",
+   "a": "<p>Wrong branch, wrong everything after it. A recommendation request routed as a recollection retrieves a narrow slice and answers faithfully about the past, when the person wanted a suggestion. The output is well-formed and answers a different question.</p>\n    <p>Parsing is not the risk if the router returns a typed literal, which is exactly why it should. And routing by retrieval rather than by a trained classifier is precisely what avoids retraining when entries are added.</p>",
+   "options": [
+    "Sends the request down the wrong retrieval path",
+    "Returns text that fails to parse into anything",
+    "Costs more tokens than a keyword match would",
+    "Needs retraining whenever a new entry is added"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "What the router actually chooses between",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#what-the-router-actually-chooses-between"
+   }
+  },
+  {
+   "id": "0014-q2",
+   "kind": "quiz",
+   "q": "Retrieving over a personal timeline needs a signal that document retrieval usually ignores. Which?",
+   "a": "<p>Time is part of relevance rather than metadata. The most semantically similar entry might be four years old, from a city the person has left. In a document corpus that is a good match. In a journal it is the wrong answer.</p>\n    <p>Frequency matters for the same reason: something mentioned once is a data point and something mentioned monthly is a preference. Similarity search alone cannot tell those apart, which is why the scoring function has three terms rather than one.</p>",
+   "options": [
+    "Recency, because journals are mostly about recent events",
+    "Alphabetical order, so that the entries stay predictable",
+    "Entry length, because longer entries hold more detail",
+    "Random sampling, to avoid one unusually narrow period"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Why a timeline is harder than a document store",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#why-a-timeline-is-harder-than-a"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“Semantic routing between what?”",
+   "a": "<p>Between modes rather than topics. Is the person asking what happened, asking what they should do, or asking for something planned. Those need different retrieval and produce different output shapes: a recollection cites the entry it came from, a plan is a structured itinerary. If one branch produced all three the schema would have to be loose enough to hold all of them, which means loose enough to be wrong in all of them.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What the router actually chooses between",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#what-the-router-actually-chooses-between"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“How is this different from RAG over any document set?”",
+   "a": "<p>Time is part of relevance rather than metadata. Somebody asks for a suggestion and the most semantically similar entries are every restaurant they ever wrote about, including one from four years ago in a city they have left. In a document corpus that is a good match. Here it is wrong. So the score combines similarity with recency and with frequency, because something mentioned once is a data point and something mentioned monthly is a preference.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Why a timeline is harder than a document store",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#why-a-timeline-is-harder-than-a"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“What makes it agentic?”",
+   "a": "<p>Only the planning branch, and I would rather say that than defend all of it. A recollection is one retrieval and one generation. A trip plan reads preferences, generates candidate options, then builds a schedule, and scheduling regularly invalidates a candidate and sends it back. That feedback is what makes the path depend on what is found, which is my test for whether something is genuinely an agent.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What makes it agentic, honestly",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#what-makes-it-agentic-honestly"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“How would you evaluate personalisation?”",
+   "a": "<p>There is no ground truth, because the correct answer is a fact about one person. What is checkable offline is grounding: did the retrieved entries actually support the suggestion made. That is a faithfulness measurement and it catches the worst failures. Quality needs real users, and the signal I would want is disagreement with the grounding rather than with the output, because that tells you which part was wrong.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“What is the risk of a system like this?”",
+   "a": "<p>Surfacing something from a period the person would rather not revisit, or recommending from a misreading of who they are. That failure is not inaccuracy, it is intrusion, and people stop using things that misunderstand them. No purely semantic system knows which period is painful, so the only honest mitigation is user control over which entries feed suggestions. That is a product feature rather than a model improvement.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The failure that matters most",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0014-agentic-journaling.html#the-failure-that-matters-most"
+   }
+  }
+ ]
+}

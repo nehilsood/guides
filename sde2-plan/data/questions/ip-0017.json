@@ -1,0 +1,159 @@
+{
+ "lesson": "ip-0017",
+ "label": "IP 0017",
+ "track": "ai",
+ "title": "The Unwritten Half",
+ "url": "https://nehilsood.github.io/guides/interview-prep/guides/0017-the-unwritten-half.html",
+ "plain": [
+  {
+   "title": "In plain words",
+   "url": "https://nehilsood.github.io/guides/interview-prep/guides/0017-the-unwritten-half.html#plain-1"
+  }
+ ],
+ "questions": [
+  {
+   "id": "F1",
+   "kind": "follow-up",
+   "q": "Why not just put “never check out” in the system prompt and be done?",
+   "a": "<p>Because compliance does not behave like a specification. In ST-WebAgentBench, as the number of active policies rises the raw completion rate is effectively flat — the agent stays just as capable — while completion <em>under policy</em> falls from 18.2% to 7.1%, with a correlation of −0.71. <strong>A specification that gets weaker as you add clauses to it is not a specification.</strong> Put the clause in the prompt as well, by all means; it costs nothing and it helps. Just do not count it as the control.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The number that ends the prompt argument",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0017-the-unwritten-half.html#the-number-that-ends-the-prompt-argument"
+   }
+  },
+  {
+   "id": "F2",
+   "kind": "follow-up",
+   "q": "A diff over every table sounds impossibly flaky. How do you stop it failing on timestamps?",
+   "a": "<p>You declare the fields that cannot matter — and then you treat that declaration as the security-relevant artefact it is. The failure mode is a ratchet: a false failure is loud, a false pass is silent, so the list only ever grows and nobody ever audits it. Give it an owner, review its diffs like firewall rules, and print the count of ignored patterns in every eval report so that growth is visible. <strong>If your ignore list is growing faster than your assertions, the check is becoming a formality.</strong></p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "State-diff verification, and the ignore list is the real specification",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0017-the-unwritten-half.html#state-diff-verification-and-the-ignore-list"
+   }
+  },
+  {
+   "id": "F3",
+   "kind": "follow-up",
+   "q": "We can’t snapshot a real merchant’s database. Doesn’t that make the whole eval half useless?",
+   "a": "<p>It makes it useless <em>in production</em>, which is precisely why the question has two halves. The diff needs a world you own, so it runs against a replica with seeded data — a real cost, worth stating out loud. In production you give up detection entirely and buy prevention instead, which is a different mechanism with a different failure mode. The two are not the same check deployed twice; they are blind in opposite directions, and section 04’s table shows exactly where each one goes blind.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F4",
+   "kind": "follow-up",
+   "q": "Why not have a second model review each proposed action before it executes?",
+   "a": "<p>Because that is the unreliable instrument one layer out, and it has been measured. On authorised actions, LLM-based guards over-refuse between 32% and 88% of the time, and every execution-safety guard refuses <em>more</em> when the resource name merely looks frightening — TS-Guard goes from 34% to 66% on the same authorised action with one word changed. They are keying on surface strings. Meanwhile a symbolic policy over typed arguments cut attack success from 39.9% to 1.0% with utility intact. <strong>Outside the model also means not another model.</strong> A model-based reviewer is a reasonable second layer; it is a bad first one.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fix has a failure mode, and it is measured",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0017-the-unwritten-half.html#the-fix-has-a-failure-mode-and"
+   }
+  },
+  {
+   "id": "F5",
+   "kind": "follow-up",
+   "q": "Our agent genuinely has to buy things. Now what?",
+   "a": "<p>Then you descend the ladder deliberately rather than abandoning it. Note that rung one does not disappear — it narrows. A virtual card with a per-run limit, a merchant allowlist and a hard monthly ceiling is still a capability constraint, and it bounds the worst case without any policy evaluation at all. The gate at rung three then handles the cases the capability cannot express, like “this particular run was not supposed to buy anything”. The discipline is that every rung you skip is written down as a risk you accepted, with a name on it.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F6",
+   "kind": "follow-up",
+   "q": "You listed five readings of “don’t check out”. Which one is right?",
+   "a": "<p>None of them individually, and the question is the trap. Write all five, run them against the cases in section 04, and watch them disagree on the $0 authorisation hold and the reserve-now flow and the batch settlement. Then pick the set you will enforce and record the choice in the policy file where a reviewer can see it. <strong>The mistake is not picking the wrong one, it is picking one implicitly</strong> — which is what happens when the invariant lives in a sentence rather than in a file.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "“Don’t check out” is at least five invariants, and they disagree",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0017-the-unwritten-half.html#dont-check-out-is-at-least-five"
+   }
+  },
+  {
+   "id": "F7",
+   "kind": "follow-up",
+   "q": "If the gate blocks the Place Order click, isn’t the constraint held?",
+   "a": "<p>Only against clicks. The property you want is about the system, and the system has other routes to the same effect: a form submitting on Enter, a page script firing its own request, a one-tap saved-card flow, a redirect completing while the agent is idle. A monitor enforces a property on the stream it can see, and the model’s action stream is not the system’s. So gate the click <em>and</em> put the enforcement at the narrowest point the effect must pass through — for payment, the egress call to the processor, which every route converges on.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Put the gate at the narrowest point, not at the click",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0017-the-unwritten-half.html#put-the-gate-at-the-narrowest-point"
+   }
+  },
+  {
+   "id": "F8",
+   "kind": "follow-up",
+   "q": "What does any of this do about prompt injection?",
+   "a": "<p>Everything, and this is the strongest argument for the whole design. <strong>A gate keyed on the resolved action does not care why the action was proposed.</strong> An injected instruction, a jailbreak, a confused model and an honest grounding error all arrive at the gate looking identical — a resolved element, a form, a host — and the policy answers the same way. That is not a coincidence: Progent’s numbers come from injection benchmarks, because least privilege at the tool boundary is a defence against intent you cannot verify. Build it for “don’t check out” and you have built it for the attack as well.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Put the gate at the narrowest point, not at the click",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0017-the-unwritten-half.html#put-the-gate-at-the-narrowest-point"
+   }
+  },
+  {
+   "id": "F9",
+   "kind": "follow-up",
+   "q": "The agent gets blocked and tries again. Haven’t you just created a loop?",
+   "a": "<p>You have created a <em>visible</em> loop, which is an improvement on an invisible purchase. Return the block as an error the model can read — that is the edit-automaton move from section 03, suppress and continue rather than halt — so the agent can replan. Then count the blocks: <code>gate_blocks_per_run</code> is a detector in the sense of <a href=\"https://nehilsood.github.io/guides/interview-prep/guides/0001-the-max-iteration-trap.html\">0001</a>, firing on evidence rather than on a count, and repeated blocks against the same resolved element are the signal to escalate to a human. An agent that reliably tries to check out is telling you something your completion metric never will.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Five checks, and one of them you can run tonight",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0017-the-unwritten-half.html#five-checks-and-one-of-them-you"
+   }
+  },
+  {
+   "id": "F10",
+   "kind": "follow-up",
+   "q": "How would you know the fix worked?",
+   "a": "<p>Violations per exposure down, completion under constraint flat or up, gate false positives measured and small. And one trap worth naming before somebody else does: if you ship the diff and the gate in the same release, you cannot tell whether violations fell or whether you merely started counting. <strong>Ship the measurement first and let it run.</strong> A fortnight of knowing your real rate is worth more than a fortnight of a number that improved for reasons you cannot separate.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F11",
+   "kind": "follow-up",
+   "q": "Where else does this pattern show up?",
+   "a": "<p>Anywhere an agent acts on a system with state. A coding agent told to fix a test and not touch the schema; a support agent told to answer and not issue a refund; an infra agent told to plan and not apply; an email agent told to draft and not send. Two questions port unchanged: <em>can a finite prefix prove this already broken</em>, which tells you whether to enforce or measure, and <em>what is the narrowest point this effect must pass through</em>, which tells you where to stand. Everything else is domain detail.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Two classes of property, and only one can be enforced",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0017-the-unwritten-half.html#two-classes-of-property-and-only-one"
+   }
+  },
+  {
+   "id": "F12",
+   "kind": "follow-up",
+   "q": "If you could give the team one rule tomorrow, what is it?",
+   "a": "<p>“Nothing goes into the ‘don’t’ half of an instruction unless it also exists in the repository as a predicate. If a constraint cannot be written as a predicate over state, it is not a requirement — it is a wish, and I would rather find that out in a design review than in an incident. Half of what we are currently calling safety is sentences, and sentences do not have a confusion matrix.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  }
+ ]
+}

@@ -1,0 +1,156 @@
+{
+ "lesson": "ip-0003",
+ "label": "IP 0003",
+ "track": "ai",
+ "title": "The 41-Way Decision",
+ "url": "https://nehilsood.github.io/guides/interview-prep/guides/0003-the-41-way-decision.html",
+ "plain": [
+  {
+   "title": "In plain words",
+   "url": "https://nehilsood.github.io/guides/interview-prep/guides/0003-the-41-way-decision.html#plain-1"
+  }
+ ],
+ "questions": [
+  {
+   "id": "F1",
+   "kind": "follow-up",
+   "q": "“Your offline router hits 92% top-1. Why is task success still down?”",
+   "a": "<p>Because selection happens every turn, not once. Over a twenty-turn trajectory, 0.92<sup>20</sup> ≈ 19% chance of a clean run. Per-turn accuracy compounds multiplicatively against you. On top of that, top-1 accuracy doesn't count the <code>none</code> cases at all, and it says nothing about hijack residue after the one turn that went wrong. End-to-end success is a product of per-turn correctness and per-error persistence — you have to measure both.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How you'd prove it — six experiments",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0003-the-41-way-decision.html#how-youd-prove-it-six-experiments"
+   }
+  },
+  {
+   "id": "F2",
+   "kind": "follow-up",
+   "q": "“We retrieve top-5 and recall@5 is 99%. Isn't selection solved?”",
+   "a": "<p>No — and this is the sharpest trap in the space. Retrieval and selection are different problems, and retrieval makes selection <em>harder</em> by construction: the five candidates you hand the model are, by definition, the five most semantically similar to the query. You have filtered out every easy distractor and handed over the maximally confusable set. High recall guarantees the answer is in there; it guarantees nothing about the model's ability to pick it out of four near-twins. Always measure downstream selection accuracy, never recall alone.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Break #1 — Selection. It's confusability, not count",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0003-the-41-way-decision.html#break-1-selection-its-confusability-not-count"
+   }
+  },
+  {
+   "id": "F3",
+   "kind": "follow-up",
+   "q": "“How do you choose k?”",
+   "a": "<p>Adaptively, per query, not as a constant. Easy queries — where the right skill is already the top scorer — need k ≈ 2–3; hard ones where the gold sits sixth to twentieth need k ≈ 6. A fixed k pays the hard-query cost on every easy query. Expand k while the retriever's score gap is still narrow and stop when it opens up. Judge candidate k values on a chance-corrected metric, since raw accuracy at k=2 and k=20 are not comparable quantities.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F4",
+   "kind": "follow-up",
+   "q": "“Isn't this just model capability? Won't the next model fix it?”",
+   "a": "<p>Partly, and the trend is real — with tool search the jump was 49% → 74% for one generation and 79.5% → 88.1% for the next, so the floor is rising fast. But notice that the <em>gap</em> persists: the frontier model still loses 8.5 points purely to menu size. The failure is architectural, not a knowledge deficit. You are asking a system to make a discrete choice over a confusable set, with no ground-truth feedback and no ability to revise. Better models shift the cliff; they don't remove it. Design as if it's there.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F5",
+   "kind": "follow-up",
+   "q": "“A teammate proposes a meta-skill that teaches the model how to pick skills.”",
+   "a": "<p>It makes things worse for a subtle reason: the meta-skill is itself always-on instruction text competing for the same attention, and it becomes option 42 in the menu it is supposed to arbitrate. You've put the router inside the thing being routed. Routing logic belongs <em>out of band</em> — a retrieval step or a classifier that runs before the model sees a menu at all — precisely so it isn't subject to the failure mode it's meant to prevent.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F6",
+   "kind": "follow-up",
+   "q": "“How would you catch this in production, not in an eval?”",
+   "a": "<p>Make three things first-class SLIs. <strong>Skill open distribution</strong> — a long tail of skills with near-zero opens is dead weight costing margin; a skill with a very high open rate is probably over-triggering. <strong>Open-to-value ratio</strong> per skill: opened, then never referenced downstream. <strong>False-trigger rate</strong> on a sampled, human-labelled stream. Then run a permanent shadow arm with a reduced skill set; when the shadow beats production, you have your answer and your rollout plan in one.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F7",
+   "kind": "follow-up",
+   "q": "“One skill tests beautifully alone and terribly in the library. Delete it?”",
+   "a": "<p>Not yet — that's a margin problem, not a quality problem, and the three fixes are ordered. First rewrite for contrast against whatever it collides with in the confusion matrix, naming the sibling explicitly. Second, namespace it so the prefix carries discriminative signal. Third, scope it so it is only visible where it applies. Delete only if its marginal contribution stays negative after all three. The general principle: <strong>evaluate skills by marginal contribution to the library, never by isolated quality.</strong></p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fix, ordered by leverage",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0003-the-41-way-decision.html#the-fix-ordered-by-leverage"
+   }
+  },
+  {
+   "id": "F8",
+   "kind": "follow-up",
+   "q": "“How do you know this isn't just context rot from a longer prompt?”",
+   "a": "<p>The token-matched inert arm in E1. Same token count, same position in the prompt, same prose style — but the extra descriptions correspond to skills the router can't select. If that arm holds and the live arm degrades, length is not the variable. It's the cleanest available separation of “more text” from “more choices,” and it's the specific experiment that answers the constraint they put in the question.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How you'd prove it — six experiments",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0003-the-41-way-decision.html#how-youd-prove-it-six-experiments"
+   }
+  },
+  {
+   "id": "F9",
+   "kind": "follow-up",
+   "q": "“Can't you fix hijacking with a stronger system prompt?”",
+   "a": "<p>Weakly, and it degrades as the session runs. You're asking a stable instruction from turn zero to out-compete a freshly injected, forcefully worded, on-topic procedure at the end of context. Recency and imperativeness are on the wrong side of that fight. Structural fixes win: scope statements inside the skill body, unload or expiry, and re-asserting the goal after a load. Use the system prompt as reinforcement, never as the mechanism.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Break #2 — Hijacking. A load is a state change",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0003-the-41-way-decision.html#break-2-hijacking-a-load-is-a"
+   }
+  },
+  {
+   "id": "F10",
+   "kind": "follow-up",
+   "q": "“What if all forty really are needed?”",
+   "a": "<p>Then they're needed at different <em>times</em>, and the fix is dynamic scoping rather than deletion. Keep the library at forty and the visible menu at five. Partition by phase (plan / implement / review), by repository, or by file type. Where the work genuinely decomposes, hand each subagent a narrow catalogue and let an orchestrator route between them — which is just hierarchical routing with process isolation and the bonus that a hijack can't cross the boundary.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fix, ordered by leverage",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0003-the-41-way-decision.html#the-fix-ordered-by-leverage"
+   }
+  },
+  {
+   "id": "F11",
+   "kind": "follow-up",
+   "q": "“What's the latency and cost story?”",
+   "a": "<p>Dominated by thrash, not by tokens. Every open is a round trip, and a mis-pick costs an open, the wasted turns that follow, and often a corrective loop on top. The tail is what hurts: p99 is set by the trajectories that opened three skills before finding the right one. Retrieval cuts context roughly 85% in the published numbers, but the bigger win is turn count. Watch out for the trap where a self-correction loop and skill thrash compound each other — that's the same tail-latency failure wearing a different hat.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F12",
+   "kind": "follow-up",
+   "q": "“How do you stop this regressing as the library grows to 200?”",
+   "a": "<p>Treat skills as code. Selection eval in CI, and a new skill blocks on not degrading anyone else's accuracy. An owner per skill and a deprecation policy, so nothing survives on inertia. A hard cap on skills visible per scope, enforced at build time. A scheduled re-run of the greedy forward-selection curve — the peak moves as the library changes, and you want to notice before success does.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fix, ordered by leverage",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0003-the-41-way-decision.html#the-fix-ordered-by-leverage"
+   }
+  }
+ ]
+}

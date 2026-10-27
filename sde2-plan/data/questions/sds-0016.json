@@ -1,0 +1,108 @@
+{
+ "lesson": "sds-0016",
+ "label": "SDS 0016",
+ "track": "cs",
+ "title": "The Update That Was Never Refused",
+ "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0016-the-update-that-was-never-refused.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "0016-q1",
+   "kind": "quiz",
+   "q": "Eight concurrent writers each add 1 to the same score at READ COMMITTED. The final value is 1. How many errors did the application see?",
+   "a": "<p>Zero. Every writer read a value, added one to it and wrote the result, and every one of those writes succeeded. Seven of them were then overwritten by a value that had been computed before they landed. <strong>There is no error to catch, because nothing went wrong from the database's point of view.</strong></p>\n    <p>That is what distinguishes this from lesson 0014's double-apply, which is its mirror image: there a request applied twice, here one applied zero times while reporting success. Both come from a gap between a read and a write, and neither produces a log line to search for.</p>",
+   "options": [
+    "None at all; every writer reported complete success",
+    "Seven, since that many writers were refused outright",
+    "One, raised when the final writer tried committing",
+    "Eight, one from every writer touching that score"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "0016-q2",
+   "kind": "quiz",
+   "q": "REPEATABLE READ stopped the non-repeatable read and the phantom in the measured grid. Why did it not stop the write skew?",
+   "a": "<p>Because it is snapshot isolation, and snapshot isolation resolves conflicts on <em>writes</em>. The two evaluators each read the same total, each concluded there was room, and each wrote to a different row — so there is no write-write conflict anywhere for it to find. The invariant ended at 1.2 against a limit of 1.0, with no error raised.</p>\n    <p>The second option is true and is not the reason: it describes the situation rather than the mechanism. <code>SERIALIZABLE</code> catches it because it tracks read-write dependencies as well, and it says so in a different error message — <em>“read/write dependencies among transactions”</em> rather than <em>“concurrent update”</em>.</p>",
+   "options": [
+    "It only compares what you wrote, never what you read",
+    "Both writers chose rows that nobody else had touched yet",
+    "Postgres cannot see this one without taking a table lock",
+    "The time between the two reads was simply too short"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0016-the-update-that-was-never-refused.html#underneath-0016"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“Two workers read a row, modify it, and write it back. What happens?”",
+   "a": "<p>At the default level, one of them wins and the other is silently overwritten. I measured it — eight writers each adding one to the same score produced a final value of <strong>one</strong>, with <strong>zero errors</strong> and every writer reporting success. That is the part that matters operationally: there is nothing to alert on, because from the database's side two transactions wrote a number and both writes committed.</p>\n        <p>It is the mirror image of an idempotency failure. There a request applies twice; here it applies zero times while reporting success. Same cause both times: a gap between the read and the write that somebody else fits through.</p>\n        Invites · <b>“So raise the isolation level?” — that changes what you are told, not what happens.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0016-the-update-that-was-never-refused.html#underneath-0016"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“Would REPEATABLE READ fix that?”",
+   "a": "<p>Not on its own. At repeatable read the same eight writers produced a final value of <strong>one again</strong> — identical to the broken run — except that seven of them failed with 40001 instead of succeeding quietly. Nothing is more correct yet; the database has just started telling you.</p>\n        <p>The fix is the retry loop, and Postgres's documentation puts it in one sentence: applications at this level <em>“must be prepared to retry transactions due to serialization failures”</em>. With the loop, all eight land. So the level and the loop are one change, and shipping only the first converts a data bug into an error rate.</p>\n        Invites · <b>“How many retries?” — which is the question almost nobody has measured an answer to.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Nothing failed, and the answer is wrong",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0016-the-update-that-was-never-refused.html#nothing-failed-and-the-answer-is-wrong"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“How many times would you retry, and where does that number come from?”",
+   "a": "<p>At least the number of writers that can contend for one row, because under full contention they succeed one at a time and the n-th has to lose n−1 times. I broke it deliberately: sixteen writers against a budget of eight, and <strong>exactly eight survived</strong> — on every run. The other eight were dropped as quietly as the original lost updates were.</p>\n        <p>Which means the loop is not a general answer. If the number of contending writers is unbounded, no fixed budget is safe, and the right move is to stop contending — a single statement that computes from the current value rather than from a remembered one, so there is no gap and no retry.</p>\n        Invites · <b>“What does that statement look like?” — one UPDATE with the arithmetic in it, and no SELECT at all.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0016-the-update-that-was-never-refused.html#underneath-0016"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“What is write skew, and which level catches it?”",
+   "a": "<p>Two transactions each check a rule, each find room, and each write to a <em>different</em> row. Individually both were correct about what they saw; together they break the invariant. I ran it — two evaluators each adding weight 0.6 under a limit of 1.0, ending at <strong>1.2 with no error</strong> at both read committed and repeatable read.</p>\n        <p>Repeatable read cannot catch it by construction, because it is snapshot isolation and it resolves conflicts on what you <em>wrote</em>. These two wrote to rows nobody else touched. Serializable also tracks read-write dependencies, and it says so in a distinct message. The rule I take from it: <strong>if the invariant spans rows, a row-level mechanism cannot enforce it</strong> — not a version column, not <code>FOR UPDATE</code>.</p>\n        Invites · <b>“What if you can't use SERIALIZABLE?” — lock something that represents the set, or make it a constraint.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0016-the-update-that-was-never-refused.html#underneath-0016"
+   }
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“Why does Postgres not implement READ UNCOMMITTED?”",
+   "a": "<p>Because under MVCC there is nothing there to read. An uncommitted row version is not visible to any other transaction — visibility is decided by comparing the writing transaction against your snapshot — so a dirty read has no mechanism to happen through. The level is accepted and ignored: I asked for it and the server <strong>reported it back as ‘read uncommitted’ while behaving as read committed</strong>, which means a configuration audit that greps for the setting passes.</p>\n        <p>The layer above is stricter than the database: SQLAlchemy refuses the value outright rather than passing it on. Two components, two different answers to the same request, and only one of them is visible from the application.</p>\n        Invites · <b>“What else does the database accept and ignore?” — a fair question, and worth knowing for your own stack.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0016-the-update-that-was-never-refused.html#underneath-0016"
+   }
+  }
+ ]
+}

@@ -1,0 +1,98 @@
+{
+ "lesson": "sds-0003",
+ "label": "SDS 0003",
+ "track": "cs",
+ "title": "Cache-Aside and Friends",
+ "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0003-cache-aside-and-friends.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "0003-q1",
+   "kind": "quiz",
+   "q": "Your Redis instance dies at peak load. With cache-aside on the retrieval hop, what happens?",
+   "a": "<p>Cache-aside keeps the application in charge of the miss path, so an unreachable cache is just a permanent miss — provided every Redis call is wrapped, as in the lab. You degrade to slow. With <strong>read-through</strong> the cache sits inline and owns the fetch, so losing it means losing the read path entirely: you degrade to down.</p>\n    <p>That single difference is usually the whole reason to choose cache-aside for something on a latency budget, and it is worth being able to state in one sentence.</p>",
+   "options": [
+    "Requests get slower, because the app fetches it directly",
+    "Requests fail, since the cache is now a dependency",
+    "Requests succeed and stay fast, using a local fallback",
+    "Requests block until the cache finishes coming back up"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "The four strategies",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0003-cache-aside-and-friends.html#the-four-strategies"
+   }
+  },
+  {
+   "id": "0003-q2",
+   "kind": "quiz",
+   "q": "Why is an embedding a better first cache target than a retrieval result?",
+   "a": "<p>Purity is the reason. An embedding depends only on the input text and the model version, both of which you can put in the key, so it can never go stale — there is simply no invalidation logic to get wrong. A retrieval result depends on the corpus, so caching it means committing to a staleness budget and defending it.</p>\n    <p>“It is slower” is nearly right and still the wrong reason: embed at 120 ms is indeed the bigger half of the hop, but you would cache a pure 5 ms function ahead of an impure 500 ms one, because correctness risk beats latency saving. Cache the things that cannot be wrong first.</p>",
+   "options": [
+    "It is pure, so no staleness budget is needed",
+    "It is smaller, so many more of them fit",
+    "It is slower, so each hit saves much more",
+    "It is rare, so the hit rate climbs higher"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0003-cache-aside-and-friends.html#underneath-0003"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“You cache embeddings. What is in the cache key?”",
+   "a": "<p>Two things: the <strong>model version</strong> and a SHA-256 of the normalised query text — stripped and lowercased. So <code>emb:fake-embed-v1:&lt;hash&gt;</code>.</p>\n        <p>The model version is the field that matters. Without it, changing embedding models leaves every previously cached vector valid-looking and semantically wrong — retrieval quality degrades and nothing errors, which is a failure mode with no signal at all. With it in the key, a model change is a cache miss rather than a bug.</p>\n        Invites · <b>“What determines the value that is not in the key?” — the answer here is nothing, which is exactly why this cache has no invalidation problem. Normalisation is the sneaky one: change strip/lower and you silently change the key space.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The four strategies",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0003-cache-aside-and-friends.html#the-four-strategies"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“What happens to your 8 s budget when the cache is cold — say, right after a deploy?”",
+   "a": "<p>Every request pays the full uncached hop, so 165 milliseconds instead of 47 — which against an 8-second budget is survivable on its own. The problem is not the cost per request, it is that <em>all</em> of them pay it at once, and for a popular key they pay it concurrently.</p>\n        <p>I measured that: 200 concurrent requests for one cold key produced 200 identical embedding calls. So the real answer to “what happens after a deploy” is a thundering herd, and the fix is single-flight plus jittered TTLs rather than a bigger cache.</p>\n        Invites · <b>“So how do you warm it?” — and the honest answer is that warming and single-flight solve different halves: warming reduces how often you are cold, single-flight bounds what being cold costs.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0003-cache-aside-and-friends.html#underneath-0003"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“Would you cache the LLM completions too?”",
+   "a": "<p>Only where the prompt is genuinely deterministic, which for us is a small slice. A completion is a function of the prompt <em>and</em> the sampling parameters and the model version, so all three have to be in the key or the cache is lying — and at temperature above zero it is lying by design, because the whole point is that the same prompt gives different output.</p>\n        <p>The place it does pay is not a response cache at all, it is the <strong>prefix cache</strong>: the shared system prompt is identical on every request, and caching its KV state cuts time-to-first-word without pretending two completions are the same.</p>\n        Invites · <b>“What is your prefix-cache hit rate?” — which is lesson 0008, and it is a question about the GPU bill rather than about latency.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0003-cache-aside-and-friends.html#underneath-0003"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“Why not write-through?”",
+   "a": "<p>Because there is no write. Nothing in the system <em>updates</em> an embedding — they are computed on demand from text, so there is no write path for a write-through cache to sit in front of. Write-through answers “how do I keep the cache consistent with writes”, and I do not have that question.</p>\n        <p>What I do have is the read-side race cache-aside is famous for: a reader that misses, then a writer that updates and invalidates, then the reader installing its stale value. That cannot fire here because the key contains everything that determines the value — there is no second version of the same key.</p>\n        Invites · <b>“Where in your system <em>would</em> you use write-through?” — somewhere with real mutation and a read-your-writes requirement, like rubric scores, and there the answer is that they should not be in a cache at all.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0003-cache-aside-and-friends.html#underneath-0003"
+   }
+  }
+ ]
+}

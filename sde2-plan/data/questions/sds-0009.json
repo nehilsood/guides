@@ -1,0 +1,111 @@
+{
+ "lesson": "sds-0009",
+ "label": "SDS 0009",
+ "track": "hld",
+ "title": "Cache-Aware Routing",
+ "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0009-cache-aware-routing.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "0009-q1",
+   "kind": "quiz",
+   "q": "You add a second replica behind round-robin. What happens to prefix-cache hit rate for one ongoing conversation?",
+   "a": "<p>It falls, and it keeps falling as you add more: the chance of a turn landing on the replica holding that conversation's history is roughly one in N. Measured at about 47 % across four replicas and <strong>32 % across eight</strong>, against a flat 77 % under affinity.</p>\n    <p>The “same blocks” answer is right about one span and wrong about the one that matters. The globally shared preamble <em>is</em> cached everywhere after one request each, which is why round-robin scores 47 % rather than nothing — but the conversation's own history exists on exactly one replica, and in a long interview that is most of the prompt.</p>",
+   "options": [
+    "It falls, because successive turns go to other replicas",
+    "It holds, because each replica caches the same blocks",
+    "It doubles, because there is twice the cache available",
+    "It rises, because each replica serves a smaller keyspace"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0009-cache-aware-routing.html#underneath-0009"
+   }
+  },
+  {
+   "id": "0009-q2",
+   "kind": "quiz",
+   "q": "You route by hashing the entire prompt, including this turn's text. What do you get?",
+   "a": "<p>Scatter. This turn's text differs every request, so the hash does too — measured at <strong>46.8 %</strong>, indistinguishable from round-robin's 47, and stable at 46.8 % even when a lockstep workload pushed round-robin up to 79. It is round-robin wearing the word “consistent hashing”.</p>\n    <p>The overload answer is the <em>other</em> failure and it is real, just not this one: it happens when the window is too <strong>short</strong> and stops inside the globally shared preamble, making the hash a constant. That put 144 of 144 requests on one replica. The two mistakes bracket the correct window, which is why naming the span you hash matters more than naming the algorithm.</p>",
+   "options": [
+    "Scatter, because the hash changes with every single request",
+    "Affinity, because the shared preamble dominates the hash input",
+    "Overload, because one replica receives the whole hot keyspace",
+    "Nothing, because the block hashes already decide cache location"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0009-cache-aware-routing.html#underneath-0009"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“Your sessions are stateful and you have four replicas. What is the load balancer doing?”",
+   "a": "<p>By default, the wrong thing. Each replica holds its own prefix cache, so the replica that served a conversation's last turn is strictly better at its next turn — and round-robin equalises request counts, which was the right objective only while replicas were interchangeable. The probability a turn lands where its prefix lives is about one over the replica count, so the loss grows as I scale out.</p>\n        <p>I measured it: round-robin, least-outstanding and whole-prompt hashing all landed near <strong>47 % hit rate</strong>, and routing by a hash of the conversation-identifying prefix got <strong>78 %</strong> with p99 first word falling from 396 ms to 172. The cost is load balance — 48-48 became 35-55 — and a cache cliff when a replica dies.</p>\n        Invites · <b>“What exactly do you hash?” — which is the real question, because hashing too little sends everything to one replica and hashing too much is round-robin.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0009-cache-aware-routing.html#underneath-0009"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“Why not just route to whichever replica has the best cache for the request?”",
+   "a": "<p>I did try that — track which block hashes each replica has been sent, route to the longest match, break ties on load. It produced the highest hit rate I measured, <strong>79.6 %</strong>, and it put <strong>all 192 requests on one replica</strong> with three idle.</p>\n        <p>The reason is structural rather than a bug. After the first request, one replica holds the globally shared preamble, so it has the longest match for every conversation from then on — and because the match lengths are never equal, the load tiebreak never fires. Unbounded “route to the best cache” has a fixed point and the fixed point is one server. Adding a load ceiling fixed the balance and cost eight points of hit rate, because every diverted request installs a duplicate copy of its blocks elsewhere.</p>\n        Invites · <b>“So plain hashing beat the smarter router?” — yes, on both hit rate and tail, because it cannot be talked out of its decision.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0009-cache-aware-routing.html#underneath-0009"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“What breaks when you add a replica?”",
+   "a": "<p>A share of conversations gets remapped to a replica that does not hold their history, so every one of them pays full prefill on its next turn. With plain modulo hashing that is almost <em>all</em> of them, which is the argument for consistent hashing here rather than modulo — it moves roughly one over N of the keys instead of nearly all.</p>\n        <p>Which means scaling out is no longer latency-free, and that changes how I would autoscale: prefer scaling ahead of demand rather than reactively, because adding capacity during a spike causes a prefill burst at exactly the wrong moment. The same reasoning applies to a rolling deploy, and it is worse there, because every replica is replaced.</p>\n        Invites · <b>“And when one dies?” — its share of conversations all miss at once, which is a stampede, so it needs coalescing per prefix and headroom to absorb the prefill.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0009-cache-aware-routing.html#underneath-0009"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“Would you actually put this in production?”",
+   "a": "<p>Only after measuring one thing: how much of the cacheable prefix is per-conversation rather than shared by everybody. That ratio decides it. With a long shared system prompt and short turns, round-robin already reached <strong>76 %</strong> in my tests, because every replica caches the global span after one request each — so affinity buys about ten points and costs me the cliff and the deploy behaviour. I would not take that trade.</p>\n        <p>With a short preamble and a growing conversation, it was 47 against 78 and I would. So the answer is that it depends on how we write prompts, and it can change without anyone touching the balancer — someone lengthening the system prompt moves the boundary and can silently turn my hash window into a constant.</p>\n        Invites · <b>“How would you notice that happening?” — load spread across replicas, alerted on; it is the signal that catches both failure modes.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0009-cache-aware-routing.html#underneath-0009"
+   }
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“Suppose I told you routing made no measurable difference in your test. What would you check?”",
+   "a": "<p>That is what my first run said, and the workload was wrong. Every conversation was advancing in lockstep, so dispatch order was the same rotation every round — and with 24 conversations over 4 replicas, 24 divides by 4, so each conversation returned to the same replica every time. <strong>Round-robin was accidentally perfect affinity</strong>, at 79 % instead of 47.</p>\n        <p>What gave it away was the control: whole-prompt hashing did not move at all between the two workloads, because it scatters regardless of arrival order. When one row shifts thirty points and another does not move, the workload changed rather than the thing under test. Adding staggered starts and variable think time made the difference appear, and it is closer to how people actually talk.</p>\n        Invites · <b>“So how do you know the second workload is right?” — I do not, fully; what I can say is which property it fixed and that the deterministic strategies reproduce exactly.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0009-cache-aware-routing.html#underneath-0009"
+   }
+  }
+ ]
+}

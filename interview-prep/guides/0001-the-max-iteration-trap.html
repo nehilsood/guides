@@ -598,7 +598,7 @@ figure.fc{margin:30px 0 36px;padding:0;border:0;border-radius:0;box-shadow:none;
   </table></div>
 </section>
 
-<aside class="plain"><p class="plain-label">In plain words</p><p>Most requests are fine after one pass, so the typical request (the median, p50) barely got slower. What changed is that the number of passes now varies, and a few hard requests go round the loop many times. Those few make up the slowest 1% (p99), which is why it tripled. A cap trims them but never explains why they didn&#8217;t stop.</p></aside>
+<aside class="plain" id="plain-1"><p class="plain-label">In plain words</p><p>Most requests are fine after one pass, so the typical request (the median, p50) barely got slower. What changed is that the number of passes now varies, and a few hard requests go round the loop many times. Those few make up the slowest 1% (p99), which is why it tripled. A cap trims them but never explains why they didn&#8217;t stop.</p></aside>
 <section class="part">
   <div class="parthead"><div class="pnum">04</div><h2 id="why-p50-stayed-flat-and-p99-tripled">Why p50 stayed flat and p99 tripled</h2></div>
   <p class="lede">This is the single most impressive thing you can explain in this answer, because it is the observation the interviewer gave you and most candidates skate past it.</p>
@@ -646,7 +646,7 @@ Var[Total] = E[N] · Var[X]  +  Var[N] · E[X]²
   </div>
 </section>
 
-<aside class="plain"><p class="plain-label">In plain words</p><p>Every extra pass is another request to the same shared model server, so the server gets busier. Waiting in a queue does not grow evenly: near full capacity, a little more load makes every wait much longer. So the loop slows down requests that never loop at all. The fix is a lower-priority queue for refinement passes, so they can&#8217;t crowd out first passes.</p></aside>
+<aside class="plain" id="plain-2"><p class="plain-label">In plain words</p><p>Every extra pass is another request to the same shared model server, so the server gets busier. Waiting in a queue does not grow evenly: near full capacity, a little more load makes every wait much longer. So the loop slows down requests that never loop at all. The fix is a lower-priority queue for refinement passes, so they can&#8217;t crowd out first passes.</p></aside>
 <section class="part">
   <div class="parthead"><div class="pnum">05</div><h2 id="the-loop-is-also-slowing-down-requests">The loop is also slowing down requests that never enter it</h2></div>
   <p class="lede">This is the part that separates &#8220;I understand algorithms&#8221; from &#8220;I have run something in production.&#8221;</p>
@@ -676,7 +676,7 @@ Var[Total] = E[N] · Var[X]  +  Var[N] · E[X]²
   </div>
 </section>
 
-<aside class="plain"><p class="plain-label">In plain words</p><p>A model that checks its own work, with nothing outside to check against, sometimes &#8220;fixes&#8221; answers that were already right. An average over many requests can still rise while some answers get worse, and nobody sees those. So compare each request&#8217;s answer before and after the extra passes, and let an outside check, such as unit tests, decide what is right.</p></aside>
+<aside class="plain" id="plain-3"><p class="plain-label">In plain words</p><p>A model that checks its own work, with nothing outside to check against, sometimes &#8220;fixes&#8221; answers that were already right. An average over many requests can still rise while some answers get worse, and nobody sees those. So compare each request&#8217;s answer before and after the extra passes, and let an outside check, such as unit tests, decide what is right.</p></aside>
 <section class="part">
   <div class="parthead"><div class="pnum">07</div><h2 id="the-quality-claim-is-probably-also-wrong">The quality claim is probably also wrong</h2></div>
   <p class="lede">&#8220;Improves quality on every pass&#8221; is the premise you should politely refuse to accept at face value. This is the highest-value pushback available in the whole question.</p>
@@ -738,7 +738,7 @@ Refinement stops paying when:   ECR / EIR  =  Acc / (1 − Acc)</div>
   </div>
 </section>
 
-<aside class="plain"><p class="plain-label">In plain words</p><p>The real fix gives the loop a way to know it is done: an outside check, such as running the tests, that stops it once the answer passes. Easy requests then get one pass and hard ones get more, all inside a time limit. The cap stays only as a last-resort safety limit.</p></aside>
+<aside class="plain" id="plain-4"><p class="plain-label">In plain words</p><p>The real fix gives the loop a way to know it is done: an outside check, such as running the tests, that stops it once the answer passes. Easy requests then get one pass and hard ones get more, all inside a time limit. The cap stays only as a last-resort safety limit.</p></aside>
 <section class="part">
   <div class="parthead"><div class="pnum">09</div><h2 id="the-fix-in-the-order-youd-actually">The fix, in the order you'd actually do it</h2></div>
   <p class="lede">Present this as a sequence with the cheap, reversible things first. The cap survives — it just moves to the end, and it changes role from mechanism to guardrail.</p>

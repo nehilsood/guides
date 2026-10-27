@@ -1,0 +1,102 @@
+{
+ "lesson": "sds-0011",
+ "label": "SDS 0011",
+ "track": "cs",
+ "title": "The Breaker You Have to Defend",
+ "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0011-the-breaker-you-have-to-defend.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "0011-q1",
+   "kind": "quiz",
+   "q": "A breaker on a low-traffic dependency opens at three in the morning after one failed call, then closes five seconds later. The dependency was healthy throughout. What went wrong?",
+   "a": "<p>A failure rate over one sample is 0 % or 100 %. With no minimum-sample gate, the first failure after a quiet period is a 100 % failure rate and the breaker opens on it. Measured: one failed call in four hundred <strong>refused 100 healthy requests</strong>; with the gate at 20, the same run never moved the breaker at all.</p>\n    <p>The timing in the question is the clue. Three in the morning means low traffic, which means an almost empty window — along with process start and scale-up events, that is precisely when this fires, and it is why a load test never reproduces it.</p>",
+   "options": [
+    "The window was nearly empty, so one failure dominated",
+    "The cooldown interval was far too short for recovery",
+    "The failure threshold was set well below fifty percent",
+    "The probe in half-open state succeeded by pure chance"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "The states are trivial; the estimator is the component",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0011-the-breaker-you-have-to-defend.html#the-states-are-trivial-the-estimator-is"
+   }
+  },
+  {
+   "id": "0011-q2",
+   "kind": "quiz",
+   "q": "A dependency's latency triples. Every call still returns a correct result, well past your per-stage budget. What does a breaker that records exceptions do?",
+   "a": "<p>Nothing at all. Every call succeeded, so the failure rate is <strong>0 %</strong> and the breaker reports perfect health while <strong>100 requests</strong> blow their budget. A breaker sees only the outcomes you hand it, and a slow success is a success.</p>\n    <p>The fix is one line: record a timeout as a failure. That turned 100 over-budget requests into <strong>25 over budget and 99 refused instantly</strong> — and failing at 0 ms is strictly better than failing at the timeout, because the rest of the turn's budget survives for a fallback. Partial degradation is more common than hard failure, so this is the case worth designing for.</p>",
+   "options": [
+    "Nothing, because it sees failures rather than latency",
+    "Opens quickly, because slow calls fill its window",
+    "Opens after the cooldown interval has fully elapsed",
+    "Nothing, since the minimum-sample gate is blocking it"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0011-the-breaker-you-have-to-defend.html#underneath-0011"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“You have a circuit breaker on the model call. What does it open at?”",
+   "a": "<p>The threshold comes from the error budget rather than from a default. At <strong>99.9 %</strong> over thirty days we have <strong>43 minutes</strong> of unavailability for the whole month, so one ten-minute outage spends <strong>23 %</strong> of it — that makes being slow to open expensive and a false open comparatively cheap, so we open on a tighter threshold over a smaller window.</p>\n        <p>The consequence I would flag is that this is not a property of the dependency. A service with a 99 % SLO calling the identical upstream has 432 minutes of budget, the same outage costs 2.3 %, and it should open later and over a wider window. Same code, opposite tuning.</p>\n        Invites · <b>“What window size?” — which is really a question about how many failures you are willing to absorb before opening.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0011-the-breaker-you-have-to-defend.html#underneath-0011"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“Walk me through the states.”",
+   "a": "<p>Closed passes calls and records outcomes, open fails them instantly without touching the dependency, half-open admits exactly one probe which either closes it or reopens it. The states are the easy half though — what decides the transitions is a <strong>failure estimator</strong>, and that is the part worth talking about.</p>\n        <p>I ran the same breaker with two estimators on identical traffic. A 50-call sliding window opened after <strong>25 failures</strong>; an EWMA at α = 0.1 opened after <strong>7</strong>, about 900 ms earlier. Eighteen fewer user-visible errors, from a component the state diagram does not contain. The window is also why one probe is enough in half-open: it is a deliberately cheap experiment, and an experiment costing a thousand requests is not one you can repeat every few seconds.</p>\n        Invites · <b>“Which estimator did you pick?” — and the honest answer names the trade rather than a winner.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“Your upstream is not down — it is three times slower than usual. What does your breaker do?”",
+   "a": "<p>By default, nothing, and that is a real bug rather than a subtlety. A breaker sees the outcomes you give it, so a slow success is a success — I measured a run where every call returned correctly, <strong>100 of them blew the stage budget</strong>, the failure rate stayed at <strong>0 %</strong> and the breaker never moved.</p>\n        <p>The fix is to record exceeding the budget as a failure, which turned that into <strong>25 over budget and 99 refused instantly</strong>. Failing at 0 ms rather than at the timeout is the actual win, because the rest of the turn's budget survives for a fallback. So the sentence I would want on the record is that a breaker is a failure detector and only becomes a latency detector if you make the timeout count.</p>\n        Invites · <b>“What timeout, then?” — which is the deadline question, and it has its own arithmetic.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0011-the-breaker-you-have-to-defend.html#underneath-0011"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“Do you need a circuit breaker at all?”",
+   "a": "<p>Often not. The Amazon Builders' Library explicitly prefers a retry token bucket, on the grounds that breakers <em>“introduce modal behavior into systems that can be difficult to test, and can introduce significant addition time to recovery”</em>. I measured the bucket doing the load-protection job on its own: retries cut from 245 to 8, peak from 320/s to 20/s, with no state machine and no mode.</p>\n        <p>What a breaker adds is two things, both about me rather than the dependency: it fails calls at <strong>0 ms instead of at the timeout</strong>, which returns the rest of the deadline to a fallback, and it applies to <em>first</em> attempts rather than only retries, so it caps the latency cost of an upstream that is simply down. Where I have a fallback worth running, that is worth the mode. Where I do not, the bucket is enough and I would rather not ship an untested state.</p>\n        Invites · <b>“What fallback?” — and having a concrete one is what makes the breaker defensible.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“How would you know your breaker is working, in production?”",
+   "a": "<p>Every state change is a logged event with the reason attached — the failure rate and the sample count that triggered it, not just “opened” — and the state is exported as a metric per dependency. Martin Fowler's write-up makes the same point: any change in breaker state should be logged, and a trip should usually raise an alert.</p>\n        <p>The number I would actually watch is <strong>short-circuited calls</strong>, because it is the only one that distinguishes a breaker doing its job from a breaker that is stuck. And I would test the mode deliberately rather than waiting for an incident: force it open in staging and confirm the fallback path runs, because the criticism of breakers is precisely that the open state is the least exercised code in the system.</p>\n        Invites · <b>“Have you ever seen one misfire?” — yes, the ungated one, and it refused a hundred healthy requests.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  }
+ ]
+}

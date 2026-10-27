@@ -1,0 +1,111 @@
+{
+ "lesson": "sds-0007",
+ "label": "SDS 0007",
+ "track": "hld",
+ "title": "SSE vs WebSocket for Tokens",
+ "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0007-sse-vs-websocket-for-tokens.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "0007-q1",
+   "kind": "quiz",
+   "q": "Your streaming endpoint works on your laptop and delivers every token at once in staging. Which proxy setting is the likeliest cause?",
+   "a": "<p>Compression. A deflate stream wants more input before it emits anything, so unless it is given an explicit per-message flush it holds your frames as raw material — measured here at <strong>3 796 ms to first word against 393</strong>, with the response getting <em>smaller</em> as it got slower.</p>\n    <p>Buffering is the tempting answer and it is the one the internet gives, which is why this lesson measures it: stock 4 KB buffers cost 3 ms, and buffers larger than the whole response cost 2 ms. <code>proxy_buffering</code> is a read-ahead so a fast backend need not wait for a slow client, not an instruction to accumulate and forward at the end.</p>",
+   "options": [
+    "Response compression, which buffers to build a compressed stream",
+    "Response buffering, which holds output until a buffer fills",
+    "Protocol downgrade, which prevents the use of chunked encoding",
+    "Read timeout, which truncates output before the last token"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0007-sse-vs-websocket-for-tokens.html#underneath-0007"
+   }
+  },
+  {
+   "id": "0007-q2",
+   "kind": "quiz",
+   "q": "Streaming the same completion cost 25.8× the bytes of one non-streaming response. Where did the extra bytes go?",
+   "a": "<p>The envelope. Every one of the 182 frames re-sends the completion id, created timestamp, model name, object type, choice index and finish reason around roughly seven characters of text — <strong>224 bytes to carry four characters</strong> in the first frame, and 30 bytes per character across the whole completion.</p>\n    <p>The blank-line answer is the right instinct aimed at the wrong scale: the delimiter plus the <code>data: </code> prefix is eight bytes of 224, about 3 %. SSE itself is close to free. The expensive decision was wrapping a stream in a schema shaped like a request-response body, and it is why the whole thing compresses 14.6×.</p>",
+   "options": [
+    "Into one JSON envelope repeated around every single token",
+    "Into the extra headers each separate frame must carry",
+    "Into the blank lines that terminate each event frame",
+    "Into a longer completion produced by the streaming path"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0007-sse-vs-websocket-for-tokens.html#underneath-0007"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“Your users say the response hangs and then dumps everything at once. Where do you look?”",
+   "a": "<p>First I would confirm which one it is, because “hangs then dumps” and “slow first token” have different causes. If the frames all arrive together, generation was fine and something in the path accumulated them — so I walk the hops: our own handler, then any proxy, then the client library. On our side I check that the frames leave when they are produced, which I can do with <code>curl -N</code> against the pod directly.</p>\n        <p>Then the proxy, and I would go to <strong>compression before buffering</strong>. I have measured this: stock nginx buffering cost three milliseconds, and turning on gzip took first word from 393 ms to 3 796 — all 182 frames in one flush, status 200, nothing else wrong. The last hop to rule out is the client, since <code>curl</code> without <code>-N</code> reproduces the same symptom entirely locally.</p>\n        Invites · <b>“So how would you catch it next time?” — a time-to-first-word percentile measured at the client, not in the handler, because every server-side signal in that failure was healthy.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0007-sse-vs-websocket-for-tokens.html#underneath-0007"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“Why SSE and not WebSocket?”",
+   "a": "<p>Because the traffic is one-directional and SSE is ordinary HTTP. It goes through our existing gateway, ingress, auth and observability with no special handling, and reconnection with <code>Last-Event-ID</code> is in the protocol rather than in my code. WebSocket would be a second transport to operate for no gain — it is not faster, it does not compress better, and it is broken by the same proxies.</p>\n        <p>Where that flips is cancellation. Right now if a client hangs up mid-generation we keep producing tokens and keep paying for them, because there is no channel for the client to say stop — it has to be a second HTTP request against the completion id. If we shipped barge-in, where a user interrupts the avatar mid-sentence, I would want that channel and I would move.</p>\n        Invites · <b>“What happens today when the client disconnects?” — honestly, we generate to completion unless something notices the write failed, so we pay for tokens nobody read.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0007-sse-vs-websocket-for-tokens.html#underneath-0007"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“You quote 2.1 seconds median time-to-first-word. How is that measured?”",
+   "a": "<p>Wall clock from the request leaving the client to the first frame arriving at it, and it has to be at the client, because everything downstream of our handler is invisible from inside it. The gateway logs its own first-frame time as <code>gateway.ttfw</code>, which is useful for splitting our latency from the model's, but it is not the user's number — in the compression failure I measured, the handler's figure stayed at 390 ms while the client saw 3 796.</p>\n        <p>I would also be careful about what counts as the first frame. My first measurement of the gzip path read 14 milliseconds, which was the compression header arriving, not a token. The instrument has to look at the first decoded <code>data:</code> line or it reports a number better than reality.</p>\n        Invites · <b>“And the p95 and p99?” — the question median always invites, which is lesson 0002, and the answer needs an open-loop generator or it is flattering me.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0007-sse-vs-websocket-for-tokens.html#underneath-0007"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“Twenty-six times the bytes sounds bad. Would you stop streaming?”",
+   "a": "<p>No, because compression takes it back. The uncompressed cost was 37 655 bytes against 1 461 for one response, but gzip brought that to 2 588 — under twice the non-streaming size, for a first word nine and a half times sooner. That is not a close decision, and it stays open because the same header that keeps streaming alive is what lets both wins coexist.</p>\n        <p>Where I would reconsider is a client paying per byte on a metered connection, or an internal service-to-service hop where no human is waiting. Streaming to something that only acts on the finished text buys nothing and costs the envelope, so those calls should be <code>stream=false</code> — and some of ours probably still are not.</p>\n        Invites · <b>“Which of your callers are machines?” — a question about whether streaming became a default rather than a decision, and the answer is that it did.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0007-sse-vs-websocket-for-tokens.html#underneath-0007"
+   }
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“A million concurrent sessions. What does the connection model do to you?”",
+   "a": "<p>First I would separate concurrent sessions from concurrent generations, because they differ by a lot. If a turn takes eight seconds and a person speaks every thirty, in-flight generations are about eight thirtieths of a million — call it 267 000. That is the number that sizes anything, and it is the one people skip.</p>\n        <p>Then the connection model bites before the model servers do. Each in-flight turn holds an open connection for the whole generation, so the gateway is holding hundreds of thousands of sockets and the proxy in front is doing the same — and because the session is stateful, the load balancer's placement decision is not free either, which is the routing problem in the next lesson. The honest answer is that I have measured the single-node path carefully and have not measured this, and the first thing I would look at is file descriptors and proxy connection limits rather than GPUs.</p>\n        Invites · <b>“And what decides which replica a session lands on?” — prefix-cache affinity, which is lesson 0009, and round-robin actively throws the win away.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0007-sse-vs-websocket-for-tokens.html#underneath-0007"
+   }
+  }
+ ]
+}

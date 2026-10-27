@@ -1,0 +1,105 @@
+{
+ "lesson": "sds-0021",
+ "label": "SDS 0021",
+ "track": "lld",
+ "title": "Stuck or Twice",
+ "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0021-stuck-or-twice.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "0021-q1",
+   "kind": "quiz",
+   "q": "A worker checks its own <code>processed_jobs</code> table before placing an order, and writes the job there after the order is placed. Under twelve kills it still placed <strong>2 to 9 orders twice</strong>. Why?",
+   "a": "<p>A crash between two writes in two systems separates them, and the duplicate-causing crash is precisely the one between the order and the record. The next worker checks, finds no record, and places the order again. The check is correct about everything it can see; it simply cannot see an effect whose record was never written.</p>\n    <p>None of the distractors is the mechanism. The check reads committed data, the lease is a full second against 40 ms of work, and a duplicate insert into <code>processed_jobs</code> would conflict harmlessly. The fix is to move the record to where the effect lands, which is what <code>keyed</code> does.</p>",
+   "options": [
+    "The kill lands after the order and before the record",
+    "The check reads a stale snapshot of the processed table",
+    "The lease runs out before the check has fully completed",
+    "Two workers both insert the same processed row at once"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0021-stuck-or-twice.html#underneath-0021"
+   }
+  },
+  {
+   "id": "0021-q2",
+   "kind": "quiz",
+   "q": "A worker holding a job's row lock is frozen with <code>SIGSTOP</code> for five seconds. Nothing else is configured. What does Postgres do with the lock?",
+   "a": "<p>It keeps it. A stopped process keeps its sockets open and the kernel keeps acknowledging on its behalf, so the session is simply idle in a transaction, which is also what a worker waiting on a slow model call looks like. In the lab the job waited <strong>5.3 s</strong> for a five-second pause and was applied once.</p>\n    <p>Keepalives would not help even if they were configured, because the operating system answers them on a frozen process’s behalf. The deadlock detector looks for cycles of waiting sessions, and this is one session holding a lock and one skipping past it. <code>SKIP LOCKED</code> means nobody waits on it at all — the job just sits there.</p>",
+   "options": [
+    "Keeps it, because the session still looks alive",
+    "Releases it once the TCP keepalive probes fail",
+    "Releases it when the deadlock detector runs next",
+    "Hands the job to another waiting worker instead"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“At-most-once or at-least-once for the confirm step — which, and why?”",
+   "a": "<p>At-least-once delivery, because a lost confirm is an order the customer said yes to and never got, and nobody notices until they complain. But at-least-once on its own places some orders twice: in my lab, <strong>2 to 7 in 12 kills</strong> for a worker that acknowledges after the work.</p>\n        <p>So on top of it, the confirm carries a key minted when the user says yes, and the seller side refuses a key it has seen. That turned the same kills into zero duplicates with eleven redeliveries. The redeliveries are the queue doing its job; the key is what makes them harmless.</p>\n        Invites · <b>“What if the seller cannot dedupe?” — then choose at-most-once plus reconciliation, and say so.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0021-stuck-or-twice.html#underneath-0021"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“Why not just check a processed table in the worker before doing the job?”",
+   "a": "<p>Because the record is written after the effect, and the duplicate comes from a crash between the two. I measured it: the worker-side check doubled <strong>2 to 9 jobs in 12 kills</strong>, no better than no check. The next worker checks, sees no record, and places the order again.</p>\n        <p>A record only helps if the same operation writes it and the effect. That is either the receiver's unique key, or — if the effect is a row in my own database — the effect and the acknowledgement in one transaction, which also got zero.</p>\n        Invites · <b>“Then why keep it?” — you do not; it protects against a redelivery a table queue cannot produce.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0021-stuck-or-twice.html#underneath-0021"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“How long should the visibility timeout be?”",
+   "a": "<p>Longer than the tail of the work, and it is computable. The duplicate rate is about the probability a job outlives its lease. With work at a 100 ms median I predicted <strong>100 duplicates in 400</strong> for a 150 ms lease and measured 107 to 116 over five runs, with no failures at all; at 600 ms it was one.</p>\n        <p>So I would set it from the stage's p99.9, add a heartbeat so a slow worker keeps its job — that took 150 ms to zero — and keep the receiver's key anyway, because a heartbeat cannot cover a paused process.</p>\n        Invites · <b>“Why not a very long lease?” — a crashed job then waits that long; 1 s versus under 50 ms here.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "There is no third order",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0021-stuck-or-twice.html#there-is-no-third-order"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“Why not hold the row lock for the whole job? A crash releases it.”",
+   "a": "<p>It does release on a crash, and fast — under <strong>50 ms</strong> to redelivery against a second for a lease. It still doubles, 2 to 6 in 12 kills, because the crash that matters is after the effect and before the commit.</p>\n        <p>Its real failure is a worker that stops without dying. I froze one with SIGSTOP: Postgres kept the lock and the job <strong>waited 5.3 s</strong> for a five-second pause, and would have waited for an hour. Add a session timeout and it becomes a lease, and doubled. It also holds a transaction open for the whole of the work, which is lesson 0019's horizon on the busiest table.</p>\n        Invites · <b>“So which do you use?” — a lease with a heartbeat, and the key on the receiver.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“Pub/Sub has exactly-once delivery now. Doesn't that solve it?”",
+   "a": "<p>It solves redelivery after a successful acknowledgement, within one region, on pull subscriptions. It does not solve a subscriber that places the order and dies before acknowledging, and the documentation says publish-side retries still arrive as <em>“redeliveries with different message IDs”</em>.</p>\n        <p>I measured that second one: a producer retrying lost enqueue responses made <strong>342 jobs for 300 intents</strong>, and a receiver keyed on the job id removed none of them. The producer's own key fixed it. So I would still key the confirm, and treat the feature as fewer redeliveries rather than a guarantee.</p>\n        Invites · <b>“Then why use a broker at all?” — lesson 0022 argues you may not need one yet.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0021-stuck-or-twice.html#underneath-0021"
+   }
+  }
+ ]
+}

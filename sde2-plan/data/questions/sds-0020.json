@@ -1,0 +1,111 @@
+{
+ "lesson": "sds-0020",
+ "label": "SDS 0020",
+ "track": "hld",
+ "title": "The Read That Beat Its Own Write",
+ "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0020-the-read-that-beat-its-own-write.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "0020-q1",
+   "kind": "quiz",
+   "q": "An idle replica 0.2 ms behind returned stale data <strong>0 times in 500</strong> through SQLAlchemy and <strong>493 times</strong> through raw asyncpg, reading straight after each write. What made the difference?",
+   "a": "<p>The gap. A read is stale when it arrives before replay reaches the write, so what matters is the ratio of your client's gap to the replica's lag. SQLAlchemy's checkout, commit and reset on return took longer than 0.2 ms, so it lost the race to the log almost never; asyncpg on a held connection sent the read at once and won the race almost every time.</p>\n    <p>None of the distractors happened: asyncpg has no result cache, both clients read from the replica, and buffer warmth changes how fast a read is served, not what it can see. The consequence is the lesson's warning — an idle test that passes through the ORM is evidence about the ORM, not about the replica.</p>",
+   "options": [
+    "How long each client took between writing and reading",
+    "Raw asyncpg reading from a stale local result cache",
+    "SQLAlchemy quietly sending all its reads to the primary",
+    "The pool warming up the replica's buffer cache first"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0020-the-read-that-beat-its-own-write.html#underneath-0020"
+   }
+  },
+  {
+   "id": "0020-q2",
+   "kind": "quiz",
+   "q": "With <code>synchronous_commit = remote_apply</code> and the replica stopped, the client gives up on <code>COMMIT</code> after three seconds. What state is the write in?",
+   "a": "<p>Committed. The commit is durable on the primary before the wait begins; the wait is only for the replica's acknowledgement. Cancelling it withdraws the client from waiting and nothing else, and the server says so in its own message: <em>“The transaction has already committed locally, but might not have been replicated to the standby.”</em> In the lab, another session read the new value immediately.</p>\n    <p>That makes it lesson 0014's problem exactly: the client received an error for a write that succeeded. A naive retry applies it twice, which is why a synchronous commit that can time out needs an idempotency key as much as any network call does.</p>",
+   "options": [
+    "Committed on the primary and visible to other sessions",
+    "Rolled back because the replica has not acknowledged it",
+    "Held in limbo until the replica has started again",
+    "Visible only to the session that attempted the commit"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0020-the-read-that-beat-its-own-write.html#underneath-0020"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“Your replica is a fraction of a millisecond behind. Why would anybody see stale data?”",
+   "a": "<p>Because staleness is not about the lag on its own. It is a race between replay and the caller's next statement, and a read straight after a write is usually faster than a fraction of a millisecond. I measured it: <strong>0.2 ms of lag, and a raw asyncpg client missed its own write 493 times in 500</strong>.</p>\n        <p>The same replica through our ORM missed none, because the pool checkout and reset took longer than replay. That is the dangerous part: the idle test passes for a reason unrelated to the replica. Under write load the ORM path failed most of the time as well.</p>\n        Invites · <b>“So how do you fix it?” — wait for the specific write, not for time to pass.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The replica is not slow; your next statement is fast",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0020-the-read-that-beat-its-own-write.html#the-replica-is-not-slow-your-next"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“How do you give a user read-your-writes with a replica in the path?”",
+   "a": "<p>A write token. After the commit returns, read the primary's WAL position and carry it with the session. A read that follows goes to the replica and waits until <code>pg_last_wal_replay_lsn()</code> has passed the token, with a short timeout and the primary as the fallback. Under load that was <strong>zero stale reads at 26 to 52 ms p99</strong>, and it charges only the reads that need the guarantee.</p>\n        <p>The detail I would call out is <em>after</em> the commit. I also measured the token read one statement earlier, inside the transaction: it points before the commit record and returned stale data <strong>5 to 54 times in 500 under load, never when idle</strong>. And the wait itself has to run outside a transaction, or its own snapshot can pause the replay it is waiting for.</p>\n        Invites · <b>“Why not just read the primary after a write?” — you can, for a window; it works and it gives back part of what the replica was for.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0020-the-read-that-beat-its-own-write.html#underneath-0020"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“Why not use synchronous replication and make the problem go away?”",
+   "a": "<p><code>remote_apply</code> does make it go away — every commit waits until the replica has replayed it, so every reader sees it. It costs every write that wait: under load the write p99 went to <strong>29 to 54 ms</strong>, against 4 to 12 without it. That is the price when things are healthy.</p>\n        <p>The price when they are not is worse. With the replica stopped, the commit does not return at all, and when the client gave up after three seconds <strong>the write had already committed on the primary</strong> — the server's own message says so. So a replica added for read capacity can halt writes, and a client timeout produces an error for a write that succeeded, which needs idempotency to retry safely.</p>\n        Invites · <b>“How would you make it survive a replica failure?” — more than one synchronous candidate, and accept that it is now an availability design.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0020-the-read-that-beat-its-own-write.html#underneath-0020"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“Analysts want to run hour-long reports on the replica. Any problem?”",
+   "a": "<p>Yes, and it is a forced choice. The replica replays the primary's vacuum, and if a report still needs rows vacuum removed, one side loses. With <code>hot_standby_feedback</code> off, the default, the replica pauses replay and then cancels the report — after 2.5 s in my lab with the delay at two seconds. With it on, the primary is told what the report needs and <strong>vacuum there removed 0 of 5 000 dead rows</strong>.</p>\n        <p>And off has a second cost people miss: while replay is paused for that report, every other session on the replica is reading stale data, for up to thirty seconds by default. So for hour-long reports I would give them their own replica with feedback off and a long delay, and keep the replica that serves the application on short queries only.</p>\n        Invites · <b>“Where have you seen that bloat before?” — lesson 0019: an open snapshot is an open snapshot, whichever machine it is on.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0020-the-read-that-beat-its-own-write.html#underneath-0020"
+   }
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“Where does a read replica sit on your scaling ladder, and what is the next rung?”",
+   "a": "<p>It is the first rung after the cheap ones — pool sizing, indexes, caching — and it scales exactly one thing: read capacity. Writes still go to one server, the WAL still comes from it, and every replica adds a sender on the primary and another pool each application instance has to hold, so lesson 0015's pool-times-replicas arithmetic now applies twice.</p>\n        <p>It also changes the semantics, which the earlier rungs did not: from here on some reads can be in the past, and every read path has to say whether it can tolerate that. The next rungs are partitioning the data so writes split, and then sharding across servers, and each costs more than the last in exactly this way — more guarantees that used to be free and now have to be designed.</p>\n        Invites · <b>“What would you partition first?” — the results table from 0019, by time, because it only ever grows.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0020-the-read-that-beat-its-own-write.html#underneath-0020"
+   }
+  }
+ ]
+}

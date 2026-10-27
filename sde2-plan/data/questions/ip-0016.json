@@ -1,0 +1,159 @@
+{
+ "lesson": "ip-0016",
+ "label": "IP 0016",
+ "track": "ai",
+ "title": "The Frame Marked Now",
+ "url": "https://nehilsood.github.io/guides/interview-prep/guides/0016-the-frame-marked-now.html",
+ "plain": [
+  {
+   "title": "In plain words",
+   "url": "https://nehilsood.github.io/guides/interview-prep/guides/0016-the-frame-marked-now.html#plain-1"
+  }
+ ],
+ "questions": [
+  {
+   "id": "F1",
+   "kind": "follow-up",
+   "q": "So a bigger window is never useful?",
+   "a": "<p>“It is useful whenever the information you need is genuinely present in the context and genuinely does not fit — a long document you have to read end to end, a codebase you want in one pass, a transcript you are summarising. Those are capacity problems and capacity is the right purchase.”</p>\n    <p>“This is not one. Two reasons. The information about whether B7 holds a formula was never in any frame, so no window contains it. And the thing that grows is the <em>distractor count</em>: at 2,691 tokens a frame, a 2M window holds 743 screenshots. <strong>You have not removed the near-duplicates, you have bought room for 743 of them.</strong>”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F2",
+   "kind": "follow-up",
+   "q": "We already have prompt caching. Doesn’t that solve it?",
+   "a": "<p>“It solves the invoice and nothing else. An append-only transcript is the ideal caching shape — a stable prefix, reads at about 0.1×, writes at 1.25× on the five-minute TTL so you break even after two reads, and every hit refreshes the clock.”</p>\n    <p>“But a cache hit means the model did not have to <em>recompute</em> those tokens. It does not mean they are not in the sequence. <strong>The attention pattern is identical whether the KV came from cache or from the GPU.</strong> If caching fixed context rot it would be the first optimisation in history that improved accuracy by changing where the bytes were stored.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Three curves, and the bug is on none of them",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0016-the-frame-marked-now.html#three-curves-and-the-bug-is-on"
+   }
+  },
+  {
+   "id": "F3",
+   "kind": "follow-up",
+   "q": "Why three frames? Why not one, or ten?",
+   "a": "<p>“Three is a starting point, not a principle, and I would sweep it — that is check 01. But there is a floor and it is two, not one. Verifying that an action landed is a question about a <em>difference</em>, and you cannot take a difference with one sample. One frame tells you what the screen shows; two tell you whether your click did anything.”</p>\n    <p>“The third is slack for actions whose effect is delayed by a render or a network round trip. If the sweep says the right number is six on this application, it is six. What it will not say is eighty.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F4",
+   "kind": "follow-up",
+   "q": "Then why not drop screenshots entirely and read the accessibility tree?",
+   "a": "<p>“That is the state channel and it is most of the win — in the StateAct results the GUI subagent was needed on 1.1% of main-agent steps. But the same paper has the number that stops me saying ‘entirely’: the code-only variant with no GUI path at all scored <strong>45.9% partial against the screenshot baseline’s 54.8%</strong>. Removing pixels was worse than the design we are criticising.”</p>\n    <p>“And there is a second-order effect I would watch. The belief study found the vulnerability tracks the <em>action interface</em>: coordinate-emitting agents stayed visually grounded at 0.03–0.07 structure-following, index-based ones were hijacked at 0.96. So moving to a tree-indexed action space is not a neutral refactor — it is the configuration that over-trusts the tree.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fix has a failure mode, and it is worse than the bug",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0016-the-frame-marked-now.html#the-fix-has-a-failure-mode-and"
+   }
+  },
+  {
+   "id": "F5",
+   "kind": "follow-up",
+   "q": "What exactly goes in the progress ledger?",
+   "a": "<p>“One test on every line: can this sentence become false while the agent is not looking? <code>step 46: typed 42 into B7</code> cannot — the past is fixed. <code>B7 is empty</code> can, one action later. <strong>Events and extracts go in; state claims and derived statuses stay out.</strong>”</p>\n    <p>“Extracts carry their source, because ‘totals 42.10, 18.75’ is only safe if the PDF it came from is immutable — put the path and the hash in the line and it becomes checkable rather than trusted. And status is derived at read time from the events, never stored, because a stored status is a cache and nobody wrote the invalidation.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "A ledger may remember events. It must never remember state.",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0016-the-frame-marked-now.html#a-ledger-may-remember-events-it-must"
+   }
+  },
+  {
+   "id": "F6",
+   "kind": "follow-up",
+   "q": "How do you compact a history without corrupting it?",
+   "a": "<p>“Operate on turns, never on individual messages. A <code>tool_result</code> whose <code>tool_use</code> has been folded away is an orphan and the API rejects the next request outright — that is a hard failure, not a quality regression, and compaction is by far the most common way to cause it in production.”</p>\n    <p>“Then: fold narration, strip images at an assistant boundary, and never fold the typed ledger. A prose summary of a screenshot is a state claim with extra steps, which is the thing section 08 forbids. The ledger is already the compacted form; summarising it again only loses information.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What to carry forward, and what it costs",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0016-the-frame-marked-now.html#what-to-carry-forward-and-what-it"
+   }
+  },
+  {
+   "id": "F7",
+   "kind": "follow-up",
+   "q": "Isn’t the real answer to split this across several agents?",
+   "a": "<p>“Delegation is useful here, and for one reason only: a subagent is a <em>fresh context</em>. That is a context-management device, not an organisation chart, and StateAct uses it that way — hand a subgoal to a new agent so the main agent’s window stays focused.”</p>\n    <p>“But the same paper tested depth and found flat delegation beat both recursive variants, 61.6 against 57.6 and 57.9. So: one main agent, shallow delegation, state-grounded. The failure mode of the alternative is the one in <a href=\"https://nehilsood.github.io/guides/interview-prep/guides/0010-the-frozen-org-chart.html\">Q9</a> — every handoff is a lossy, sender-chosen, silent boundary, and you have added several to fix a problem caused by one window being badly managed.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "A ledger may remember events. It must never remember state.",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0016-the-frame-marked-now.html#a-ledger-may-remember-events-it-must"
+   }
+  },
+  {
+   "id": "F8",
+   "kind": "follow-up",
+   "q": "It repeated an action. Isn’t that just a stopping problem — cap the retries?",
+   "a": "<p>“A cap would stop the symptom and teach you nothing, and it is the <a href=\"https://nehilsood.github.io/guides/interview-prep/guides/0001-the-max-iteration-trap.html\">Q1</a> trap: a cap fires on a count, a guard fires on evidence. But the deeper point is that this is not a stopping failure at all. The agent is not persisting at something it knows has failed. <strong>It believes the action never happened.</strong>”</p>\n    <p>“That is a belief error, and the instrument for a belief error is a re-read, not a budget. Capping retries on an agent that thinks it is doing something for the first time just makes it give up on the first thing instead.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F9",
+   "kind": "follow-up",
+   "q": "What about tasks where the screen really is the point?",
+   "a": "<p>“Then the state channel gives me nothing and I should say so rather than force it. Image editing, layout, chart appearance, anything WYSIWYG: the rendering is not a lossy proxy for the deliverable, it <em>is</em> the deliverable, and reading the DOM tells me nothing about whether the slide looks right.”</p>\n    <p>“The engineering is deciding this per subgoal rather than per application. ‘Does this question concern content the screen does not show?’ is the test, and most desktop workflows have a handful of genuinely visual subgoals embedded in a mass of state manipulation.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "A screenshot is not a state",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0016-the-frame-marked-now.html#a-screenshot-is-not-a-state"
+   }
+  },
+  {
+   "id": "F10",
+   "kind": "follow-up",
+   "q": "How would you know the fix worked?",
+   "a": "<p>“The first-repeat-step distribution moves right or it did not work, and that is the only metric that answers the question you asked me. The conflict probe from check 03 confirms the new ledger did not import a new failure. And cost per task tells me whether I can afford to run the experiment at scale.”</p>\n    <p>“One attribution trap. Success rate will go up for reasons unrelated to attention — fewer dropped frames, no request rejections, shorter latency, more tasks finishing inside the budget. <strong>If I only report success rate I will claim credit for fixing context rot when I actually fixed an invalid request</strong>, and the next team to hit this will be misled by my write-up.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Five checks, and one of them is the whole diagnosis",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0016-the-frame-marked-now.html#five-checks-and-one-of-them-is"
+   }
+  },
+  {
+   "id": "F11",
+   "kind": "follow-up",
+   "q": "Where else does this pattern show up?",
+   "a": "<p>“Anywhere an agent appends observations to a transcript and then queries the transcript. Re-reading the same file after editing it and keeping both copies. Tailing a log and accumulating every poll. A browser agent dumping the DOM each step. A retrieval loop that pulls back the same chunk under four different queries. A CI log pasted in full on every iteration of a fix-and-rerun cycle.”</p>\n    <p>“The test is the same two questions every time. <strong>Am I storing an observation where I should be storing an event? And am I caching a claim I ought to be re-reading?</strong> Those catch it before it becomes a 300-step bug.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F12",
+   "kind": "follow-up",
+   "q": "If you had to leave the team with one sentence, what is it?",
+   "a": "<p>“<strong>The context is a transcript, and they have been asking it questions only a database can answer.</strong> A transcript is a record of what was said and seen, in order. It is excellent at ‘what happened’ and it has no opinion whatsoever about ‘what is true right now’ — every entry in it was true once, and nothing marks which ones still are.”</p>\n    <p>“So before anything goes into a context I would ask what tense it is in. If it is past tense, append it, it is free and it stays true. If it is present tense, do not store it at all — go and read it when you need it. Almost everything that went wrong in this run is one team writing present-tense facts into a past-tense structure, and the window size was never going to have an opinion about that.”</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "A ledger may remember events. It must never remember state.",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0016-the-frame-marked-now.html#a-ledger-may-remember-events-it-must"
+   }
+  }
+ ]
+}

@@ -1,0 +1,105 @@
+{
+ "lesson": "sds-0019",
+ "label": "SDS 0019",
+ "track": "cs",
+ "title": "The Snapshot Nobody Closed",
+ "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0019-the-snapshot-nobody-closed.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "0019-q1",
+   "kind": "quiz",
+   "q": "A worker using async SQLAlchemy begins a READ COMMITTED transaction, runs one <code>SELECT</code>, then awaits a model call for an hour. What stops vacuum from removing dead rows in <em>other</em> tables?",
+   "a": "<p>The snapshot. asyncpg sends every statement through the extended protocol, which leaves an unnamed portal open until the next Bind or the end of the transaction, and a portal keeps the snapshot it ran under. So <code>backend_xmin</code> stays set for the whole hour, and the horizon is one number for the whole database, so every table is held back, not just the one it read.</p>\n    <p>The distractors are each a real mechanism that is not the one at work. A plain SELECT takes no row lock. A read-only transaction is never given an id at all — which is exactly why people assume it is harmless. Autovacuum does run; step 3 showed it running and removing nothing.</p>",
+   "options": [
+    "The snapshot its unclosed portal keeps",
+    "A shared lock its SELECT acquired",
+    "The transaction id it obtained first",
+    "Autovacuum skips any table being read"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "One session, and nothing that watches will see it",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0019-the-snapshot-nobody-closed.html#one-session-and-nothing-that-watches-will"
+   }
+  },
+  {
+   "id": "0019-q2",
+   "kind": "quiz",
+   "q": "The idle session is closed and <code>VACUUM</code> runs again. It removes every dead row, and the table is still <strong>7 213 pages</strong> instead of 143. Why?",
+   "a": "<p>Plain vacuum reclaims space <em>inside</em> the table for future rows; it does not shrink the file, except for empty pages at the very end when it can take a lock easily. After the session closed, the scan in step 3 still read all 7 213 pages against the healthy table's 143, because empty pages are still pages.</p>\n    <p>Getting the pages back takes <code>VACUUM FULL</code> or another rewrite, under an <code>ACCESS EXCLUSIVE</code> lock that blocks reads for the duration. That is why the fix for a table that only grows is structural — partitions you drop — rather than a better vacuum schedule.</p>",
+   "options": [
+    "Plain vacuum marks space reusable and keeps the file",
+    "Autovacuum has not yet visited the table since then",
+    "The index still points into pages that held them",
+    "Statistics stay stale until the next ANALYZE has run"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "One session, and nothing that watches will see it",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0019-the-snapshot-nobody-closed.html#one-session-and-nothing-that-watches-will"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“Autovacuum is on and the table still grows. Why?”",
+   "a": "<p>The first thing I would check is not autovacuum's settings but whether it is <em>allowed</em> to remove anything. <code>VACUUM VERBOSE</code> prints a line saying how many rows are <em>“dead but not yet removable”</em> and how old the removable cutoff is. If that number is large, autovacuum is running fine and being held back by an open snapshot somewhere.</p>\n        <p>In the lab, one idle session was enough to keep <strong>499 900 dead rows</strong> unremovable and grow a table from 143 pages to 7 213, with autovacuum's work being done after every round. Tuning its thresholds would have made it run more often and remove exactly as little.</p>\n        Invites · <b>“How do you find the session?” — <code>pg_stat_activity</code>, sorted by how far behind <code>backend_xmin</code> is.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0019-the-snapshot-nobody-closed.html#underneath-0019"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“It's only a SELECT. How can it block vacuum?”",
+   "a": "<p>Because what vacuum respects is the snapshot, not locks and not transaction ids. Under READ COMMITTED people expect the snapshot to be dropped when the statement ends, and under psql it is. Under asyncpg it is not: the extended protocol runs the statement through a portal, and the documentation says an unnamed portal lives until <em>“the end of the transaction, or as soon as the next Bind”</em>. The portal keeps its snapshot.</p>\n        <p>I checked that rather than inferring it. The same parenthesis says a simple query destroys the portal, so I sent one down the same connection: <strong>the pin disappeared, and came back with the next extended statement</strong>. So under async SQLAlchemy, any transaction that has read anything holds the horizon until it commits.</p>\n        Invites · <b>“So what do you change?” — shorter transactions first; a timeout second, as the backstop.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“How would you find the session that is doing it?”",
+   "a": "<p><code>pg_stat_activity</code>, filtered to sessions where <code>backend_xmin</code> or <code>backend_xid</code> is set, and sorted by <code>age()</code> of those rather than by <code>xact_start</code>. Age counts the transactions committed since the snapshot was taken, which is what predicts the bloat. A report that has been running for an hour but refreshed its snapshot a second ago is less harmful than a notebook idle since lunch.</p>\n        <p>The one to recognise is <code>idle in transaction</code> with a last query that is a finished SELECT. That is exactly what it looked like in the lab: fifty transactions behind after one second. And the same view is not the only place: a replica with <code>hot_standby_feedback</code> on pins the primary's horizon from another machine, and shows up in <code>pg_stat_replication</code> instead.</p>\n        Invites · <b>“What else pins it?” — replicas with feedback on, and replication slots. Lesson 0020 measures the first.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0019-the-snapshot-nobody-closed.html#underneath-0019"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“Would you set <code>idle_in_transaction_session_timeout</code>? To what?”",
+   "a": "<p>Yes, on the application's own connections rather than server-wide, and above the longest await we intend to hold a transaction across — which, after moving model calls out of transactions, is none. So something like ten seconds: far above a legitimate gap between statements and far below a forgotten session.</p>\n        <p>The part worth saying is what it costs. In the lab the timeout let vacuum remove all 4 999 rows, and the held turn failed with <strong><code>connection is closed</code> and no SQLSTATE</strong>. The reason is only in the server log. So it has to ship with the application recognising that failure, or it looks like a network problem to whoever is on call.</p>\n        Invites · <b>“What about a long report query?” — that is <code>statement_timeout</code> or <code>transaction_timeout</code>; this one only fires while idle.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“The table is already bloated. How do you get the space back?”",
+   "a": "<p>Plain vacuum will not do it. It removes the dead rows and marks the space reusable inside the table, and the documentation is explicit that it <em>“will not return the space to the operating system”</em> except for empty pages at the very end. In the lab, after the session closed and vacuum ran, the table was <strong>still 7 213 pages</strong> with zero dead rows.</p>\n        <p>Getting it back means rewriting the table: <code>VACUUM FULL</code>, which takes an <code>ACCESS EXCLUSIVE</code> lock and roughly the table's size again in disk while it runs, or an online rewrite tool. For a results table that only grows, I would not want to be doing either on a schedule. I would partition it by time, so retention is dropping a partition — which removes a file and leaves nothing to vacuum.</p>\n        Invites · <b>“Why not just DELETE old runs?” — because a DELETE is more dead rows, and vacuum is what just failed.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "One session, and nothing that watches will see it",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0019-the-snapshot-nobody-closed.html#one-session-and-nothing-that-watches-will"
+   }
+  }
+ ]
+}

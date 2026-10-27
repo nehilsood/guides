@@ -1,0 +1,159 @@
+{
+ "lesson": "ip-0009",
+ "label": "IP 0009",
+ "track": "ai",
+ "title": "What the Author Did Next",
+ "url": "https://nehilsood.github.io/guides/interview-prep/guides/0009-what-the-author-did-next.html",
+ "plain": [
+  {
+   "title": "In plain words",
+   "url": "https://nehilsood.github.io/guides/interview-prep/guides/0009-what-the-author-did-next.html#plain-1"
+  }
+ ],
+ "questions": [
+  {
+   "id": "F1",
+   "kind": "follow-up",
+   "q": "Why not just have a judge score the reviews? It is one afternoon of work.",
+   "a": "<p>Because it grades the wrong link in the chain. A judge scores how a comment <em>reads</em>, and a comment can read beautifully and be ignored by every author who sees it. There is no ground truth for “is this a good comment” that lives inside the comment.</p>\n    <p>The supporting evidence is that upstream instruments do not even agree with each other: in production skill evaluation, structural scanning and LLM-judge scoring correlate at <strong>ρ = 0.14</strong>. Both claim to measure quality, and they are measuring different things, neither of which is an outcome. <strong>Judges are still useful</strong> — but for the narrow, checkable labelling job in section 03, not as the arbiter of quality.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F2",
+   "kind": "follow-up",
+   "q": "Concretely, what is the label and who produces it?",
+   "a": "<p>Three classes per comment — addressed, ignored, pushed back — decided by a judge that sees the comment and the diff that followed it. The decision is <strong>anchored to lines, not to sentiment</strong>: did the lines this comment pointed at change, after it was posted, in a direction consistent with what it asked for?</p>\n    <p>Two cheap guards that catch most of the errors. Enforce timestamp ordering, or you will label comments as addressed that arrived after the fix. And hold out a frozen human-labelled calibration set, a few hundred comments, to quote a κ against.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "You already have six months of ground truth",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0009-what-the-author-did-next.html#you-already-have-six-months-of-ground"
+   }
+  },
+  {
+   "id": "F3",
+   "kind": "follow-up",
+   "q": "Acceptance rate is gameable. How do you stop it?",
+   "a": "<p>You cannot fix it in place, because the problem is structural: the denominator is chosen by the thing being measured. So do two things. <strong>Pin the denominator externally</strong> — addressed comments per PR, or per hundred changed lines, so raising the threshold reduces the score instead of raising it. And <strong>pair it with a quantity that only gets worse when the agent says less</strong>, which is escaped defects on reviewed lines.</p>\n    <p>The framing to offer is operating point versus capability. Raising a confidence threshold moves along the curve; a better skill moves the curve. A single ratio cannot tell those apart, and it will always find the cheap one first.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The metric that grades itself",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0009-what-the-author-did-next.html#the-metric-that-grades-itself"
+   }
+  },
+  {
+   "id": "F4",
+   "kind": "follow-up",
+   "q": "How do you know the comment caused the change, rather than coinciding with it?",
+   "a": "<p>You do not, without an intervention, so I would run one: ghost comments. On a few per cent of PRs the agent generates normally, the system logs the comments and does not post them, and we watch whether those lines changed anyway. Posted fix rate minus ghost fix rate is the incremental number.</p>\n    <p>The reason this matters more than it sounds is the <strong>direction of the bias</strong>. The comments most likely to be marked addressed are the ones the author would have fixed regardless, so raw acceptance over-credits the obvious comments and under-credits the subtle ones — it is biased in exactly the direction that makes a low-value skill look good.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "“Addressed” is not “caused”",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0009-what-the-author-did-next.html#addressed-is-not-caused"
+   }
+  },
+  {
+   "id": "F5",
+   "kind": "follow-up",
+   "q": "Your recall proxy only sees bugs that shipped and got traced. Is it worth anything?",
+   "a": "<p>It is a lower bound with unknown coverage, and it is worth something as long as I quote it that way. It misses every defect caught by a human, a test or the author. So I report it next to <strong>traceability coverage</strong> — what fraction of last quarter’s incidents can be attributed to a specific merged change at all — which for most teams is under half.</p>\n    <p>Its real job is not to be accurate. Its job is to be a term that <em>cannot be improved by staying quiet</em>, so that precision has something pulling against it. A directionally correct counterweight beats a precise metric that can be gamed alone.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F6",
+   "kind": "follow-up",
+   "q": "How many PRs before your gate means anything?",
+   "a": "<p>It depends on three things and I would rather give you the mechanics than a number I made up: the baseline rate, the effect I care about detecting, and the judge’s error rate. The first two are the usual proportion-test arithmetic. The third is the one people forget — label noise attenuates the observed difference by <strong>(1−2e)</strong>, so the sample needed scales as <strong>1∕(1−2e)²</strong>.</p>\n    <p>A judge that is wrong 15% of the time turns a real 10-point effect into a measured 7, and needs roughly twice the data to establish it. That is why I measure the judge before I size the experiment, not after.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Audit the judge, because it decides how much data you need",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0009-what-the-author-did-next.html#audit-the-judge-because-it-decides-how"
+   }
+  },
+  {
+   "id": "F7",
+   "kind": "follow-up",
+   "q": "You upgrade the judge model. What breaks?",
+   "a": "<p>Every historical comparison, silently. All your past numbers are denominated in the old judge, and judges disagree with each other a lot — published cross-judge agreement on general evaluation tasks runs around <strong>76%, κ = 0.51</strong>, and merely rewording the prompt template flips the majority verdict in about a quarter of cases.</p>\n    <p>So the judge model and its prompt are pinned like a schema version, and they are part of what a skill version was measured against. On any change, re-score the frozen calibration set, publish the delta, and re-baseline anything still in flight. The failure mode to name out loud is a quiet judge upgrade that shows up as a skill regression nobody can explain.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Audit the judge, because it decides how much data you need",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0009-what-the-author-did-next.html#audit-the-judge-because-it-decides-how"
+   }
+  },
+  {
+   "id": "F8",
+   "kind": "follow-up",
+   "q": "The model proposes the edit and the eval approves it. Why keep a human in the loop at all?",
+   "a": "<p>Because some of what is in the file is not a claim about the world, it is a decision somebody made — a house convention, a security rule, a compliance requirement. Those are not overruled by an acceptance rate, and a purely evidence-driven optimiser will delete them, correctly by its own lights, because nobody acts on them.</p>\n    <p>There is a second reason, which is the one from guide 0008: if the proposer and the approver are the same process, the loop is closed inside the model and the evidence never crosses a boundary. <strong>The agent proposes from evidence; the human edits for intent.</strong> Auto-application is defensible only where the gate is executable rather than another model.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "From evidence to edits, and the edit nobody proposes",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0009-what-the-author-did-next.html#from-evidence-to-edits-and-the-edit"
+   }
+  },
+  {
+   "id": "F9",
+   "kind": "follow-up",
+   "q": "Why bounded diffs rather than letting the model rewrite the skill each cycle?",
+   "a": "<p>Two documented pathologies of iterative rewriting. <strong>Brevity bias</strong>: each pass drops domain-specific detail in favour of a tidier summary, so the most valuable lines — the ones that are specific and slightly awkward — go first. <strong>Context collapse</strong>: repeated rewriting erodes detail over generations until the file is a well-written generality.</p>\n    <p>A diff is also auditable in two minutes, which is the only reason a human approval step survives in a real team, and it makes the change attributable: this line exists because of that failure cluster. The current skill-optimiser work restricts itself to bounded add, delete and replace edits accepted only on a strict held-out improvement, for the same reasons.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F10",
+   "kind": "follow-up",
+   "q": "Offline replay on held-out PRs says the new version is 8 points better. Do you ship it?",
+   "a": "<p>No — I promote it to the canary. Replay can only tell me what the agent <em>would post</em>, because the humans in the held-out PRs never saw the new comments and cannot respond to them. It is excellent for killing regressions cheaply and useless as a final decision.</p>\n    <p>The number I would put in front of you is Google’s: offline, their system addresses <strong>52% of comments at a 50% target precision</strong>; in production, authors address <strong>7.5% of all reviewer comments</strong> with a suggested edit. Same model. The gap is the human funnel — and the biggest single lever they found was the <em>preview rate</em>, which no offline metric contains.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F11",
+   "kind": "follow-up",
+   "q": "Suppose the answer is that the skill does nothing. What then?",
+   "a": "<p>Then it gets retired, and I would have written the condition down before the canary started: if incremental addressed-comments-per-PR against the no-skill arm sits inside a pre-registered band after a pre-registered sample, the skill goes. Deciding the band afterwards is how every negative result turns into “let’s try one more edit”.</p>\n    <p>This is not hypothetical. In paired production trials across 145 real skills, composite lift was positive in <strong>72.8%</strong> of paired cases — so roughly one in four did not clear the bar. And retirement has a middle setting worth taking first: demote the body into <code>references/</code>, keep the description, recover most of the context cost without losing the coverage.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "From evidence to edits, and the edit nobody proposes",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0009-what-the-author-did-next.html#from-evidence-to-edits-and-the-edit"
+   }
+  },
+  {
+   "id": "F12",
+   "kind": "follow-up",
+   "q": "You have one engineer and two weeks. What do you actually do?",
+   "a": "<p>Week one is the backfill, because the data already exists: walk six months of PRs, label every agent comment against the diff that followed it, and produce three things — the addressed rate, the failure clusters, and a κ against two hundred comments I label by hand. That is a real answer to “does it help” delivered by Friday, and it needs no deploy.</p>\n    <p>Day one of week one, in parallel, I turn on the two things with latency: the ghost-comment holdout and the no-skill arm. Neither produces a number for a month, and neither can be recovered retroactively, so every day of delay is a day the real question stays unanswerable. Week two is the clustering and the first diff.</p>\n    <p><strong>The lesson underneath all twelve:</strong> a feedback loop that can only propose improvements is not an evaluation of the skill, it is an advocate for it. The loop is only real once it is capable of returning a number that deletes the file.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The answer, at three lengths",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0009-what-the-author-did-next.html#the-answer-at-three-lengths"
+   }
+  }
+ ]
+}

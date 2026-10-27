@@ -1,0 +1,150 @@
+{
+ "lesson": "ip-0004",
+ "label": "IP 0004",
+ "track": "ai-build",
+ "title": "The Blank Check",
+ "url": "https://nehilsood.github.io/guides/interview-prep/guides/0004-the-blank-check.html",
+ "plain": [
+  {
+   "title": "In plain words",
+   "url": "https://nehilsood.github.io/guides/interview-prep/guides/0004-the-blank-check.html#plain-1"
+  }
+ ],
+ "questions": [
+  {
+   "id": "F1",
+   "kind": "follow-up",
+   "q": "“You said the action space is unbounded. Can't you just restrict the language — no imports, no sockets, a subset of Python?”",
+   "a": "<p>You can, and it genuinely helps, but be honest about what you've built. A restricted interpreter is a language-level control, and language-level controls have a long history of being escaped — Python's <code>rexec</code> and <code>Bastion</code> modules were both withdrawn from the standard library precisely because they could not be made safe. Anything that can reach <code>__builtins__</code>, <code>__subclasses__</code>, or a C extension is a way out.</p>\n      <p>So I'd use it as <em>defence in depth on top of</em> a sandbox, never instead of one. And there is a version that does work: a capability-based runtime like WASM, where the boundary is deny-by-default at the runtime rather than a blocklist bolted onto a permissive one. The distinction I'd want to be judged on is blocklist versus allowlist — a subset defined by removal is a filter; a runtime that has no filesystem unless you hand it one is a boundary.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What you build before you ship it",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0004-the-blank-check.html#what-you-build-before-you-ship-it"
+   }
+  },
+  {
+   "id": "F2",
+   "kind": "follow-up",
+   "q": "“Sandbox cold start is 150 ms. Doesn't that eat the latency win you just claimed?”",
+   "a": "<p>It eats it on short tasks, which is exactly why I'd want the crossover measured rather than assumed. On your 12-call example, twelve model round trips at even 400 ms each is ~5 seconds; a 150 ms cold start against that is noise. On a single-call task, the same 150 ms is the whole story, and JSON wins.</p>\n      <p>Operationally there are three levers. Keep a warm pool so provisioning is off the critical path. Reuse one sandbox across a session rather than per call, accepting that you've weakened the per-task blast-radius reset and deciding that deliberately. Or pick a lighter isolation layer for low-provenance work — WASM starts in under a millisecond. The point is that it's a routing decision per task shape, not a platform-wide one.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F3",
+   "kind": "follow-up",
+   "q": "“Your egress allowlist permits our internal API. The attacker exfiltrates through it. Now what?”",
+   "a": "<p>Correct, and that's the right question to ask — an allowlist bounds the destination, not the content. Three things follow. First, scope the allowlist per task rather than per platform: this run needs the pricing API, so that is all it gets, and the ticketing system isn't reachable at all. Second, put the tool proxy in the path so egress is not raw HTTP — the proxy sees structured calls, can rate-limit them, and can flag a call whose payload is three orders of magnitude larger than the schema expects. Third, accept the residual and manage it at the trifecta level: if a task genuinely needs private data, untrusted content <em>and</em> a write path, that combination is the thing to remove, by splitting it into two agents where the one that reads untrusted content has no private data.</p>\n      <p>And I'd say plainly that this is a mitigation, not a solution. Prompt injection is not solved. The design goal is that no single failure is catastrophic, not that the agent is incorruptible.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What you build before you ship it",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0004-the-blank-check.html#what-you-build-before-you-ship-it"
+   }
+  },
+  {
+   "id": "F4",
+   "kind": "follow-up",
+   "q": "“The program dies halfway through after making six of twelve writes. How do you handle that?”",
+   "a": "<p>This is the failure class I'd worry about most in practice, because it's the one that isn't about attackers — it's ordinary Tuesday behaviour. The JSON path had transaction boundaries for free: one call, one observation, one decision. A program deletes that.</p>\n      <p>Four controls, in order of how much I'd fight for them. Make every mutating tool <strong>idempotent</strong> with a caller-supplied key, so replay is safe and the recovery path is “run it again”. Offer a <strong>dry-run mode</strong> so the program can compute its full plan before any effects, and the effects are applied in one reviewable batch at the end. Make the proxy's log the <strong>source of truth for what happened</strong>, so recovery doesn't depend on the program's own bookkeeping. And where the operations are genuinely coupled, expose a <strong>single compound tool</strong> that owns the transaction in your code rather than in the model's — this is a case where the right answer is to move logic out of the agent entirely.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F5",
+   "kind": "follow-up",
+   "q": "“Doesn't code execution also fix the tool-selection problem? You could skip loading 70 schemas.”",
+   "a": "<p>It helps a great deal, and for a reason worth stating precisely: the tools become a filesystem the agent explores on demand instead of 70 definitions sitting in the system prompt, so discovery becomes progressive rather than upfront. Anthropic's deferred-loading numbers are in that spirit — around 85% less context, with measured success going from 79.5% to 88.1% on one of their tool-heavy evaluations.</p>\n      <p>But I'd resist the framing that it <em>fixes</em> selection. The agent still has to choose the right stub, and it now chooses from a directory rather than a menu — which is a retrieval problem layered on top of a selection problem, not a removal of one. The failure just moves: instead of picking the wrong tool, it imports the wrong stub, or invents one. The honest claim is that code execution fixes the <em>context cost</em> of a large tool surface and leaves the confusability largely where it was.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F6",
+   "kind": "follow-up",
+   "q": "“We already run in Kubernetes with resource limits. Isn't that enough?”",
+   "a": "<p>It's ring 2 and part of ring 4, which is real progress, but a standard pod is a namespace boundary over a shared kernel. For model-authored code that can be influenced by content the agent fetched, that's the layer I'd want to upgrade — a kernel exploit from inside the pod reaches the node and every other workload on it.</p>\n      <p>The upgrade path is usually cheap: a gVisor or Kata runtime class, so the same manifests get a real kernel boundary without rewriting the platform. I'd also check the things Kubernetes doesn't give you by default and that matter more than the isolation layer — deny-by-default egress with a NetworkPolicy plus a proxy, no service-account token mounted into the pod, a read-only root filesystem, and a PID limit, because a fork bomb inside a memory limit is still a fork bomb.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What you build before you ship it",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0004-the-blank-check.html#what-you-build-before-you-ship-it"
+   }
+  },
+  {
+   "id": "F7",
+   "kind": "follow-up",
+   "q": "“How do you audit what the agent did, if it's a program rather than a list of calls?”",
+   "a": "<p>You don't audit the program — you audit the boundary. Every effect goes through the tool proxy, so the proxy's log is the record: caller, task ID, tool, arguments, result, timestamp. That log is outside the sandbox, so the program cannot forge or omit from it, which is a strictly stronger property than a tool-call log the model itself produced.</p>\n      <p>On top of that I'd retain the program source keyed to the task, and hash it, so an incident can be reconstructed exactly. And I'd flag the gap honestly: the JSON path gave you an audit trail by construction, and here you get one only because you built the proxy. If the proxy is optional in the architecture, the audit trail is optional too.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F8",
+   "kind": "follow-up",
+   "q": "“Doesn't the model need to be much stronger to write correct code? Isn't that a hidden cost?”",
+   "a": "<p>Yes, and it's the cost people forget because the published wins are all measured on frontier models. Two asymmetries matter. A malformed JSON call fails one step and the agent retries with the observation in hand; a broken program can fail the whole task, and a <em>subtly</em> broken program — an off-by-one in the country loop — returns a confident wrong answer with no error at all. That second one is the expensive case, because nothing in the harness flags it.</p>\n      <p>What I'd do about it: let the sandbox return stack traces so the model can iterate rather than restart, keep tasks small enough that a program is twenty lines rather than two hundred, and route by capability — a cheap model on the JSON path, the stronger model on the code path — rather than committing the whole fleet to one format.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F9",
+   "kind": "follow-up",
+   "q": "“Give me the number. When is the crossover?”",
+   "a": "<p>I'd give the shape of the arithmetic rather than pretend to a constant, because the constant is workload-specific. Code wins when (N − 1) × turn_cost exceeds sandbox_cost + Δgeneration, where N is the number of <em>dependent</em> calls — independent calls can already be batched in parallel on the JSON path, so they don't count toward the win.</p>\n      <p>With a 400 ms turn and a 150 ms warm-pool start, the break-even is around two to three dependent calls on latency alone. On tokens the crossover comes earlier whenever intermediate results are large, because that saving scales with payload size rather than call count — one call returning a 50,000-token transcript can justify the code path on its own. Your 12-call example is comfortably past both thresholds, which is why it was chosen.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F10",
+   "kind": "follow-up",
+   "q": "“What if the code execution environment is a vendor's, not yours?”",
+   "a": "<p>Then you've outsourced rings 2 and 3 and you still own rings 4 and 5 — and that split is the thing to be explicit about, because it's where people get surprised. The vendor runs the sandbox and the limits. You still decide which credentials exist inside it, what it is allowed to reach, and what happens to data that goes in.</p>\n      <p>The questions I'd ask before adopting one: what is the isolation layer, is it per-task or per-tenant, is it destroyed after each run, what is the default egress posture, where do my secrets live, what is retained and for how long, and can I get the execution logs. If the default egress posture is “open”, that is a deal-breaker regardless of how good the isolation is, because ring 4 is the one that stops exfiltration.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What you build before you ship it",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0004-the-blank-check.html#what-you-build-before-you-ship-it"
+   }
+  },
+  {
+   "id": "F11",
+   "kind": "follow-up",
+   "q": "“Hasn't the industry solved this before? Why is it hard now?”",
+   "a": "<p>It has, and I think the closest precedent is the web browser — which is genuinely encouraging and genuinely sobering. In 1995 the industry decided to download arbitrary code from strangers and run it on every desktop in the world. The answer was never “verify the JavaScript is safe”; it was thirty years of layered containment: the same-origin policy, then sandboxed renderers, then Content Security Policy, then per-origin process isolation after Spectre.</p>\n      <p>The encouraging half is that the pattern works — running untrusted code turned out to be a solvable engineering problem. The sobering half is the timeline, and the fact that every one of those layers was added <em>after</em> an exploit class made it unavoidable. Agent sandboxes are somewhere around 2004 on that curve. The specific thing that is harder this time is that the browser's untrusted input is code, which you can contain, while ours is <em>natural language that becomes code</em> — so the boundary between instructions and data is inside the model, where no runtime control can reach it.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F12",
+   "kind": "follow-up",
+   "q": "“You have one week. What do you build first?”",
+   "a": "<p>Egress deny-by-default, then credential isolation, then a wall-clock kill. Those three in that order, because they are the ones where the failure is unrecoverable: data that has left cannot be recalled, and a leaked long-lived key outlives the incident. Resource limits and dependency pinning are week two — a runaway loop costs money and wakes someone up, but it's recoverable.</p>\n      <p>And I'd ship it scoped rather than general: one task shape, one allowlisted destination, one tool surface behind the proxy, with the JSON path still live as the fallback. Then measure the crossover on real traffic before widening it. The failure mode I'd be trying hardest to avoid is turning it on everywhere because the token graph looked good.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What you build before you ship it",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0004-the-blank-check.html#what-you-build-before-you-ship-it"
+   }
+  }
+ ]
+}

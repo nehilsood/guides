@@ -1,0 +1,92 @@
+{
+ "lesson": "sds-0006",
+ "label": "SDS 0006",
+ "track": "hld",
+ "title": "Redis Is Not Magic",
+ "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0006-redis-is-not-magic.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "0006-q1",
+   "kind": "quiz",
+   "q": "AOF is enabled with default settings and the machine loses power. How much do you lose?",
+   "a": "<p>The default <code>appendfsync</code> is <code>everysec</code>, which flushes once per second on a background thread. A power loss can therefore cost up to about a second of writes. That is the documented, intended tradeoff — the docs describe it as “both fast and relatively safe”.</p>\n    <p>“Nothing at all” describes <code>appendfsync always</code>, which the docs call “very very slow, very safe”. If you need it you can have it, but you will pay for it, and step 5 of the lab told you roughly how much on your own disk.</p>",
+   "options": [
+    "About one second of writes, given the default fsync policy",
+    "Nothing at all, because Redis fsyncs on every single write",
+    "Everything since the last RDB snapshot was written to disk",
+    "Only those writes which had not yet reached any replica"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Two durability mechanisms, three fsync policies",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0006-redis-is-not-magic.html#two-durability-mechanisms-three-fsync-policies"
+   }
+  },
+  {
+   "id": "0006-q2",
+   "kind": "quiz",
+   "q": "Why can an RDB snapshot hurt your p99 even though the parent process does no disk I/O?",
+   "a": "<p><code>fork()</code> is not free. On a large dataset the kernel has page tables to copy, and the docs warn this can stall Redis for milliseconds or, on a big dataset with weak CPU, up to a second. Since Redis is single-threaded, a stalled process is a stalled cache for every client at once.</p>\n    <p>“Written from scratch” is true and is not the reason — the <em>child</em> does that work, and copy-on-write is precisely the mechanism that keeps it off the parent. The cost is the fork itself, which is why this surprises people who have read that snapshots are asynchronous.</p>",
+   "options": [
+    "Because the fork can pause the main thread noticeably",
+    "Because snapshots are written by the main thread itself",
+    "Because the RDB file gets rewritten entirely from scratch",
+    "Because every client connection is dropped during the save"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Two durability mechanisms, three fsync policies",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0006-redis-is-not-magic.html#two-durability-mechanisms-three-fsync-policies"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“Your Redis restarts. What breaks?”",
+   "a": "<p>Nothing breaks — and that is a deliberate property, not luck. Everything in there is a derived embedding, recomputable in about 167 ms, so a restart is a cold cache and a latency blip on the first request per key. The gateway degrades to the uncached path and keeps serving, which I proved by stopping Redis with the service running.</p>\n        <p>If the answer were “we lose rubric scores”, the fix would not be AOF. It would be that the rubric scores never belonged in a cache.</p>\n        Invites · <b>“How long is that blip, and how many keys deep?” — which is a question about your cold-start thundering herd, so it walks straight into lesson 0005.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“Would you put the rubric scores in Redis?”",
+   "a": "<p>No. They are not derived from anything — if we lose one we cannot recompute it, we have to re-run an evaluation — so the acceptable loss window is zero, and Redis's best offer at a price I would pay is one second.</p>\n        <p>I could take <code>appendfsync always</code> and close it, and it measured 80 000 writes a second, which is plenty. But then I would be paying 0.54 ms of fsync per write to make a cache behave like a database that is already sitting next to it and does this properly, with transactions I also want.</p>\n        Invites · <b>“What would make you change your mind?” — write volume Postgres could not take, and a loss window someone had actually agreed to in writing.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0006-redis-is-not-magic.html#underneath-0006"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“Redis is single-threaded. Is that a problem at your scale?”",
+   "a": "<p>Not at our scale, and single-threaded is mostly why it is fast — no locks, no context switching, and every command is atomic for free, which is what makes a Lua script a usable unit of work.</p>\n        <p>What it does mean is that one slow operation stalls <em>everything</em>. A <code>KEYS *</code> on a large keyspace is an outage, not a slow query. And it makes persistence a latency concern: a <code>fork()</code> for a snapshot pauses the one thread for as long as it takes the kernel to copy the page tables.</p>\n        Invites · <b>“So what is your slowest command?” — the honest answer is that I should have <code>SLOWLOG</code> on a dashboard and do not yet.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Single-threaded, and that is the point",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0006-redis-is-not-magic.html#single-threaded-and-that-is-the-point"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“How would you scale this cache past one node?”",
+   "a": "<p>The first move is not a second node, it is checking whether I need one, because a single Redis is doing 300 000 writes a second on a laptop. If the constraint is memory rather than throughput — which for an embedding cache it will be — then it is Redis Cluster and the keyspace gets hashed across shards.</p>\n        <p>What that costs is multi-key atomicity: my keys are independent single-key <code>GET</code>/<code>SET</code>s, so I get away with it, but the moment anything wants two keys in one transaction they have to share a hash slot.</p>\n        Invites · <b>“How do keys map to shards, and what happens when you add one?” — consistent hashing, and that is lesson 0026, where I implement the ring and measure how many keys move.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  }
+ ]
+}

@@ -1,0 +1,102 @@
+{
+ "lesson": "sds-0017",
+ "label": "SDS 0017",
+ "track": "lld",
+ "title": "The Await Inside the Transaction",
+ "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0017-the-await-inside-the-transaction.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "0017-q1",
+   "kind": "quiz",
+   "q": "A transaction spans the model call, but every worker updates its own row, so no two workers ever contend for a lock. Throughput was still 4.0 instead of 5.5. Why?",
+   "a": "<p>The pool. A transaction cannot move between connections, so the connection is pinned for its whole life — including the second it spends waiting for a model. Twenty-four workers holding a transaction each, against a pool of five, is <strong>lesson 0015's queue arriving through a different door</strong>.</p>\n    <p>This is the cell that makes the bug hard to reason about: removing the obvious resource contention leaves two-thirds of the damage in place. The two costs have to be removed separately, and only shortening the transaction removes both.</p>",
+   "options": [
+    "The transaction holds a pooled connection for the whole call",
+    "Postgres locked the whole table because every row was touched",
+    "The model provider throttled the calls once they all overlapped",
+    "Each worker waited on the deadlock detector before it committed"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "0017-q2",
+   "kind": "quiz",
+   "q": "Two workers lock two rows in opposite orders with a one-second model call in between. The 40P01 arrived after 2 036 ms. What was most of that time?",
+   "a": "<p>About a second of model call and then about a second of <code>deadlock_timeout</code>, because <strong>Postgres does not look for a deadlock until that timer expires</strong>. Detecting the cycle and choosing a victim is sub-millisecond; the waiting in front of it is the entire cost.</p>\n    <p>The compose file sets the timer to one second so the lab is quick. The default is <strong>ten</strong>, which against an eight-second turn budget means the deadlock is reported after the request it belongs to has already failed as a timeout — and so it never appears in the incident write-up at all.</p>",
+   "options": [
+    "Waiting on the deadlock detector, whose timer is one second",
+    "Network round trips to the model provider, which were slow",
+    "Postgres rebuilding its lock table after the conflict was found",
+    "The retry loop running the whole transaction a second time"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "One await, two resources",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0017-the-await-inside-the-transaction.html#one-await-two-resources"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“Walk me through what a request does against the database in your turn path.”",
+   "a": "<p>The important part is what the transaction does <em>not</em> contain: the model call happens first, holding nothing, and the transaction is a write and a commit. It used to be the other way round, which is the version most people write, because wrapping the whole unit of work in one session looks like the careful thing to do.</p>\n        <p>I measured what that cost. Twenty-four concurrent turns went from <strong>0.9 a second to 5.5</strong> by moving one line, and <strong>seventeen of the twenty-four had been blowing the eight-second budget</strong>. The reason is that the transaction holds two scarce things until commit — its row locks and its pooled connection — and an await releases neither.</p>\n        Invites · <b>“What did that break?” — the read and the write stop being atomic, which is the previous lesson's problem.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "One await, two resources",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0017-the-await-inside-the-transaction.html#one-await-two-resources"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“If every worker writes a different row, does the problem go away?”",
+   "a": "<p>It removes half of it. I ran exactly that case — a row per worker, so zero lock contention — and throughput was <strong>4.0 instead of 5.5</strong>. The remaining loss is the connection pool: a transaction cannot span connections, so it pins one for its whole life, and twenty-four transactions holding one each against a pool of five is a queue.</p>\n        <p>Which is the thing worth knowing about this bug: <strong>two resources, two failures, and they have to be removed separately</strong>. Only shortening the transaction removes both, and it removes them regardless of the row layout — the two shortened rows in my table were identical to each other.</p>\n        Invites · <b>“So how big should the pool be?” — which is a Little's law question with a computable answer.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“How would you have found this from monitoring?”",
+   "a": "<p>Not from the database dashboard, which is the problem. CPU is low, the connection count is flat at the pool size, and no query has a bad plan — all correct, because the transaction doing the damage is issuing no statements. The lock waiting shows up in the slow-query log as a slow <code>SELECT</code>, which sends the investigation in the wrong direction.</p>\n        <p>The place it is actually recorded is <code>log_lock_waits</code>, which is <strong>off by default</strong>. With it on I got fifty-three lines in five minutes saying “still waiting for AccessExclusiveLock on tuple … after 1000 ms”. So my answer is: turn it on, and alert on the ratio of request time to query time, because the signature of this class of bug is that the first rises while the second does not.</p>\n        Invites · <b>“What else is off by default that you'd turn on?” — a genuinely good conversation to be invited into.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "One await, two resources",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0017-the-await-inside-the-transaction.html#one-await-two-resources"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“Two of your workers deadlocked. What happened and what do you change?”",
+   "a": "<p>Two transactions took the same two rows in opposite orders, which happens as soon as the rows come from a set rather than from literals. I reproduced it: two workers, two rows, a model call in between, and one of them got <strong>40P01 after about two seconds</strong> — roughly a second of model call and roughly a second of <code>deadlock_timeout</code>, because Postgres does not look for a cycle until that timer expires.</p>\n        <p>Two changes. The structural one is <strong>consistent lock ordering</strong>, which usually means sorting the ids before locking anything — a code convention, not a setting. The one that removes the window entirely is holding no locks across the call, which is the same fix as the rest of this. And the setting matters too: at the default ten-second timeout, the deadlock is reported after an eight-second budget has already expired, so it never appears in the incident at all.</p>\n        Invites · <b>“Would you lower deadlock_timeout then?” — it also controls the lock-wait log, and lowering it costs a check on every waiter.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“You moved the model call out of the transaction. What did that break?”",
+   "a": "<p>Atomicity of the read and the write. The transaction was, incidentally, protecting against the row changing between reading the score and writing it back — so shortening it reopens exactly the lost-update case I can measure separately: eight concurrent writers, final value one, no errors raised.</p>\n        <p>So it is one change rather than two. The transaction gets short <em>and</em> the write stops depending on a remembered value — either a single statement that computes from the current value, or a version check that fails and retries. Shipping only the first half buys six times the throughput and a silent correctness bug, which is a strictly worse trade than the one I started with.</p>\n        Invites · <b>“Which of those two would you pick?” — the single statement, unless the new value is not expressible as a function of the old one.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0017-the-await-inside-the-transaction.html#underneath-0017"
+   }
+  }
+ ]
+}

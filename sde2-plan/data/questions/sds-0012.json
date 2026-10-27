@@ -1,0 +1,108 @@
+{
+ "lesson": "sds-0012",
+ "label": "SDS 0012",
+ "track": "cs",
+ "title": "Timeout Budgets and Deadline Propagation",
+ "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0012-timeout-budgets-and-deadline-propagation.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "0012-q1",
+   "kind": "quiz",
+   "q": "Five stages each honour a 5 s timeout, each retries once, and a turn takes 11 880 ms against an 8 s budget. Which component is misconfigured?",
+   "a": "<p>Nothing is misconfigured, and that is the finding rather than a dodge. Every stage stayed inside its own limit and every retry was permitted. A timeout measures a <em>call</em> and the budget is a property of the <em>request</em>, so no set of per-call limits composes into a per-request guarantee — five 5 s timeouts with one retry each permit a 50 s ceiling, and 11 880 ms is just where the distribution landed.</p>\n    <p>The 1 600 ms answer is tempting and was measured too: it does keep every turn inside the budget, and it <strong>failed 53 of 200 turns</strong>, because an equal slice assumes stages cost the same and that each one's latency is a point rather than a spread.</p>",
+   "options": [
+    "Nothing; a per-call limit cannot bound a request",
+    "The stage timeouts, which should each be 1600ms",
+    "The retry policy, which doubled every stage timeout",
+    "The turn budget, which was set unrealistically low"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0012-timeout-budgets-and-deadline-propagation.html#underneath-0012"
+   }
+  },
+  {
+   "id": "0012-q2",
+   "kind": "quiz",
+   "q": "Propagating one deadline capped the worst turn at 8 001 ms and dropped completions from 200 of 200 to 174 of 200. What happened to those 26 turns?",
+   "a": "<p>They used to return an answer at nine, ten or eleven seconds, to a user promised eight and to a client that had quite possibly given up. Now they fail at the budget. <strong>A deadline converts overruns into failures</strong> — it does not make slow work fast, and any claim that it improved things without this sentence attached is incomplete.</p>\n    <p>Whether that is an improvement is a product decision. If a late answer really is worth more than a fast failure, the correct response is to raise the budget so the promise matches the system, rather than to remove the thing enforcing it.</p>",
+   "options": [
+    "They finished late before; now they fail on time",
+    "They were refused by the retry budget token bucket",
+    "They hit the stage timeout instead of the deadline",
+    "They completed faster and dropped out of the tail"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“You promised an 8-second turn. What enforces it?”",
+   "a": "<p>It was enforced at the edge and nowhere below it, which means it was a measurement rather than a guarantee. Each of five stages had its own timeout, so the ceiling was five times the timeout, doubled again by one retry per stage. With 5 s stage timeouts that is a 50 s ceiling for an 8 s budget, and I measured a worst case of <strong>11 880 ms</strong> with no timeout violated anywhere.</p>\n        <p>The fix is a single absolute deadline built at the edge and passed to every stage, with each bounded by <code>min(its own timeout, remaining)</code>. That put the maximum at <strong>8 001 ms</strong> on every run, and moved the median by about 15 ms — it is a tail intervention, so it costs the common case nothing.</p>\n        Invites · <b>“What did it cost?” — 26 turns of 200 that used to finish late now fail, which is the trade.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Five reasonable timeouts do not add up to one budget",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0012-timeout-budgets-and-deadline-propagation.html#five-reasonable-timeouts-do-not-add-up"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“Why not just set every stage's timeout to the budget divided by the number of stages?”",
+   "a": "<p>I tried it: 8 000 over five stages is 1 600 ms each, and it does keep every turn inside the budget — zero over, out of 200. It also <strong>failed 53 of those 200 turns</strong>, because an equal slice assumes the stages cost the same and that each one's latency is a point rather than a spread. A 1 600 ms limit sits well inside our stage distribution, so it refuses work that would have finished in time.</p>\n        <p>A deadline gets this right without anyone allocating anything: each stage asks what is left, so a stage that runs long simply leaves less for the next one, instead of every stage getting its fixed fifth regardless. That is the real advantage over a static split — it reallocates automatically, in the direction the actual run went.</p>\n        Invites · <b>“So what do you do when a stage runs out?” — fail fast with a distinct error, or degrade, but never extend.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0012-timeout-budgets-and-deadline-propagation.html#underneath-0012"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“How does this interact with your retries?”",
+   "a": "<p>It is what makes the retry arithmetic enforceable. I had worked out that three attempts fit a 1 600 ms stage only while a call stays under <strong>433 ms</strong>, but nothing at runtime knew how much of the slice the earlier attempts had eaten, so the third started regardless. With a deadline, an attempt is checked against the time remaining and refused if it cannot finish — <strong>25 refusals in 200 turns</strong>.</p>\n        <p>The reason to refuse rather than start is that a late attempt is pure load: it costs the provider a full call and returns after anyone stopped caring. The SRE book puts it as checking there is enough time left before each stage, and treats work past a client's deadline as resources spent while no progress is made.</p>\n        Invites · <b>“What about the request already in flight when the deadline passes?” — cancel it, and that is where SSE having no upstream channel bites.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0012-timeout-budgets-and-deadline-propagation.html#underneath-0012"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“Would a bulkhead help here?”",
+   "a": "<p>Not with this problem, no. A bulkhead bounds <em>concurrency</em> — how many calls to one dependency are in flight — so it stops a slow dependency consuming every worker. It bounds nothing about duration, so a turn can still run to fifty seconds inside it.</p>\n        <p>It can actually make the symptom worse. Capping concurrency at 8 when 20 requests arrive means 12 of them wait for a slot <em>before</em> starting their own timeout, and that queueing time is invisible to every per-call limit in the system. I would want all three controls, with each doing its own job: a timeout for one call, a deadline for the request total, and a bulkhead for how many run at once.</p>\n        Invites · <b>“So where does queueing time show up?” — only in an end-to-end measurement, which is why the deadline starts at the edge.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0012-timeout-budgets-and-deadline-propagation.html#underneath-0012"
+   }
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“Where does the deadline physically live once you cross a service boundary?”",
+   "a": "<p>In-process it is an object threaded through the call path, enforced with <code>asyncio.timeout</code> given <code>remaining_ms()</code> rather than a constant. Across a boundary the same instant travels as a header and is rebuilt on the other side — gRPC does it natively with <code>grpc-timeout</code>; over HTTP it is a header you agree on plus middleware that converts it back. Both halves have to exist or the budget stops at your edge.</p>\n        <p>Two details I would not skip. The clock is <code>time.monotonic</code>, never wall clock, because NTP can step a wall clock backwards and a deadline that moves backwards fires early with nothing in the logs to explain it. And “deadline exceeded” is its own error type rather than a generic timeout, because a slow hop might be worth retrying and an expired deadline never is.</p>\n        Invites · <b>“What if a downstream ignores the header?” — then your own deadline still fires, which is why it is enforced on both sides.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0012-timeout-budgets-and-deadline-propagation.html#underneath-0012"
+   }
+  }
+ ]
+}

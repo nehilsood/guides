@@ -1,0 +1,156 @@
+{
+ "lesson": "ip-0020",
+ "label": "IP 0020",
+ "track": "ai",
+ "title": "Who Reads the Failing Test",
+ "url": "https://nehilsood.github.io/guides/interview-prep/guides/0020-who-reads-the-failing-test.html",
+ "plain": [
+  {
+   "title": "In plain words",
+   "url": "https://nehilsood.github.io/guides/interview-prep/guides/0020-who-reads-the-failing-test.html#plain-1"
+  }
+ ],
+ "questions": [
+  {
+   "id": "F1",
+   "kind": "follow-up",
+   "q": "“Isn’t this just SWE-bench being noisy or contaminated?”",
+   "a": "<p>Noise is a reason to put intervals on both numbers, not a reason to dismiss the gap. Contamination is more interesting: if a model has seen the fix, writing it in one shot is exactly what a pipeline asks for, so leakage can favour the pipeline. That is a reason to re-run on fresh issues or your own repositories, not a reason to trust the agent.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F2",
+   "kind": "follow-up",
+   "q": "“So when would you actually ship the pipeline?”",
+   "a": "<p>When the tasks are narrow and alike, when the latency or cost budget is tight, when every run must follow an auditable path, or when I can’t retrain the model and the harness fixes don’t close the gap. Often the answer is both: the pipeline first on easy issues, the agent on the rest.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F3",
+   "kind": "follow-up",
+   "q": "“The model is a vendor API. You can’t retrain it. Now what?”",
+   "a": "<p>Fix the harness side of ε: use the edit format that vendor trained on, truncate and line-number tool output, lint edits before applying them. Then check revise-or-restart. If the model doesn’t use feedback, make the loop restart instead of revise: fresh attempts, chosen by tests. That turns the agent into a sieve, which is what the pipeline was already doing well. Or try a different model.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F4",
+   "kind": "follow-up",
+   "q": "“How do you tell a harness bug from a model gap in a trajectory?”",
+   "a": "<p>Harness bugs repeat. The same tool, the same format error, the same truncated output, across many unrelated issues. Model gaps scatter across tasks and steps. If one bucket is dominated by one tool or one error string, look at the harness first.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Read the trajectories before you decide",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0020-who-reads-the-failing-test.html#read-the-trajectories-before-you-decide"
+   }
+  },
+  {
+   "id": "F5",
+   "kind": "follow-up",
+   "q": "“What does agentic RL actually teach that fine-tuning on patches doesn’t?”",
+   "a": "<p>It rewards whole trajectories by whether the hidden tests pass at the end, so everything in a winning run gets credit: the search that found the file, reading the stack trace, the second edit that differed from the first, and stopping once the tests pass. Fine-tuning on patches only ever shows the last step.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Fix the model, not the loop",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0020-who-reads-the-failing-test.html#fix-the-model-not-the-loop"
+   }
+  },
+  {
+   "id": "F6",
+   "kind": "follow-up",
+   "q": "“Why not just add a retry to the pipeline when tests fail?”",
+   "a": "<p>You can, and it is worth being exact about what kind. “If the tests fail, generate again” is selection, and it works with any model. “Show the model the failure and ask again” is revision, and it only works if the model uses feedback. Check 02 tells you which one to build.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F7",
+   "kind": "follow-up",
+   "q": "“Isn’t more test-time compute always better?”",
+   "a": "<p>Only if the extra attempts are different from each other and you can tell which one is right. Independent samples are diverse by construction. Retries inside one context are correlated with the first mistake, because the wrong patch is sitting right there. Extra compute on correlated attempts buys much less.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Who reads the failing test",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0020-who-reads-the-failing-test.html#who-reads-the-failing-test"
+   }
+  },
+  {
+   "id": "F8",
+   "kind": "follow-up",
+   "q": "“What per-step slip rate is acceptable?”",
+   "a": "<p>Work backwards from run length. For your median run length T, pick ε so that (1 − ε)<sup>T</sup> stays near 0.9. At 40 steps that is about a quarter of a percent per step. Then measure the real ε per tool, because one bad tool usually accounts for most of it.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fundamentals, in plain words first",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0020-who-reads-the-failing-test.html#the-fundamentals-in-plain-words-first"
+   }
+  },
+  {
+   "id": "F9",
+   "kind": "follow-up",
+   "q": "“How do you stop the agent wandering?”",
+   "a": "<p>In the harness, a step budget and a stall detector that notices the same state twice. Guide <a href=\"https://nehilsood.github.io/guides/interview-prep/guides/0001-the-max-iteration-trap.html\">0001</a> has the caveat: a cap is a budget, not a skill. The skill of stopping once the tests pass comes from training, where runs that finish cleanly are the ones that get rewarded.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Four skills a loop needs, and what each looks like in a log",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0020-who-reads-the-failing-test.html#four-skills-a-loop-needs-and-what"
+   }
+  },
+  {
+   "id": "F10",
+   "kind": "follow-up",
+   "q": "“Does this apply outside coding?”",
+   "a": "<p>Anywhere a loop’s feedback has to be read by the model. Coding is the easy case because tests give a clear signal. In computer use the feedback is a screenshot, which is harder to read and easier to misread. Guide <a href=\"https://nehilsood.github.io/guides/interview-prep/guides/0019-the-fifteen-percent.html\">0019</a> is what happens when the only signal is another model’s opinion.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F11",
+   "kind": "follow-up",
+   "q": "“The agent is now five points ahead. Delete the pipeline?”",
+   "a": "<p>No. Five points at what cost? Is the margin still there on fresh issues? And will it still be there after the next model, which also improves the pipeline? Keep it as the floor and the fallback, and re-measure the margin every release.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Keep the pipeline, as the floor",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0020-who-reads-the-failing-test.html#keep-the-pipeline-as-the-floor"
+   }
+  },
+  {
+   "id": "F12",
+   "kind": "follow-up",
+   "q": "“What would you report to leadership?”",
+   "a": "<p>Agent and pipeline at matched cost with intervals, on a fresh set. The failure buckets and how they moved. Revise-versus-restart. Per-step slip rate by tool. Then one sentence: whether the gap is in the harness (we fix it this sprint) or in the model (it needs training, or a different model).</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Five checks, and one is the gate",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0020-who-reads-the-failing-test.html#five-checks-and-one-is-the-gate"
+   }
+  }
+ ]
+}

@@ -1,0 +1,557 @@
+{
+ "lesson": "rm-0001",
+ "label": "RM 0001",
+ "track": "project",
+ "title": "Owning a Vendor-Evaluation Platform",
+ "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "c01-t1",
+   "kind": "toolbox",
+   "q": "What is a container, and what does Kubernetes add on top of one?",
+   "a": "Code by itself does not run. It needs a Python version, libraries, system packages and files on disk. A container is all of that boxed up with the code. The box behaves the same on a laptop and on a server. That kills the entire class of bug where something works for you and fails in production. Kubernetes is the layer above. Once you have twenty containers and four machines, something has to decide what runs where. Kubernetes is that decision, written as software. It places copies, restarts what dies, moves work off a failed machine, and gives the set one stable address. The container is the unit. Kubernetes is the scheduler. Without it, that job is a person with a runbook at three in the morning.",
+   "options": null,
+   "correct": null,
+   "flag": "“Kubernetes is like Docker but bigger.” They are different layers. One packages, the other places.",
+   "teach": {
+    "title": "The shape: one orchestrator, three agents, and a hard rule",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html#the-shape-one-orchestrator-three-agents-and"
+   }
+  },
+  {
+   "id": "c01-t2",
+   "kind": "toolbox",
+   "q": "What is GKE, and what is Google actually running for you?",
+   "a": "Kubernetes is software you could install yourself, and installing it yourself is a full-time job. GKE is Google doing that part. Google owns the control plane, which stores what the cluster should look like and decides placement. They keep it patched and available. You still own what runs on top. What it buys is scheduling and self-healing without a team to keep the cluster alive. It also buys the Google-side wiring, which is how pods reach Cloud SQL and Secret Manager with no password in the chart. Two modes exist. In Standard you own the node pools and machine types. In Autopilot Google owns the nodes too, and that is now the default for new clusters. Know which one you are on, because it changes what you can say about cost.",
+   "options": null,
+   "correct": null,
+   "flag": "“It's managed Kubernetes,” then silence. Managed by whom, down to which layer, is the whole question.",
+   "teach": null
+  },
+  {
+   "id": "c01-t3",
+   "kind": "toolbox",
+   "q": "What is Cloud Run, and why did this workload not stay on it?",
+   "a": "Cloud Run is the serverless way to run the same container images. There is no cluster to create, size or patch. You hand it an image. It starts copies when requests arrive and scales to zero when they stop, so an idle service costs nothing. For most services that is cheaper and simpler than a cluster, and saying so is what proves the GKE choice was a decision. The honest limit is not that it cannot stream. It does WebSockets, and a request can run for sixty minutes. The limit is that every connection is still a request against that clock. And a migration that must land before traffic shifts is not a request at all.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying Cloud Run cannot hold a long connection. It can, for up to an hour, and an interviewer who knows that has just caught you.",
+   "teach": {
+    "title": "Grounding is a schema property, not a prompt property",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html#grounding-is-a-schema-property-not-a"
+   }
+  },
+  {
+   "id": "c01-t4",
+   "kind": "toolbox",
+   "q": "What does Helm give you that plain <code>kubectl apply</code> does not?",
+   "a": "A Kubernetes deployment is not one file. It is a deployment, a service, an ingress, an autoscaler, a secret and a job. Most of them differ between dev and production by a handful of values. Helm turns that pile into one templated package called a chart. Installing it produces one release. The deployment, the autoscaler, the ingress, the external secrets and the migrate job go in together and come back out together. That is the half that matters. One command ships a version and one command puts the previous one back. That is the difference between a rollback taking seconds and a rollback taking an outage. Templating also stops dev and production drifting, because they are the same files with different values. With raw kubectl you apply files one at a time and own the ordering yourself.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling it a templating tool and stopping. The release boundary is the half that matters, because it is what rolls back.",
+   "teach": {
+    "title": "Grounding is a schema property, not a prompt property",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html#grounding-is-a-schema-property-not-a"
+   }
+  },
+  {
+   "id": "c01-t5",
+   "kind": "toolbox",
+   "q": "What is Terraform, and what is Terragrunt for?",
+   "a": "Everything underneath Kubernetes also has to exist. The cluster, the database, the network, the service accounts. Clicking those into being in a console leaves no record of what you did. Terraform is the opposite. You write the infrastructure down in files, it compares them to what the account actually has, and it makes the account match. What that buys is a new environment being a directory of values rather than a week of clicking. It also means every production change arrives as a reviewable diff. Terragrunt is a thin wrapper on top. The same module gets applied once per environment, and Terraform alone makes you copy the backend config and the inputs into each one. Terragrunt keeps one copy and passes the differences in.",
+   "options": null,
+   "correct": null,
+   "flag": "Naming Terragrunt without naming the duplication it removes. If you cannot say what you would otherwise be copying, you did not need it.",
+   "teach": null
+  },
+  {
+   "id": "c01-t6",
+   "kind": "toolbox",
+   "q": "What is an HPA, and what should it scale on here?",
+   "a": "Horizontal means more copies. Vertical would mean a bigger machine. The Horizontal Pod Autoscaler is the controller that changes the number of copies for you. It reads one metric, compares it to a target you set, and moves the replica count. What it buys is sizing for the busy hour without paying for the busy hour all night. It also turns a traffic spike into a slower response rather than a dead service. CPU is the default metric and it is the wrong one for this workload. A box waiting on Gemini looks idle, not busy. So the answer worth giving names a custom metric, such as sessions in flight or queue depth.",
+   "options": null,
+   "correct": null,
+   "flag": "“It scales on load.” Name the metric. CPU on a service that mostly waits scales the wrong thing.",
+   "teach": {
+    "title": "The shape: one orchestrator, three agents, and a hard rule",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html#the-shape-one-orchestrator-three-agents-and"
+   }
+  },
+  {
+   "id": "c01-t7",
+   "kind": "toolbox",
+   "q": "What is FastAPI, and what does async actually buy you in it?",
+   "a": "FastAPI is a Python web framework. You declare what a request and a response look like as Python types, and it does the rest. It rejects bad input with a useful error, converts JSON to objects and back, and generates the API documentation from the same declaration. Validation stops being code you write and forget to update, because the type is the validation. Underneath it runs on ASGI, the async server interface, which is what lets a request handler be a coroutine instead of a blocking function. Async buys concurrency, not speed. One worker can hold hundreds of open requests while each waits on Postgres or on Gemini. It makes no single call faster.",
+   "options": null,
+   "correct": null,
+   "flag": "“Async makes it faster.” It makes it wait better. One blocking line in a coroutine stalls every other request on that worker.",
+   "teach": null
+  },
+  {
+   "id": "c01-t8",
+   "kind": "toolbox",
+   "q": "What changes when SQLAlchemy is used in async mode?",
+   "a": "SQLAlchemy sits between Python objects and database tables. It builds the SQL, maps rows onto classes, and tracks which objects changed so it knows what to write. In async mode the driver stops blocking the event loop while the database answers. The Postgres driver underneath becomes asyncpg rather than psycopg2, and every query is awaited. That is what stops the database being the thing that freezes the loop. Two things then break that do not break in the synchronous version. Lazy loading stops working, because an attribute access cannot await, so relationships load up front instead. And a session belongs to one task at a time, which is why background work opens its own.",
+   "options": null,
+   "correct": null,
+   "flag": "“Same API with await in front.” Lazy loading is the difference that bites, and it bites in production rather than in tests.",
+   "teach": {
+    "title": "The shape: one orchestrator, three agents, and a hard rule",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html#the-shape-one-orchestrator-three-agents-and"
+   }
+  },
+  {
+   "id": "c01-f1",
+   "kind": "fundamentals",
+   "q": "In two sentences, what does this platform do?",
+   "a": "An avatar interviews a software vendor to a fixed script. Afterwards the system checks what they claimed against the public web, and scores the whole conversation against a weighted rubric the buyer wrote. The output is a scorecard. Every number on it traces back to one question, and every claim the vendor made carries a verdict with sources.",
+   "options": null,
+   "correct": null,
+   "flag": "Opening with the technology. “It's a FastAPI service on GKE with Gemini” answers a question nobody asked and tells them nothing about what the thing is for.",
+   "teach": {
+    "title": "The two passes, and why blind comes first",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html#the-two-passes-and-why-blind-comes"
+   }
+  },
+  {
+   "id": "c01-f2",
+   "kind": "fundamentals",
+   "q": "You wrote “owned end-to-end.” What does that actually mean here?",
+   "a": "The data model, the agent pipeline, the gateway the avatar talks to, the scoring arithmetic, and the deployment. Concretely: I chose the rubric versioning scheme. I wrote the orchestrator and the scoring code. I shipped it on GKE with Helm and Terragrunt. It does not mean I was the only engineer. It means no part of the path was handed to someone else to understand for me.",
+   "options": null,
+   "correct": null,
+   "flag": "Letting “owned” stand as a synonym for “worked on.” If you cannot name the specific decisions you made, the word is doing work you did not do.",
+   "teach": {
+    "title": "The shape: one orchestrator, three agents, and a hard rule",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html#the-shape-one-orchestrator-three-agents-and"
+   }
+  },
+  {
+   "id": "c01-f3",
+   "kind": "fundamentals",
+   "q": "Why score the interview at the end rather than per answer?",
+   "a": "Two reasons, one product and one technical. The vendor must never watch a score move while they talk. That changes their behaviour and turns the interview into a negotiation. And judging an answer with the whole conversation in view is simply more accurate. An answer that looked thin at minute three is often completed at minute twenty.",
+   "options": null,
+   "correct": null,
+   "flag": "“For performance.” It is a correctness and product decision that happens to also be cheaper.",
+   "teach": null
+  },
+  {
+   "id": "c01-f4",
+   "kind": "fundamentals",
+   "q": "What problem does the Scout solve that the Evaluator cannot?",
+   "a": "The Evaluator only sees the transcript. So it can grade how well a claim was <em>argued</em>, never whether it is <em>true</em>. The Scout brings in evidence from outside the conversation. Without it, a confident vendor and an accurate vendor score the same. That is the exact failure this product exists to prevent.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing the Scout as “RAG.” It is live web search and verification, not retrieval over a private corpus, and the follow-up will expose the difference.",
+   "teach": {
+    "title": "The two passes, and why blind comes first",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html#the-two-passes-and-why-blind-comes"
+   }
+  },
+  {
+   "id": "c01-f5",
+   "kind": "fundamentals",
+   "q": "What exactly does the Evaluator produce?",
+   "a": "A score per question against that question's own Low/Medium/High anchor prose, with supporting evidence quotes. Those roll up to an unweighted mean per KPI, then to two totals. One Gemini call on the pro-tier model — latency does not matter once the interview is over, so we buy the better judgment.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying “it scores the interview” and stopping. The per-question granularity is the whole reason a scorecard is auditable.",
+   "teach": null
+  },
+  {
+   "id": "c01-f6",
+   "kind": "fundamentals",
+   "q": "Where do the rubric weights live, and who sets them?",
+   "a": "The buyer sets the weights. We never invent one. They live on the topic row inside a specific rubric <em>version</em>, not on the rubric itself. An earlier design shared a single weight row across every domain. Change security's weighting for healthcare and you changed it for retail too. That is the bug the current shape exists to prevent.",
+   "options": null,
+   "correct": null,
+   "flag": "Suggesting the model decides or influences the weights. It does not touch them, and saying otherwise undermines the entire scoring story.",
+   "teach": {
+    "title": "The two passes, and why blind comes first",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html#the-two-passes-and-why-blind-comes"
+   }
+  },
+  {
+   "id": "c01-f7",
+   "kind": "fundamentals",
+   "q": "Why async SQLAlchemy rather than the sync API?",
+   "a": "Because this service spends most of its wall-clock waiting. It waits on Gemini, on Tavily, on page fetches. Under sync IO each of those holds a worker thread. The pipeline fires sixteen concurrent searches and three concurrent model calls in one gather. That shape is only cheap on an event loop.",
+   "options": null,
+   "correct": null,
+   "flag": "“Async is faster.” It is not faster for CPU work at all. It is a concurrency model for IO-bound waiting, and saying which kind of work you have is the answer.",
+   "teach": {
+    "title": "The two passes, and why blind comes first",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html#the-two-passes-and-why-blind-comes"
+   }
+  },
+  {
+   "id": "c01-f8",
+   "kind": "fundamentals",
+   "q": "Why PostgreSQL for this, rather than a document store?",
+   "a": "The core of the data is relational, and the invariants are worth enforcing in the database. A rubric version has topics, topics have questions, and scorecards cite a version. Two of the sharpest rules are partial unique indexes. At most one live version per rubric, and at most one draft. In Mongo you would write that check yourself, and it would be wrong sometimes.",
+   "options": null,
+   "correct": null,
+   "flag": "“It's what we knew.” True of most choices and never the answer; name an invariant the database enforces for you.",
+   "teach": {
+    "title": "Grounding is a schema property, not a prompt property",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html#grounding-is-a-schema-property-not-a"
+   }
+  },
+  {
+   "id": "c01-f9",
+   "kind": "fundamentals",
+   "q": "Why GKE rather than Cloud Run or plain VMs?",
+   "a": "Long-lived streaming connections during interviews, and a migration job that must finish before the new version serves. Helm gives us the deployment, the HPA, ingress, external secrets and that migrate job as one release. Terragrunt provisions the cluster and Cloud SQL beneath it. The predecessor POC ran on Cloud Run. Session lifetime is what moved it off.",
+   "options": null,
+   "correct": null,
+   "flag": "Naming Kubernetes as a default. If your reason does not mention something about <em>this</em> workload, you did not choose it.",
+   "teach": null
+  },
+  {
+   "id": "c01-f10",
+   "kind": "fundamentals",
+   "q": "What is the riskiest part of this system?",
+   "a": "The claims report, because a vendor's score partly depends on it and it is not reproducible. On identical evidence, roughly one claim in five gets a different verdict between runs. Pinning temperature to zero does not fix it. Nearly every flip sits on the NO_DATA versus PARTIAL boundary. That points at the prompt's definition of that line, not at sampling.",
+   "options": null,
+   "correct": null,
+   "flag": "Naming a risk you have already solved. That is a humblebrag, and every interviewer has heard it. Name a live one.",
+   "teach": null
+  },
+  {
+   "id": "c01-d1",
+   "kind": "deep-dive",
+   "q": "Why one orchestrator rather than letting agents delegate to each other?",
+   "a": "Because delegation destroys the three things I need most. One readable control flow. One place to put a deadline. And the ability to test a stage on its own. With agents calling agents, a Scout timeout becomes an Evaluator problem, and you cannot tell from the code which stage owns the budget. The cost is that the orchestrator knows all three signatures. I would pay that again.",
+   "options": null,
+   "correct": null,
+   "flag": "Framing it as a framework choice. It is an architectural constraint that a framework would happily let you violate.",
+   "teach": {
+    "title": "The shape: one orchestrator, three agents, and a hard rule",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html#the-shape-one-orchestrator-three-agents-and"
+   }
+  },
+  {
+   "id": "c01-d2",
+   "kind": "deep-dive",
+   "q": "Walk me through what the scoring model is and is not allowed to decide.",
+   "a": "It proposes a band and a number per question, with evidence quotes. Everything after that is code. The number gets clamped into the band the model itself chose. Questions that were never asked are dropped. An asked question the model called unanswered is excluded from its KPI rather than scored one. Each KPI is the unweighted mean of its answered questions. The weighting and the totals are arithmetic I wrote.",
+   "options": null,
+   "correct": null,
+   "flag": "Letting the model produce the final number. The moment it does, the score is unauditable and nobody can explain a disagreement to a vendor.",
+   "teach": {
+    "title": "Grounding is a schema property, not a prompt property",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html#grounding-is-a-schema-property-not-a"
+   }
+  },
+  {
+   "id": "c01-d3",
+   "kind": "deep-dive",
+   "q": "Why ask for a band first and then an integer, rather than a 1–5 score directly?",
+   "a": "Because the rubric's own tables collapse the 1–2 pair and the 4–5 pair. Nothing in the document tells a 1 apart from a 2 in words. A bare 1-to-5 ask therefore piles up on the midpoints of prose that actually exists. Choosing from the anchors that are written, then refining inside that band, is more faithful to the document. It is also more reliable run to run.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling it prompt engineering. It is a fix for a mismatch between the output space and the rubric's real granularity.",
+   "teach": null
+  },
+  {
+   "id": "c01-d4",
+   "kind": "deep-dive",
+   "q": "You report two totals. Why is one not enough?",
+   "a": "They answer different questions. Earned-out-of-100 is the sum of the per-KPI point rows, so the headline can never disagree with the rows beneath it. The other is a weighted mean over only the KPIs that had data. Its weights are renormalised to sum to one. It says how well the part that was actually asked scored. The two are equal under full coverage and diverge when questions went unasked, which is exactly when a reader needs both.",
+   "options": null,
+   "correct": null,
+   "flag": "Reporting only the renormalised figure. It flatters a short interview, and a vendor who ran out of time would out-score one who answered everything.",
+   "teach": null
+  },
+  {
+   "id": "c01-d5",
+   "kind": "deep-dive",
+   "q": "Defend running a blind research pass. Is it not wasted work when you have the transcript?",
+   "a": "The opposite. It is the only pass the vendor cannot manipulate. If all research is targeted at claims, the evidence base is chosen by the person under examination. Anything they carefully never mention is never checked. The blind pass is what finds the controversy they did not raise. That is also why the controversies query survived a cull that merged or dropped three others.",
+   "options": null,
+   "correct": null,
+   "flag": "Justifying it on latency or cache warming. The argument is adversarial, not performance.",
+   "teach": {
+    "title": "The two passes, and why blind comes first",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html#the-two-passes-and-why-blind-comes"
+   }
+  },
+  {
+   "id": "c01-d6",
+   "kind": "deep-dive",
+   "q": "How do you actually stop the Scout asserting something with no source?",
+   "a": "The output schema has no shape for it. A claim carries a status and a sources array of name, url and text, and the decoder enforces that. But I would state the limit in the same breath. A schema constrains shape, never string values. So nothing structurally prevents a URL that was not in the evidence. We measure that as a fabrication rate rather than assuming it away.",
+   "options": null,
+   "correct": null,
+   "flag": "Claiming the schema makes hallucination impossible. It makes <em>omission</em> impossible. Those are different, and the interviewer knows it.",
+   "teach": {
+    "title": "Grounding is a schema property, not a prompt property",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html#grounding-is-a-schema-property-not-a"
+   }
+  },
+  {
+   "id": "c01-d7",
+   "kind": "deep-dive",
+   "q": "The Scout judges claims and the Evaluator scores. Who checks them?",
+   "a": "A bake-off script. It replays one real evidence payload through the actual report function, with only the model swapped. The evidence is fixed and the model is the single variable. It reports label-free metrics: citations naming a URL not in the evidence, verified claims lacking independent support, and verdict instability across an arm's own runs. It found the pro model is meaningfully more conservative than flash. Flash's error direction is the dangerous one, calling unverifiable things partially supported.",
+   "options": null,
+   "correct": null,
+   "flag": "“We used LLM-as-a-judge.” The next question is always “your judge is also a model — how do you know it's right?” Have the metric that needs no labels ready first.",
+   "teach": null
+  },
+  {
+   "id": "c01-d8",
+   "kind": "deep-dive",
+   "q": "Why does everything hang off a rubric <em>version</em> rather than the rubric?",
+   "a": "So that editing a draft never touches what the live version is scoring against. And so every scorecard records the exact version that produced it. A locked version is a permanent, citable snapshot. The database enforces at most one live and one draft per rubric, with partial unique indexes. Immutability of a locked version's children is a service-layer invariant, because this repo deliberately has no trigger-migration tooling.",
+   "options": null,
+   "correct": null,
+   "flag": "Not being able to say what happens to old scorecards when the rubric changes. That is the question the versioning exists to answer.",
+   "teach": {
+    "title": "Grounding is a schema property, not a prompt property",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html#grounding-is-a-schema-property-not-a"
+   }
+  },
+  {
+   "id": "c01-d9",
+   "kind": "deep-dive",
+   "q": "You said the pipeline opens its own DB session. Why is that not just a code-style choice?",
+   "a": "Because the session middleware opens one session per request. It commits or rolls back when the request ends. The pipeline is a background task, handed off before the response returns. By the time it writes, that session is closed. Using it is a use-after-free with a friendly error message. Nine places in the codebase do this, and all nine are work that outlives its request.",
+   "options": null,
+   "correct": null,
+   "flag": "“We pass the session in.” That is the bug this rule exists to prevent, and it fails only under the timing where it matters.",
+   "teach": {
+    "title": "The shape: one orchestrator, three agents, and a hard rule",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html#the-shape-one-orchestrator-three-agents-and"
+   }
+  },
+  {
+   "id": "c01-d10",
+   "kind": "deep-dive",
+   "q": "Three Gemini calls in one gather. Why not just run them in order?",
+   "a": "Because each carries the same retry ladder, and run one after another they blow the deadline outright. The worst case only fits because they overlap. None of them depends on another's output. All three judge the same gathered sources, which is why the payload is truncated once up front rather than three times. Adding a fourth call to that gather means redoing the budget arithmetic first.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling it an optimisation. If it were, you could remove it and be slower. Remove this and you are <em>broken</em>, which is a different class of decision.",
+   "teach": {
+    "title": "The two passes, and why blind comes first",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html#the-two-passes-and-why-blind-comes"
+   }
+  },
+  {
+   "id": "c01-d11",
+   "kind": "deep-dive",
+   "q": "Where are outbound request limits enforced, and why there?",
+   "a": "At the two clients, search and page fetch. Those are the only two places an outbound request is actually made. Everything above them is a gather over one of the two. Both caps sit deliberately above today's peak. They are guardrails against a future fan-out, not throttles on this one, and tests fail if a new source turns them into throttles.",
+   "options": null,
+   "correct": null,
+   "flag": "Putting the limit at the fan-out. Then every new call site needs its own, and the one that forgets is the one that takes down the upstream.",
+   "teach": null
+  },
+  {
+   "id": "c01-d12",
+   "kind": "deep-dive",
+   "q": "Tell me about something you removed from this system.",
+   "a": "The Scout used to read attached documents. I removed the data path, and I can say exactly what it cost. The document-contradiction check is effectively gone — catching a vendor whose spoken answer contradicted their own brochure. Nothing else in the pipeline looks for that inconsistency. The prompts kept the dead text for nine days deliberately, because editing them would also have changed two other surfaces. That debt was paid separately.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing a removal as pure cleanup. Every real removal cost something; naming the cost is what makes the story credible.",
+   "teach": null
+  },
+  {
+   "id": "c01-e1",
+   "kind": "edges",
+   "q": "The Scout hangs. What does the vendor see?",
+   "a": "A scorecard, with no research section. The pipeline holds a hard deadline and a catch-all around the Scout. That is deliberate: research failing must never cost an interview its scorecard. The Evaluator falls back to the raw claim list when no report is available. The internal ladder is sized to fit inside that deadline with headroom, and a test pins that arithmetic rather than leaving it to a comment.",
+   "options": null,
+   "correct": null,
+   "flag": "“It retries.” The interesting answer is what the user gets when retries are exhausted, and which component owns the budget.",
+   "teach": null
+  },
+  {
+   "id": "c01-e2",
+   "kind": "edges",
+   "q": "How would you detect the empty-because-unsearched failure in production?",
+   "a": "You cannot detect it from the report, which is the point. It has to be caught at the client. A search client returning zero results for <em>every</em> query in a run is a different event from a query with no hits. Only the client can tell those apart. Soft-fail should still soft-fail. But it should emit a distinguishable signal rather than an absence.",
+   "options": null,
+   "correct": null,
+   "flag": "Proposing to make it hard-fail. That trades a rare silent-bad-report for a common lost-scorecard, which is the worse trade for this product.",
+   "teach": {
+    "title": "Grounding is a schema property, not a prompt property",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html#grounding-is-a-schema-property-not-a"
+   }
+  },
+  {
+   "id": "c01-e3",
+   "kind": "edges",
+   "q": "You said verdicts are not reproducible. Why is that not disqualifying?",
+   "a": "Because of where the instability sits. Roughly one claim in five flips between runs on identical evidence. Nearly every flip is on the NO_DATA versus PARTIAL boundary, not verified versus contradicted. That points at the prompt's definition of that line rather than at the sampler. It is also why pinning temperature did not fix it. It is open, it is visible, and a test guards the negative result from being quietly tidied away.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying temperature zero makes it deterministic. It was tried and measured, and it did not.",
+   "teach": {
+    "title": "Grounding is a schema property, not a prompt property",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html#grounding-is-a-schema-property-not-a"
+   }
+  },
+  {
+   "id": "c01-e4",
+   "kind": "edges",
+   "q": "An interview runs out of time with a third of the questions unasked. What happens to the score?",
+   "a": "Unasked questions are dropped rather than scored zero. The KPIs they belonged to lose data, and the two totals diverge. Earned-out-of-100 falls, because fewer points were available. The weighted mean over answered KPIs stays meaningful. Showing both is what stops a short interview reading as a bad vendor, or a good one.",
+   "options": null,
+   "correct": null,
+   "flag": "Scoring an unasked question as the minimum. That punishes the vendor for our scheduling, and it is indefensible in front of them.",
+   "teach": {
+    "title": "Grounding is a schema property, not a prompt property",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html#grounding-is-a-schema-property-not-a"
+   }
+  },
+  {
+   "id": "c01-e5",
+   "kind": "edges",
+   "q": "Tell me about a timeout you got wrong.",
+   "a": "Several, in both directions, and the lesson generalises. Two retry ladders were sized by extrapolating from a probe of a <em>different</em> prompt. When the real calls were finally timed, one budget was about four times its true ceiling and another about eleven. Separately, a synthesis budget cut straight through the middle of the model's latency distribution, so some runs lost the report entirely. The trap is that <strong>sizing a budget from runs that budget already truncated is circular</strong>. You have to raise it out of the way before you measure.",
+   "options": null,
+   "correct": null,
+   "flag": "Only telling the too-small story. A ladder that is too wide costs headroom silently, exactly as a narrow one costs evidence loudly, and noticing both is the senior version.",
+   "teach": {
+    "title": "The two passes, and why blind comes first",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html#the-two-passes-and-why-blind-comes"
+   }
+  },
+  {
+   "id": "c01-e6",
+   "kind": "edges",
+   "q": "A module-level asyncio Semaphore — what is wrong with it?",
+   "a": "It binds to an event loop on the first <em>wait</em>, not the first acquire. So the naive version works perfectly until two callers actually queue, and then raises from deep inside the HTTP client. That is a load-dependent failure in the one component whose entire job is to engage under load. Ours rebinds per event loop for exactly that reason.",
+   "options": null,
+   "correct": null,
+   "flag": "Not knowing why it passes tests. Single-caller tests never queue, so the bug is invisible until production concurrency.",
+   "teach": null
+  },
+  {
+   "id": "c01-e7",
+   "kind": "edges",
+   "q": "There is a parameter the Scout accepts and ignores. Why would you leave that?",
+   "a": "Because the caller passes it positionally, and changing the signature was outside that change's scope. Removing it would have meant touching the orchestrator in a change about the Scout. It is documented as a trap in the function's own docstring. A test pins it, asserting documents are inert, including that a document containing a URL no longer produces a lookup. It is still debt: deliberate, bounded, and written down.",
+   "options": null,
+   "correct": null,
+   "flag": "Defending it as fine. It is a trap; the defensible part is that it is a <em>labelled</em> trap with a test around it.",
+   "teach": {
+    "title": "The shape: one orchestrator, three agents, and a hard rule",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html#the-shape-one-orchestrator-three-agents-and"
+   }
+  },
+  {
+   "id": "c01-e8",
+   "kind": "edges",
+   "q": "A hundred times the interviews. What breaks first?",
+   "a": "Not the database and not the pods. The outbound research. Every interview fans out to search and page fetches against third-party APIs with their own rate limits. Our caps sit above current peak by design, so they do not throttle until they become the thing being hit. Past that, the searches queue instead of flying concurrently. That turns a payload-size cap into a wall-clock cost and eats the gather budget. The fix is admission control on the pipeline, not more replicas.",
+   "options": null,
+   "correct": null,
+   "flag": "“Add replicas and a queue.” Replicas multiply the outbound fan-out, which is the actual constraint. Name the bottleneck before naming the remedy.",
+   "teach": {
+    "title": "The two passes, and why blind comes first",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html#the-two-passes-and-why-blind-comes"
+   }
+  },
+  {
+   "id": "0001-q1",
+   "kind": "quiz",
+   "q": "The Evaluator returns a score of 4 for a question, having chosen the Medium band. What does the code do?",
+   "a": "<p>Clamped. The model proposes a band <em>and then</em> an integer inside it, and the arithmetic in code holds it to its own choice — the band came from prose that actually exists in the rubric, so it is the more trustworthy half of the answer.</p>\n    <p>Accepting the raw number is the tempting one, and it is how you get a score nobody can defend to a vendor: the anchor prose said Medium, the scorecard says High, and there is no artefact that explains the gap. Dropping the question is what happens to questions that were never <em>asked</em> — a different case entirely.</p>",
+   "options": [
+    "Clamps the number into the band it already chose",
+    "Accepts the number and discards the band it chose",
+    "Retries the call until the band matches the number",
+    "Drops the question entirely from its own scoring row"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "The two passes, and why blind comes first",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html#the-two-passes-and-why-blind-comes"
+   }
+  },
+  {
+   "id": "0001-q2",
+   "kind": "quiz",
+   "q": "Tavily's API key is missing in production. What does the Scout report look like?",
+   "a": "<p>Confident and empty. Search soft-fails to no results rather than erroring, so the Scout still returns success with a report that states nothing was found — having never looked. <strong>Nothing downstream can distinguish that from genuine absence.</strong> The key is a correctness dependency, not a quality one, and if reports look plausible but thin this is the first thing to check.</p>\n    <p>This is the most instructive failure in the system, because every layer behaves exactly as designed and the output is still wrong. Soft-failing protects the scorecard from a research outage, and the price is that a total research outage is indistinguishable from a vendor with no public footprint.</p>",
+   "options": [
+    "Confident and empty, because search soft-fails to no results",
+    "Absent entirely, because the pipeline aborts on missing keys",
+    "Delayed but complete, because the fetcher retries every query",
+    "Partial and flagged, because missing keys raise a warning"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "The two passes, and why blind comes first",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html#the-two-passes-and-why-blind-comes"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“Who does the arithmetic — the model or your code?”",
+   "a": "<p>The model proposes a band and an integer with evidence quotes. Everything downstream is code: clamp into the model's own band, drop unasked questions, exclude rather than zero an unanswered one, unweighted mean per KPI, then two totals. The reason is that a vendor may lose a contract over this number and will ask why — so it has to decompose into a question, a band, and a line of prose in a named rubric version.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Grounding is a schema property, not a prompt property",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html#grounding-is-a-schema-property-not-a"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“Why is the research pass blind? You have the transcript right there.”",
+   "a": "<p>Because if every search is derived from what they said, the vendor picks the evidence base by choosing what to claim, and anything they never mention is never checked. The blind pass is the half they cannot steer — it is what finds the controversy nobody raised.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The two passes, and why blind comes first",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html#the-two-passes-and-why-blind-comes"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“What happens if your search provider is down?”",
+   "a": "<p>The interview still gets its scorecard, because the Scout is deadline-wrapped and soft-fails — research failing must never cost a scorecard. The uncomfortable part is what the report looks like: confident and empty, because search soft-fails to no results, and nothing downstream can distinguish that from a vendor with no public footprint. It has to be caught at the client, because by the time it is a report the information is gone.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The two passes, and why blind comes first",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0001-vendor-evaluation-platform.html#the-two-passes-and-why-blind-comes"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“Your system has a model judging claims. How do you know the judge is right?”",
+   "a": "<p>Three label-free metrics from a replay harness that fixes the evidence and varies only the model: citations naming a URL not in the evidence, verified claims lacking independent support, and verdict instability across repeated runs of the same arm. That last one is how we found that roughly a fifth of verdicts flip on identical evidence — a result we would never have got from eyeballing outputs.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“How would you take this to a hundred times the volume?”",
+   "a": "<p>Outbound research breaks first, not the pods or the database — every interview fans out to third-party search and fetch with their own rate limits. More replicas multiply exactly the thing that is constrained. So: admission control on the pipeline, a shared budget across replicas rather than per-process caps, and probably an evidence cache keyed on the vendor, since the blind pass for one company is identical across interviews.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  }
+ ]
+}

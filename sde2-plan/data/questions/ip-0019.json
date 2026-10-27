@@ -1,0 +1,162 @@
+{
+ "lesson": "ip-0019",
+ "label": "IP 0019",
+ "track": "ai",
+ "title": "The Fifteen Percent",
+ "url": "https://nehilsood.github.io/guides/interview-prep/guides/0019-the-fifteen-percent.html",
+ "plain": [
+  {
+   "title": "In plain words",
+   "url": "https://nehilsood.github.io/guides/interview-prep/guides/0019-the-fifteen-percent.html#plain-1"
+  }
+ ],
+ "questions": [
+  {
+   "id": "F1",
+   "kind": "follow-up",
+   "q": "“Human annotators only agree about 85% of the time too. Isn’t the judge as good as a person?”",
+   "a": "<p>As a measurement, possibly. As a reward, the question is not how often it disagrees but <strong>where</strong>. People disagree on genuinely ambiguous runs, and those disagreements don’t point anywhere a policy can go. The judge’s errors cluster on mechanical blind spots: off-screen state, believing the agent, pages that look finished. A policy can move toward those. And human-level agreement measured on unoptimised runs says nothing about the judge on runs produced to please it.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The answer, at three lengths",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0019-the-fifteen-percent.html#the-answer-at-three-lengths"
+   }
+  },
+  {
+   "id": "F2",
+   "kind": "follow-up",
+   "q": "“Why do false passes matter more than false fails?”",
+   "a": "<p>A false pass reinforces a behaviour that failed, so the policy does more of it, and it gets passed again. That loop feeds itself. A false fail withholds reward from a success, which slows learning and suppresses some valid routes, but it doesn’t create a new behaviour. Egashira et al. measured it: systematic false fails behaved like random noise, and systematic false passes caused plateaus and collapse. ZeroGUI’s authors reached the same conclusion from their ablation.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "It has been measured",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0019-the-fifteen-percent.html#it-has-been-measured"
+   }
+  },
+  {
+   "id": "F3",
+   "kind": "follow-up",
+   "q": "“The reward curve is going up. How would you know it is hacking?”",
+   "a": "<p>The curve can’t tell you, because it rises in both cases. Three things can. Agreement measured on the current policy’s paid runs, against people or against a checker slice. The judge-versus-checker gap on tasks that do have checkers, which is exactly how SeekJudge measured its 25-point gap. And behavioural signatures: episodes getting shorter, final messages converging on one phrasing, the same final screen showing up across different tasks.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Make the judge harder to fool, then watch it",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0019-the-fifteen-percent.html#make-the-judge-harder-to-fool-then"
+   }
+  },
+  {
+   "id": "F4",
+   "kind": "follow-up",
+   "q": "“How many human labels do you need for the audit?”",
+   "a": "<p>Fewer than people expect, because you only need to see a change, not estimate everything. With 200 labels, an 85% agreement has a 95% interval of about ±5 points. To notice precision dropping from 79% to 69% you need roughly 300 paid runs per checkpoint. Spend them on what the judge <strong>paid for</strong>, top scores oversampled, because that is where the hacks are. And keep a verifiable slice so most of the monitoring needs no people at all.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Five checks, and one is the gate",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0019-the-fifteen-percent.html#five-checks-and-one-is-the-gate"
+   }
+  },
+  {
+   "id": "F5",
+   "kind": "follow-up",
+   "q": "“Why not just show the judge everything, including the agent’s reasoning?”",
+   "a": "<p>Because more input isn’t more evidence if the policy wrote it. The agent’s message and reasoning are the one channel the policy controls word by word. OSReward found judges lean on that text far more than on the screenshots, and ZeroGUI found adding it cut precision. Show the judge things the environment produced, and give the agent’s claim only as a value to check when the task requires an answer.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F6",
+   "kind": "follow-up",
+   "q": "“Would a step-level judge, a process reward model, help?”",
+   "a": "<p>For credit assignment, yes: dense rewards help on long tasks. For safety it adds surface, because every step judgement is another place to look right without being right. If I used one, I would still gate the total on the outcome judgement and audit both. Treat it as a way to spread a trusted outcome signal across steps, not as a replacement for it.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What they are actually testing",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0019-the-fifteen-percent.html#what-they-are-actually-testing"
+   }
+  },
+  {
+   "id": "F7",
+   "kind": "follow-up",
+   "q": "“Why not use the judge to filter data instead of as an RL reward?”",
+   "a": "<p>It is a good middle ground and often the right first step. Rejection sampling, or fine-tuning only on runs the judge approves, still optimises against the judge, but more weakly: it chooses among what the policy already does instead of searching for new behaviour. Pan et al. used their evaluators for filtered behaviour cloning on device control (about 75% relative improvement) and for inference-time retries on WebArena (up to 29%). It finds fewer blind spots because it searches less. The trade-off is that it also discovers fewer genuinely new strategies.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Make the judge harder to fool, then watch it",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0019-the-fifteen-percent.html#make-the-judge-harder-to-fool-then"
+   }
+  },
+  {
+   "id": "F8",
+   "kind": "follow-up",
+   "q": "“Couldn’t you just train the judge against the policy as you go?”",
+   "a": "<p>Yes, and it is one of the better fixes: collect the runs where judge and auditor disagree, add them to the judge’s training or fake set, and refresh. UI-Genie did three rounds and both the reward model and the agent improved a lot. The costs are human labels on the new failures and a moving reward that makes training less stable. The condition is that you refresh faster than the policy finds the next blind spot. Each refresh is a new judge, so pin and re-calibrate it.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Make the judge harder to fool, then watch it",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0019-the-fifteen-percent.html#make-the-judge-harder-to-fool-then"
+   }
+  },
+  {
+   "id": "F9",
+   "kind": "follow-up",
+   "q": "“You said there’s no programmatic verifier. Then where does your checker slice come from?”",
+   "a": "<p>“No verifier for every task” is not “no verifier for any task”. Sandbox copies of a few apps where you can read the state, tasks with a checkable final value (a price, a filename), benchmark tasks like OSWorld’s with their own checkers. Ten percent of the training mix with real checkers is enough to measure the judge continuously on the policy’s own behaviour. And many “unverifiable” tasks have a checkable part, which can go into the checklist as code.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Make the judge harder to fool, then watch it",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0019-the-fifteen-percent.html#make-the-judge-harder-to-fool-then"
+   }
+  },
+  {
+   "id": "F10",
+   "kind": "follow-up",
+   "q": "“Is there any setting where 85% would be safe?”",
+   "a": "<p>Yes: when the judge’s errors don’t depend on anything the policy can influence. Then section 04’s case 1 applies and you only pay in sample efficiency. You can test for it: the predictability probe. If a classifier can’t predict the judge’s mistakes from features of the run, the errors look like noise. It is rarely true for a screenshot judge, because its inputs are produced by the policy’s own actions, but it is a measurable claim, not a belief.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F11",
+   "kind": "follow-up",
+   "q": "“Why does agreement on the original calibration set stay at 85% if the judge is being hacked?”",
+   "a": "<p>Because nothing about the judge changed. The calibration set is old runs, and the judge grades them exactly as before. What changed is which runs the judge is now grading. That is the most common way teams miss this: they re-validate the judge on the frozen set, see 85%, and conclude it is fine. Agreement has to be measured on samples from the current policy or it measures nothing that matters.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Noise or a map",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0019-the-fifteen-percent.html#noise-or-a-map"
+   }
+  },
+  {
+   "id": "F12",
+   "kind": "follow-up",
+   "q": "“What would you report to leadership at the end of training?”",
+   "a": "<p>Not the judge’s success rate. I would report audited success on the final policy with an interval, the checker-slice success next to the judge’s score on the same tasks, agreement on current runs by checkpoint, the hacks we found and what we changed, and the fake-set pass rates before and after. If the judge score and the audited score are close, the training worked. If they have drifted apart, the gap is the headline, whatever the reward curve says.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  }
+ ]
+}

@@ -1,0 +1,108 @@
+{
+ "lesson": "sds-0015",
+ "label": "SDS 0015",
+ "track": "hld",
+ "title": "The Wait No Timeout Can See",
+ "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0015-the-wait-no-timeout-can-see.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "0015-q1",
+   "kind": "quiz",
+   "q": "A pool of five against forty concurrent requests. The median query took 91 ms and the median request took 454 ms. Where did the other 363 ms go?",
+   "a": "<p>Queueing for a connection, inside the application process. The query column across the whole sweep is 97, 91, 92, 94, 110 ms — <strong>flat, with the largest value in the fastest row</strong>. The database did identical work at identical speed while the request p99 moved by a factor of seventeen.</p>\n    <p>This is why the pair of facts matters more than either one: request latency rising while query latency stays flat locates the problem between them. Every database-side instrument agrees the database is healthy, and every one of them is correct.</p>",
+   "options": [
+    "Waiting for a connection, before any query ran",
+    "Inside the database, which slowed under the load",
+    "In the network between the pool and Postgres",
+    "Parsing the statement again on every single call"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "The queue nobody put in the design",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0015-the-wait-no-timeout-can-see.html#the-queue-nobody-put-in-the-design"
+   }
+  },
+  {
+   "id": "0015-q2",
+   "kind": "quiz",
+   "q": "Twelve asyncpg clients through pgbouncer in transaction mode fail with <code>prepared statement \"__asyncpg_stmt_d__\" does not exist</code>. What is actually wrong?",
+   "a": "<p>Both components did exactly what they document. The driver prepared the statement on the backend it was given; the proxy took that backend back at the end of the transaction and handed the client a different one for the next. The error message is <strong>literally true</strong> — on that connection, the statement does not exist.</p>\n    <p>There are two fixes and they live in different components: <code>statement_cache_size=0</code> in the driver, which costs about 0.1 ms per query forever, or <code>max_prepared_statements</code> in the proxy, which costs nothing and needs PgBouncer 1.22 or later. Knowing there are two is the part that is worth having.</p>",
+   "options": [
+    "Nothing broke; the statement moved between server connections",
+    "The asyncpg driver caches statements far too aggressively",
+    "Postgres cannot prepare statements behind any connection proxy",
+    "Twelve clients simply overwhelmed a four-connection server pool"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0015-the-wait-no-timeout-can-see.html#underneath-0015"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“What is your connection pool size, and where did the number come from?”",
+   "a": "<p>It comes from Little's law: the pool is the concurrency limit, so the ceiling is pool size divided by how long a connection is held. I measured the hold time at about 91 ms for our read path, so five connections caps a replica at roughly <strong>55 requests a second</strong>, and 53 is what arrived.</p>\n        <p>The reason it matters more in an async service is that nothing else limits the requests in flight. A threaded app with twenty workers can never ask for a twenty-first connection; an async one asks for as many as there are requests, so the pool becomes the queue. At the default of five under forty concurrent requests, <strong>eighty per cent of the median request was spent waiting for a connection</strong> and the query time never moved.</p>\n        Invites · <b>“So why not make it enormous?” — because every connection is a Postgres backend process, and the limit is shared across replicas.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0015-the-wait-no-timeout-can-see.html#underneath-0015"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“Request latency is up but every query is fast. Where do you look?”",
+   "a": "<p>Between the two, and there are only a few candidates: the connection pool, a proxy, or the event loop being blocked. I would measure checkout time directly, because nothing measures it by default — time the call that acquires a connection, separately from the query.</p>\n        <p>The reason it hides so well is that it is on the wrong side of every database instrument. The query log has no statement to record, <code>pg_stat_statements</code> has no execution, and the connection count is flat at the pool size, which reads as stable rather than saturated. Even the per-stage timeout misses it, because that wraps a call which has not started. I have measured this one: 363 ms of a 454 ms request, with the database idle.</p>\n        Invites · <b>“How would you have alerted on it?” — on the ratio of request time to query time, not on either alone.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“You have six replicas. How many connections is that, and is it a problem?”",
+   "a": "<p>Fifteen per replica at SQLAlchemy's defaults, because the ceiling is <code>pool_size</code> plus <code>max_overflow</code>, so ninety. Against a default <code>max_connections</code> of 100 with a few reserved for superusers, the <strong>seventh replica is the one that cannot start</strong> — and it fails at deploy time rather than under load, which is why it surprises people.</p>\n        <p>The fix is not a bigger <code>max_connections</code>, because each connection is a backend process with its own work memory, so you are trading a hard limit for a memory ceiling and a slower server. It is a transaction pooler, which decouples client connections from server connections — two hundred clients over four backends in the configuration I have been running. That has its own cost, which is the next question.</p>\n        Invites · <b>“What does the pooler break?” — anything the server remembers between transactions.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0015-the-wait-no-timeout-can-see.html#underneath-0015"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“What breaks when you put pgbouncer in transaction mode in front of an app?”",
+   "a": "<p>Anything the server remembers between transactions, because a backend is lent for one transaction and then handed to somebody else. That is prepared statements, session-level <code>SET</code>, temporary tables, <code>LISTEN</code>/<code>NOTIFY</code> and session-scoped advisory locks — and the list falls out of the one sentence rather than needing to be memorised.</p>\n        <p>Prepared statements are the one you hit first, because a fast driver creates them without being asked. I measured it: twelve asyncpg clients through a transaction pooler, and <strong>nine to twelve of twelve fail per run</strong> with “prepared statement does not exist”. The survivors are the ones that happened to land back on the same backend, which is exactly the variability that gets it filed as a flake in staging.</p>\n        Invites · <b>“How do you fix it?” — in the driver or in the proxy, and the two have different prices.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0015-the-wait-no-timeout-can-see.html#underneath-0015"
+   }
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“Would you bound the wait for a connection, and at what?”",
+   "a": "<p>At what is <em>left</em> of the request deadline when the connection is asked for, not at the budget. I measured all three: the default of thirty seconds and a bound set to the whole eight-second budget produced <strong>identical results</strong> — 160 of 160 served, p99 about three seconds — because the wait was shorter than either. A bound above every other bound in the system is a configuration entry with no behaviour.</p>\n        <p>And bounding it too tightly is worse than not bounding it. At half a second the same run refused <strong>130 of 160</strong> requests that would have finished comfortably inside the budget. That is the opposite verdict from the load-shedding lesson, and the thing that distinguishes them is whether the queued work is already dead: there the queue was deeper than the budget, so refusing cost nothing.</p>\n        Invites · <b>“So how do you know what's left?” — you propagate it, which is the deadline object from two lessons ago.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The queue nobody put in the design",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0015-the-wait-no-timeout-can-see.html#the-queue-nobody-put-in-the-design"
+   }
+  }
+ ]
+}

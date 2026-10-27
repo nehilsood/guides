@@ -1,0 +1,111 @@
+{
+ "lesson": "sds-0014",
+ "label": "SDS 0014",
+ "track": "cs",
+ "title": "Idempotency Is a Key and a Clock",
+ "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0014-idempotency-is-a-key-and-a-clock.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "0014-q1",
+   "kind": "quiz",
+   "q": "With no unique constraint, sixteen concurrent duplicates of one key ran through a read-then-write idempotency check. How many applied the side effect?",
+   "a": "<p>All sixteen, and the sweep shows the count tracking the caller count exactly from <strong>two</strong> upward. Every caller executed its SELECT before any caller executed its INSERT, so all sixteen saw no row, all sixteen recorded the key, and all sixteen did the work. No exception was raised and nothing in the logs was unusual.</p>\n    <p>Worth knowing that the first version of this measurement reported <strong>1 applied</strong>, and was wrong. The connection pool was cold, so establishing connections serialised the callers and they never actually overlapped. The instrument failed in the reassuring direction, which is the direction to distrust.</p>",
+   "options": [
+    "All sixteen, since every caller read an empty table",
+    "Just one, since the first insert always wins here",
+    "About half, since the callers paired up by chance",
+    "None of them, because the state column blocked it"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "The window between the read and the write",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0014-idempotency-is-a-key-and-a-clock.html#the-window-between-the-read-and-the"
+   }
+  },
+  {
+   "id": "0014-q2",
+   "kind": "quiz",
+   "q": "A key is pruned after 24 hours. A client retries the same request 36 hours later. What does the unique constraint do about the duplicate?",
+   "a": "<p>Nothing at all. The row is gone, so the retry arrives at an empty table and is, correctly as far as the database is concerned, a brand new request. It applies a second time with the index present and working perfectly — measured in step 5, one caller, two attempts, no concurrency involved.</p>\n    <p><strong>That is why the lifetime is a correctness parameter rather than a cleanup policy.</strong> It has to outlive the longest retry window any client can produce, and the binding constraint is almost never the automated retrier — lesson 0010 measured those at two to five seconds. It is the person re-running a failed job the next morning, or a broker redelivering a backlog.</p>",
+   "options": [
+    "Nothing; there is no row remaining to collide with",
+    "Rejects it outright, as the key is still reserved",
+    "Replays the response that was stored under that key",
+    "Raises a conflict, since the body no longer matches"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0014-idempotency-is-a-key-and-a-clock.html#underneath-0014"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“Your pipeline has retry loops. What stops a stage running twice?”",
+   "a": "<p>Right now, nothing — the stage interface has said so in a docstring since the first commit. So I measured what that costs: sixteen concurrent duplicates of one request applied the side effect <strong>sixteen times</strong>, with no error raised anywhere, because every caller read the key table before any caller wrote to it.</p>\n        <p>The fix is an idempotency key inserted <em>before</em> the work, against a unique constraint on tenant, operation and key, catching the violation rather than checking first. That gives one apply and zero user-visible errors. The version that only adds the constraint is also correct and returns fifteen 500s to clients doing something entirely legal, which is worth knowing because it is what you get if you add the index after an incident and stop there.</p>\n        Invites · <b>“What does the loser see?” — in-progress or the stored response, which is why there are three record states.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0014-idempotency-is-a-key-and-a-clock.html#underneath-0014"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“How likely is that race really? Surely it needs heavy load.”",
+   "a": "<p>Two callers. I swept it — 2, 4, 8, 16, 32 simultaneous duplicates — and the applies track the caller count throughout; the worst case I ever measured at sixteen callers was fourteen applies of one request. There is no concurrency below which it is safe, and no threshold to stay under.</p>\n        <p>“We have never seen it” means duplicates have not yet arrived close enough together, which is a statement about traffic rather than about the code. A client-side retry storm arranges exactly that: an outage ends, every client that was retrying wakes at the same moment, and without jitter they arrive together by construction. That is the lesson before this one, and it is the thing that turns this from theoretical into an incident.</p>\n        Invites · <b>“Would a lock fix it?” — a lock is a read then a write, so it shrinks the window rather than closing it.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The window between the read and the write",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0014-idempotency-is-a-key-and-a-clock.html#the-window-between-the-read-and-the"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“What is the key, and what is it scoped to?”",
+   "a": "<p>The client mints it before its first attempt — a v4 UUID — and it identifies an <em>intent</em>, not a payload. It is deliberately not a hash of the body, because two identical charges a minute apart are two charges and a payload hash would merge them silently.</p>\n        <p>Scope is tenant plus operation, so the constraint is on the triple rather than on the key alone. A global key space lets one customer's UUID collide with another's, and worse, lets a key minted for <code>cancel</code> satisfy a <code>confirm</code>. Alongside it I store a fingerprint of the request, so the same key with a different body is rejected rather than replayed — and the fingerprint sorts the JSON keys first, or a client whose map ordering varies gets a conflict on an honest retry.</p>\n        Invites · <b>“Why reject rather than replay?” — replaying tells them their new request was carried out, which is worse than an error.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0014-idempotency-is-a-key-and-a-clock.html#underneath-0014"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“How long do you keep the keys?”",
+   "a": "<p>Long enough to outlive the longest retry window any client of ours can produce, which makes it a correctness parameter rather than a cleanup schedule. I measured the failure: with the lifetime shorter than the window, the same request applied <strong>twice</strong> — one caller, two attempts, no concurrency — with the unique index present and working perfectly. There is nothing left to collide with.</p>\n        <p>Our automated retriers are the easy case; they run six attempts over two to five seconds. The binding constraint is a human re-running a failed dataset the next morning, so 24 hours is the floor and the number came from the slowest retrier rather than the busiest. Stripe prunes at 24 hours and documents the consequence directly — a key reused after pruning starts a new request — which is the right way round: state it rather than let people assume it is safe.</p>\n        Invites · <b>“What if a broker redelivers a week later?” — then a day is not enough, and the broker's retention sets yours.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0014-idempotency-is-a-key-and-a-clock.html#underneath-0014"
+   }
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“Could you do this without the database — in Redis, or in memory?”",
+   "a": "<p>In memory, no — and the reason is instructive. A single-threaded event loop makes the check and the write atomic by accident, so an in-memory store reports this bug as absent. It has no window to lose, which makes it useless as a stand-in for the thing that does.</p>\n        <p>Redis, yes, because <code>SET key value NX</code> is exactly the primitive required: one atomic conditional write where the loser is told. What the database gives you on top is durability and the ability to store the response transactionally with the work, which matters when the apply and the record must land together. So the requirement is not “a database”, it is <strong>one atomic compare-and-set on the key</strong>, plus somewhere durable to keep the answer for as long as the lifetime demands.</p>\n        Invites · <b>“What if the process dies between the insert and the apply?” — the row is stuck in-progress, which is why that state needs a timeout of its own.</b>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Underneath",
+    "url": "https://nehilsood.github.io/guides/system-design-school/lessons/0014-idempotency-is-a-key-and-a-clock.html#underneath-0014"
+   }
+  }
+ ]
+}

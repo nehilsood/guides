@@ -1,0 +1,165 @@
+{
+ "lesson": "ip-0018",
+ "label": "IP 0018",
+ "track": "ai",
+ "title": "The Only Cockpit It Knew",
+ "url": "https://nehilsood.github.io/guides/interview-prep/guides/0018-the-only-cockpit-it-knew.html",
+ "plain": [
+  {
+   "title": "In plain words",
+   "url": "https://nehilsood.github.io/guides/interview-prep/guides/0018-the-only-cockpit-it-knew.html#plain-1"
+  }
+ ],
+ "questions": [
+  {
+   "id": "F1",
+   "kind": "follow-up",
+   "q": "Isn’t this just overfitting? Add regularisation or more data.",
+   "a": "<p>It is overfitting, but to the wrong thing for those cures to help. Regularisation fights memorising individual examples. Here the model generalised perfectly well across 50,000 examples; what it generalised was harness A, because harness A was in every one of them. More data from harness A makes a better model of harness A. The cure for a constant you don’t want learned is to make it vary.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F2",
+   "kind": "follow-up",
+   "q": "Why can’t I fix it with the system prompt and a few examples in harness B?",
+   "a": "<p>You can fix some of it. A prompt with the new tool names and two worked examples may bring back some parseable calls. It can’t fix observations that look foreign on every step, and it is fighting 50,000 examples of the old habits with a few hundred tokens of context. MiniMax-M2 ignored an explicit instruction to use <code>/testbed</code> and scored zero. Use the prompt as a patch, and measure how much it recovers. Don’t call it the fix.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What the loss actually copied",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0018-the-only-cockpit-it-knew.html#what-the-loss-actually-copied"
+   }
+  },
+  {
+   "id": "F3",
+   "kind": "follow-up",
+   "q": "How do you know it learned the dialect and not just a worse version of the task?",
+   "a": "<p>The adapter test. Translate harness B into A’s dialect at the boundary, keep everything else the same, and re-score. If the score comes back, the task knowledge was there. Then confirm with first-failure triage: dialect failures are early and mechanical, task failures are late and look like wrong plans.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Tell dialect from task before you fix anything",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0018-the-only-cockpit-it-knew.html#tell-dialect-from-task-before-you-fix"
+   }
+  },
+  {
+   "id": "F4",
+   "kind": "follow-up",
+   "q": "Why does it collapse rather than degrade gracefully?",
+   "a": "<p>Teacher forcing. Training only ever showed it the teacher’s history in harness A. In harness B the history is unfamiliar from the first observation, so the per-step error is high. And each mistake produces a new observation it has never seen, so errors compound. Ross &amp; Bagnell proved the cost of cloning can grow as T²ε, and the bound is tight. Training on its own states (DAgger, or on-policy RL) brings it back to Tε.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fundamentals, in plain words first",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0018-the-only-cockpit-it-knew.html#the-fundamentals-in-plain-words-first"
+   }
+  },
+  {
+   "id": "F5",
+   "kind": "follow-up",
+   "q": "How many harnesses is enough?",
+   "a": "<p>At least three, so you can train on two and hold one out. After that, count the dimensions, not the harnesses: tool-call protocol, action set, observation format, context management, control flow. KAT’s point is that diversity has to fall on the dimensions that matter. Then answer it empirically with the leave-one-out curve from check 05.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fix lives in the data",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0018-the-only-cockpit-it-knew.html#the-fix-lives-in-the-data"
+   }
+  },
+  {
+   "id": "F6",
+   "kind": "follow-up",
+   "q": "Isn’t rendering one harness’s trajectory into another harness just fake data?",
+   "a": "<p>Partly, yes. The actions translate well, but the observations are what the original harness returned, not what the new one would have. Some actions have no clean equivalent. So mark rendered trajectories in the provenance, check a sample by replaying them in the real harness, and keep some native data in each target harness. Rendered data teaches the format. Native data teaches what the format’s results look like.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Where the fix runs out",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0018-the-only-cockpit-it-knew.html#where-the-fix-runs-out"
+   }
+  },
+  {
+   "id": "F7",
+   "kind": "follow-up",
+   "q": "Would RL fix this on its own?",
+   "a": "<p>RL fixes the compounding part, because it trains on states the model itself reaches. That is the DAgger idea. But RL in one harness overfits that harness just as well. KAT-Coder names format, context-structure and control-flow overfitting in its RL setting and fixes it by varying the harness during rollouts. So RL plus harness diversity, not RL instead of it.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fix lives in the data",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0018-the-only-cockpit-it-knew.html#the-fix-lives-in-the-data"
+   }
+  },
+  {
+   "id": "F8",
+   "kind": "follow-up",
+   "q": "What does a format like ADP actually buy you?",
+   "a": "<p>Three things. Converter work goes from N×M to N+M: the paper estimates about 489,200 lines of converter code against 12,592 for 100 harnesses. A new harness costs one small renderer, about 77 lines on average. And because each record keeps what was done rather than how one harness wrote it, you can render the same data into new harnesses later. That makes “train on several harnesses” cheap enough to actually do.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The fix lives in the data",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0018-the-only-cockpit-it-knew.html#the-fix-lives-in-the-data"
+   }
+  },
+  {
+   "id": "F9",
+   "kind": "follow-up",
+   "q": "The customer needs it working this week. What do you do?",
+   "a": "<p>Ship the adapter: translate their harness into the dialect the model knows, at the boundary. It is the same code as the diagnostic in check 02, so you get the measurement and the patch together. Be clear that it is a patch: it locks them to your old dialect, and the real fix is the next training run.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Tell dialect from task before you fix anything",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0018-the-only-cockpit-it-knew.html#tell-dialect-from-task-before-you-fix"
+   }
+  },
+  {
+   "id": "F10",
+   "kind": "follow-up",
+   "q": "A model card says 70% on SWE-bench Verified. What do you ask?",
+   "a": "<p>Which harness, and was it the one the training data came from? Is it best-of across several harnesses? Is it pass@1? DCAS calls a score without its scaffold “methodologically incomplete” and asks for at least one scaffold outside training. The good model cards now report several: DeepSeek-V4.1-Flash reports eight harness configurations. Guide 0013 has the general version of this question.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "F11",
+   "kind": "follow-up",
+   "q": "You added more formats and the held-out score barely moved. Now what?",
+   "a": "<p>Then the model is leaning on something other than the format, and the measured candidate is planning structure: the harness’s plan file, loop and stopping rules. Nex-N1 trained on seven formats and still dropped to 15.6% in mini-swe-agent. DCAS got gains on unseen harnesses from only 576 trajectories that taught the model to plan for itself. So look at first failures again. If they are late and look like lost plans, teach the plan, not more syntax.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Where the fix runs out",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0018-the-only-cockpit-it-knew.html#where-the-fix-runs-out"
+   }
+  },
+  {
+   "id": "F12",
+   "kind": "follow-up",
+   "q": "If you could give the team one rule, what is it?",
+   "a": "<p>“Every trajectory records which harness produced it, and no model ships without a score on a harness it never trained in.” The first half makes the problem visible in the data. The second makes it visible before the customer finds it.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What to carry forward",
+    "url": "https://nehilsood.github.io/guides/interview-prep/guides/0018-the-only-cockpit-it-knew.html#what-to-carry-forward"
+   }
+  }
+ ]
+}

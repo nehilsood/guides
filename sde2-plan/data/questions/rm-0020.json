@@ -1,0 +1,523 @@
+{
+ "lesson": "rm-0020",
+ "label": "RM 0020",
+ "track": "project",
+ "title": "Time-Distributed LSTM over Hand Pose",
+ "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "c20-t1",
+   "kind": "toolbox",
+   "q": "Where do the 3D hand-pose keypoints come from?",
+   "a": "A pose estimator, in practice MediaPipe Hands. Given a frame it returns 21 named landmarks per hand, meaning fingertips, knuckles and wrist, each with an x, a y and a relative depth. It runs at video rate on an ordinary phone. What it buys is the hardest part of the problem, solved and free. Hand pose estimation from raw pixels is its own research field. That is about 126 numbers a frame for two hands, against tens of thousands of pixels. Feeding coordinates rather than images buys a tiny model, invariance to lighting and skin tone, and privacy, since keypoints are not a picture of anybody.",
+   "options": null,
+   "correct": null,
+   "flag": "Skipping the estimator. It is a model too, its errors propagate, and on fast motion it is the weakest link in the chain.",
+   "teach": {
+    "title": "Keypoints instead of pixels",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#keypoints-instead-of-pixels"
+   }
+  },
+  {
+   "id": "c20-t2",
+   "kind": "toolbox",
+   "q": "What does an LSTM actually do?",
+   "a": "A recurrent network processes a sequence one step at a time, carrying a state forward. Plain ones fail at this, because the gradient shrinks with every step back, so they cannot learn long dependencies. An LSTM adds a separate cell state and three gates. One decides what to forget, one what to write, one what to read out. Those gates let information travel many steps without decaying. What that buys is learning that a gesture's meaning is in the whole movement. Two signs with identical hand shapes and different motion become distinguishable. A plain recurrent network loses the thread after about ten steps. An LSTM handles hundreds, and a signed gesture is tens of frames.",
+   "options": null,
+   "correct": null,
+   "flag": "“It remembers previous frames.” So does any recurrent network, badly. The gates are the answer and they are three sentences.",
+   "teach": null
+  },
+  {
+   "id": "c20-t3",
+   "kind": "toolbox",
+   "q": "What does “time-distributed” mean here?",
+   "a": "The same layer is applied independently to every frame, with one shared set of weights, before the recurrent layer sees the sequence. Thirty frames go in, the same transformation runs thirty times, thirty feature vectors come out in order. Sharing the weights is the whole point. What it buys is parameter efficiency and the right inductive bias. The model learns what a single frame means once, rather than learning it separately for each position. Without sharing, frame seventeen would need its own parameters. It would need vastly more data and would not generalise to a sign performed slightly faster.",
+   "options": null,
+   "correct": null,
+   "flag": "Reading it as “processes frames in order.” The recurrent layer does that. This wrapper is about weight sharing.",
+   "teach": {
+    "title": "Why an LSTM, and why time-distributed",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#why-an-lstm-and-why-time-distributed"
+   }
+  },
+  {
+   "id": "c20-t4",
+   "kind": "toolbox",
+   "q": "Why an LSTM and not a GRU or a small transformer?",
+   "a": "A GRU is a simplified recurrent cell. Two gates instead of three, no separate cell state, roughly a quarter fewer parameters, usually for comparable accuracy. What that would buy on a phone is a smaller and faster model at the same quality, which is exactly the trade you want. So it is the obvious alternative. A transformer needs more data than sign-language datasets have. If the comparison was not run, say that. Claiming a choice you did not measure is worse than admitting the default was reasonable.",
+   "options": null,
+   "correct": null,
+   "flag": "Inventing a justification. “It was the standard choice for sequence work at the time” is true, honest, and perfectly acceptable.",
+   "teach": null
+  },
+  {
+   "id": "c20-t5",
+   "kind": "toolbox",
+   "q": "Did you need CTC?",
+   "a": "Not for isolated recognition. CTC is a loss function for the case where you know the sequence of labels but not where each starts and ends. It considers every possible alignment between frames and labels and sums their probabilities, so the model learns alignment as a side effect. What it buys is training on data that is merely transcribed rather than annotated frame by frame. That is orders of magnitude cheaper to label. You need it when signs run together and nobody has marked the boundaries. One clip with one label does not. Saying that is the honest edge of the claim.",
+   "options": null,
+   "correct": null,
+   "flag": "Naming CTC because it sounds advanced. If the task was isolated, it was not needed, and claiming it invites a question about your alignment labels.",
+   "teach": null
+  },
+  {
+   "id": "c20-t6",
+   "kind": "toolbox",
+   "q": "What is the first thing a reviewer checks in a paper like this?",
+   "a": "The split. No person may appear in both the training set and the test set. It sounds like a detail and it is the whole result. What a signer-independent split buys is a number that predicts performance on a new user, which is the only number anybody cares about. Split randomly by clip instead and the model learns individual people's hands rather than signs. Accuracy comes out ten or twenty points higher than it deserves. It is the single most common flaw in this literature. If the split was signer-independent, lead with it, because it is the strongest thing you can say.",
+   "options": null,
+   "correct": null,
+   "flag": "Quoting accuracy before the split. The number means nothing until the protocol is stated, and a good reviewer reorders the conversation to get there.",
+   "teach": {
+    "title": "The two things a reviewer should have asked",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#the-two-things-a-reviewer-should-have"
+   }
+  },
+  {
+   "id": "c20-t7",
+   "kind": "toolbox",
+   "q": "What does “sized for low-end mobile” mean in numbers?",
+   "a": "Three of them. Model size in megabytes after conversion, inference latency per frame, and the specific device it was measured on. The conversion step is TFLite, the mobile runtime, usually with integer quantization applied on the way. It produces one file a phone app loads with no TensorFlow installation and no Python. What that buys is a model shipping inside the app rather than sitting behind an API, so it works offline and costs nothing per use. Without those three numbers the phrase is an intention rather than a result, and it is the easiest claim in the bullet to check.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing the architecture as small. Small is relative. Megabytes and milliseconds are not.",
+   "teach": {
+    "title": "The two things a reviewer should have asked",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#the-two-things-a-reviewer-should-have"
+   }
+  },
+  {
+   "id": "c20-f1",
+   "kind": "fundamentals",
+   "q": "In two sentences, what does this paper do?",
+   "a": "Somebody signs in front of a camera and the system names the sign. A pose estimator finds the hands first and reports joint positions, and only those numbers go to the recognition model.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it as video classification. The video never reaches the model, and that is the design.",
+   "teach": {
+    "title": "Keypoints instead of pixels",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#keypoints-instead-of-pixels"
+   }
+  },
+  {
+   "id": "c20-f2",
+   "kind": "fundamentals",
+   "q": "Why keypoints rather than the frames?",
+   "a": "Size, mostly. A frame at modest resolution is over a hundred thousand numbers, and two hands of twenty-one joints with three coordinates is a hundred and twenty-six. Three orders of magnitude, before any model runs. You also inherit a pose estimator that is already tuned for phones.",
+   "options": null,
+   "correct": null,
+   "flag": "Answering on accuracy. A pixel model can beat this given enough data. The argument is that the device could not run one.",
+   "teach": {
+    "title": "Keypoints instead of pixels",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#keypoints-instead-of-pixels"
+   }
+  },
+  {
+   "id": "c20-f3",
+   "kind": "fundamentals",
+   "q": "What does that choice throw away?",
+   "a": "Everything that is not a hand. In sign languages that matters, because eyebrows, head tilt and mouth shape carry grammar. A raised brow can make a statement a question. This pipeline cannot represent any of it, so the honest scope is recognising signs from hand motion.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating the face as expression or tone. It is grammatical marking, and somebody who signs will know that immediately.",
+   "teach": {
+    "title": "What that choice makes impossible",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#what-that-choice-makes-impossible"
+   }
+  },
+  {
+   "id": "c20-f6",
+   "kind": "fundamentals",
+   "q": "Isolated signs or continuous signing?",
+   "a": "Isolated, and I would say so immediately. One sign per clip, with the boundaries given. Continuous signing has no boundary markers, so it needs segmentation or an alignment-free loss, and it is a substantially harder problem. The word interpretation in the title reaches further than the method does.",
+   "options": null,
+   "correct": null,
+   "flag": "Letting the title stand. If an interviewer hears translation and the method is isolated recognition, the correction lands badly.",
+   "teach": {
+    "title": "What that choice makes impossible",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#what-that-choice-makes-impossible"
+   }
+  },
+  {
+   "id": "c20-f7",
+   "kind": "fundamentals",
+   "q": "Keypoints come in image coordinates. Is that a problem?",
+   "a": "Yes, and it is the preprocessing step that decides everything. Raw coordinates encode where the signer stood and how large they appeared. Without normalising to a body-relative origin and scale, the model learns the camera setup and fails on anyone standing somewhere else.",
+   "options": null,
+   "correct": null,
+   "flag": "Skipping it. It is the same shape as the pose stage in chapter 0019. Unglamorous, upstream, and decisive.",
+   "teach": {
+    "title": "Keypoints instead of pixels",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#keypoints-instead-of-pixels"
+   }
+  },
+  {
+   "id": "c20-f9",
+   "kind": "fundamentals",
+   "q": "“Sized for low-end mobile.” Sized how?",
+   "a": "That needs a parameter count and a latency per frame on a named device. Without both it is an architectural argument rather than a measurement, and I would present it as one. The architectural argument is real, since a hundred numbers per frame bounds the model from the input side.",
+   "options": null,
+   "correct": null,
+   "flag": "Asserting it runs on a phone. That is a measurable claim and measurable claims get measured in interviews.",
+   "teach": {
+    "title": "The two things a reviewer should have asked",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#the-two-things-a-reviewer-should-have"
+   }
+  },
+  {
+   "id": "c20-f10",
+   "kind": "fundamentals",
+   "q": "Six authors. What was yours?",
+   "a": "Answer it plainly and specifically, whatever the answer is. Second author on a six-author paper is a real contribution and vague answers here read worse than modest ones. Name the parts you built and the parts you did not.",
+   "options": null,
+   "correct": null,
+   "flag": "Implying you led it. The author list is published, and so is the order.",
+   "teach": {
+    "title": "What that choice makes impossible",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#what-that-choice-makes-impossible"
+   }
+  },
+  {
+   "id": "c20-d1",
+   "kind": "deep-dive",
+   "q": "The hands cross. What happens?",
+   "a": "The estimator loses joints or invents them. The recognition model never learns that anything went wrong. Indian Sign Language uses two hands heavily, so this is the common case rather than an edge. The mitigation is a confidence value per keypoint, carried forward as an input rather than dropped.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating missing keypoints as zeros. A zero is a position, and the model will learn it as one.",
+   "teach": {
+    "title": "What that choice makes impossible",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#what-that-choice-makes-impossible"
+   }
+  },
+  {
+   "id": "c20-d2",
+   "kind": "deep-dive",
+   "q": "Which set of keypoints is the left hand?",
+   "a": "Whatever the estimator says, and it can swap between frames. That produces a discontinuity the recurrent layer reads as motion that never happened. Assigning hands by tracking across frames rather than per frame is the fix. It is the kind of detail that separates a working pipeline from a notebook.",
+   "options": null,
+   "correct": null,
+   "flag": "Assuming the labels are stable. Per-frame assignment is exactly where two-handed signing breaks it.",
+   "teach": null
+  },
+  {
+   "id": "c20-d3",
+   "kind": "deep-dive",
+   "q": "Signs take different amounts of time. How do you handle that?",
+   "a": "Recurrence handles variable length natively, which is another argument for it. In practice clips get padded to a common length for batching, with masking so the padding does not contribute. Getting the mask wrong is a classic silent bug, because the model still trains and scores slightly worse.",
+   "options": null,
+   "correct": null,
+   "flag": "Resampling every clip to a fixed number of frames. That destroys speed information, and speed distinguishes some signs.",
+   "teach": {
+    "title": "Why an LSTM, and why time-distributed",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#why-an-lstm-and-why-time-distributed"
+   }
+  },
+  {
+   "id": "c20-d4",
+   "kind": "deep-dive",
+   "q": "What is the real-time budget on a low-end phone?",
+   "a": "At thirty frames per second you have about thirty-three milliseconds per frame, and the pose estimator takes most of it. The recognition model has to fit in what is left. That is the sum worth doing out loud, because it shows the constraint is the estimator rather than the classifier.",
+   "options": null,
+   "correct": null,
+   "flag": "Budgeting only your own model. It is the smaller half of a two-stage pipeline you do not control.",
+   "teach": null
+  },
+  {
+   "id": "c20-d5",
+   "kind": "deep-dive",
+   "q": "The keypoints are three-dimensional from a single camera. How?",
+   "a": "Estimated rather than measured. The pose model predicts a depth per joint from appearance and learned priors, so it is a plausible reconstruction and not a measurement. It is useful for relative hand orientation and it should not be treated as metric depth.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling it 3D without qualification. A single camera has no depth, and the third coordinate is inferred.",
+   "teach": null
+  },
+  {
+   "id": "c20-d6",
+   "kind": "deep-dive",
+   "q": "How big are these datasets, really?",
+   "a": "Small. Indian Sign Language sets are typically a few thousand clips across a few dozen signers, often recorded in one place. That size is why the split matters so much and why a strong result can be a data artefact rather than a finding.",
+   "options": null,
+   "correct": null,
+   "flag": "Comparing the accuracy to image-classification numbers. Those come from millions of examples, and the comparison flatters this by a lot.",
+   "teach": {
+    "title": "The two things a reviewer should have asked",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#the-two-things-a-reviewer-should-have"
+   }
+  },
+  {
+   "id": "c20-d7",
+   "kind": "deep-dive",
+   "q": "What augmentation makes sense on keypoints?",
+   "a": "Small rotations, scalings and translations, plus slight time warping to vary speed. Mirroring is tempting and wrong, because handedness is meaningful and mirroring a sign can produce a different one. Augmenting coordinates is also much cheaper than augmenting frames, which is a quiet benefit of the representation.",
+   "options": null,
+   "correct": null,
+   "flag": "Mirroring for free data. It changes which hand is dominant, and in some signs that changes the meaning.",
+   "teach": null
+  },
+  {
+   "id": "c20-d8",
+   "kind": "deep-dive",
+   "q": "Two signs look almost the same. What do you show?",
+   "a": "The confusion matrix, not the accuracy. Signs differing only in handshape or in a small movement are the interesting failures, and an average over all classes hides them completely. The pairs that confuse are also what tells you whether the keypoints have enough resolution.",
+   "options": null,
+   "correct": null,
+   "flag": "Reporting a single accuracy. It is the same argument as chapter 0012. The average hides the cases worth reading.",
+   "teach": {
+    "title": "Keypoints instead of pixels",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#keypoints-instead-of-pixels"
+   }
+  },
+  {
+   "id": "c20-d9",
+   "kind": "deep-dive",
+   "q": "What should a results table say that many do not?",
+   "a": "The number of classes, the number of signers, and how the split was made. Accuracy over ten classes and accuracy over two hundred are different claims wearing the same number. And a signer-wise split should be stated even when it makes the result look worse.",
+   "options": null,
+   "correct": null,
+   "flag": "Quoting the headline figure alone. Every one of those three details changes what it means.",
+   "teach": {
+    "title": "The two things a reviewer should have asked",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#the-two-things-a-reviewer-should-have"
+   }
+  },
+  {
+   "id": "c20-d10",
+   "kind": "deep-dive",
+   "q": "How would you add the face without losing the size advantage?",
+   "a": "The same way the hands are handled. Face landmarks are keypoints too, and a small subset around the brows and mouth is a few dozen more numbers rather than a picture. The cost is another estimator in the per-frame budget, which is the part that is already tight.",
+   "options": null,
+   "correct": null,
+   "flag": "Proposing to add the video back. That gives up the one property that made this deployable.",
+   "teach": {
+    "title": "Why an LSTM, and why time-distributed",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#why-an-lstm-and-why-time-distributed"
+   }
+  },
+  {
+   "id": "c20-d11",
+   "kind": "deep-dive",
+   "q": "What would continuous recognition need?",
+   "a": "Either a segmentation step that finds sign boundaries, or a loss that aligns a sequence of outputs to a sequence of labels without boundaries. The second is how speech recognition handles the same problem. Both are a substantially different system, which is why the scope is worth stating up front.",
+   "options": null,
+   "correct": null,
+   "flag": "Suggesting a sliding window over the isolated model. Sign boundaries are not detectable by the model that assumes they were given.",
+   "teach": {
+    "title": "What that choice makes impossible",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#what-that-choice-makes-impossible"
+   }
+  },
+  {
+   "id": "c20-d12",
+   "kind": "deep-dive",
+   "q": "This was 2024. What has moved?",
+   "a": "Sequence models on keypoints would now more often use attention over a short window, and pose estimators have got better and cheaper. The keypoint idea has not moved at all, and it is still the right call for a weak device. Saying which half aged is better than defending both.",
+   "options": null,
+   "correct": null,
+   "flag": "Defending the LSTM as current best practice. The architecture aged and the input representation did not.",
+   "teach": null
+  },
+  {
+   "id": "c20-e1",
+   "kind": "edges",
+   "q": "Signs vary by region.",
+   "a": "They do, and a dataset recorded in one place encodes one variant. The model will then be wrong for signers elsewhere in a way that looks like poor accuracy rather than like a coverage gap. Naming the region the data came from is the minimum, and it is often missing.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating a sign language as uniform. It has dialects the way spoken languages do, and a single-site dataset captures one.",
+   "teach": {
+    "title": "The two things a reviewer should have asked",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#the-two-things-a-reviewer-should-have"
+   }
+  },
+  {
+   "id": "c20-e2",
+   "kind": "edges",
+   "q": "The signer is left-handed.",
+   "a": "Then dominance is reversed and the keypoints look like a mirrored version of the training data. That is exactly why mirroring is a bad augmentation and a good adaptation. Handling it properly means representing dominant and non-dominant hand rather than left and right.",
+   "options": null,
+   "correct": null,
+   "flag": "Assuming right-handed signing. It is a sizeable minority of users and the failure is total rather than gradual.",
+   "teach": {
+    "title": "The two things a reviewer should have asked",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#the-two-things-a-reviewer-should-have"
+   }
+  },
+  {
+   "id": "c20-e3",
+   "kind": "edges",
+   "q": "A hand leaves the frame mid-sign.",
+   "a": "The estimator returns nothing for it and the pipeline has to represent absent rather than at the origin. Absence is information, because some signs are one-handed. Encoding it as a zero position teaches the model that the hand moved somewhere specific.",
+   "options": null,
+   "correct": null,
+   "flag": "Filling gaps by interpolation without a flag. It produces smooth, plausible, invented motion.",
+   "teach": {
+    "title": "What that choice makes impossible",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#what-that-choice-makes-impossible"
+   }
+  },
+  {
+   "id": "c20-e4",
+   "kind": "edges",
+   "q": "Who checked that the system is actually useful?",
+   "a": "That is the question to have an answer for, and the honest one may be that the evaluation was a dataset rather than users. An accessibility tool evaluated only on held-out clips has not been evaluated by the people it is for. Saying so is better than implying otherwise.",
+   "options": null,
+   "correct": null,
+   "flag": "Equating accuracy with usefulness. For assistive technology those are very different claims.",
+   "teach": {
+    "title": "Why an LSTM, and why time-distributed",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#why-an-lstm-and-why-time-distributed"
+   }
+  },
+  {
+   "id": "c20-e5",
+   "kind": "edges",
+   "q": "The system outputs the wrong sign confidently.",
+   "a": "In a translation setting that is worse than outputting nothing. The reader has no way to check it. A threshold with an explicit unsure state is the right shape. Where the cost is asymmetric, the threshold should be too. That is the same rule as the reminders in chapter 0015.",
+   "options": null,
+   "correct": null,
+   "flag": "Always emitting the top class. It is standard in a benchmark and wrong in a product where somebody acts on the output.",
+   "teach": {
+    "title": "Why an LSTM, and why time-distributed",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#why-an-lstm-and-why-time-distributed"
+   }
+  },
+  {
+   "id": "c20-e6",
+   "kind": "edges",
+   "q": "It was publicly funded. Does that change anything?",
+   "a": "It raises the bar on releasing what can be released, and it is fair to be asked about. Whether the dataset and code are available is a reasonable question for publicly funded accessibility work. Having a straight answer is better than being surprised by it.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating funding as a credential only. It comes with expectations, and an interviewer may know them better than you do.",
+   "teach": null
+  },
+  {
+   "id": "c20-e7",
+   "kind": "edges",
+   "q": "Defend the word interpretation in the title.",
+   "a": "I would narrow it rather than defend it. The method recognises isolated signs from hand motion. Interpretation implies continuous signing with grammar, and the grammar lives partly in the face, which this cannot see. Saying that first makes everything else in the paper more credible.",
+   "options": null,
+   "correct": null,
+   "flag": "Standing behind the title. Titles overreach routinely, and conceding it costs nothing while gaining a lot.",
+   "teach": {
+    "title": "What that choice makes impossible",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#what-that-choice-makes-impossible"
+   }
+  },
+  {
+   "id": "c20-e8",
+   "kind": "edges",
+   "q": "What would you change?",
+   "a": "Report the signer-wise split explicitly, and the confusion pairs rather than one accuracy. Put a parameter count and an on-device latency behind the mobile claim. And add face landmarks, because they are keypoints too and the grammar is up there.",
+   "options": null,
+   "correct": null,
+   "flag": "Proposing a bigger model. Every real weakness here is in the data, the reporting, or what the input representation excludes.",
+   "teach": {
+    "title": "The two things a reviewer should have asked",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#the-two-things-a-reviewer-should-have"
+   }
+  },
+  {
+   "id": "0020-q1",
+   "kind": "quiz",
+   "q": "Why feed hand keypoints to the model rather than the video frames?",
+   "a": "<p>A frame at modest resolution is over a hundred thousand numbers. Twenty-one joints on each of two hands, with three coordinates each, is a hundred and twenty-six. That collapse is what lets the model be small enough for a cheap phone.</p>\n    <p>Normalisation becomes more important rather than less, because raw keypoints are in image coordinates and encode where the signer stood. Nobody labels keypoints here either, since a pose estimator produces them.</p>",
+   "options": [
+    "It collapses each frame from thousands to dozens",
+    "Keypoints are much easier for people to label",
+    "Recurrent models cannot take in an image directly",
+    "It removes the need for any normalisation step"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Keypoints instead of pixels",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#keypoints-instead-of-pixels"
+   }
+  },
+  {
+   "id": "0020-q2",
+   "kind": "quiz",
+   "q": "What can a hand-keypoint pipeline structurally never represent?",
+   "a": "<p>Eyebrows, head tilt and mouth shape are grammatical marking in sign languages, not tone. A raised brow can turn a statement into a question, and nothing above the wrists reaches this model at all.</p>\n    <p>Handshape and speed are both represented, through joint positions and through the sequence. Overlapping hands are a failure of the estimator rather than something the representation cannot express.</p>",
+   "options": [
+    "Facial expression, which marks grammar in signing",
+    "Hand shape, whenever the fingers become curled",
+    "Movement speed, which the frame rate determines",
+    "Two hands, whenever they overlap one another"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "What that choice makes impossible",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#what-that-choice-makes-impossible"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“Why not just use the video?”",
+   "a": "<p>Because the target was a low-end phone. A frame at modest resolution is over a hundred thousand numbers, and twenty-one joints on each of two hands with three coordinates each is a hundred and twenty-six. That collapse is what lets the recognition model be small. You also inherit a pose estimator that is already tuned for phones, so the expensive perception work is done by a component that was going to exist anyway. And nothing about background, clothing or skin tone survives into the keypoints, which is a property worth having.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Keypoints instead of pixels",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#keypoints-instead-of-pixels"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“What does that approach lose?”",
+   "a": "<p>Everything that is not a hand, and in sign languages that is not a detail. Eyebrows, head tilt and mouth shape carry grammar. A raised brow can turn a statement into a question and a head shake can negate a clause. Those are grammatical markers rather than tone, and a hand-keypoint pipeline cannot represent them. So the honest scope is recognising signs from hand motion rather than interpreting sign language, and I would say that before the title does it for me.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What that choice makes impossible",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#what-that-choice-makes-impossible"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“Why an LSTM and not a transformer?”",
+   "a": "<p>Because the target processes frames as they arrive on a weak device. A recurrent model carries a fixed-size state and takes one frame at a time, so memory does not grow with clip length and it streams naturally. Attention needs the window held and its cost grows with the square of the sequence. That is an engineering fit rather than a date. If I were doing it now I would probably use attention over a short window, but the input representation is the part I would keep.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Why an LSTM, and why time-distributed",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#why-an-lstm-and-why-time-distributed"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“What accuracy, and how did you split the data?”",
+   "a": "<p>The split matters more than the number. Sign datasets are small and recorded by a handful of people, so a random split puts the same signers in training and test, and the model can score well by recognising people rather than signs. The right split puts each person entirely on one side. Accuracy drops under it, sometimes a lot, and that is the number that means anything about a new user. I would also show the confusion pairs, because signs differing by a small handshape are the interesting failures and an average hides them.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The two things a reviewer should have asked",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0020-hand-pose-lstm.html#the-two-things-a-reviewer-should-have"
+   }
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“How do you know it works on a phone?”",
+   "a": "<p>The right answer is a parameter count and a per-frame latency on a named device, and if I do not have those I would present it as an architectural argument instead. The argument is real. At thirty frames per second you have about thirty-three milliseconds per frame, the pose estimator takes most of it, and a model over a hundred numbers per frame fits in what is left. The binding constraint is the estimator rather than the classifier, which is worth saying because it points at the right place to optimise.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  }
+ ]
+}

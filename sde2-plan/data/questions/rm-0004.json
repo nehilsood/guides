@@ -1,0 +1,545 @@
+{
+ "lesson": "rm-0004",
+ "label": "RM 0004",
+ "track": "project",
+ "title": "Hybrid Deterministic-LLM Lineage Extraction",
+ "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "c04-t1",
+   "kind": "toolbox",
+   "q": "What is BigQuery, and why is mapping into it real work?",
+   "a": "BigQuery is Google's analytical database, the kind you run reports against rather than serve an application from. There is no server to provision and no cluster to size. You load data and write SQL, and Google finds the machines. Storage is columnar, so a query reading three columns of a two-hundred-column table pays for three. That is why it scans terabytes in seconds, and why it costs what it costs. The mapping is real work because the two shapes do not correspond. BW carries meaning in InfoObjects, InfoCubes and DSOs, much of it in metadata rather than data. BigQuery has tables and columns and nothing else. Translating one into the other is a judgement about intent, not a rename.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling it “Google's data warehouse” and stopping. The interesting half is the modelling mismatch, which is why the agent exists at all.",
+   "teach": {
+    "title": "What 99.2% actually measures",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#what-99-2-actually-measures"
+   }
+  },
+  {
+   "id": "c04-t2",
+   "kind": "toolbox",
+   "q": "What is ADK, and what does SequentialAgent do inside it?",
+   "a": "A bare model call is one question and one answer. ADK is Google's Python framework for turning that into a pipeline. It supplies the agent type, the tool wiring, a shared dictionary carried between steps, and a runner that drives the sequence and records every event. What it buys is ordering, state passing and an inspectable trace, none of which you write. The trace is the part that matters when a document extracts wrongly and you need to know which step did it. SequentialAgent is one of its workflow agents. It runs its children in a fixed declared order and threads state between them. No model decides what comes next, so each stage can be run alone against a fixed input.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling a fixed sequence “agentic.” Exactly one stage here asks a model anything. Saying so is the difference between honest and inflated.",
+   "teach": null
+  },
+  {
+   "id": "c04-t3",
+   "kind": "toolbox",
+   "q": "What is a before-tool callback, and what can it actually do?",
+   "a": "It is a hook that runs in the moment between the model asking for a tool and the tool running. It receives the tool name and the arguments. It can inspect them, rewrite them, or refuse outright and return a result of its own. Here it enforces a precondition, so a merge cannot execute on a model result that skipped the deterministic pass. What that buys is an invariant that holds no matter what the model does. The ordering rule stops being a hope about prompt compliance and becomes a condition checked in Python on every call. The framework enforces it, which is exactly what makes it a guardrail rather than advice.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it as logging. A hook that can only watch is not a control, and the whole claim rests on it being able to refuse.",
+   "teach": {
+    "title": "The callback, which is the best story here",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#the-callback-which-is-the-best-story"
+   }
+  },
+  {
+   "id": "c04-t4",
+   "kind": "toolbox",
+   "q": "What is a regular expression doing in a pipeline built around a model?",
+   "a": "A regular expression is a small language for describing the shape of text. Matching is exact, instant and free. It is here to catch everything that never needed a model. SAP technical names follow rigid conventions, so a pattern identifies them precisely at no cost. What that buys is speed, money and certainty on the easy majority. It also fixes the answer, so the same column extracts identically on every run, which a model does not guarantee. That leaves the model only the cases where meaning has to be inferred from prose written by a person. It also gives you a second opinion to merge against. The regex is not the fallback here. It is the first pass.",
+   "options": null,
+   "correct": null,
+   "flag": "Presenting the deterministic half as legacy. It is the cheaper, more reliable half, and hybrid means both run.",
+   "teach": {
+    "title": "The callback, which is the best story here",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#the-callback-which-is-the-best-story"
+   }
+  },
+  {
+   "id": "c04-t5",
+   "kind": "toolbox",
+   "q": "What is a .docx file, actually?",
+   "a": "It is not a document in any single-file sense. A .docx is a ZIP archive of XML parts. The text lives in one part, and styling, numbering, tables and images live in others. Reading one means unzipping and walking XML, not reading text. What that buys you is access to the structure rather than just the words. A table's rows and cells survive the parse, and in a specification document the table is usually where the mapping actually is. It also matters because the losses happen here. Tables split across pages, merged cells and floating text boxes all flatten badly. A mapping destroyed at the parse step never reaches the model to be got wrong.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating document parsing as solved. It is where silent recall loss comes from, and it never shows up as an error.",
+   "teach": null
+  },
+  {
+   "id": "c04-t6",
+   "kind": "toolbox",
+   "q": "What is a DAG, and what does checking it prove?",
+   "a": "A directed acyclic graph is a set of nodes joined by one-way arrows. Following those arrows can never bring you back to where you started. Lineage is naturally one, because a column is derived from other columns and nothing can be derived from itself. Checking it proves the shape is possible. A cycle means the extraction invented a dependency, since real lineage cannot contain one. What that buys is a correctness check needing no gold standard. You can run it on a document nobody has ever labelled, which means it works on new data where accuracy cannot be computed at all. It is a hallucination detector that costs nothing.",
+   "options": null,
+   "correct": null,
+   "flag": "Confusing a shape check with a correctness check. A perfectly acyclic graph can still be entirely wrong about which column feeds which.",
+   "teach": {
+    "title": "The callback, which is the best story here",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#the-callback-which-is-the-best-story"
+   }
+  },
+  {
+   "id": "c04-t7",
+   "kind": "toolbox",
+   "q": "99.2% accuracy of what, exactly?",
+   "a": "Of column-level field mappings, measured against a hand-authored gold standard. Accuracy is the share of predictions that match, counted over everything the system was asked about. What it buys is one comparable number across runs, which genuinely helps spot a regression between two versions. What it hides is which kind of mistake was made. Say the denominator before you are asked, because accuracy is the weakest of the three words available. Precision asks how many of the mappings you produced were right. Recall asks how many of the real ones you found at all. A run that quietly skips the hard columns scores beautifully on the first and badly on the second.",
+   "options": null,
+   "correct": null,
+   "flag": "Letting the number stand alone. Five documents and a hand-built answer key is a small denominator, and saying so first is stronger than being asked.",
+   "teach": {
+    "title": "What 99.2% actually measures",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#what-99-2-actually-measures"
+   }
+  },
+  {
+   "id": "c04-f1",
+   "kind": "fundamentals",
+   "q": "In two sentences, what does this agent do?",
+   "a": "It reads SAP BW specification documents and builds a lineage graph from them. The graph says which objects feed which. It also says which source column becomes which target column. A team migrating to BigQuery can then see how the old warehouse is wired.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying “it extracts lineage” and stopping. Name the two granularities, because the field-level one is the whole value.",
+   "teach": {
+    "title": "Two agents, which is fewer than it sounds",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#two-agents-which-is-fewer-than-it"
+   }
+  },
+  {
+   "id": "c04-f2",
+   "kind": "fundamentals",
+   "q": "Why does anyone need lineage?",
+   "a": "Two reasons. When a number in a report is wrong, lineage is how you walk backwards to the column it came from. And when you migrate, it is how you know what will break. Without it a migration is a rewrite, because nobody can say what depends on what.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it as documentation. It is a dependency graph, and the difference is that you can query it.",
+   "teach": {
+    "title": "What 99.2% actually measures",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#what-99-2-actually-measures"
+   }
+  },
+  {
+   "id": "c04-f3",
+   "kind": "fundamentals",
+   "q": "What is the difference between object-level and field-level lineage?",
+   "a": "Object level says this system feeds that system. Field level says this column becomes that column. Object level is easy and roughly useless on its own. Field level is where the migration work actually lives, and it is where the 516 mappings are.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating them as the same thing at different zoom levels. They are produced differently here, and that is the point of the design.",
+   "teach": {
+    "title": "What 99.2% actually measures",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#what-99-2-actually-measures"
+   }
+  },
+  {
+   "id": "c04-f4",
+   "kind": "fundamentals",
+   "q": "Where exactly is the line between the deterministic half and the model?",
+   "a": "Tables are parsed by code. Everything else goes to the model. Specifically, field mapping tables are extracted deterministically, with zero hallucination risk. The model does object identification and cross-reference classification, which are genuinely ambiguous. That line is written in the docstring of <code>field_mapper.py</code>.",
+   "options": null,
+   "correct": null,
+   "flag": "Vagueness here. “It uses both” is the answer of somebody who inherited the design rather than drew it.",
+   "teach": {
+    "title": "The split, and why it is the whole design",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#the-split-and-why-it-is-the"
+   }
+  },
+  {
+   "id": "c04-f6",
+   "kind": "fundamentals",
+   "q": "Why parse the tables rather than ask the model to read them?",
+   "a": "Because the tables have structure and a model does not improve on a parser. A model reading a 40-row mapping table can drop a row, merge two, or invent a plausible column name. None of those produce an error. A parser either finds the table or does not, and its output is checkable.",
+   "options": null,
+   "correct": null,
+   "flag": "“To save tokens.” True and beside the point. The reason is correctness, and cost is a bonus.",
+   "teach": null
+  },
+  {
+   "id": "c04-f7",
+   "kind": "fundamentals",
+   "q": "What do the guardrails actually reject?",
+   "a": "Three things. Names that do not match the SAP identifier pattern. Edges that point at themselves. And names from a reject list of generic type words like <code>DSO</code>, <code>TABLE</code> and <code>MAPPING</code>. The last one exists because a model asked to name an object will sometimes answer with the category instead.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling them validation. They are output filters on a model, which is a specific and more interesting thing to have built.",
+   "teach": {
+    "title": "Guardrails, and the failure they catch",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#guardrails-and-the-failure-they-catch"
+   }
+  },
+  {
+   "id": "c04-f8",
+   "kind": "fundamentals",
+   "q": "What is the gold standard, and who wrote it?",
+   "a": "Hand-authored expected outputs for five SAP BW documents, in <code>evals/docs/</code>. A person wrote them by reading the same documents. That makes it a real reference, and it also makes five the sample size, which I would state before being asked.",
+   "options": null,
+   "correct": null,
+   "flag": "Presenting five documents as a benchmark. It is a regression check on a small, honest sample, and calling it that is stronger.",
+   "teach": {
+    "title": "What 99.2% actually measures",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#what-99-2-actually-measures"
+   }
+  },
+  {
+   "id": "c04-f10",
+   "kind": "fundamentals",
+   "q": "What is the riskiest claim in this bullet?",
+   "a": "The phrase “column-level field mappings at 99.2% accuracy.” It reads as though 99.2% of individual column mappings were checked and correct. The metric is a weighted composite, and the field term is mostly count accuracy and a distribution cosine. I would give the decomposition before anyone asks for it.",
+   "options": null,
+   "correct": null,
+   "flag": "Defending the phrasing. The engineering is good and the wording oversells it, and those are two separate conversations.",
+   "teach": {
+    "title": "What 99.2% actually measures",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#what-99-2-actually-measures"
+   }
+  },
+  {
+   "id": "c04-d1",
+   "kind": "deep-dive",
+   "q": "Walk me through the two stages.",
+   "a": "Agent one is <code>DocParser</code>. It runs <code>parse_and_extract</code> over each <code>.docx</code> and produces sections. Agent two identifies which SAP objects a section is about, classifies cross-references, and calls the merge tool. The merge tool assembles nodes, edges and field mappings into one graph and exports it.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing the parser as an LLM step. It is a document parser wrapped in an agent, and the distinction is the one the chapter is about.",
+   "teach": {
+    "title": "Two agents, which is fewer than it sounds",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#two-agents-which-is-fewer-than-it"
+   }
+  },
+  {
+   "id": "c04-d2",
+   "kind": "deep-dive",
+   "q": "What is tool-calling order variance and how did it bite you?",
+   "a": "The model decides what order to call tools in, and that decision is not stable. It sometimes called merge before the deterministic extraction had run. The merge then had nothing to merge, so it produced a graph with zero field mappings. No exception, no warning, a complete-looking result.",
+   "options": null,
+   "correct": null,
+   "flag": "Calling it a bug in the model. It is a property of letting a model sequence your pipeline, and the design question is what you do about it.",
+   "teach": {
+    "title": "The callback, which is the best story here",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#the-callback-which-is-the-best-story"
+   }
+  },
+  {
+   "id": "c04-d3",
+   "kind": "deep-dive",
+   "q": "Why fix it with a callback rather than a clearer prompt?",
+   "a": "Because a prompt makes it rarer and a callback makes it impossible. <code>ensure_deterministic_before_merge</code> is a before-tool hook. If merge is called and the extractions are not in state, it runs them first. Prompt wording moves a failure rate. A precondition removes the failure.",
+   "options": null,
+   "correct": null,
+   "flag": "“We improved the prompt and it stopped happening.” That is a failure you stopped observing, which is a different thing from a failure you fixed.",
+   "teach": {
+    "title": "The callback, which is the best story here",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#the-callback-which-is-the-best-story"
+   }
+  },
+  {
+   "id": "c04-d4",
+   "kind": "deep-dive",
+   "q": "Why does the reject list contain words like DSO and TABLE?",
+   "a": "Because those are type names, not object names. Asked which object a section describes, a model sometimes answers with the kind of object it is. Without the list, the graph grows a node called <code>TABLE</code> that several documents appear to reference, and it looks like a real hub.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating it as a cosmetic filter. A spurious hub node corrupts every structural metric, and structural accuracy is 20% of the score.",
+   "teach": {
+    "title": "Guardrails, and the failure they catch",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#guardrails-and-the-failure-they-catch"
+   }
+  },
+  {
+   "id": "c04-d5",
+   "kind": "deep-dive",
+   "q": "Why explicitly reject self-loops?",
+   "a": "Because a document about an object mentions that object many times. So the easiest wrong edge to produce is one from a node to itself. It is also the most damaging, because the graph is supposed to be a DAG. One self-loop makes it not one. A structural check expecting a DAG then fails for a reason unrelated to lineage.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying it is harmless. It flips <code>is_dag_correct</code>, which is a named sub-metric here.",
+   "teach": {
+    "title": "The callback, which is the best story here",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#the-callback-which-is-the-best-story"
+   }
+  },
+  {
+   "id": "c04-d6",
+   "kind": "deep-dive",
+   "q": "Decompose the 99.2% for me.",
+   "a": "Four dimensions. Node accuracy at 0.25, built from precision, recall, type correctness and metadata completeness. Edge accuracy at 0.25, matching on the source, target and edge-type tuple. Field mapping accuracy at 0.30. Structural accuracy at 0.20, covering whether it is a DAG, the component count, and cross-reference precision.",
+   "options": null,
+   "correct": null,
+   "flag": "Quoting the weights without the sub-metrics. The sub-metrics are where the interesting answer is, and the next question goes straight there.",
+   "teach": {
+    "title": "What 99.2% actually measures",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#what-99-2-actually-measures"
+   }
+  },
+  {
+   "id": "c04-d7",
+   "kind": "deep-dive",
+   "q": "Inside the field mapping term, what is count accuracy actually measuring?",
+   "a": "One minus the relative error in how many mappings were found for a given edge. Say the gold standard has 40 mappings and we found 39 of them. That scores 0.975 on this sub-metric. It says nothing about whether those are the right ones. It is a useful signal for a missing table, and a weak one for correctness.",
+   "options": null,
+   "correct": null,
+   "flag": "Reading it as per-mapping accuracy. Knowing that it is not is the whole reason you can talk about this metric credibly.",
+   "teach": {
+    "title": "What 99.2% actually measures",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#what-99-2-actually-measures"
+   }
+  },
+  {
+   "id": "c04-d8",
+   "kind": "deep-dive",
+   "q": "And the type distribution similarity?",
+   "a": "A cosine between the predicted mix of mapping types and the expected mix. If the gold standard is mostly direct mappings with a few transformations, and we produce the same proportions, the cosine is high. It catches a systematic bias, like classifying everything as direct. It does not catch two individual mappings swapped.",
+   "options": null,
+   "correct": null,
+   "flag": "Not being able to say what a metric misses. Every metric misses something, and naming it is the difference between using one and quoting one.",
+   "teach": {
+    "title": "What 99.2% actually measures",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#what-99-2-actually-measures"
+   }
+  },
+  {
+   "id": "c04-d9",
+   "kind": "deep-dive",
+   "q": "The threshold is 0.85. Why there?",
+   "a": "It is a chosen bar, not a derived one, and I would say so. What makes it defensible is that it gates a regression check on five documents with known answers. If a change drops the composite below 0.85 on those five, something moved and it needs looking at. The absolute value matters less than it being fixed.",
+   "options": null,
+   "correct": null,
+   "flag": "Inventing a justification for 0.85. A threshold used as a regression tripwire does not need a statistical origin story.",
+   "teach": {
+    "title": "Guardrails, and the failure they catch",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#guardrails-and-the-failure-they-catch"
+   }
+  },
+  {
+   "id": "c04-d10",
+   "kind": "deep-dive",
+   "q": "Five documents. Is that enough?",
+   "a": "Not to claim a general accuracy figure, and I would not. It is enough to catch a regression, because the answers are hand-written and stable. What it cannot tell you is how the agent behaves on a differently shaped document. That is the honest limit of the number.",
+   "options": null,
+   "correct": null,
+   "flag": "Defending five as sufficient. Saying what it is sufficient <em>for</em> is both true and more impressive.",
+   "teach": {
+    "title": "Two agents, which is fewer than it sounds",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#two-agents-which-is-fewer-than-it"
+   }
+  },
+  {
+   "id": "c04-d11",
+   "kind": "deep-dive",
+   "q": "Why is the model name in an environment variable?",
+   "a": "So it is pinned and swappable without a code change. <code>LINEAGE_MODEL</code> defaults to <code>gemini-2.5-pro</code>. The reason to care is the failure from chapter 0002. An alias there quietly started resolving to a model that refused a parameter we sent. A named version fails loudly when it disappears.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating it as configuration hygiene. It is a specific defence against a specific failure you have actually seen.",
+   "teach": {
+    "title": "The callback, which is the best story here",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#the-callback-which-is-the-best-story"
+   }
+  },
+  {
+   "id": "c04-d12",
+   "kind": "deep-dive",
+   "q": "Where does this hybrid pattern generalise to?",
+   "a": "Anywhere part of the input is structured and part is not. The rule I would state is that a model should only be asked questions that have no deterministic answer. Tables, identifiers and arithmetic are not those questions. Classification, disambiguation and summarisation are. Most document pipelines get this backwards and hand the whole file to the model.",
+   "options": null,
+   "correct": null,
+   "flag": "Generalising to “use less AI.” The rule is about which questions have oracles, and that is a sharper and more useful claim.",
+   "teach": {
+    "title": "The split, and why it is the whole design",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#the-split-and-why-it-is-the"
+   }
+  },
+  {
+   "id": "c04-e1",
+   "kind": "edges",
+   "q": "The parser misses a mapping table because the document formats it differently. What happens?",
+   "a": "Those mappings are simply absent, and nothing complains. The deterministic half has no notion of how many tables it should have found. Count accuracy against the gold standard would catch it for the five known documents. For a new document there is no expected count, so the failure is silent.",
+   "options": null,
+   "correct": null,
+   "flag": "Assuming the guardrails catch it. They filter what the model produced. They do not notice what the parser never produced.",
+   "teach": null
+  },
+  {
+   "id": "c04-e2",
+   "kind": "edges",
+   "q": "Could the agent score above 0.85 while being meaningfully wrong?",
+   "a": "Yes, and this is the honest answer to the metric question. Find the right number of mappings with the right type mix but the wrong pairings. Count accuracy and the distribution cosine both stay high. Only the sample match rate falls, and it is one sub-metric inside a 0.30 term.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying no. The interviewer is testing whether you know your own metric's blind spot, and claiming it has none ends that line of credit.",
+   "teach": {
+    "title": "What 99.2% actually measures",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#what-99-2-actually-measures"
+   }
+  },
+  {
+   "id": "c04-e3",
+   "kind": "edges",
+   "q": "A sixth document arrives from a different SAP team, formatted unlike the other five. What breaks first?",
+   "a": "The deterministic parser, because it is the half that depends on layout. The model half degrades gracefully, since object identification is robust to formatting. That is the trade the hybrid design makes. The reliable half is also the brittle one. It fails by finding nothing, rather than by finding something wrong.",
+   "options": null,
+   "correct": null,
+   "flag": "Claiming the hybrid is robust. It is <em>correct</em> where it works and brittle at the edges, which is a better property but not the same one.",
+   "teach": null
+  },
+  {
+   "id": "c04-e4",
+   "kind": "edges",
+   "q": "What if the hand-written gold standard is wrong?",
+   "a": "Then the score is wrong in a direction nobody can see. With five documents there is no way to average that out. The mitigation is that the gold files are small and readable. A disagreement can be settled by opening the source document. I would treat a sudden score drop as a claim about either side until checked.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating the gold standard as ground truth by definition. Somebody typed it, and that is the same class of risk as everything else here.",
+   "teach": {
+    "title": "What 99.2% actually measures",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#what-99-2-actually-measures"
+   }
+  },
+  {
+   "id": "c04-e5",
+   "kind": "edges",
+   "q": "What if the real lineage genuinely contains a cycle?",
+   "a": "Then the structural check is wrong rather than the graph. <code>is_dag_correct</code> compares predicted against expected. A gold standard saying cyclic and a prediction saying cyclic still scores correct. What would break is the self-loop guardrail, which rejects an edge unconditionally. A genuine self-referencing object would be dropped.",
+   "options": null,
+   "correct": null,
+   "flag": "Assuming lineage is always acyclic. It usually is, and a guardrail that assumes it is a rule rather than a heuristic is a thing to know about your own code.",
+   "teach": {
+    "title": "What 99.2% actually measures",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#what-99-2-actually-measures"
+   }
+  },
+  {
+   "id": "c04-e6",
+   "kind": "edges",
+   "q": "Could the guardrails reject a real object?",
+   "a": "Yes. The identifier regex requires at least three characters of uppercase, digits or underscores, starting with a digit or capital. A legitimately short or unusually named object would be dropped silently. The prefix list is a similar bet. Both are tuned to the five documents we have, and that is a real limit.",
+   "options": null,
+   "correct": null,
+   "flag": "Presenting the guardrails as safe. They trade recall for precision, and saying which way you traded is the answer.",
+   "teach": {
+    "title": "Guardrails, and the failure they catch",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#guardrails-and-the-failure-they-catch"
+   }
+  },
+  {
+   "id": "c04-e7",
+   "kind": "edges",
+   "q": "Scale this to five hundred documents. What changes?",
+   "a": "Three things. The gold standard stops being feasible. Evaluation moves to sampling, plus invariants such as rejecting any node named after a type. The model calls need concurrency and a retry budget. And the graph needs identity resolution, because the same object gets named differently across teams. Five documents never exposed that.",
+   "options": null,
+   "correct": null,
+   "flag": "Answering only with infrastructure. The interesting scaling problem here is evaluation, not throughput.",
+   "teach": null
+  },
+  {
+   "id": "c04-e8",
+   "kind": "edges",
+   "q": "What would you change about this?",
+   "a": "The metric, first. I would add a per-mapping precision and recall alongside the composite, so the headline number and the column-level claim are the same number. Second, a completeness check on the parser, so a missed table is loud rather than silent. Neither is hard, and both close the gap between what we measure and what we say.",
+   "options": null,
+   "correct": null,
+   "flag": "Naming a model upgrade. The model is not the weak part here, and saying so shows you know where the risk actually sits.",
+   "teach": {
+    "title": "What 99.2% actually measures",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#what-99-2-actually-measures"
+   }
+  },
+  {
+   "id": "0004-q1",
+   "kind": "quiz",
+   "q": "The model calls the merge tool before it has called deterministic extraction. What happens?",
+   "a": "<p>The callback runs it. <code>ensure_deterministic_before_merge</code> is a before-tool hook: if merge is called and the extractions are not in state, it runs them and then lets the merge proceed.</p>\n    <p>Zero field mappings without a warning is exactly what happened <em>before</em> the callback existed, and it is why the callback exists. That failure is the dangerous kind, because the output is well-formed and complete-looking. Nothing throws, so nothing alerts.</p>",
+   "options": [
+    "A hook quietly runs the deterministic extraction step first",
+    "The merge returns zero field mappings without any warning",
+    "The agent silently retries against a much larger model",
+    "The document gets rejected and the entire pipeline stops"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "The callback, which is the best story here",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#the-callback-which-is-the-best-story"
+   }
+  },
+  {
+   "id": "0004-q2",
+   "kind": "quiz",
+   "q": "The 99.2% headline is a weighted average. What is it averaging?",
+   "a": "<p>Four dimensions: node 0.25, edge 0.25, field mapping 0.30, structural 0.20. So the field term is under a third of the headline, and the rest is about the graph rather than the columns.</p>\n    <p>The tempting reading is the second one, because that is what the résumé wording suggests. Inside the field term, count accuracy and a type-distribution cosine carry most of the weight, and only the sample match rate looks at individual mappings.</p>",
+   "options": [
+    "Four weighted dimensions, of which fields are only one",
+    "Each column mapping found across the five source documents",
+    "The precision and recall over the field mappings alone",
+    "The share of documents that were parsed without error"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "What 99.2% actually measures",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#what-99-2-actually-measures"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“99.2% of what, exactly?”",
+   "a": "<p>A weighted composite over four dimensions. Node accuracy and edge accuracy at 0.25 each, field mapping accuracy at 0.30, structural accuracy at 0.20, with a pass threshold of 0.85. Inside the field term there are three sub-metrics: count accuracy, a cosine over the mapping-type distribution, and a sample match rate. So it is not 99.2% of columns individually verified, and I would rather say that than have you find it.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What 99.2% actually measures",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#what-99-2-actually-measures"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“How do you stop the model hallucinating a column that does not exist?”",
+   "a": "<p>By not asking it. The field mapping tables are parsed deterministically by code, so the 516 mappings are extracted rather than generated. There is no step where a model proposes a column name. The model only handles object identification and cross-reference classification, and those answers pass guardrails before they reach the graph.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The split, and why it is the whole design",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#the-split-and-why-it-is-the"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“Why is this agentic at all? It sounds like a parser and one model call.”",
+   "a": "<p>Largely fair. It is a two-stage sequential agent, and the framework is buying tool orchestration and state rather than autonomy. The one place the agent framing earns itself is the before-tool callback, which is a framework hook I used to make a precondition unskippable. I would not describe this as a swarm, and the résumé does not.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“Tell me about a failure this system had.”",
+   "a": "<p>Some runs produced a graph with zero field mappings and no error at all. The cause was tool-calling order: the model sometimes called merge before the deterministic extraction had run, so there was nothing to merge. The result looked complete, which is the dangerous kind. I fixed it with a before-tool callback that runs extraction if it has not run, rather than with prompt wording.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The callback, which is the best story here",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#the-callback-which-is-the-best-story"
+   }
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“Five documents is a small evaluation set. Does the number mean anything?”",
+   "a": "<p>It means something narrow. Five documents with hand-written expected outputs is a regression gate: if a change moves the composite below 0.85 on those five, something broke. It is not a population estimate, and I would not present it as one. To claim general accuracy I would need sampled per-mapping verification across many more documents, which is the first thing I would build next.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "What 99.2% actually measures",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0004-hybrid-lineage-extraction.html#what-99-2-actually-measures"
+   }
+  }
+ ]
+}

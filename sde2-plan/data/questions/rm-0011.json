@@ -1,0 +1,558 @@
+{
+ "lesson": "rm-0011",
+ "label": "RM 0011",
+ "track": "project",
+ "title": "Infrastructure",
+ "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "c11-t1",
+   "kind": "toolbox",
+   "q": "Name the Kubernetes objects a web service needs, and say what each does.",
+   "a": "A pod is one or more containers sharing a network address, and it is the smallest thing Kubernetes will schedule. A Deployment says how many identical pods should exist, recreates them when they die, and replaces them gradually when the image changes. A Service gives that changing set one stable address and spreads traffic across whichever are healthy. An Ingress maps an external hostname and path to that Service and terminates TLS. What the split buys is independence. What runs, how many, and how it is reached are three things you change separately. Pods are disposable and their addresses change, which is exactly why nothing holds a pod's IP.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying “we deploy containers to Kubernetes.” Name the objects. Four nouns is the whole answer and not having them is very visible.",
+   "teach": {
+    "title": "Two services, two targets, two reasons",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#two-services-two-targets-two-reasons"
+   }
+  },
+  {
+   "id": "c11-t2",
+   "kind": "toolbox",
+   "q": "Rolling, blue-green, canary. What is the difference, and which do you run?",
+   "a": "Three ways to replace a running version. Rolling swaps pods a few at a time, so for a while both versions serve together. Blue-green stands the entire new version up beside the old one and flips all traffic at once, making rollback instant and doubling the resources. Canary sends a small percentage to the new version, watches the metrics, and widens if they hold. What any of them buys is deployment without a maintenance window, and a defined way back. A Deployment rolls by default, and that default is the problem here. A long session gets cut mid-interview, so old pods are drained rather than replaced.",
+   "options": null,
+   "correct": null,
+   "flag": "Reciting the three and not saying which one this workload survives. The overlap window is what the migrate job and the session pinning both exist for.",
+   "teach": {
+    "title": "Two services, two targets, two reasons",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#two-services-two-targets-two-reasons"
+   }
+  },
+  {
+   "id": "c11-t3",
+   "kind": "toolbox",
+   "q": "What does Cloud Build actually do here?",
+   "a": "It is Google's continuous integration runner. A build is a YAML file listing steps, where each step is a container image with arguments and every step shares one workspace. It triggers on a commit and runs in Google's infrastructure rather than yours. Here it builds the image, pushes it to Artifact Registry, then deploys, with a file per environment. What it buys is no build servers to own, and native credentials into the registry and the cluster with no secrets copied around. If there is no test step, say so rather than letting the word CI imply one. An honest description of a thin pipeline beats an implied one that does not exist.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying “we have CI/CD” and stopping. Both letters are separate claims and the interviewer usually only cares about the second.",
+   "teach": {
+    "title": "Two services, two targets, two reasons",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#two-services-two-targets-two-reasons"
+   }
+  },
+  {
+   "id": "c11-t4",
+   "kind": "toolbox",
+   "q": "What is deployed, the tag or the digest?",
+   "a": "The image you built has to live somewhere the cluster can pull it from, and that is Artifact Registry. Every image there has a content-addressed digest, which is its real identity, plus any number of readable tags pointing at it. A tag is a movable label. If you deploy a tag, you cannot say with certainty what is running, and two clusters on the same tag can differ. What pinning the digest buys is an exact rollback rather than an approximate one. It also makes an incident timeline trustworthy, because the version in the log is the version that ran.",
+   "options": null,
+   "correct": null,
+   "flag": "Deploying <code>:latest</code> and not flagging it. It is a common shortcut and naming it as one is better than being asked.",
+   "teach": {
+    "title": "The migrate job, which is the detail worth having",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#the-migrate-job-which-is-the-detail"
+   }
+  },
+  {
+   "id": "c11-t5",
+   "kind": "toolbox",
+   "q": "What is Workload Identity, and what does it replace?",
+   "a": "A binding that lets a Kubernetes service account impersonate a Google one. A pod running under that account asks the node's metadata server for a token and gets a short-lived credential. No key material is ever stored, mounted or transferred. What it buys is credentials that expire on their own and rotate with nobody doing anything. There is nothing to leak, because there is no file. It replaces a downloaded JSON key file. That file never expires, is awkward to rotate, and ends up in an image, an environment variable or a laptop. Leaked static keys are one of the most common routes into a cloud account.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing it as convenience. It is the credential lifetime that matters, and the argument is a security one.",
+   "teach": {
+    "title": "Two services, two targets, two reasons",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#two-services-two-targets-two-reasons"
+   }
+  },
+  {
+   "id": "c11-t6",
+   "kind": "toolbox",
+   "q": "Where does Terraform state live, and why does it matter?",
+   "a": "Remotely, in a bucket, with locking. State is Terraform's record of what it believes it created, mapping each resource in your configuration to a real id in the cloud. Without it, Terraform cannot tell a resource it should update from one it should create. What keeping it remote buys is shared truth. Everyone and every CI run plans against the same picture, which is what makes infrastructure a team activity rather than one laptop. It matters because two people applying at once without a lock means one overwrites the other's view of reality. Recovery is manual import, not a rerun. State is also secret, because it holds resource attributes.",
+   "options": null,
+   "correct": null,
+   "flag": "Local state, or state with no lock. Both work until the second engineer arrives, which is the moment this question is really about.",
+   "teach": null
+  },
+  {
+   "id": "c11-t7",
+   "kind": "toolbox",
+   "q": "BigQuery and Snowflake are both warehouses. What actually differs?",
+   "a": "Both are analytical databases storing data by column rather than by row, both separate storage from compute, and both speak SQL. Columnar storage is what makes them fast, because a query reading three columns of two hundred pays for three. The difference is what you manage. BigQuery has no cluster at all. You submit a query, Google finds the machines, and you are billed mainly on bytes read. Snowflake gives you named warehouses that you size, start and stop, billed per second one is running. So the cost lever differs. On BigQuery you read fewer bytes, with partitioning and clustering. On Snowflake you turn the compute off.",
+   "options": null,
+   "correct": null,
+   "flag": "Comparing them on speed. They are close enough that the operational and billing models are what you would actually choose on.",
+   "teach": {
+    "title": "Two services, two targets, two reasons",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#two-services-two-targets-two-reasons"
+   }
+  },
+  {
+   "id": "c11-t8",
+   "kind": "toolbox",
+   "q": "The service is slow. What do you look at first?",
+   "a": "Three signals answer three different questions. Metrics are numbers sampled over time, cheap to keep for years and the right thing to alert on. They tell you something is wrong and roughly where in the stack. Traces follow one request across every service it touched, with timing at each hop. They are the only one of the three that shows where the time actually went. Logs are events with text, good for detail and expensive at volume. So the order is metrics, then traces, then logs. Most systems have good metrics and no tracing, which is why incidents take hours. That gap is the honest answer if it is yours.",
+   "options": null,
+   "correct": null,
+   "flag": "Starting with logs. Grepping is what you do when you already know where to look, and at this point you do not.",
+   "teach": {
+    "title": "The four things that are not there",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#the-four-things-that-are-not-there"
+   }
+  },
+  {
+   "id": "c11-f1",
+   "kind": "fundamentals",
+   "q": "What infrastructure do you actually own?",
+   "a": "For the vendor platform, the whole path. Helm charts for the deployment, autoscaler, ingress, secrets and migrate job. Terragrunt for the cluster, the managed Postgres and the secret store. Cloud Build for the pipeline. For the schematization service, a Cloud Run deploy behind IAP.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying “we deployed to GKE” and stopping. Naming the chart contents is what turns a platform name into ownership.",
+   "teach": {
+    "title": "Two services, two targets, two reasons",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#two-services-two-targets-two-reasons"
+   }
+  },
+  {
+   "id": "c11-f2",
+   "kind": "fundamentals",
+   "q": "Why Kubernetes for the vendor platform?",
+   "a": "Long-lived streaming connections during interviews, and server-side session state per interview. Plus a migration that has to complete before the new version serves. Helm gives the deployment, HPA, ingress, external secrets and that job as one release. The predecessor ran on Cloud Run, and session lifetime is what moved it.",
+   "options": null,
+   "correct": null,
+   "flag": "Citing scale. The volume does not require a cluster. Session lifetime and release composition do.",
+   "teach": {
+    "title": "Two services, two targets, two reasons",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#two-services-two-targets-two-reasons"
+   }
+  },
+  {
+   "id": "c11-f3",
+   "kind": "fundamentals",
+   "q": "And why Cloud Run for the schematization pipeline?",
+   "a": "Because it is the opposite shape. A request runs about forty-five seconds and ends, and nothing is remembered between requests. Two vCPU, four gigabytes, a 3600-second timeout, concurrency 80, with IAP handling authentication. There is nothing stateful, so there is nothing a cluster would buy.",
+   "options": null,
+   "correct": null,
+   "flag": "Framing it as the simpler option. It is the correct option for a stateless workload, and the reason is the property rather than the effort.",
+   "teach": {
+    "title": "Two services, two targets, two reasons",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#two-services-two-targets-two-reasons"
+   }
+  },
+  {
+   "id": "c11-f4",
+   "kind": "fundamentals",
+   "q": "Helm and Terragrunt do different jobs. Which is which?",
+   "a": "Terragrunt provisions what is underneath: the cluster, the managed database, the secret store. Helm describes what runs on top of it. The boundary is roughly whether something survives a redeploy of the application. Infrastructure is slow and rare, releases are fast and frequent.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating them as alternatives. They operate at different layers and using both is the normal arrangement.",
+   "teach": {
+    "title": "Two services, two targets, two reasons",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#two-services-two-targets-two-reasons"
+   }
+  },
+  {
+   "id": "c11-f6",
+   "kind": "fundamentals",
+   "q": "How are secrets handled?",
+   "a": "External secrets pulled from the secret manager into the cluster at runtime, provisioned by Terragrunt. Nothing credential-shaped is in the repository or baked into an image. That also means rotating a secret does not need a rebuild, which is the practical benefit people forget to mention.",
+   "options": null,
+   "correct": null,
+   "flag": "Only saying they are not in the repo. Rotation without a rebuild is the operational argument.",
+   "teach": {
+    "title": "Two services, two targets, two reasons",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#two-services-two-targets-two-reasons"
+   }
+  },
+  {
+   "id": "c11-f7",
+   "kind": "fundamentals",
+   "q": "How does code get from a merge to production?",
+   "a": "Cloud Build, with separate configurations for development and production. It builds the image and rolls the Helm release, which includes the migrate job running first. For the schematization service it is a build and a Cloud Run deploy. Both are one command rather than a runbook.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing CI and CD as one thing. Being able to say what happens between merge and traffic is the answer.",
+   "teach": null
+  },
+  {
+   "id": "c11-f8",
+   "kind": "fundamentals",
+   "q": "Which datastores across all this work?",
+   "a": "PostgreSQL for the vendor platform's relational core. Snowflake as the warehouse the pipeline debugger queries and validates against. BigQuery as the migration target for the lineage work. ChromaDB as the vector store for past incidents. Four stores with four different jobs.",
+   "options": null,
+   "correct": null,
+   "flag": "Listing them flat. Naming what each one is for is what shows they were chosen rather than inherited.",
+   "teach": null
+  },
+  {
+   "id": "c11-f10",
+   "kind": "fundamentals",
+   "q": "What is the riskiest infrastructure claim?",
+   "a": "Not a claim but an absence. The vendor platform is multi-tenant by nature, since different buyers evaluate different vendors. There is no per-tenant authorisation model beyond what the application does itself. That is the question I would most want to have thought about before being asked.",
+   "options": null,
+   "correct": null,
+   "flag": "Naming a technology you listed. The exposure here is the layer that is absent, not the one that is named.",
+   "teach": {
+    "title": "The four things that are not there",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#the-four-things-that-are-not-there"
+   }
+  },
+  {
+   "id": "c11-d1",
+   "kind": "deep-dive",
+   "q": "What happens if a request holds a database connection across a model call?",
+   "a": "It holds a scarce resource for seconds while doing nothing with it. The pool is fixed, so under load it empties and requests queue for connections rather than for the model. It presents as a database problem and it is a code-structure problem. The fix is to scope the session around the query, not the handler.",
+   "options": null,
+   "correct": null,
+   "flag": "Suggesting a bigger pool. That moves the load onto the database and delays the same failure.",
+   "teach": {
+    "title": "The async database trap",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#the-async-database-trap"
+   }
+  },
+  {
+   "id": "c11-d2",
+   "kind": "deep-dive",
+   "q": "Why can background work not use the request's session?",
+   "a": "Because the middleware opens one session per request and commits or rolls back when the request ends. A background task is handed off before the response returns, so by the time it writes, that session is closed. Using it is a use-after-free with a friendly error message. Nine places in the vendor codebase open their own.",
+   "options": null,
+   "correct": null,
+   "flag": "Treating it as an async quirk. It is lifecycle: the scope ended and the work did not.",
+   "teach": {
+    "title": "The four things that are not there",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#the-four-things-that-are-not-there"
+   }
+  },
+  {
+   "id": "c11-d3",
+   "kind": "deep-dive",
+   "q": "How do you deploy a service holding live interview sessions?",
+   "a": "Session draining is the requirement. Stop admitting new interviews to a pod, let the existing ones finish, then cycle it. A turn is short but a session is long, so a normal rolling update would cut somebody off mid-interview. Version pinning per session is the next pattern I would reach for.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing a standard rolling update. It is exactly what does not work here, and that is why the question is asked.",
+   "teach": {
+    "title": "Two services, two targets, two reasons",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#two-services-two-targets-two-reasons"
+   }
+  },
+  {
+   "id": "c11-d4",
+   "kind": "deep-dive",
+   "q": "Does the autoscaler help a stateful service?",
+   "a": "Only for adding capacity, not for removing it. Scaling up gives new sessions somewhere to land. Scaling down kills pods holding live sessions unless something drains them first. So the autoscaler and the session lifetime have to be reconciled, and a pure CPU signal does not know a session exists.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying the HPA handles it. Scale-down is the dangerous direction and a CPU metric is blind to sessions.",
+   "teach": null
+  },
+  {
+   "id": "c11-d5",
+   "kind": "deep-dive",
+   "q": "You roll back a deploy. What happens to the migration?",
+   "a": "Nothing. It already ran, and the code rollback does not undo it. The ordering guarantee is forward-only. So migrations have to be written compatible with the previous version too. In practice that means additive changes first, and destructive changes in a later release once nothing reads the old shape.",
+   "options": null,
+   "correct": null,
+   "flag": "Assuming a down migration exists and is safe. Most are not exercised, and running one under pressure is its own incident.",
+   "teach": {
+    "title": "The migrate job, which is the detail worth having",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#the-migrate-job-which-is-the-detail"
+   }
+  },
+  {
+   "id": "c11-d6",
+   "kind": "deep-dive",
+   "q": "Where exactly would you put a queue?",
+   "a": "Between the interview ending and the scoring pipeline starting. Today that is an in-process background task handed off before the response returns, so if the pod dies the scorecard is simply lost. A queue makes it durable and retryable, and it decouples scoring capacity from serving capacity.",
+   "options": null,
+   "correct": null,
+   "flag": "Adding a queue everywhere. One specific handoff with a real durability gap is a much better answer.",
+   "teach": {
+    "title": "The four things that are not there",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#the-four-things-that-are-not-there"
+   }
+  },
+  {
+   "id": "c11-d7",
+   "kind": "deep-dive",
+   "q": "And a cache?",
+   "a": "On the blind research pass, because it is identical across interviews with the same vendor and its miss path is a multi-second web fan-out. That immediately brings two problems. A popular vendor gives a stampede, so it needs single-flight. And a vendor with no public footprint returns empty forever, which is cache penetration.",
+   "options": null,
+   "correct": null,
+   "flag": "Proposing the cache without its failure modes. Naming stampede and penetration unprompted is the senior half.",
+   "teach": {
+    "title": "The four things that are not there",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#the-four-things-that-are-not-there"
+   }
+  },
+  {
+   "id": "c11-d8",
+   "kind": "deep-dive",
+   "q": "One Postgres, one region. What is the ladder from here?",
+   "a": "Read replicas first, since scoring and reporting are read-heavy and can tolerate lag. Then connection pooling in front, because replicas multiply connection pressure. Then partitioning the tables that actually grow, which is evaluations rather than rubrics. Multi-region last, because it changes the consistency story rather than the capacity one.",
+   "options": null,
+   "correct": null,
+   "flag": "Starting with sharding. It is the last rung and naming it first suggests the ladder has not been thought about.",
+   "teach": {
+    "title": "The four things that are not there",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#the-four-things-that-are-not-there"
+   }
+  },
+  {
+   "id": "c11-d9",
+   "kind": "deep-dive",
+   "q": "The vendor platform is multi-tenant. How is that enforced?",
+   "a": "In the application, by scoping every query to a workspace. There are permission and tenancy tests, so it is checked rather than assumed. What does not exist is an enforcement layer below that, like row-level security in the database. So a query written without the filter is a data leak and only a test stands in the way.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying it is handled. Saying where it is enforced, and what would catch a mistake, is the real answer.",
+   "teach": {
+    "title": "The four things that are not there",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#the-four-things-that-are-not-there"
+   }
+  },
+  {
+   "id": "c11-d10",
+   "kind": "deep-dive",
+   "q": "Feature flags live in values files rather than in code defaults. What does that cost?",
+   "a": "The source stops describing what runs. Streaming defaults to false in code and true in both environments, so a reader of the repository gets the wrong answer. It is a good rollout pattern, because enabling is a config change and rollback is a value change. The price is that the default in the source is misleading.",
+   "options": null,
+   "correct": null,
+   "flag": "Only praising the pattern. The misleading default is a real cost and naming it shows you read the charts.",
+   "teach": null
+  },
+  {
+   "id": "c11-d11",
+   "kind": "deep-dive",
+   "q": "What would you put on a dashboard for these services?",
+   "a": "Not error rate, because the gateway always returns success. Internal signals instead: canned-reply rate, fallback-model usage, retry rate, and per-turn latency percentiles. For the pipeline, the fraction of runs exiting on stagnation or exhaustion rather than success. Choosing to always succeed means building your own definition of failure.",
+   "options": null,
+   "correct": null,
+   "flag": "Listing standard golden signals. For a service that never returns an error, error rate is structurally blind.",
+   "teach": {
+    "title": "The four things that are not there",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#the-four-things-that-are-not-there"
+   }
+  },
+  {
+   "id": "c11-d12",
+   "kind": "deep-dive",
+   "q": "One thing to add. What and why?",
+   "a": "The queue for post-interview scoring. It closes a real durability gap, where a scorecard can be lost entirely. It is a well-understood component, and it decouples two capacities that currently scale together. The cache is a bigger performance win, and it carries stampede and penetration with it, so it is second.",
+   "options": null,
+   "correct": null,
+   "flag": "Choosing the biggest win. Choosing the one that closes a correctness gap first is the better instinct and easier to defend.",
+   "teach": null
+  },
+  {
+   "id": "c11-e1",
+   "kind": "edges",
+   "q": "A pod dies during a live interview. What is lost?",
+   "a": "The session state for that interview, and any post-interview scoring already handed off in-process. The conversation cannot resume on another pod because nothing external holds the state. That is the cost of keeping session state in memory, and it is the strongest argument for the queue and for externalising session state.",
+   "options": null,
+   "correct": null,
+   "flag": "Saying Kubernetes restarts it. A restarted pod does not have the old pod's memory.",
+   "teach": null
+  },
+  {
+   "id": "c11-e2",
+   "kind": "edges",
+   "q": "Postgres becomes unreachable. What does the gateway do?",
+   "a": "Returns a canned reply and a 200, because after authentication the route never fails. So the interview continues and nothing is persisted. That is right for the conversation. It also means a database outage is invisible from the outside. Which is exactly why error rate is useless here and internal signals are not.",
+   "options": null,
+   "correct": null,
+   "flag": "Describing a 500. The design deliberately does not do that, and the consequence for monitoring is the interesting part.",
+   "teach": {
+    "title": "The four things that are not there",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#the-four-things-that-are-not-there"
+   }
+  },
+  {
+   "id": "c11-e3",
+   "kind": "edges",
+   "q": "The migrate job fails halfway.",
+   "a": "New pods do not serve, which is the correct outcome. The old version keeps running against the old schema, assuming the migration is transactional or was partially applied in a compatible direction. The dangerous case is a migration that is neither, leaving a schema that matches neither version.",
+   "options": null,
+   "correct": null,
+   "flag": "Assuming all migrations are transactional. Some DDL is not, and that is where the genuinely bad outcome lives.",
+   "teach": {
+    "title": "The migrate job, which is the detail worth having",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#the-migrate-job-which-is-the-detail"
+   }
+  },
+  {
+   "id": "c11-e4",
+   "kind": "edges",
+   "q": "Two turns of one interview hit two different pods.",
+   "a": "The second pod has no session, so the interview breaks. Session state is server-side per interview, so requests have to land consistently. That is a load-balancing constraint the architecture depends on, and it is the thing that would break first behind a naive round-robin balancer.",
+   "options": null,
+   "correct": null,
+   "flag": "Assuming the load balancer handles it. It has to be configured to, and knowing that dependency exists is the point.",
+   "teach": {
+    "title": "Two services, two targets, two reasons",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#two-services-two-targets-two-reasons"
+   }
+  },
+  {
+   "id": "c11-e5",
+   "kind": "edges",
+   "q": "Ten times the interviews tomorrow. What breaks first?",
+   "a": "Not the pods. The outbound research, because every interview fans out to third-party search and fetch APIs. Those have their own rate limits, and nothing limits how many interviews are in flight. After that the connection pool, and then the model provider's quota. Adding replicas helps none of those.",
+   "options": null,
+   "correct": null,
+   "flag": "Answering with horizontal scaling. The first three bottlenecks are all external limits that more pods make worse.",
+   "teach": {
+    "title": "The four things that are not there",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#the-four-things-that-are-not-there"
+   }
+  },
+  {
+   "id": "c11-e6",
+   "kind": "edges",
+   "q": "A query ships without its workspace filter.",
+   "a": "One tenant sees another's data, and only a test stands between that and production. Tenancy is enforced in application code rather than in the database, so there is no second line. Row-level security would make the filter structural rather than conventional, and that is the change I would argue for.",
+   "options": null,
+   "correct": null,
+   "flag": "Citing code review. Review catches most of them, and structural enforcement catches all of them.",
+   "teach": {
+    "title": "Two services, two targets, two reasons",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#two-services-two-targets-two-reasons"
+   }
+  },
+  {
+   "id": "c11-e7",
+   "kind": "edges",
+   "q": "Where does the money actually go?",
+   "a": "Model calls, not infrastructure. A cluster and a managed Postgres at this volume are a rounding error next to per-token costs. That is especially true of the pro-tier scoring pass and the Scout's fan-out. So cost optimisation means caching research and choosing model tiers, not resizing nodes.",
+   "options": null,
+   "correct": null,
+   "flag": "Talking about node sizing. For an LLM product the infrastructure bill is usually the small half.",
+   "teach": {
+    "title": "The four things that are not there",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#the-four-things-that-are-not-there"
+   }
+  },
+  {
+   "id": "c11-e8",
+   "kind": "edges",
+   "q": "What would you change, in order?",
+   "a": "A queue for post-interview scoring, because a scorecard can currently be lost outright. Then row-level security for tenancy, so the boundary is structural. Then a cache on the blind research pass, with single-flight, since that is the biggest cost win. Replicas last, because nothing is read-bound yet.",
+   "options": null,
+   "correct": null,
+   "flag": "Ordering by size of win. Correctness gaps before performance gaps is the easier order to defend.",
+   "teach": {
+    "title": "The four things that are not there",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#the-four-things-that-are-not-there"
+   }
+  },
+  {
+   "id": "0011-q1",
+   "kind": "quiz",
+   "q": "The vendor platform runs on GKE and the schematization pipeline on Cloud Run. What is the deciding difference?",
+   "a": "<p>State. The vendor platform holds long-lived streaming connections and server-side session state per interview, and its release bundles a migration that must finish before new pods serve. The pipeline runs one request for about forty-five seconds and remembers nothing.</p>\n    <p>Cost is not the reason, and both targets run containers. The predecessor to the vendor platform was on Cloud Run, and what moved it was session lifetime rather than scale or price.</p>",
+   "options": [
+    "One holds long sessions, while the other is stateless",
+    "One is cheaper to operate at that request volume",
+    "One was chosen before the other team had migrated",
+    "One runs containers, and the other only plain code"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "Two services, two targets, two reasons",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#two-services-two-targets-two-reasons"
+   }
+  },
+  {
+   "id": "0011-q2",
+   "kind": "quiz",
+   "q": "The Helm release includes a migration job that runs to completion before new pods serve. What does that guarantee?",
+   "a": "<p>Ordering. There is never a window where a new binary queries a table that does not yet have its column, because the job finishes first. That removes a class of deploy failure that is otherwise intermittent and miserable to diagnose.</p>\n    <p>It says nothing about draining, backups, or rollback. In particular the guarantee is forward-only: rolling the code back does not roll the schema back, which is why migrations still have to stay compatible with the previous version.</p>",
+   "options": [
+    "The schema is ready before any pod accepts traffic",
+    "The database is backed up before the rollout begins",
+    "The old pods drain before new ones are started",
+    "The migration can be retried without a fresh deploy"
+   ],
+   "correct": 0,
+   "flag": null,
+   "teach": {
+    "title": "The migrate job, which is the detail worth having",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#the-migrate-job-which-is-the-detail"
+   }
+  },
+  {
+   "id": "p1",
+   "kind": "probe",
+   "q": "“Why Kubernetes? It sounds like this would run on Cloud Run.”",
+   "a": "<p>It did, and the proof of concept stayed there. What moved it was session lifetime. The product holds long-lived streaming connections during an interview and keeps session state per interview on the server, so a deploy or a scale-down can cut somebody off mid-sentence. The release also bundles a migration job that must finish before new pods serve. Our other service, the schematization pipeline, is stateless and is still on Cloud Run for exactly that reason.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Two services, two targets, two reasons",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#two-services-two-targets-two-reasons"
+   }
+  },
+  {
+   "id": "p2",
+   "kind": "probe",
+   "q": "“How would you scale this to ten times the traffic?”",
+   "a": "<p>Not by adding pods first. The first limit is outbound research: every interview fans out to third-party search and fetch APIs with their own rate limits, and nothing caps how many interviews are in flight, so more pods make that worse. Second is the connection pool, especially anywhere a session is held across a model call. Third is the model provider's quota. Admission control at the pipeline level comes before any horizontal scaling.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The four things that are not there",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#the-four-things-that-are-not-there"
+   }
+  },
+  {
+   "id": "p3",
+   "kind": "probe",
+   "q": "“What is missing from your architecture?”",
+   "a": "<p>Four things. No messaging layer, so post-interview scoring is an in-process background task and it is lost if the pod dies. No cache, although the blind research pass is identical across interviews with the same vendor. One region and one Postgres with no replicas, so no read scaling and no failover. And no identity model beyond a proxy and a service key, on a platform that is multi-tenant by nature. The queue is the one I would add first, because it closes a correctness gap rather than a performance one.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The four things that are not there",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#the-four-things-that-are-not-there"
+   }
+  },
+  {
+   "id": "p4",
+   "kind": "probe",
+   "q": "“How is tenant isolation enforced?”",
+   "a": "<p>In application code, by scoping every query to a workspace, with permission and tenancy tests covering it. What does not exist is enforcement below that, like row-level security in Postgres. So a query written without the filter is a data leak with only a test in the way. I would argue for making the boundary structural rather than conventional, because that is the difference between catching most mistakes and catching all of them.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The four things that are not there",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#the-four-things-that-are-not-there"
+   }
+  },
+  {
+   "id": "p5",
+   "kind": "probe",
+   "q": "“What would a deploy look like during a live interview?”",
+   "a": "<p>It needs session draining rather than a rolling update. Stop admitting new interviews to a pod, let the ones in progress finish, then cycle it. A turn is short and a session is long, so a standard rollout terminates somebody mid-interview. The migrate job already handles the schema ordering. What the release does not have is a drain step, and version pinning per session is the pattern I would reach for next.</p>",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Two services, two targets, two reasons",
+    "url": "https://nehilsood.github.io/guides/resume-mastery/lessons/0011-infrastructure.html#two-services-two-targets-two-reasons"
+   }
+  }
+ ]
+}
