@@ -50,8 +50,9 @@ const todayCard = (m, d, flow) => {
   );
 };
 
-// One month as a picture of its 30 days. The cells are too small to tap, so they are not links: the Today card
-// and the outline are the ways in. A screen reader hears the month's summary instead.
+// One month as a picture of its 30 days. With a mouse a cell opens its day; on a touch screen the cells are too small
+// to tap, so plan.css turns them off there and the Today card and the outline are the ways in. The cells stay out of
+// the tab order, and a screen reader hears the month's summary instead.
 const monthRow = (cells, i) => {
   const n = (status) => cells.filter((c) => c.status === status).length;
   const now = cells.find((c) => c.status === "today");
@@ -60,7 +61,7 @@ const monthRow = (cells, i) => {
     "div",
     { class: "map-row", role: "img", "aria-label": summary.filter(Boolean).join(", ") },
     el("span", { class: "map-m", text: String(i + 1) }),
-    el("span", { class: "grid" }, cells.map((c) => el("i", { class: `cell ${c.status}`, title: `Day ${c.day} · ${longDate(c.date)}` }))),
+    el("span", { class: "grid" }, cells.map((c) => el("a", { class: `cell ${c.status}`, href: `day.html?d=${c.day}`, tabindex: "-1", title: `Day ${c.day} · ${longDate(c.date)}` }))),
   );
 };
 
