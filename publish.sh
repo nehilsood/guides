@@ -23,6 +23,12 @@ for ws in interview-prep system-design-school resume-mastery; do
 done
 python3 "$SITE/tools/flow_privacy.py" "$SRC/resume-mastery"
 
+echo "check: sde2-plan card rules and tests"
+(cd "$SRC/sde2-plan" && .githooks/pre-commit) || {
+  echo "sde2-plan checks failed; fix them there, then publish again" >&2
+  exit 1
+}
+
 echo "sync: interview-prep, system-design-school, resume-mastery"
 sync --exclude README.md --exclude docs/ --exclude flows/ --exclude '*.py' --exclude .superpowers/ --exclude .git/ --exclude .gitignore "$SRC/interview-prep/" "$SITE/interview-prep/"
 for course in system-design-school resume-mastery; do
