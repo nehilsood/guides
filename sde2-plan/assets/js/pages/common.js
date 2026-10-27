@@ -1,6 +1,7 @@
 import { load, save, merge, KEY } from "../store.js";
 import { todayIST, dayNumber, DAYS } from "../dates.js";
 import { startSync, scheduleSync, onStatus, getStatus, describe } from "./syncwire.js";
+import { icon } from "./icons.js";
 
 export const today = () => todayIST(new Date());
 export const now = () => Date.now();
@@ -27,6 +28,8 @@ export const el = (tag, attrs = {}, ...children) => {
     if (value === null || value === undefined || value === false) continue;
     if (key.startsWith("on")) node.addEventListener(key.slice(2), value);
     else if (key === "text") node.textContent = value;
+    // The CSP forbids style attributes; custom properties go through the CSSOM instead.
+    else if (key === "style") for (const [prop, v] of Object.entries(value)) node.style.setProperty(prop, v);
     else if (value === true) node.setAttribute(key, "");
     else node.setAttribute(key, value);
   }
@@ -76,6 +79,8 @@ const typing = () => {
   const inApp = a && document.getElementById("app")?.contains(a);
   return Boolean(inApp && (a.tagName === "TEXTAREA" || (a.tagName === "INPUT" && !NON_TEXT.has(a.type))));
 };
+// True while the reader is pressing or typing: a redraw now would swallow the tap or the keystrokes.
+export const busy = () => typing() || pointerDown;
 let redrawPending = false;
 let pointerDown = false;
 const settle = (delay) =>
@@ -115,12 +120,29 @@ window.addEventListener("storage", (event) => {
   requestRedraw();
 });
 
-// Re-render a page without collapsing the <details> the reader has opened.
+// Re-render a page without collapsing the <details> the reader has opened or losing keyboard focus (a control
+// with `data-f` gets focus back). Elements with class `anim` and a `data-k` start from their old class and
+// --fill, then switch to the new ones, so their transitions run.
+const visual = (node) => ({ cls: node.className, fill: node.style.getPropertyValue("--fill") });
+const paint = (node, { cls, fill }) => {
+  node.className = cls;
+  if (fill) node.style.setProperty("--fill", fill);
+  else node.style.removeProperty("--fill");
+};
+
 export const rerender = (root, build) => {
   flushPending();
   const open = new Set([...root.querySelectorAll("details[open][data-k]")].map((d) => d.dataset.k));
+  const before = new Map([...root.querySelectorAll(".anim[data-k]")].map((n) => [n.dataset.k, visual(n)]));
+  const focused = root.contains(document.activeElement) ? document.activeElement.dataset.f : undefined;
   root.replaceChildren(build());
   for (const d of root.querySelectorAll("details[data-k]")) d.open = open.has(d.dataset.k);
+  if (focused) root.querySelector(`[data-f="${CSS.escape(focused)}"]`)?.focus({ preventScroll: true });
+  const moved = [...root.querySelectorAll(".anim[data-k]")].filter((n) => before.has(n.dataset.k)).map((n) => [n, visual(n)]);
+  if (!moved.length) return;
+  for (const [n] of moved) paint(n, before.get(n.dataset.k));
+  void root.offsetHeight; // one reflow, so the browser sees the old state before the new one
+  for (const [n, after] of moved) paint(n, after);
 };
 
 // Only link out to https pages (or, with `pattern`, to a relative path); anything else shows as plain text.
@@ -131,7 +153,7 @@ export const longDate = (dateStr) =>
     new Date(dateStr + "T00:00:00Z"),
   );
 
-export { formatViews, formatHours, codeParts } from "../format.js";
+export { formatViews, formatHours, codeParts, leadIn } from "../format.js";
 
 const TRACKS = { dsa: "DSA", hld: "HLD", lld: "LLD", ai: "AI", cs: "CS basics", hard: "DSA hard" };
 export const trackLabel = (track) => (typeof track === "string" ? TRACKS[track] ?? track.charAt(0).toUpperCase() + track.slice(1) : "");
@@ -167,31 +189,39 @@ export const loadData = async () => {
 };
 
 const NAV = [
-  ["Home", "index.html"],
-  ["Today", "day.html"],
-  ["Revise", "revise.html"],
-  ["Outline", "outline.html"],
-  ["Stories", "stories.html"],
-  ["Settings", "settings.html"],
+  ["Home", "index.html", "home"],
+  ["Today", "day.html", "today"],
+  ["Revise", "revise.html", "revise"],
+  ["Outline", "outline.html", "outline"],
+  ["Stories", "stories.html", "stories"],
 ];
 
+// Five tabs (a bottom bar on phones, a rail on wide screens); Settings sits top right by the sync status.
 export const renderHeader = (active) => {
-  const nav = el(
+  const here = (href) => (href === active ? "page" : null);
+  const tabs = el(
     "nav",
-    { class: "nav", "aria-label": "Main" },
-    NAV.map(([label, href]) => el("a", { href, "aria-current": href === active ? "page" : null, text: label })),
+    { class: "tabs", "aria-label": "Main" },
+    NAV.map(([label, href, name]) => el("a", { href, "aria-current": here(href) }, icon(name), el("span", { text: label }))),
   );
-  document.getElementById("site-header").append(el("div", { class: "brand", text: "SDE2 plan" }), syncDot(), nav);
+  const settings = el("a", { class: "icon-btn", href: "settings.html", "aria-label": "Settings", "aria-current": here("settings.html") }, icon("settings"));
+  document.getElementById("site-header").append(
+    el("a", { class: "brand", href: "index.html" }, icon("mark"), el("span", { text: "SDE2 plan" })),
+    el("div", { class: "top-right" }, syncStatus(), settings),
+    tabs,
+  );
 };
 
-const syncDot = () => {
-  const label = el("span", { class: "sr-only" });
-  const link = el("a", { class: "sync-dot", href: "settings.html" }, el("span", { class: "dot", "aria-hidden": "true" }), label);
+const SYNC_WORDS = { off: "Off", syncing: "Saving", synced: "Synced", error: "Not synced" };
+
+const syncStatus = () => {
+  const word = el("span");
+  const link = el("a", { class: "sync-dot", href: "settings.html" }, el("span", { class: "dot", "aria-hidden": "true" }), word);
   const paint = (st) => {
-    const text = describe(st);
     link.dataset.kind = st.kind;
-    link.title = text;
-    label.textContent = text;
+    link.title = describe(st);
+    link.setAttribute("aria-label", `Sync: ${describe(st)}`);
+    word.textContent = SYNC_WORDS[st.kind] ?? "";
   };
   onStatus(paint);
   paint(getStatus());
@@ -216,9 +246,9 @@ export const guarded = (draw) => () => {
 export const ratingButtons = (id, name, onRate) =>
   el(
     "span",
-    { class: "btns rate" },
-    [["easy", "😀 Easy"], ["ok", "😐 OK"], ["struggled", "😣 Struggled"]].map(([rating, label]) =>
-      el("button", { type: "button", class: "btn", "aria-label": `${label.replace(/^\S+ /, "")}: ${name}`, onclick: () => onRate(id, rating), text: label }),
+    { class: "seg", role: "group", "aria-label": `How well did you remember ${name}?` },
+    [["easy", "Easy"], ["ok", "OK"], ["struggled", "Struggled"]].map(([rating, label]) =>
+      el("button", { type: "button", "aria-label": `${label}: ${name}`, onclick: () => onRate(id, rating), text: label }),
     ),
   );
 

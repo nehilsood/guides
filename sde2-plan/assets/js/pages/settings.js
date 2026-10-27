@@ -19,7 +19,7 @@ const paintStatus = (st) => {
 const message = el("p", { class: "small", role: "status" });
 const backupMessage = el("p", { class: "small", role: "status" });
 const sayIn = (line) => (text, cls = "ok") => {
-  line.className = cls;
+  line.className = `small ${cls}`;
   line.textContent = text;
 };
 const say = sayIn(message);
@@ -72,6 +72,28 @@ const importFile = async (event) => {
   event.target.value = "";
 };
 
+// Appearance: Auto follows the device. theme.js applies the saved choice before first paint on every page.
+const THEME_KEY = "sde2:v1:theme";
+const savedTheme = () => {
+  try {
+    return localStorage.getItem(THEME_KEY) ?? "auto";
+  } catch {
+    return "auto";
+  }
+};
+const themeButtons = [["auto", "Auto"], ["light", "Light"], ["dark", "Dark"]].map(([value, label]) =>
+  el("button", { type: "button", value, "aria-pressed": String(value === savedTheme()), onclick: () => setTheme(value), text: label }),
+);
+const setTheme = (value) => {
+  try {
+    if (value === "auto") localStorage.removeItem(THEME_KEY);
+    else localStorage.setItem(THEME_KEY, value);
+  } catch {} // storage blocked: the choice holds for this page only
+  if (value === "auto") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", value);
+  for (const b of themeButtons) b.setAttribute("aria-pressed", String(b.value === value));
+};
+
 renderHeader("settings.html");
 onStatus(paintStatus);
 paintStatus(getStatus());
@@ -80,11 +102,18 @@ document.getElementById("app").replaceChildren(
   el(
     "section",
     { class: "box" },
+    el("h2", { text: "Appearance" }),
+    el("p", { class: "small", text: "Auto follows your device's light or dark setting." }),
+    el("div", { class: "seg", role: "group", "aria-label": "Colour theme" }, themeButtons),
+  ),
+  el(
+    "section",
+    { class: "box" },
     el("h2", { text: "Sync" }),
     el("p", { class: "small", text: "Use a fine-grained GitHub token with access to only the progress repo, Contents: Read and write." }),
     field("repo", "Progress repo", repoInput),
     field("token", "Token", tokenInput),
-    el("p", {}, el("span", { class: "btns" }, el("button", { type: "button", class: "btn primary", onclick: save, text: "Save" }), el("button", { type: "button", class: "btn", onclick: () => syncNow(), text: "Sync now" }), el("button", { type: "button", class: "btn", onclick: forget, text: "Forget token on this device" }))),
+    el("p", {}, el("span", { class: "btns" }, el("button", { type: "button", class: "button", onclick: save, text: "Save" }), el("button", { type: "button", class: "btn", onclick: () => syncNow(), text: "Sync now" }), el("button", { type: "button", class: "btn", onclick: forget, text: "Forget token on this device" }))),
     statusLine,
     message,
   ),

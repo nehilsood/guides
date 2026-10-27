@@ -17,6 +17,12 @@ const touch = (state, collection, key, patch, nowMs) => ({
 export const setSolved = (state, id, solved, minutes, nowMs) =>
   touch(state, "items", id, { solved, minutes }, nowMs);
 
+// Minutes only: a tick saved on another device must survive a later minutes edit here.
+export const setMinutes = (state, id, minutes, nowMs) => touch(state, "items", id, { minutes }, nowMs);
+
+// A self-test mark ("got", "partly", "missed" or null to clear) with the question text it was given against.
+export const setResult = (state, id, result, text, nowMs) => touch(state, "items", id, { result, text }, nowMs);
+
 const restart = (existing, today) => ({
   ...srs.start(today),
   history: [...(existing?.history ?? [])],

@@ -1,6 +1,7 @@
 import { START, DAYS, dayNumber, dateOf, addDays } from "./dates.js";
 import { isDue, isCold } from "./srs.js";
 import { codeParts } from "./format.js";
+import { capMinutes, questionTrack, textKey } from "./wording.js";
 
 const FINISH = dateOf(DAYS);
 const DSA_TOTAL = 250;
@@ -107,11 +108,11 @@ const NC_PROBLEM = /^https:\/\/neetcode\.io\/problems\/([a-z0-9-]+)\/question$/;
 // Its ✓ stays on the task's own record, so ticking a re-solve never un-solves the original.
 const taskView = (task, state, problemsBySlug) => {
   const doneId = "t:" + task.id;
-  const done = state.items[doneId]?.solved === true;
+  const own = { doneId, done: state.items[doneId]?.solved === true, cap: capMinutes(task.text), minutes: state.items[doneId]?.minutes ?? null };
   const problem = problemsBySlug[task.url?.match(NC_PROBLEM)?.[1]];
-  if (!problem) return { ...task, doneId, flagId: doneId, done, flagged: state.items[doneId]?.flag === true };
+  if (!problem) return { ...task, ...own, flagId: doneId, flagged: state.items[doneId]?.flag === true };
   const view = problemView(problem, state);
-  return { ...task, doneId, flagId: "p:" + problem.id, done, flagged: view.flagged,
+  return { ...task, ...own, flagId: "p:" + problem.id, flagged: view.flagged,
     solutionUrl: view.solutionUrl, videoUrl: view.videoUrl };
 };
 
@@ -148,18 +149,19 @@ const taskLabels = (cardsByDay) => {
 
 export const reviseModel = (state, today, problemsById, outline, cardsByDay = {}) => {
   const tasks = taskLabels(cardsByDay);
-  const label = (id) => {
+  const label = (id, item) => {
     const [kind, ...rest] = id.split(":");
     const key = rest.join(":");
     if (kind === "p") return problemsById[key]?.title ?? id;
     if (kind === "day") return `Day ${key} · ${outline[Number(key)]?.slots[0]?.topic ?? ""}`;
+    if (kind === "q") return typeof item.text === "string" ? `Day ${rest[0]} · ${item.text}` : id;
     return tasks[key] ?? key;
   };
   return flaggedItems(state)
     .filter(([, item]) => !item.srs.graduated)
     .map(([id, item]) => ({
       id,
-      label: label(id),
+      label: label(id, item),
       due: item.srs.due,
       step: item.srs.step,
       overdue: item.srs.due < today,
@@ -167,6 +169,34 @@ export const reviseModel = (state, today, problemsById, outline, cardsByDay = {}
     }))
     .sort((a, b) => a.due.localeCompare(b.due) || a.id.localeCompare(b.id));
 };
+
+// A self-test question, keyed by its full card text so a mark follows the question, not its position.
+const questionView = (day, state, { q, a }, shown = q) => {
+  const key = `q:${day}:${textKey(q)}`;
+  const item = state.items[key] ?? {};
+  return { key, q: shown, a, result: item.result ?? null, revising: item.flag === true };
+};
+
+const keyed = (day, state) => (block) => {
+  const key = `b:${day}:${textKey(block.title)}`;
+  return { ...block, key, closed: state.items[key]?.solved === true, questions: [] };
+};
+
+// On Day 0 each question sits in the block its prefix names; any it can't place stay in the self-test.
+const placeQuestions = (day, blocks, selftest, state) => {
+  if (day !== 0) return { blocks, selftest: selftest.map((t) => questionView(day, state, t)) };
+  const loose = [];
+  const byTrack = new Map(blocks.map((b) => [b.track, b]));
+  for (const t of selftest) {
+    const found = questionTrack(t.q);
+    const block = found && byTrack.get(found.track);
+    if (block) block.questions.push(questionView(day, state, t, found.text));
+    else loose.push(questionView(day, state, t));
+  }
+  return { blocks, selftest: loose };
+};
+
+const ratedOn = (state, today) => flaggedItems(state).filter(([, item]) => item.srs.history.some((h) => h.date === today)).length;
 
 export const dayModel = (day, outline, cardsByDay, schedule, problemsById, state, today) => {
   if (!Number.isInteger(day) || day < 0 || day > DAYS) {
@@ -176,20 +206,27 @@ export const dayModel = (day, outline, cardsByDay, schedule, problemsById, state
   const card = cardsByDay[day];
   const problemsFor = problemsByTrack(day, entry, schedule, problemsById, state);
   const problemsBySlug = Object.fromEntries(Object.values(problemsById).map((p) => [p.ncSlug, p]));
-  const blocks = card ? card.blocks.map((b) => blockFromCard(b, state, problemsBySlug)) : entry.slots.map(blockFromSlot);
+  const raw = card ? card.blocks.map((b) => blockFromCard(b, state, problemsBySlug)) : entry.slots.map(blockFromSlot);
+  const { blocks, selftest } = placeQuestions(day, raw.map(keyed(day, state)), card ? card.selftest : [], state);
   const record = state.days[day] ?? {};
+  const isToday = day === dayNumber(today);
+  const due = reviseModel(state, today, problemsById, outline, cardsByDay).filter((r) => r.isDue);
+  const revisedToday = ratedOn(state, today);
   return {
     ok: true,
     day,
     date: entry.date,
     title: card ? card.title : entry.slots.map((s) => s.topic).join(" · "),
-    isToday: day === dayNumber(today),
-    due: reviseModel(state, today, problemsById, outline, cardsByDay).filter((r) => r.isDue),
+    isToday,
+    due,
+    revisedToday,
+    showRevise: isToday && due.length + revisedToday > 0,
+    baseline: day === 0,
     blocks: blocks.map((b) => ({ ...b, problems: problemsFor(b.track) })),
     totalMinutes: totalMinutes(blocks.map((b) => ({ minutes: b.minutes ?? 0 }))),
     wholeFlagged: state.items["day:" + day]?.flag === true,
     feelNote: record.feelNote ?? "",
-    selftest: card ? card.selftest : [],
+    selftest,
     feel: record.feel ?? null,
     notes: record.notes ?? "",
     done: Boolean(record.done),

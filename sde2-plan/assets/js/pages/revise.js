@@ -6,7 +6,7 @@ const item = (r, onRate) =>
   el(
     "div",
     { class: "prob" },
-    el("span", {}, `↻ ${r.label} `, el("span", { class: `tag${r.overdue ? " warn" : ""}`, text: reviseTag(r.id, r.step) }), el("span", { class: "small", text: r.isDue ? ` · due ${r.overdue ? "since " : ""}${longDate(r.due)}` : ` · ${longDate(r.due)}` })),
+    el("span", {}, `${r.label} `, el("span", { class: `tag${r.overdue ? " warn" : ""}`, text: reviseTag(r.id, r.step) }), el("span", { class: "small", text: r.isDue ? ` · due ${r.overdue ? "since " : ""}${longDate(r.due)}` : ` · ${longDate(r.due)}` })),
     r.isDue ? ratingButtons(r.id, r.label, onRate) : null,
   );
 
@@ -21,9 +21,9 @@ const build = (data, onRate) => {
     el(
       "div",
       { class: "box" },
-      el("h2", { text: `⭐ Due today (${due.length})` }),
-      due.length ? due.map((r) => item(r, onRate)) : el("p", { class: "empty", text: "Nothing due. Flag problems or days with ⭐ Revise and they come back here." }),
-      due.length ? el("p", { class: "small", text: "Easy → comes back later · Struggled → comes back sooner" }) : null,
+      el("h2", { text: `Due today (${due.length})` }),
+      due.length ? due.map((r) => item(r, onRate)) : el("p", { class: "empty", text: "Nothing due. Bookmark a problem or a day for revision and it comes back here." }),
+      due.length ? el("p", { class: "small", text: "Easy brings it back later. Struggled brings it back sooner." }) : null,
     ),
     later.length ? el("div", { class: "box" }, el("h2", { text: `Coming up (${later.length})` }), later.map((r) => item(r, onRate))) : null,
   );

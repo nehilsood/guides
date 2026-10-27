@@ -1,6 +1,8 @@
 import { START } from "../dates.js";
 import { homeModel } from "../models.js";
-import { el, getState, loadData, renderHeader, showError, guarded, onExternalChange, today, longDate, trackLabel, formatHours } from "./common.js";
+import { icon } from "./icons.js";
+import { SUBJECTS, subjectOf } from "../subjects.js";
+import { el, getState, loadData, renderHeader, showError, guarded, onExternalChange, today, longDate, formatHours } from "./common.js";
 
 const SHOWN = ["hld", "lld", "ai", "cs"];
 const LEGEND = [["done", "done"], ["missed", "missed"], ["today", "today"], ["catchup", "catch-up day"], ["future", "to come"]];
@@ -12,13 +14,14 @@ const fill = (percent) => {
   return node;
 };
 
-const bar = (label, done, total, note) =>
+// One subject's progress, in its colour.
+const bar = (track, done, total, note) =>
   el(
     "div",
-    { class: "row" },
-    el("span", { class: "row-label", text: label }),
+    { class: `track-row s-${subjectOf(track)}` },
+    el("span", { class: "track-label", text: SUBJECTS[subjectOf(track)] }),
     el("span", { class: "bar" }, fill(total ? Math.round((100 * done) / total) : 0)),
-    el("span", { class: "row-note", text: note ?? `${done}/${total}` }),
+    el("span", { class: "track-note", text: note ?? `${done}/${total}` }),
   );
 
 const grid = (cells) => {
@@ -43,11 +46,11 @@ const todayBox = (model) => {
       "div",
       { class: "box today-box" },
       el("div", {}, el("b", { text: `Starts in ${model.daysToStart} day${model.daysToStart === 1 ? "" : "s"}, ${longDate(START)}` }), el("div", { class: "small", text: "Day 0 is a short baseline you can do any time before." })),
-      el("a", { class: "button", href: "day.html?d=0", text: "Open Day 0 →" }),
+      el("a", { class: "button", href: "day.html?d=0", text: "Open Day 0" }),
     );
   }
   if (model.phase === "finished") {
-    return el("div", { class: "box today-box" }, el("b", { text: "The 180 days are finished. Well done." }), el("a", { class: "button", href: "day.html?d=180", text: "Open Day 180 →" }));
+    return el("div", { class: "box today-box" }, el("b", { text: "The 180 days are finished. Well done." }), el("a", { class: "button", href: "day.html?d=180", text: "Open Day 180" }));
   }
   const summary = model.todaySummary;
   return el(
@@ -59,18 +62,19 @@ const todayBox = (model) => {
       el("b", { text: `Day ${model.todayDay} · ${summary.title}` }),
       el("div", { class: "small", text: [`${summary.blocks} block${summary.blocks === 1 ? "" : "s"}`, formatHours(summary.totalMinutes)].filter(Boolean).join(" · ") }),
     ),
-    el("a", { class: "button", href: "day.html", text: "Start today →" }),
+    el("a", { class: "button", href: "day.html", text: "Start today" }),
   );
 };
 
 const render = ({ outline }) => {
   const model = homeModel(outline, getState(), today());
   const counts = (s) => model.cells.filter((c) => c.status === s).length;
-  const headline = model.phase === "running" ? `${longDate(today())} · Day ${model.todayDay} of 180` : "Your 180 days";
+  const running = model.phase === "running";
   return el(
     "div",
     {},
-    el("h1", { text: headline }),
+    running ? el("p", { class: "day-date", text: longDate(today()) }) : null,
+    el("h1", { text: running ? `Day ${model.todayDay} of 180` : "Your 180 days" }),
     todayBox(model),
     el("h2", { text: "Your 180 days" }),
     el("div", { class: "grids" }, grid(model.cells)),
@@ -80,14 +84,14 @@ const render = ({ outline }) => {
       "div",
       { class: "box" },
       el("h2", { text: "Progress" }),
-      bar("DSA", model.dsa.solved, model.dsa.total, `${model.dsa.solved}/${model.dsa.total}${model.dsa.cold ? ` · ${model.dsa.cold} cold` : ""}`),
-      model.tracks.filter((t) => SHOWN.includes(t.track)).map((t) => bar(trackLabel(t.track), t.done, t.total)),
+      bar("dsa", model.dsa.solved, model.dsa.total, `${model.dsa.solved}/${model.dsa.total}${model.dsa.cold ? ` · ${model.dsa.cold} cold` : ""}`),
+      model.tracks.filter((t) => SHOWN.includes(t.track)).map((t) => bar(t.track, t.done, t.total)),
     ),
     el(
       "div",
       { class: "box due-link" },
-      el("span", {}, "⭐ ", el("b", { text: `${model.dueCount} item${model.dueCount === 1 ? "" : "s"} due for revision` })),
-      el("a", { href: "revise.html", text: "Open list →" }),
+      el("span", { class: "due-word" }, icon("bookmark"), el("b", { text: `${model.dueCount} item${model.dueCount === 1 ? "" : "s"} due for revision` })),
+      el("a", { href: "revise.html", text: "Open list" }),
     ),
   );
 };

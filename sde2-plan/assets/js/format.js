@@ -19,3 +19,13 @@ export const codeParts = (text) => {
   if (last < text.length) parts.push({ text: text.slice(last), code: false });
   return parts;
 };
+
+// "Two pointers: keep two indexes…" -> { lead: "Two pointers", rest: "keep two indexes…" }. Only a short name
+// (1 to 5 words, no code) before the first ": " counts as a lead-in; anything else is null.
+export const leadIn = (text) => {
+  const at = text.indexOf(": ");
+  if (at <= 0) return null;
+  const lead = text.slice(0, at);
+  if (lead.length > 40 || lead.includes("`") || lead.trim().split(/\s+/).length > 5) return null;
+  return { lead, rest: text.slice(at + 2) };
+};
