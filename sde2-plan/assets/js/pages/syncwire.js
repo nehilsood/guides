@@ -104,9 +104,8 @@ export const scheduleSync = () => {
 
 export const startSync = (context) => {
   ctx = context;
-  document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") syncNow();
-  });
+  // Hidden pushes what changed; visible pulls what the other device wrote while this tab was away.
+  document.addEventListener("visibilitychange", syncNow);
   window.addEventListener("online", syncNow);
   if (getToken()) syncNow();
   else setStatus({ kind: "off" });

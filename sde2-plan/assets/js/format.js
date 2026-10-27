@@ -20,6 +20,11 @@ export const codeParts = (text) => {
   return parts;
 };
 
+// Card text with its backticks dropped, for labels.
+export const plain = (text) => codeParts(text).map((p) => p.text).join("");
+
+export const sentence = (text) => (/[.…?!]$/.test(text) ? text : `${text}.`);
+
 // "Two pointers: keep two indexes…" -> { lead: "Two pointers", rest: "keep two indexes…" }. Only a short name
 // (1 to 5 words, no code) before the first ": " counts as a lead-in; anything else is null.
 export const leadIn = (text) => {

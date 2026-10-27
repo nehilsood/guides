@@ -3,7 +3,7 @@ import { dayModel } from "../models.js";
 import { dayFlow, afterChange } from "../dayflow.js";
 import { SUBJECTS } from "../subjects.js";
 import { setSolved, setMinutes, setFlag, setResult, setDay, rate } from "../store.js";
-import { el, busy, getState, commit, loadData, renderHeader, showError, guarded, today, now, rerender, onExternalChange, debounced, flushPending, safeHref, formatViews, codeParts, leadIn, longDate, trackLabel, todayDayClamped, ratingButtons, reviseTag } from "./common.js";
+import { el, busy, getState, commit, loadData, renderHeader, showError, guarded, today, now, rerender, onExternalChange, debounced, flushPending, safeHref, formatViews, codeParts, leadIn, plain, sentence, longDate, fullDate, trackLabel, todayDayClamped, ratingButtons, reviseTag, barParts } from "./common.js";
 import { icon, ring } from "./icons.js";
 
 const requestedDay = () => {
@@ -19,14 +19,8 @@ const reducedMotion = () => matchMedia("(prefers-reduced-motion: reduce)").match
 // From this width the open row reads in a column beside the day list instead of inside it.
 const wide = matchMedia("(min-width: 1100px)");
 
-const fullDate = (dateStr) =>
-  new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(dateStr + "T00:00:00Z"));
-
-// Card text with `backticked` code shown as <code>; plain() drops the backticks for labels.
+// Card text with `backticked` code shown as <code>.
 const rich = (text) => codeParts(text).map((p) => (p.code ? el("code", { text: p.text }) : p.text));
-const plain = (text) => codeParts(text).map((p) => p.text).join("");
-
-const sentence = (text) => (/[.…?!]$/.test(text) ? text : `${text}.`);
 
 const ext = (url, ...content) => {
   const href = safeHref(url);
@@ -288,21 +282,6 @@ const openTarget = (root, key) => (wide.matches ? root.querySelector(".reader") 
 // Where keyboard focus goes when the control it was on folds away: the heading of what opened, or the day's own.
 const focusTarget = (root, key) =>
   !key ? root.querySelector(".day-h") : wide.matches ? root.querySelector(".reader-h") : root.querySelector(`[data-row="${key}"] .row-h`);
-
-const SWEEP_STEP = 40;
-const SWEEP_MAX = 300;
-
-// One segment per row. The sticky bar's mini copy has no data-seg (rigs count the main bar's segments).
-const barParts = (flow, swept, prefix) =>
-  flow.rows.map((r, i) => {
-      const state = swept || r.done ? "is-done" : r.key === flow.current ? "is-current" : "is-later";
-      const style = {
-        "--fill": String(r.progress),
-        ...(swept ? { "--delay": `${Math.min(i * SWEEP_STEP, SWEEP_MAX)}ms` } : {}),
-        ...(r.kind === "block" ? { "flex-grow": String(r.minutes) } : {}),
-      };
-      return el("i", { "data-seg": prefix === "seg" ? "" : null, "data-k": `${prefix}-${r.key}`, class: `anim part s-${r.subject} ${state}${r.kind === "block" ? " is-block" : ""}`, style });
-    });
 
 const dayBar = (flow, swept) =>
   el("div", { class: "daybar", role: "img", "aria-label": swept ? "Day done" : `${flow.minutesDone} of ${flow.totalMinutes} minutes done` }, barParts(flow, swept, "seg"));

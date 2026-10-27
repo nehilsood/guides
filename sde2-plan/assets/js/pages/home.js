@@ -1,11 +1,16 @@
-import { START } from "../dates.js";
-import { homeModel } from "../models.js";
+import { DAYS } from "../dates.js";
+import { homeModel, dayModel } from "../models.js";
+import { dayFlow } from "../dayflow.js";
 import { icon } from "./icons.js";
 import { SUBJECTS, subjectOf } from "../subjects.js";
-import { el, getState, loadData, renderHeader, showError, guarded, onExternalChange, today, longDate, formatHours } from "./common.js";
+import { el, getState, loadData, renderHeader, showError, guarded, onExternalChange, today, todayDayClamped, longDate, fullDate, plain, sentence, barParts } from "./common.js";
 
 const SHOWN = ["hld", "lld", "ai", "cs"];
-const LEGEND = [["done", "done"], ["missed", "missed"], ["today", "today"], ["catchup", "catch-up day"], ["future", "to come"]];
+const LEGEND = [["done", "done"], ["today", "today"], ["missed", "missed"], ["catchup", "catch-up day"]];
+
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+const dayMonth = (dateStr) => new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(dateStr + "T00:00:00Z"));
 
 // style.width goes through the CSSOM, which a style-src 'self' policy allows (a style attribute would not be)
 const fill = (percent) => {
@@ -24,75 +29,68 @@ const bar = (track, done, total, note) =>
     el("span", { class: "track-note", text: note ?? `${done}/${total}` }),
   );
 
-const grid = (cells) => {
-  const rows = [];
-  for (let m = 0; m < 6; m++) {
-    rows.push(
-      el(
-        "div",
-        { class: "grid" },
-        cells.slice(m * 30, m * 30 + 30).map((c) =>
-          el("a", { class: `cell ${c.status}`, href: `day.html?d=${c.day}`, title: `Day ${c.day} · ${longDate(c.date)}`, "aria-label": `Day ${c.day}, ${c.status}` }),
-        ),
-      ),
-    );
-  }
-  return rows;
-};
+const heading = (m) =>
+  m.phase === "running" ? `Day ${m.todayDay} of ${DAYS}`
+  : m.phase === "finished" ? `${DAYS} days done`
+  : m.daysToStart === 1 ? "Starts tomorrow"
+  : `Starts in ${m.daysToStart} days`;
 
-const todayBox = (model) => {
-  if (model.phase === "before") {
-    return el(
-      "div",
-      { class: "box today-box" },
-      el("div", {}, el("b", { text: `Starts in ${model.daysToStart} day${model.daysToStart === 1 ? "" : "s"}, ${longDate(START)}` }), el("div", { class: "small", text: "Day 0 is a short baseline you can do any time before." })),
-      el("a", { class: "button", href: "day.html?d=0", text: "Open Day 0" }),
-    );
-  }
-  if (model.phase === "finished") {
-    return el("div", { class: "box today-box" }, el("b", { text: "The 180 days are finished. Well done." }), el("a", { class: "button", href: "day.html?d=180", text: "Open Day 180" }));
-  }
-  const summary = model.todaySummary;
+// The day to do now (Day 0 before the start, Day 180 after the end): how far through it is, and the way in.
+const todayCard = (m, d, flow) => {
+  const started = flow.minutesDone > 0 || flow.rows.some((r) => r.done);
+  const outside = m.phase === "before" || m.phase === "finished";
+  const action = outside || flow.done ? `Open Day ${d.day}` : started ? `Continue Day ${d.day}` : `Start Day ${d.day}`;
   return el(
-    "div",
-    { class: "box today-box" },
-    el(
-      "div",
-      {},
-      el("b", { text: `Day ${model.todayDay} · ${summary.title}` }),
-      el("div", { class: "small", text: [`${summary.blocks} block${summary.blocks === 1 ? "" : "s"}`, formatHours(summary.totalMinutes)].filter(Boolean).join(" · ") }),
-    ),
-    el("a", { class: "button", href: "day.html", text: "Start today" }),
+    "section",
+    { class: "panel today-card", "aria-labelledby": "today-t" },
+    el("h2", { id: "today-t", class: "today-t", text: plain(d.title) }),
+    el("p", { class: "day-meta" }, el("b", { text: `${flow.minutesDone} of ${flow.totalMinutes} minutes` }), flow.done ? ` done. Day ${d.day} done.` : ` done. Next: ${sentence(plain(flow.next))}`),
+    el("span", { class: "daybar mini", "aria-hidden": "true" }, barParts(flow, false, "mini")),
+    el("a", { class: "button wide", href: `day.html?d=${d.day}`, text: action }),
   );
 };
 
-const render = ({ outline }) => {
-  const model = homeModel(outline, getState(), today());
-  const counts = (s) => model.cells.filter((c) => c.status === s).length;
-  const running = model.phase === "running";
+// One month as a picture of its 30 days. The cells are too small to tap, so they are not links: the Today card
+// and the outline are the ways in. A screen reader hears the month's summary instead.
+const monthRow = (cells, i) => {
+  const n = (status) => cells.filter((c) => c.status === status).length;
+  const now = cells.find((c) => c.status === "today");
+  const summary = [`Month ${i + 1}, Days ${cells[0].day} to ${cells.at(-1).day}`, `${n("done")} done`, `${n("missed")} missed`, now && `today is Day ${now.day}`];
+  return el(
+    "div",
+    { class: "map-row", role: "img", "aria-label": summary.filter(Boolean).join(", ") },
+    el("span", { class: "map-m", text: String(i + 1) }),
+    el("span", { class: "grid" }, cells.map((c) => el("i", { class: `cell ${c.status}`, title: `Day ${c.day} · ${longDate(c.date)}` }))),
+  );
+};
+
+const map = (m) => [
+  el("div", { class: "map-h" }, el("h2", { text: `Your ${DAYS} days` }), el("a", { class: "more", href: "outline.html", text: "Every day in the outline" })),
+  el("div", { class: "map" }, m.months.map(monthRow)),
+  el("div", { class: "legend" }, LEGEND.map(([cls, text]) => el("span", {}, el("i", { class: `cell ${cls}` }), text))),
+  el("p", { class: "map-foot", text: `One row is one month. ${m.counts.done} done, ${m.counts.missed} missed.` }),
+];
+
+const render = ({ outline, cardsByDay, schedule, problemsById }) => {
+  const now = today();
+  const m = homeModel(outline, getState(), now);
+  const d = dayModel(todayDayClamped(), outline, cardsByDay, schedule, problemsById, getState(), now);
   return el(
     "div",
     {},
-    running ? el("p", { class: "day-date", text: longDate(today()) }) : null,
-    el("h1", { text: running ? `Day ${model.todayDay} of 180` : "Your 180 days" }),
-    todayBox(model),
-    el("h2", { text: "Your 180 days" }),
-    el("div", { class: "grids" }, grid(model.cells)),
-    el("div", { class: "legend" }, LEGEND.map(([cls, text]) => el("span", {}, el("i", { class: `cell ${cls}` }), text))),
-    el("p", { class: "small", text: `One row is one month. ${counts("done")} done, ${counts("missed")} missed. On track to finish ${longDate(model.expectedFinish)}.` }),
-    el(
-      "div",
-      { class: "box" },
-      el("h2", { text: "Progress" }),
-      bar("dsa", model.dsa.solved, model.dsa.total, `${model.dsa.solved}/${model.dsa.total}${model.dsa.cold ? ` · ${model.dsa.cold} cold` : ""}`),
-      model.tracks.filter((t) => SHOWN.includes(t.track)).map((t) => bar(t.track, t.done, t.total)),
-    ),
-    el(
-      "div",
-      { class: "box due-link" },
-      el("span", { class: "due-word" }, icon("bookmark"), el("b", { text: `${model.dueCount} item${model.dueCount === 1 ? "" : "s"} due for revision` })),
-      el("a", { href: "revise.html", text: "Open list" }),
-    ),
+    el("h1", { text: heading(m) }),
+    el("p", { class: "day-meta" }, m.phase === "finished" ? `${fullDate(now)}.` : `${fullDate(now)}. On track to finish ${dayMonth(m.expectedFinish)}.`),
+    todayCard(m, d, dayFlow(d)),
+    map(m),
+    el("h2", { text: "Progress" }),
+    bar("dsa", m.dsa.solved, m.dsa.total, `${m.dsa.solved}/${m.dsa.total}${m.dsa.cold ? ` · ${m.dsa.cold} cold` : ""}`),
+    m.tracks.filter((t) => SHOWN.includes(t.track)).map((t) => bar(t.track, t.done, t.total)),
+    m.dueCount
+      ? [
+          el("h2", { text: "Revision" }),
+          el("p", { class: "due-link" }, icon("bookmark"), el("b", { text: `${plural(m.dueCount, "item")} due for revision` }), el("a", { class: "more", href: "revise.html", text: "Revise" })),
+        ]
+      : null,
   );
 };
 

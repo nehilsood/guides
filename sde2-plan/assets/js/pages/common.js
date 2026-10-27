@@ -153,7 +153,10 @@ export const longDate = (dateStr) =>
     new Date(dateStr + "T00:00:00Z"),
   );
 
-export { formatViews, formatHours, codeParts, leadIn } from "../format.js";
+export const fullDate = (dateStr) =>
+  new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(dateStr + "T00:00:00Z"));
+
+export { formatViews, formatHours, codeParts, leadIn, plain, sentence } from "../format.js";
 
 const TRACKS = { dsa: "DSA", hld: "HLD", lld: "LLD", ai: "AI", cs: "CS basics", hard: "DSA hard" };
 export const trackLabel = (track) => (typeof track === "string" ? TRACKS[track] ?? track.charAt(0).toUpperCase() + track.slice(1) : "");
@@ -242,6 +245,22 @@ export const guarded = (draw) => () => {
     showError(err);
   }
 };
+
+const SWEEP_STEP = 40;
+const SWEEP_MAX = 300;
+
+// The day bar: one segment per row of a day's flow (dayflow.js). The day page's sticky bar and Home's Today card
+// use the mini copy, which has no data-seg (rigs count the main bar's segments).
+export const barParts = (flow, swept, prefix) =>
+  flow.rows.map((r, i) => {
+    const state = swept || r.done ? "is-done" : r.key === flow.current ? "is-current" : "is-later";
+    const style = {
+      "--fill": String(r.progress),
+      ...(swept ? { "--delay": `${Math.min(i * SWEEP_STEP, SWEEP_MAX)}ms` } : {}),
+      ...(r.kind === "block" ? { "flex-grow": String(r.minutes) } : {}),
+    };
+    return el("i", { "data-seg": prefix === "seg" ? "" : null, "data-k": `${prefix}-${r.key}`, class: `anim part s-${r.subject} ${state}${r.kind === "block" ? " is-block" : ""}`, style });
+  });
 
 export const ratingButtons = (id, name, onRate) =>
   el(

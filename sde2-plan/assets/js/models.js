@@ -62,6 +62,8 @@ export const homeModel = (outline, state, today) => {
   const todayDay = dayNumber(today);
   const days = outline.filter((e) => e.day >= 1 && e.day <= DAYS);
   const todayEntry = outline[todayDay];
+  const cells = days.map((e) => ({ day: e.day, date: e.date, status: cellStatus(e, state, todayDay) }));
+  const count = (status) => cells.filter((c) => c.status === status).length;
   return {
     todaySummary: todayEntry
       ? { title: todayEntry.slots.map((s) => s.topic).join(" + "), blocks: todayEntry.slots.length, totalMinutes: totalMinutes(todayEntry.slots) }
@@ -69,7 +71,10 @@ export const homeModel = (outline, state, today) => {
     phase: phaseOf(todayDay),
     daysToStart: dayNumber(START) - todayDay,
     todayDay,
-    cells: days.map((e) => ({ day: e.day, date: e.date, status: cellStatus(e, state, todayDay) })),
+    cells,
+    // The map: one row of 30 days per month.
+    months: Array.from({ length: DAYS / 30 }, (_, m) => cells.slice(m * 30, m * 30 + 30)),
+    counts: { done: count("done"), missed: count("missed") },
     tracks: trackTotals(days, state),
     dsa: dsaProgress(state),
     expectedFinish: expectedFinish(days, state, todayDay),
