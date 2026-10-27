@@ -2,23 +2,27 @@
   {
     "day": 31,
     "date": "2026-12-02",
-    "title": "Choosing a fixed window, and the Sliding Window summary · Imbalanced data",
+    "title": "The k closest values, and the Sliding Window summary · Imbalanced data",
     "blocks": [
       {
         "track": "dsa",
-        "title": "Sliding Window: a fixed window you choose, and which window when",
+        "title": "Sliding Window: the k closest values, and which window when",
         "minutes": 75,
-        "builds_on": "Day 26 · a window of fixed size, Day 19 · pointers from both ends, Day 25 · dropping an end only when you can say why it is safe, and Days 27, 29 and 30 · the other window shapes",
+        "builds_on": "Days 26 to 30 · Sliding Window, and Days 19 to 25 · Two Pointers",
         "points": [
           "Today's window has a fixed size k, like Day 26's, but you don't want a summary of every window: the window's position is the answer. You slide it to find the best place for it.",
           "Two ways to place it. Slide: move the window one step at a time and update the score from only what changed, the item that left and the one that entered, since everything in between is shared. Or close in from both ends, as on Day 19, dropping one end at a time and saying each time why the end you drop can't be in the answer (Day 25).",
-          "For today's problem, decide which of the two fits and what makes one choice better than another. Write that rule in one line before coding, including what happens on a tie.",
           "Today closes the topic, so here it is on one screen. Fixed size: update a summary with one item in and one out (Day 26, Contains Duplicate II). A left end that jumps when no earlier start can win (Day 27, Best Time to Buy and Sell Stock).",
           "Longest valid window: grow on the right, shrink while the rule is broken, record after shrinking (Day 29, Longest Substring Without Repeating Characters and Longest Repeating Character Replacement).",
           "Fixed windows that compare letter counts, with a running number of matched letters as the fast version (Day 30, Permutation in String). Shortest valid window: grow until valid, then record inside the shrink loop (Day 30, Minimum Size Subarray Sum).",
-          "Spotting a window problem: the question is about neighbouring items (a substring or subarray), and a valid window stays valid when it shrinks (Day 29's property). If negative numbers break that, use prefix sums and a dict instead (Day 18).",
-          "Day 32 starts Binary Search. Once you have done Day 32, try today's problem again as a challenge: can a binary search find where the best window starts? You don't need it today."
+          "Spotting a window problem: the question is about neighbouring items (a substring or subarray), and a valid window stays valid when it shrinks (Day 29's property). If negative numbers break that, use prefix sums and a dict instead (Day 18)."
         ],
+        "hints": {
+          "find-k-closest-elements": [
+            "For today's problem, decide which of the two fits and what makes one choice better than another. Write that rule in one line before coding, including what happens on a tie.",
+            "Day 32 starts Binary Search. Once you have done Day 32, try today's problem again as a challenge: can a binary search find where the best window starts? You don't need it today."
+          ]
+        },
         "say": "When the window's size is fixed but its place is the answer, I slide it and update from only what left and what entered, or close in from both ends dropping an end that can't be in the answer, so it stays O(n).",
         "example": [
           "Practice problem (not on today's list): delivery stops along a road at km [1, 3, 4, 8, 9, 15]. Give one rider 3 neighbouring stops so that the stretch (last stop − first stop) is as short as possible.",
@@ -30,7 +34,7 @@
         "tasks": [
           {
             "id": "d31-dsa-1",
-            "text": "After today's problem, write the Sliding Window summary in My notes on one screen: the shapes from points 4 to 6 plus today's, one line each with when to use it, what moves the left end, where the answer is recorded, and one problem you solved with it. Then say it out loud in two minutes."
+            "text": "After today's problem, write the Sliding Window summary in My notes on one screen: one line for each window shape from Days 26 to 30 (when to use it, what moves the left end, where the answer is recorded, and one problem you solved with it), and one line on how you solved today's problem. Then say it out loud in two minutes."
           }
         ],
         "primary": {
@@ -123,22 +127,29 @@
   {
     "day": 32,
     "date": "2026-12-03",
-    "title": "Binary search invariants · A 45-minute design framework",
+    "title": "Finding a value, and where it would go · A 45-minute design framework",
     "blocks": [
       {
         "track": "dsa",
-        "title": "Binary Search: what lo and hi mean, and the two loops",
+        "title": "Binary Search: finding a value, and where it would go",
         "minutes": 75,
-        "builds_on": "Day 5 · both binary search loops, the first-true loop and `bisect`, and Day 1 · Big-O",
+        "builds_on": "Day 5 · binary search and recursion, and Day 1 · Big-O",
         "points": [
           "Day 5 gave you two binary search loops. Today's new idea is why they are right: the invariant, one sentence about lo and hi that is true before every step. Say it first, and the start values, the loop condition and the updates follow from it.",
           "Closed range, to find a value. Invariant: if the target is in the list, it is in nums[lo..hi], both ends included. So lo = 0 and hi = n − 1; loop while lo <= hi, because a range of one item still has to be checked; mid has been checked, so move to mid + 1 or mid − 1. When lo > hi the range is empty: not found.",
-          "Half-open, first-true. Invariant: everything before lo is false and everything from hi on is true. Start lo = 0 and hi = n (a pretend true just past the end). Loop while lo < hi; if mid is true, hi = mid (it may be the first); else lo = mid + 1. When lo == hi, that is the first true, or n if there is none. This answers \"where would it go?\"",
+          "Half-open, first-true. Invariant: everything before lo is false and everything from hi on is true. Start lo = 0 and hi = n (a pretend true just past the end). Loop while lo < hi; if mid is true, hi = mid (it may be the first); else lo = mid + 1. When lo == hi, that is the first true, or n if there is none.",
           "Every step must shrink the range, or the loop never ends. When lo < hi, mid = (lo + hi) // 2 is below hi, so hi = mid shrinks it, and lo = mid + 1 always does.",
           "Before submitting, check 0, 1 and 2 items by hand: an empty list, one item smaller, equal and larger than the target, and two items with the target at each place. Most off-by-one bugs show up there.",
-          "In Python, (lo + hi) // 2 can't overflow: integers grow as needed. In Java or C++ an int stops at about 2.1 billion, so lo + hi can wrap round to a negative number; there you write lo + (hi − lo) // 2. Say this in an interview.",
-          "Binary Search is the closed loop; Search Insert Position asks \"where would it go?\", the half-open question. O(log n) time and O(1) memory."
+          "In Python, (lo + hi) // 2 can't overflow: integers grow as needed. In Java or C++ an int stops at about 2.1 billion, so lo + hi can wrap round to a negative number; there you write lo + (hi − lo) // 2. Say this in an interview."
         ],
+        "hints": {
+          "binary-search": [
+            "Binary Search: what should it return when the value isn't there? Say its Big-O."
+          ],
+          "search-insert-position": [
+            "Search Insert Position asks where the target would go. Which of the two loops answers that, and what should it return when the target is bigger than every item?"
+          ]
+        },
         "say": "I state the invariant first: for finding a value, the target is in nums[lo..hi], so I loop while lo <= hi; for \"where would it go\", everything before lo is false and from hi on is true, so I loop while lo < hi and land on the first true.",
         "example": [
           "Practice problem (not on today's list): departures in minutes, sorted: [5, 12, 12, 12, 30]. How many trains leave after minute 12? Find the first index whose value is > 12.",
@@ -147,6 +158,7 @@
           "lo == hi == 4, the first index > 12. Trains after minute 12: 5 − 4 = 1. This is what `bisect.bisect_right(nums, 12)` returns.",
           "Off-by-one checks: [] gives lo = hi = 0 (no trains), [12] gives 1 (no trains after it) and [30] gives 0 (one train). Three seconds each, and they catch a wrong start or a wrong update."
         ],
+        "example_for": "search-insert-position",
         "primary": {
           "title": "Binary search: read Search in sorted arrays, Lower bound and upper bound, and Implementation (it writes the loop with l = −1 and r = n, the same invariant idea in another form)",
           "url": "https://cp-algorithms.com/num_methods/binary_search.html",
@@ -258,22 +270,29 @@
   {
     "day": 33,
     "date": "2026-12-04",
-    "title": "Revision queue, then searching a range of numbers · Semaphores and producer–consumer",
+    "title": "Revision queue, then guessing a hidden number · Semaphores and producer–consumer",
     "blocks": [
       {
         "track": "dsa",
-        "title": "Binary Search: clear the revision queue, then search a range of numbers, not an array",
+        "title": "Binary Search: clear the revision queue, then guessing a hidden number",
         "minutes": 30,
-        "builds_on": "Day 26 · Friday revision, Day 32 · the invariant for lo and hi and the two loops, and Day 5 · binary search on answers when a check flips once",
+        "builds_on": "Day 26 · Friday revision, Day 32 · Binary Search, and Day 5 · binary search and recursion",
+        "first": [
+          "Fridays start with revision. Today 5 minutes of this block go to a short guide lesson (listed in the CS block below), so the re-solves get about 5 minutes: enough for one Easy from the Revise row, not a medium from a blank file. Re-solve one if it fits and rate it; anything left shows again tomorrow. The rest of the block, about 20 minutes, is today's problem."
+        ],
         "points": [
-          "Fridays start with revision. Today 5 minutes of this block go to a short guide lesson (listed in the CS block below), so keep the re-solves to about 5 minutes: one problem from the Revise row, then rate it. Anything left shows again tomorrow. The rest of the block, about 20 minutes, is the new idea below.",
-          "Then the new idea: lo and hi don't have to be indexes into a list. They can be the smallest and largest possible values, say 1 and n, and the \"list\" is never built.",
+          "Today's new idea: lo and hi don't have to be indexes into a list. They can be the smallest and largest possible values, say 1 and n, and the \"list\" is never built.",
           "Instead of reading nums[mid], you ask about mid with a call: an API that answers for one value, such as \"higher, lower or correct\" or \"broken or fine\".",
           "Each call costs something, so count them: about log2(n). 1,000 values take at most 10 calls; 2^31, about 2.1 billion, take 31.",
           "Day 32's loops work unchanged. A three-way answer (too low, too high, found) suits the closed loop, lo <= hi. A yes/no answer that flips once suits the first-true loop, lo < hi.",
           "The invariant is still the guide: \"the answer is in [lo, hi]\". Each call rules out half of what is left.",
-          "Guess Number Higher or Lower is this idea in its plainest form. Day 34 searches for the answer itself in the same way, and Day 36 writes its own check."
+          "Day 34 searches for the answer itself in the same way, and Day 36 writes its own check."
         ],
+        "hints": {
+          "guess-number-higher-or-lower": [
+            "Guess Number Higher or Lower is this idea in its plainest form. Read what its API returns before you pick a loop."
+          ]
+        },
         "say": "When the answer is a number in a known range, I binary search the values themselves, lo and hi as the smallest and largest possible, asking the check or API about mid, so it takes about log2(n) calls.",
         "example": [
           "Practice problem (not on today's list): builds 1 to 100 of an app; from some build on, every build is broken. `is_broken(v)` is the only way to look. Find the first broken build.",
@@ -394,22 +413,26 @@
   {
     "day": 34,
     "date": "2026-12-05",
-    "title": "Binary search on the answer · Minimum Window Substring · Design a URL shortener",
+    "title": "Whole-number square roots · Minimum Window Substring · Design a URL shortener",
     "blocks": [
       {
         "track": "dsa",
-        "title": "Binary Search: binary search on the answer, the last true",
+        "title": "Binary Search: whole-number square roots",
         "minutes": 30,
-        "builds_on": "Day 33 · searching a range of numbers with a check, Day 32 · the invariant for lo and hi, and Day 5 · the first-true loop and last_at_most",
+        "builds_on": "Days 32 and 33 · Binary Search, and Day 5 · binary search and recursion",
         "points": [
           "Day 33 searched a range of values for a hidden number. Today the number you search for is the answer itself: the largest k for which a check holds.",
           "The check is true for small k and false from some point on: true, true, true, false, false. You want the last true, the mirror image of Day 5's first true.",
           "Way 1, with what you have: find the first k where the check is false (Day 5's first-true loop on the opposite check) and subtract 1, as Day 5's last_at_most did.",
           "Way 2, a last-true loop: while lo < hi, mid = (lo + hi + 1) // 2; if the check holds at mid, lo = mid, else hi = mid − 1. Invariant: lo is always a value known to pass (or the lowest possible answer), and everything above hi fails.",
           "Why the + 1: when hi = lo + 1, (lo + hi) // 2 is lo. If the check holds there, lo = mid changes nothing and the loop never ends. Rounding up makes mid = hi, so the range always shrinks.",
-          "Before coding, say the lowest and highest possible answers, and check that the check really goes true-then-false with no flip back.",
-          "Sqrt(x) is this pattern in its plainest form. Write its check as one line before the loop, and solve it before the reading: the reading's example is today's problem. O(log x) checks."
+          "Before coding, say the lowest and highest possible answers, and check that the check really goes true-then-false with no flip back."
         ],
+        "hints": {
+          "sqrtx": [
+            "Sqrt(x) is this pattern in its plainest form. Write its check as one line before the loop. O(log x) checks."
+          ]
+        },
         "say": "When a check is true up to some value and false after it, I binary search for the last true, rounding mid up so the range always shrinks, or I find the first false and step back one.",
         "example": [
           "Practice problem (not on today's list): with 20 coins, how many full rows of a staircase can you build, where row n needs n coins? n rows need n(n + 1) ÷ 2 coins.",
@@ -428,25 +451,31 @@
       },
       {
         "track": "hard",
-        "title": "Sliding Window (hard): Minimum Window Substring, the shortest window that covers every needed letter",
+        "title": "Sliding Window (hard): Minimum Window Substring",
         "minutes": 60,
-        "builds_on": "Day 30 · the running number of letters whose counts match, and recording the shortest window inside the shrink loop, and Day 29 · the variable window template",
-        "points": [
-          "You solved Permutation in String and Minimum Size Subarray Sum (Day 30) with the variable window template (Day 29). This hard combines them: the shortest window whose letter counts cover a second string's counts.",
-          "Step 1, brute force: write \"the window covers t\" as a rule about two count dicts. What must hold for every letter of t? Then say the cost of checking every substring that way.",
-          "Step 2, the template: grow right until the window covers t, then shrink from the left while it still covers, recording inside the shrink loop as for Day 30's shortest window. Comparing the counts at every step costs up to 52 letters (upper and lower case): O(52 × n).",
-          "Step 3, an O(1) check: Day 30's faster version kept a running number of letters whose counts already match. Here a letter of t is met when its count in the window reaches its count in t. At exactly which moment should that number go up as a letter enters, and down as one leaves?",
-          "A letter can be needed more than once (t = \"aab\"). Does a third a make that letter any more met than two did? And what should a letter that isn't in t do to your number? Test your Step 3 answer on both.",
-          "The answer is the substring, not its length, so decide what to store when you record. No covering window means \"\". Trace each step on paper first, on your own small example with one letter needed twice.",
-          "Timer: 40 minutes. Stuck when it rings: one line in My notes on where, watch only the idea in the row's Video link, then close it and code it from blank. Turn its bookmark on if you needed the video."
+        "builds_on": "Days 29 and 30 · Sliding Window",
+        "first": [
+          "Timer: 40 minutes. Stuck when it rings: one line in My notes on where, then take the help on its row one step at a time. Show the answer last and watch only the idea in its Video, then close it and code it from blank. Show the answer turns its bookmark on for you."
         ],
+        "points": [
+          "You solved Permutation in String and Minimum Size Subarray Sum (Day 30) with the variable window template (Day 29). This hard combines them: the shortest window whose letter counts cover a second string's counts."
+        ],
+        "hints": {
+          "minimum-window-with-characters": [
+            "Step 1, brute force: write \"the window covers t\" as a rule about two count dicts. What must hold for every letter of t? Then say the cost of checking every substring that way.",
+            "Step 2, the template: grow right until the window covers t, then shrink from the left while it still covers, recording inside the shrink loop as for Day 30's shortest window. Comparing the counts at every step costs up to 52 letters (upper and lower case): O(52 × n).",
+            "Step 3, an O(1) check: Day 30's faster version kept a running number of letters whose counts already match. Here a letter of t is met when its count in the window reaches its count in t. At exactly which moment should that number go up as a letter enters, and down as one leaves?",
+            "A letter can be needed more than once (t = \"aab\"). Does a third a make that letter any more met than two did? And what should a letter that isn't in t do to your number? Test your Step 3 answer on both.",
+            "The answer is the substring, not its length, so decide what to store when you record. No covering window means \"\". Trace each step on paper first, on your own small example with one letter needed twice."
+          ]
+        },
         "say": "I grow the window until it covers every needed letter, shrink while it still covers to record the shortest, and keep the check O(1) with a running count of letters whose need is met.",
         "example": [
-          "Practice problem (not NeetCode 250): the weather by day is \"rrscsrc\" (r rain, s sun, c cloud). Find the shortest run of days with at least one of each. Keep counts, and met = how many of the three kinds have a count of at least 1; the run covers all three when met == 3.",
-          "Grow: r (met 1), r (still 1: a second r adds nothing), s (2), c (3). Days 0–3 cover. Shrink while met == 3: record 4 and drop an r (count 1, still met); record 3 (\"rsc\") and drop the other r (count 0, met 2). Stop with left = 2.",
-          "right = 4 adds s (count 2, met stays 2). right = 5 adds r: met 3. Window 2–5: record 4 and drop s (count 1, still met); record 3 (\"csr\") and drop c (met 2). left = 4.",
-          "right = 6 adds c: met 3. Window 4–6: record 3 and drop s (met 2). The string ends.",
-          "Best 3, \"rsc\" on days 1–3, the first of the length-3 runs. met changed only when a count went from 0 to 1 or from 1 to 0, so each step was O(1)."
+          "Practice problem (not NeetCode 250): the weather by day is \"rsrrcccs\" (r rain, s sun, c cloud). Find the longest run of days with at most 2 kinds of weather. Keep counts, and kinds = how many kinds have a count of at least 1, so you never scan the dict.",
+          "Grow: r (kinds 1), s (2), r and r (still 2: more of a kind already there adds nothing). Days 0–3 are fine: record 4.",
+          "right = 4 adds c: kinds 3, too many. Shrink while kinds > 2: drop r (count 3 → 2, kinds stays 3), then drop s (count 0, kinds 2). left = 2, window 2–4.",
+          "right = 5 and 6 add c: window 2–6, record 5. right = 7 adds s: kinds 3. Drop r (count 1), drop r (count 0, kinds 2): left = 4, window 4–7, length 4.",
+          "Best 5, \"rrccc\" on days 2–6, recorded after each shrink. kinds changed only when a count went from 0 to 1 or from 1 to 0, so each step was O(1)."
         ],
         "primary": {
           "title": "String cheatsheet: re-read Techniques → Counting characters",
@@ -567,16 +596,20 @@
         "track": "dsa",
         "title": "Binary Search: searching a sorted matrix",
         "minutes": 30,
-        "builds_on": "Day 32 · the binary search loops and their invariants, Day 33 · searching positions that are never stored in a list, and Day 1 · a copy of n items costs O(n)",
+        "builds_on": "Days 32 to 34 · Binary Search, and Day 1 · Big-O",
         "points": [
-          "Today's matrix has two rules: each row is sorted, and each row starts above where the row before it ended. Read row after row, it is one sorted list of rows × cols numbers.",
+          "Some matrices have two rules: each row is sorted, and each row starts above where the row before it ended. Read row after row, such a matrix is one sorted list of rows × cols numbers.",
           "What if you treat the matrix as that one list without building it? Copying it costs O(m × n), more than any search. Day 33 searched numbers that were never stored: what range would you search here?",
-          "Given a place in that pretend list, how do you find its row and column in the matrix? The example shows the trick on cinema seats. Ask yourself whether you divide by the number of rows or of columns, and check it on a 2 × 3 grid.",
-          "Which of Day 32's loops fits, and what in it has to change? Say the Big-O before coding.",
+          "Given a place in that pretend list, how do you find its row and column in the matrix? The worked example (the next step) shows the trick on cinema seats. Ask yourself whether you divide by the number of rows or of columns, and check it on a 2 × 3 grid.",
           "The other way: binary search the rows first (the last row whose first number is ≤ the target), then search inside that row. Same Big-O, but two loops and twice the chances of an off-by-one.",
-          "Check the two rules before using the trick. If rows and columns are each sorted but a row can start below the previous row's end, the matrix is not one sorted list and this fails.",
-          "Edge cases: one row, one column, and a target below the first number or above the last."
+          "Check the two rules before using the trick. If rows and columns are each sorted but a row can start below the previous row's end, the matrix is not one sorted list and this fails."
         ],
+        "hints": {
+          "search-2d-matrix": [
+            "Which of Day 32's loops fits, and what in it has to change? Say the Big-O before coding.",
+            "Edge cases: one row, one column, and a target below the first number or above the last."
+          ]
+        },
         "say": "When a grid's numbers can be read in order as one list, I binary search that list without building it, turning each position into a row and a column as I go.",
         "example": [
           "Practice problem (not on today's list): a cinema has 3 rows of 4 seats, numbered 0 to 11 row by row. Where is seat 7? divmod(7, 4) = (1, 3): row 1, column 3, both counted from 0.",
@@ -595,17 +628,23 @@
         "track": "hard",
         "title": "Sliding Window (hard): Sliding Window Maximum, and a new tool, the monotonic deque",
         "minutes": 60,
-        "builds_on": "Day 26 · a window of fixed size, Day 4 · a deque, with append and popleft in O(1), and Day 7 · heaps with heapq",
-        "points": [
-          "You solved Contains Duplicate II (Day 26) with a fixed window, and Day 4's HitCounter task dropped old times off the front of a deque. This hard needs both, plus one new idea taught here: the monotonic deque.",
-          "Step 1, brute force: take the max of each window. Say its cost for n items and windows of k. Then ask why Day 26's running summary can't fix it: when the max leaves the window, what is the new max?",
-          "Step 2, a heap (Day 7) of (−value, index) gives the max at the top, but the top may have left the window. What can you do with a top whose index is too old? Say the cost.",
-          "The new tool, a monotonic deque: a deque whose values only ever run one way from front to back, so its front is always the answer for the current window. The example below builds one for the minimum of each window; work through it line by line before Step 3.",
-          "Now turn it round for the maximum. When a new item arrives, which items already in the deque can never be the max again while the new one is in the window? From which end do you pop them, so which way do the values run from front to back?",
-          "When does the front have to go, and why does that mean storing indexes rather than values? Then count how many times one index can be pushed and popped: that gives the cost of the whole pass, even with a loop inside a loop.",
-          "Step 3: code it with `collections.deque`. Trace on paper first, including the first k − 1 steps, which produce no answer yet.",
-          "Timer: 40 minutes. Stuck when it rings: one line in My notes on where, watch only the idea in the row's Video link, then close it and code it from blank. Turn its bookmark on if you needed the video."
+        "builds_on": "Day 26 · Sliding Window, Day 4 · queues and deques, and Day 7 · heaps",
+        "first": [
+          "Today brings a new tool, the monotonic deque: a deque whose values only ever run one way from front to back, so its front is always the best item it holds. The worked example on its row (the step after the idea) builds one, for the cheapest price in each window of 3 days; work through it line by line before you code the fast version.",
+          "Timer: 40 minutes. Stuck when it rings: one line in My notes on where, then take the help on its row one step at a time. Show the answer last and watch only the idea in its Video, then close it and code it from blank. Show the answer turns its bookmark on for you."
         ],
+        "points": [
+          "You solved Contains Duplicate II (Day 26) with a fixed window, and Day 4's HitCounter task dropped old times off the front of a deque. This hard needs both, plus one new idea taught here: the monotonic deque."
+        ],
+        "hints": {
+          "sliding-window-maximum": [
+            "Step 1, brute force: take the max of each window. Say its cost for n items and windows of k. Then ask why Day 26's running summary can't fix it: when the max leaves the window, what is the new max?",
+            "Step 2, a heap (Day 7) of (−value, index) gives the max at the top, but the top may have left the window. What can you do with a top whose index is too old? Say the cost.",
+            "The worked example (the next step) keeps the cheapest price; turn it round for the maximum. When a new item arrives, which items already in the deque can never be the max again while the new one is in the window? From which end do you pop them, so which way do the values run from front to back?",
+            "When does the front have to go, and why does that mean storing indexes rather than values? Then count how many times one index can be pushed and popped: that gives the cost of the whole pass, even with a loop inside a loop.",
+            "Step 3: code it with `collections.deque`. Trace on paper first, including the first k − 1 steps, which produce no answer yet."
+          ]
+        },
         "say": "I keep a monotonic deque of the items that could still be the answer, in order, so the front is always the window's answer and each index goes in and out at most once: O(n) for the whole pass.",
         "example": [
           "Practice problem (not NeetCode 250): petrol prices by day [4, 2, 12, 3, 8, 5, 1]. Find the cheapest price in each window of 3 days. This is the mirror image: keep values increasing, and pop from the back any price larger than the new one.",
@@ -805,23 +844,27 @@
   {
     "day": 36,
     "date": "2026-12-07",
-    "title": "Binary search on the answer · Neural networks",
+    "title": "The slowest eating speed, the smallest ship · Neural networks",
     "blocks": [
       {
         "track": "dsa",
-        "title": "Binary Search: search on the answer with a yes/no check",
+        "title": "Binary Search: the slowest eating speed, and the smallest ship",
         "minutes": 75,
-        "builds_on": "Day 5 · the first-true loop, and binary search on answers when a yes/no check flips once, Day 33 · lo and hi as values, with the check as a call you make, and Day 34 · Sqrt(x), the largest k that still works",
+        "builds_on": "Days 32 to 35 · Binary Search, and Day 5 · binary search and recursion",
         "points": [
           "Some problems ask for the smallest number that makes something possible: the slowest eating speed that still finishes in time, the smallest ship that carries everything in D days. The answer isn't in an array; it is a number somewhere in a range.",
           "The key fact: the check \"can it be done with s?\" flips only once. If speed s is enough, every faster speed is enough too. So the checks for s = lo, lo + 1, … read no, no, no, yes, yes, and you want the first yes: Day 5's first-true loop, run over values like Day 33's guessing game.",
-          "Before any code, say the lowest and the highest possible answers out loud. Lowest: no smaller value could ever work. Highest: a value that surely works. A wrong bound is the most common bug here.",
+          "Before any code, say the lowest and the highest possible answers out loud. Lowest: no smaller value could ever work. Highest: a value that surely works. A wrong bound is the most common bug here. For each of today's problems, also say what its check simulates and why it flips once.",
           "Write the check as its own function, `can(s)`, returning True or False. It is usually one greedy pass that simulates the plan with s. Test it on two values by hand before you search.",
           "Then the loop: `while lo < hi:` take mid; if `can(mid)`, hi = mid (mid might be the first yes); else lo = mid + 1. lo ends on the answer. Day 34 wanted the last yes; today wants the first.",
           "Cost: the check is O(n) and runs about log₂(hi − lo) times, so O(n log range). For a range of 10⁹ that is only about 30 checks.",
-          "Some checks round a division up: `(a + b - 1) // b`, or `math.ceil(a / b)`. Before coding each of today's problems, say what its check simulates, why it flips once, and its lowest and highest answers.",
           "Edge cases: the answer equals lo or hi, one item, and very large numbers (fine in Python, whose integers don't overflow)."
         ],
+        "hints": {
+          "eating-bananas": [
+            "Some checks round a division up: `(a + b - 1) // b`, or `math.ceil(a / b)`. Does this one?"
+          ]
+        },
         "say": "When the question asks for the smallest value that makes something possible, I write a check that flips once from no to yes, set the lowest and highest possible answers, and binary search for the first yes in O(n log range).",
         "example": [
           "Practice problem (not on today's list): three delivery riders take 1, 2 and 3 minutes per delivery and work at the same time. What is the fewest minutes in which they can finish 5 deliveries between them?",
@@ -946,27 +989,32 @@
     "blocks": [
       {
         "track": "dsa",
-        "title": "Binary Search: rotated sorted arrays, where one half is always sorted",
+        "title": "Binary Search: rotated sorted arrays",
         "minutes": 75,
-        "builds_on": "Day 32 · the invariant: what lo and hi mean before every step, Day 5 · throwing away the half that can't hold the answer, and Day 36 · a check that decides which part of the range to keep",
+        "builds_on": "Days 32 to 36 · Binary Search, and Day 5 · binary search and recursion",
         "points": [
           "A rotated sorted array is a sorted list cut in two with the parts swapped: [0, 1, 2, 4, 5, 6, 7] becomes [4, 5, 6, 7, 0, 1, 2]. It goes up, drops once, then goes up again.",
           "The whole list isn't sorted, so \"target smaller than mid, go left\" no longer works. But cut it at any mid and at least one of the halves, lo..mid or mid..hi, is sorted, because the single drop can sit in only one of them.",
           "To tell which, compare nums[mid] with nums[hi]. If nums[mid] < nums[hi], there is no drop between them, so mid..hi is sorted. Otherwise the drop is in mid..hi, so lo..mid is sorted.",
-          "A sorted half answers \"could the answer be in here?\" from its two ends alone: is the value between its first and last item? If it can be there, keep that half; if not, it must be in the other half.",
           "Keep Day 32's habit: before coding, write in one line what is true of lo and hi at every step (for example, \"if the answer exists, it is inside lo..hi\"), and check each move keeps it true.",
           "Today's two problems each ask a different question of the sorted half: one hunts for where the drop is, the other for a target. Say which question before coding, and trace it on a list rotated in the middle and on one not rotated at all.",
           "Each step still drops half the range: O(log n) time, O(1) memory. Today's lists have distinct values; Day 38 adds duplicates, which break the comparison.",
-          "Edge cases: 1 and 2 items, a list rotated all the way round (so it is simply sorted), and a target that is the first item after the drop."
+          "Edge cases: 1 and 2 items, and a list rotated all the way round (so it is simply sorted)."
         ],
+        "hints": {
+          "find-target-in-rotated-sorted-array": [
+            "Once you know which half is sorted, what can its two ends tell you about whether the target is inside it? If it can't be there, where must it be? Test a target that is the first item after the drop."
+          ]
+        },
         "say": "In a rotated sorted array one half around mid is always sorted; I compare nums[mid] with nums[hi] to find that half, check from its two ends whether the answer can be in it, and drop the other half, so it stays O(log n).",
         "example": [
-          "Practice problem (not on today's list): the largest value in a rotated sorted list of distinct numbers, such as [50, 60, 70, 80, 10, 20, 30]. This time compare nums[mid] with nums[lo], the mirror of point 3, and round mid up.",
+          "Practice problem (not on today's list): the largest value in a rotated sorted list of distinct numbers, such as [50, 60, 70, 80, 10, 20, 30]. This time compare nums[mid] with nums[lo], the mirror of the nums[hi] test, and round mid up.",
           "Invariant: the largest value is inside lo..hi. If nums[mid] > nums[lo], lo..mid rises with no drop, so the largest is at mid or after it: lo = mid. Otherwise the drop is inside lo..mid, so the largest sits before mid: hi = mid − 1.",
           "lo = 0, hi = 6, mid = 3: 80 > 50, so lo..mid = [50, 60, 70, 80] is sorted and lo = 3.",
           "lo = 3, hi = 6, mid = 5: 20 < 80, so the drop is inside 3..5 and hi = 4. lo = 3, hi = 4, mid = 4: 10 < 80, so hi = 3. lo = hi = 3: the answer is 80.",
           "Check it on a list that isn't rotated, [10, 20, 30, 40, 50]: every mid is bigger than nums[lo], so lo walks right and ends on 50. One comparison per step picks the sorted half: O(log n)."
         ],
+        "example_for": "find-minimum-in-rotated-sorted-array",
         "primary": {
           "title": "Binary search: re-read Search in sorted arrays as a refresher on lo, hi and the invariant (it doesn't cover rotated lists; today's points do)",
           "url": "https://cp-algorithms.com/num_methods/binary_search.html",
@@ -1054,23 +1102,29 @@
   {
     "day": 38,
     "date": "2026-12-09",
-    "title": "Duplicates and bisect · Backpropagation",
+    "title": "Duplicates, a time-based store · Backpropagation",
     "blocks": [
       {
         "track": "dsa",
-        "title": "Binary Search: duplicates that hide the sorted half, and the bisect module",
+        "title": "Binary Search: rotated arrays with duplicates, and a time-based key-value store",
         "minutes": 75,
-        "builds_on": "Day 37 · one half is always sorted, found by comparing nums[mid] with nums[hi], Day 5 · first-true searches and last_at_most, and Day 32 · the invariant",
+        "builds_on": "Day 37 · rotated sorted arrays, Days 32 to 36 · Binary Search, and Day 5 · binary search and recursion",
         "points": [
           "Yesterday's test, comparing nums[mid] with nums[hi], assumed distinct values. With duplicates the two can be equal while the drop is on either side: [2, 2, 2, 0, 2] and [2, 0, 2, 2, 2] look the same at mid = 2 and hi = 4.",
-          "When they are equal you can't tell which half is sorted, but you can safely move hi one step left: nums[hi] has a copy at mid, so no value is lost. Then carry on as usual.",
-          "That makes the worst case O(n): with almost every value the same, most steps only shrink hi by one. No method can do better, because the one different value could be anywhere. Say this in the interview without being asked.",
           "Second tool: Python's bisect module does Day 5's searches for you on a sorted list. `bisect_left(a, x)` is the first index with a[i] ≥ x; `bisect_right(a, x)` is the first index with a[i] > x. Both are O(log n).",
           "From those two you get the usual questions: the first item ≥ x is `bisect_left`; the last item ≤ x is `bisect_right(a, x) - 1` (Day 5's last_at_most); and the count of items between lo and hi is `bisect_right(a, hi) - bisect_left(a, lo)`. Say which one a problem wants before you reach for a function.",
-          "bisect only works on a list that is already sorted. `insort` keeps it sorted as you add, at O(n) per insert because items shift. Since Python 3.10 a `key=` argument lets it search a list of pairs by one field.",
           "For each of today's two problems, say before coding which of these ideas it needs, what you store, and what each operation costs.",
           "Edge cases: a value smaller or larger than everything (bisect returns 0 or len(a)), a value equal to an item (left and right differ there), and a list where every value is the same."
         ],
+        "hints": {
+          "search-in-rotated-sorted-array-ii": [
+            "When nums[mid] equals nums[hi] you can't tell which half is sorted. Can you still drop one item safely, so the range shrinks without losing any value? Look at what nums[hi] and nums[mid] have in common.",
+            "Whatever you do on a tie, can the worst case still be O(log n)? Think of a list where every value but one is the same: no method can beat O(n), because the one different value could be anywhere. Say this in the interview without being asked."
+          ],
+          "time-based-key-value-store": [
+            "What do you keep per key, and does it stay sorted without `insort` (which costs O(n) per insert because items shift)? Which bisect call finds the latest timestamp ≤ t? Since Python 3.10, a `key=` argument lets bisect search a list of pairs by one field."
+          ]
+        },
         "say": "With duplicates, when nums[mid] equals nums[hi] I can't tell which half is sorted, so I shrink hi by one, which makes the worst case O(n); and on a sorted list I let bisect find the first item ≥ x or > x in O(log n).",
         "example": [
           "Practice problem (not on today's list): the smallest value in a rotated sorted list that may contain duplicates, using Day 37's comparison of nums[mid] with nums[hi].",
@@ -1187,23 +1241,31 @@
   {
     "day": 39,
     "date": "2026-12-10",
-    "title": "Rewiring a linked list · Message queues",
+    "title": "Reversing and merging linked lists · Message queues",
     "blocks": [
       {
         "track": "dsa",
-        "title": "Linked List: rewiring pointers safely, and a dummy head to build a new list",
+        "title": "Linked List: reversing a list, and merging two sorted lists",
         "minutes": 75,
-        "builds_on": "Day 4 · nodes, the dummy head, and drawing the pointers before changing them, Day 22 · one pointer per list (Merge Sorted Array), and Day 5 · recursion and the base case",
+        "builds_on": "Day 4 · stack, queue and linked list, Day 22 · Two Pointers, and Day 5 · recursion and the base case",
+        "first": [
+          "In Python, write `build(values)` → head and `to_list(head)` once, so your tests compare plain lists."
+        ],
         "points": [
           "A linked list node holds a value and `next`. You can't jump to the i-th node; you hold a pointer and walk. Most linked-list problems are about changing `next` pointers without losing the rest of the list.",
-          "The one rule: before you overwrite `node.next`, save it (`nxt = node.next`). Once it is overwritten, nothing else points to the rest of the list, and it is gone.",
-          "Draw three or four boxes and their arrows first (Day 4), write the pointer moves in order, and check them on the drawing. The usual names are prev, cur and nxt.",
+          "The one rule: before you overwrite `node.next`, save it (`nxt = node.next`); once it is overwritten, nothing else points to the rest of the list. So draw three or four boxes and their arrows first (Day 4), write the pointer moves in order, and check them on the drawing.",
           "To build a new list, start with a dummy node and a tail pointer: append with `tail.next = node`, then `tail = node`, and return `dummy.next`. The first node needs no special case.",
           "Recursion on a list: let the call handle the rest (`node.next`), then fix up this one node. The base case is None, or a single node. The call stack is n deep: O(n) memory, and Python stops near 1,000 calls (Day 5), so also know the loop version, which is O(1).",
-          "Today: Reverse Linked List is pure rewiring; write it both as a loop and recursively. Merge Two Sorted Lists is Day 22's one pointer per list, plus the dummy head.",
-          "In Python, write `build(values)` → head and `to_list(head)` once, so your tests compare plain lists.",
           "Edge cases: an empty list (head is None), one node, two nodes, and for two lists, one of them empty."
         ],
+        "hints": {
+          "reverse-a-linked-list": [
+            "Reverse Linked List is pure rewiring; write it both as a loop and recursively. The usual names are prev, cur and nxt."
+          ],
+          "merge-two-sorted-linked-lists": [
+            "Merge Two Sorted Lists: which of Day 22's ideas does it reuse, and where would a dummy head save you a special case?"
+          ]
+        },
         "say": "For linked lists I draw the pointers first, save next before I overwrite it, and use a dummy head when building or removing at the front, so no case is special; reversing is O(n) time and O(1) memory as a loop.",
         "example": [
           "Practice problem (not on today's list): remove every node with value 3 from 3 → 1 → 3 → 4.",
@@ -1308,21 +1370,27 @@
   {
     "day": 40,
     "date": "2026-12-11",
-    "title": "Revision queue, then fast and slow pointers · Deadlock",
+    "title": "Revision queue, then loops in a linked list · Deadlock",
     "blocks": [
       {
         "track": "dsa",
-        "title": "Linked List: clear the revision queue, then fast and slow pointers",
+        "title": "Linked List: clear the revision queue, then a loop in a list",
         "minutes": 30,
         "builds_on": "Day 33 · Friday revision, Day 39 · walking and rewiring a linked list, and Day 4 · a node and its next pointer",
-        "points": [
-          "Fridays start with revision. Today's guide reading (10 minutes in this block and 15 in the CS block) takes most of that time, so re-solve one problem from the Revise row, about 5 minutes, and rate it; anything left shows again tomorrow.",
-          "Then a new idea: fast and slow pointers, also called Floyd's tortoise and hare. Both start at the head; slow moves one node per step and fast moves two.",
-          "If the list ends, fast reaches None first: there is no loop. If there is a loop, both end up going round it, and each step fast gains one node on slow, so it must land on slow: they meet.",
-          "The loop condition is `while fast and fast.next:`, so `fast.next.next` never runs on None.",
-          "The simple way is a set of nodes already visited: O(n) memory. Store the nodes themselves, not their values, since values can repeat. Fast and slow needs O(1) memory. Say the simple one first, then the better one.",
-          "The same pair finds the middle: when fast reaches the end, slow is halfway. Today's Linked List Cycle uses the meeting idea; Day 41 uses the middle."
+        "first": [
+          "Fridays start with revision. Today's guide reading (10 minutes in this block and 15 in the CS block) takes most of that time, so the re-solves get about 5 minutes: enough for one Easy from the Revise row, not a medium from a blank file. Re-solve one if it fits and rate it; anything left shows again tomorrow."
         ],
+        "points": [
+          "Today's new idea: fast and slow pointers, also called Floyd's tortoise and hare. Both start at the head; slow moves one node per step and fast moves two.",
+          "The loop condition is `while fast and fast.next:`, so `fast.next.next` never runs on None.",
+          "The same pair finds the middle: when fast reaches the end, slow is halfway."
+        ],
+        "hints": {
+          "linked-list-cycle-detection": [
+            "The simple way is a set of nodes already visited: O(n) memory. Store the nodes themselves, not their values, since values can repeat. Fast and slow needs O(1) memory. Say the simple one first, then the better one.",
+            "If the list ends, fast reaches None first. If there is a loop, fast never does: each step, how much does fast gain on slow, and why does that mean it must land on slow rather than jump over it?"
+          ]
+        },
         "say": "Fast and slow pointers move one and two steps at a time: if there's a loop the fast one laps the slow one and they meet, and if not the fast one reaches the end, so I detect a cycle in O(n) time and O(1) memory.",
         "example": [
           "Practice problem (not on today's list): find the middle node of 1 → 2 → 3 → 4 → 5.",
@@ -1449,24 +1517,28 @@
     "blocks": [
       {
         "track": "dsa",
-        "title": "Linked List: three moves in a row (find the middle, reverse, weave)",
+        "title": "Linked List: Reorder List",
         "minutes": 30,
-        "builds_on": "Day 40 · fast and slow pointers to find the middle, Day 39 · reversing a list by rewiring, and Day 22 · Merge Strings Alternately, taking from two sources in turn",
+        "builds_on": "Days 39 and 40 · Linked List basics, and Day 22 · Two Pointers",
         "points": [
-          "Today's problem needs no new idea: it is three moves you already have, one after another. Name them before you code.",
-          "Find the middle with fast and slow pointers (Day 40). Decide which middle you want for an even length, then cut the list there by setting the first half's last next to None.",
-          "Reverse the second half (Day 39): prev, cur, and save next before you rewire.",
-          "Weave the two halves: take one node from each in turn, like Day 22's Merge Strings Alternately, but by rewiring pointers. Save both nexts before you change anything.",
-          "Write each move as its own small function and test it alone, then chain them. Bugs hide at the joins.",
-          "O(n) time and O(1) memory. Copying the nodes into a Python list and pairing them from both ends also works, in O(n) memory: say it first as the simple version. Edge cases: 1, 2 and 3 nodes."
+          "Today's problem needs no new idea, only moves you already have, one after another. Which ones? Name them before you code.",
+          "Write each move as its own small function and test it alone, then chain them. Bugs hide at the joins."
         ],
+        "hints": {
+          "reorder-linked-list": [
+            "Write the order the problem wants for 1 → 2 → 3 → 4 → 5. It takes from the front and from the back in turn, and a singly linked list can't walk backwards. How could you get the back half in the order you need?",
+            "Where does the back half start, and which of Day 40's ideas finds that place in one pass? For an even length, decide which middle you want, and how you cut the list there.",
+            "With two halves in the right order, how do you take one node from each in turn by rewiring, as Day 22's Merge Strings Alternately did with strings? Save both nexts before you change anything.",
+            "O(n) time and O(1) memory. Copying the nodes into a Python list and pairing them from both ends also works, in O(n) memory: say it first as the simple version. Edge cases: 1, 2 and 3 nodes."
+          ]
+        },
         "say": "I split Reorder List into three moves I already know, finding the middle with fast and slow pointers, reversing the second half and weaving the halves, and test each alone: O(n) time and O(1) memory.",
         "example": [
           "Practice problem (not on today's list): is 1 → 2 → 3 → 2 → 1 the same read both ways, using O(1) memory?",
           "Fast and slow pointers: slow stops on 3, the middle.",
           "Reverse the part after it: 2 → 1 becomes 1 → 2.",
           "Walk the first half and the reversed half together: 1 = 1, then 2 = 2, then the reversed half ends. Every pair matched, so yes.",
-          "Three moves: find the middle, reverse, walk both halves. Today's problem uses the same first two, then weaves instead of comparing."
+          "Three moves in a row, each one you already had, and each testable on its own."
         ],
         "primary": {
           "title": "Linked list cheatsheet: re-read Common routines",
@@ -1478,18 +1550,24 @@
       },
       {
         "track": "hard",
-        "title": "Binary Search (hard): Split Array Largest Sum, minimise the largest piece",
+        "title": "Binary Search (hard): Split Array Largest Sum",
         "minutes": 60,
-        "builds_on": "Day 36 · binary search on the answer, with the check written as its own function, Day 34 · searching a range of values, and Day 5 · the first-true loop",
-        "points": [
-          "You have the tools from Day 36: a yes/no check written as its own function, and a search for the first yes over a range of values. The hard part is seeing what to search for.",
-          "Step 1, brute force: for one way of cutting the list into k pieces in order, what is \"the largest sum\"? Roughly how many ways are there to cut n numbers into k pieces, and why is trying them all too slow?",
-          "Step 2, turn it round: instead of choosing the cuts, pick a limit L and ask \"can I cut it into at most k pieces with every piece's sum ≤ L?\" How do you answer that in one greedy pass?",
-          "Step 3: as L grows, does that answer flip only once? What is the smallest L that could ever work, and one that surely works? Then search for the first yes, and say the cost.",
-          "Edge cases: k = 1 (one piece), k = n (every number alone), and zeros in the list.",
-          "Trace the check on paper first, on the problem's first example with one limit that fails and one that works, before coding.",
-          "Timer: 40 minutes. Stuck when it rings: one line in My notes on where, watch only the idea in the row's Video link, then close it and code it from blank. Turn its bookmark on if you needed the video."
+        "builds_on": "Days 32 to 38 · Binary Search, and Day 5 · binary search and recursion",
+        "first": [
+          "Timer: 40 minutes. Stuck when it rings: one line in My notes on where, then take the help on its row one step at a time. Show the answer last and watch only the idea in its Video, then close it and code it from blank. Show the answer turns its bookmark on for you."
         ],
+        "points": [
+          "You have the tools from Day 36: a yes/no check written as its own function, and a search for the first yes over a range of values. The hard part is seeing what to search for."
+        ],
+        "hints": {
+          "split-array-largest-sum": [
+            "Step 1, brute force: for one way of cutting the list into k pieces in order, what is \"the largest sum\"? Roughly how many ways are there to cut n numbers into k pieces, and why is trying them all too slow?",
+            "Step 2, turn it round: instead of choosing the cuts, pick a limit L and ask \"can I cut it into at most k pieces with every piece's sum ≤ L?\" How do you answer that in one greedy pass?",
+            "Step 3: as L grows, does that answer flip only once? What is the smallest L that could ever work, and one that surely works? Then search for the first yes, and say the cost.",
+            "Edge cases: k = 1 (one piece), k = n (every number alone), and zeros in the list.",
+            "Trace the check on paper first, on the problem's first example with one limit that fails and one that works, before coding."
+          ]
+        },
         "say": "I turn \"minimise the largest piece\" into \"can I do it with limit L?\", answer that with one greedy pass, and binary search L between the largest number and the total for the first yes: O(n log sum).",
         "example": [
           "Practice problem (not NeetCode 250): put 3 tea stalls at some of the spots [1, 2, 4, 8, 9] km along a highway, as far apart as possible. What is the largest possible smallest gap?",
@@ -1612,26 +1690,30 @@
   {
     "day": 42,
     "date": "2026-12-13",
-    "title": "Two pointers n apart · Median of Two Sorted Arrays · Vending machine · Training loops and Adam · Week 6 review",
+    "title": "The nth node from the end · Median of Two Sorted Arrays · Vending machine · Training loops and Adam · Week 6 review",
     "blocks": [
       {
         "track": "dsa",
-        "title": "Linked List: two pointers n apart, and a dummy head for removing the first node",
+        "title": "Linked List: removing the nth node from the end",
         "minutes": 30,
-        "builds_on": "Day 40 · fast and slow pointers, Day 39 · the dummy head and rewiring, and Day 4 · removing a node with a dummy head",
+        "builds_on": "Days 39 to 41 · Linked List, and Day 4 · nodes and next pointers",
         "points": [
-          "Two pointers a fixed distance apart: move fast n steps ahead first, then move both one step at a time. When fast reaches the end, slow is n nodes behind it.",
-          "To remove a node you need the node before it (`prev.next = prev.next.next`). So aim slow one node earlier: decide whether fast stops on the last node or on None, and count it on a drawing.",
-          "Removing the first node is the special case. Start both pointers at a dummy head (Days 4 and 39) and return dummy.next, and it stops being special.",
-          "One pass, O(n) time and O(1) memory. The two-pass way, counting the length and then walking to length − n, is also O(n): say it first as the simple version.",
-          "Edge cases: one node with n = 1 (the list becomes empty), n equal to the length (remove the head), and n = 1 (remove the tail)."
+          "What if two pointers walked the list a fixed number of nodes apart? When the front one reaches the end, where is the back one?"
         ],
+        "hints": {
+          "remove-node-from-end-of-linked-list": [
+            "To remove a node you need the node before it (`prev.next = prev.next.next`). So where should the back pointer stop? Decide whether the front one stops on the last node or on None, and count it on a drawing.",
+            "Which node is the awkward one to remove, with no node before it? What from Days 4 and 39 gives it one?",
+            "One pass, O(n) time and O(1) memory. The two-pass way, counting the length and then walking to length − n, is also O(n): say it first as the simple version.",
+            "Edge cases: one node with n = 1 (the list becomes empty), n equal to the length (remove the head), and n = 1 (remove the tail)."
+          ]
+        },
         "say": "I move one pointer n steps ahead, then move both until it reaches the end, so the other stops just before the node to remove, and a dummy head makes removing the first node no different: one pass, O(1) memory.",
         "example": [
-          "Practice problem (not on today's list): return the 2nd node from the end of 10 → 20 → 30 → 40 → 50.",
-          "Move fast 2 steps from the head: fast on 30, slow on 10.",
-          "Move both until fast is None: (fast 40, slow 20), (fast 50, slow 30), (fast None, slow 40).",
-          "slow is on 40, the 2nd from the end. To remove 40 you would need slow on 30 instead, one node earlier; today's problem adds that, plus the dummy head for when the node to remove is the first."
+          "Practice problem (not on today's list): daily step counts in thousands, as a linked list 3 → 7 → 4 → 9 → 6 → 10. For each day from the 4th on, how much higher is it than the day 3 back?",
+          "Keep two pointers 3 nodes apart: move lead 3 steps from the head, so lead is on 9 and back is on 3.",
+          "Step both together and read lead − back each time: (9, 3) gives 6, (6, 7) gives −1 and (10, 4) gives 6. Then lead moves to None: stop.",
+          "Answer [6, −1, 6] in one pass with O(1) extra memory. The gap never changes, so back always trails lead by exactly 3."
         ],
         "primary": {
           "title": "Linked list cheatsheet: re-read Techniques → Two pointers and Sentinel/dummy nodes",
@@ -1643,26 +1725,31 @@
       },
       {
         "track": "hard",
-        "title": "Binary Search (hard): Median of Two Sorted Arrays, a cut in each list",
+        "title": "Binary Search (hard): Median of Two Sorted Arrays",
         "minutes": 60,
-        "builds_on": "Day 22 · one pointer per list (Merge Sorted Array), Day 36 · binary search over a range of candidates with a check, and Day 32 · the invariant: say what lo and hi mean",
-        "points": [
-          "You can merge two sorted lists with one pointer each (Day 22) and binary search over a range of candidates with a check (Day 36). This hard combines them, and it is the hardest problem in the plan so far: expect it to take the whole hour, and maybe the video. That is normal.",
-          "Step 1, O(m + n): walk both lists with one pointer each until you reach the middle. What is the median when the total count is odd, and when it is even? Code this first: it is a correct answer, and your checker for Step 3.",
-          "Step 2, a cut: split A into A[:i] and A[i:], and B into B[:j] and B[j:]. If the two left parts together must hold half of all the items, what is j once you choose i? Then write down what must be true of the four numbers beside the two cuts for every left item to be ≤ every right item.",
-          "Step 3: when a cut breaks that rule, which way must i move, and why? Binary search i over 0 … m in the shorter list (why the shorter one?). Once the rule holds, where does the median come from? Say the cost.",
-          "A cut at the very start or end of a list has nothing on one side: use `float('-inf')` and `float('inf')` for the missing neighbours, so the comparisons need no special cases.",
-          "Trace on paper first: A = [1, 3, 8], B = [2, 4, 5, 9] (median 4), and A = [1, 2], B = [3, 4] (median 2.5). Cut each by hand before coding.",
-          "Timer: 40 minutes. Stuck when it rings: one line in My notes on where, watch only the idea in the row's Video link, then close it and code it from blank. Turn its bookmark on if you needed the video. On this one, Step 1 working and Step 2 written down inside the timer is a good result."
+        "builds_on": "Day 22 · Two Pointers, and Days 32 to 38 and 41 · Binary Search",
+        "first": [
+          "This is the hardest problem in the plan so far: expect it to take the whole hour, and maybe the answer's Video. That is normal.",
+          "Timer: 40 minutes. Stuck when it rings: one line in My notes on where, then take the help on its row one step at a time. Show the answer last and watch only the idea in its Video, then close it and code it from blank. Show the answer turns its bookmark on for you. On this one, a working brute force inside the timer is a good result."
         ],
+        "points": [
+          "You can merge two sorted lists with one pointer each (Day 22) and binary search over a range of candidates with a check (Day 36). This hard combines them."
+        ],
+        "hints": {
+          "median-of-two-sorted-arrays": [
+            "Step 1, O(m + n): walk both lists with one pointer each until you reach the middle. What is the median when the total count is odd, and when it is even? Code this first: it is a correct answer, and your checker for Step 3.",
+            "Step 2, a cut: split A into A[:i] and A[i:], and B into B[:j] and B[j:]. If the two left parts together must hold half of all the items, what is j once you choose i? Then write down what must be true of the four numbers beside the two cuts for every left item to be ≤ every right item.",
+            "Step 3: when a cut breaks that rule, which way must i move, and why? Binary search i over 0 … m in the shorter list (why the shorter one?). Once the rule holds, where does the median come from? Say the cost.",
+            "A cut at the very start or end of a list has nothing on one side: use `float('-inf')` and `float('inf')` for the missing neighbours, so the comparisons need no special cases.",
+            "Trace on paper first: A = [1, 3, 8], B = [2, 4, 5, 9] (median 4), and A = [1, 2], B = [3, 4] (median 2.5). Cut each by hand before coding."
+          ]
+        },
         "say": "I first merge until the middle in O(m + n), then binary search a cut in the shorter list so the two left parts hold half the items and every left item is at most every right item, which gives the median in O(log min(m, n)).",
         "example": [
-          "Practice problem (not NeetCode 250): find the 4th smallest of A = [1, 4, 7] and B = [2, 3, 9] with cuts instead of merging.",
-          "Take i items from A and j = 4 − i from B as the 4 smallest. The cut is right when nothing on the left is bigger than anything on the right: A's last left item ≤ B's first right item, and B's last left item ≤ A's first right item.",
-          "i = 1, j = 3: left parts [1] and [2, 3, 9]. B's last left, 9, is bigger than A's first right, 4: too many from B, so take more from A.",
-          "i = 3, j = 1: left parts [1, 4, 7] and [2]. A's last left, 7, is bigger than B's first right, 3: too many from A, so take fewer.",
-          "i = 2, j = 2: left parts [1, 4] and [2, 3]. 4 ≤ 9 and 3 ≤ 7, so the cut is right, and the 4th smallest is the bigger left end: max(4, 3) = 4. Merging gives [1, 2, 3, 4, 7, 9], which agrees.",
-          "Each wrong cut said which way to move i, so a binary search on i finds the right one in O(log m)."
+          "Practice problem (not NeetCode 250): A = [1, 4, 7, 10] and B = [2, 3, 9, 12] are sorted. Someone cuts each list into a left and a right part. Check, without merging, whether every left item is ≤ every right item.",
+          "Inside one list nothing needs checking: it is sorted, so its left part is already ≤ its right part. Only the two cross pairs matter: A's last left item against B's first right item, and B's last left item against A's first right item. Two comparisons, O(1).",
+          "Cut A after 2 ([1, 4] | [7, 10]) and B after 2 ([2, 3] | [9, 12]): 4 ≤ 9 and 3 ≤ 7, so both hold and every left item is ≤ every right item.",
+          "Cut A after 3 ([1, 4, 7] | [10]) and B after 1 ([2] | [3, 9, 12]): 2 ≤ 10 holds, but 7 ≤ 3 fails. A left item, 7, is bigger than a right item, 3, so this pair of cuts is wrong."
         ],
         "primary": {
           "title": "Binary Search: re-read Common Mistakes (off by one, and bounds)",
@@ -1857,31 +1944,38 @@
   {
     "day": 43,
     "date": "2026-12-14",
-    "title": "Copy with a dict, add with a carry · Making training work",
+    "title": "Copying a list, adding two numbers · Making training work",
     "blocks": [
       {
         "track": "dsa",
-        "title": "Linked List: a dict from old node to new, and walking two lists with a carry",
+        "title": "Linked List: copying a list with extra pointers, and adding two numbers",
         "minutes": 75,
-        "builds_on": "Day 39 · rewiring pointers safely and the dummy head for building a new list, Day 22 · one pointer per list, and Day 9 · a dict that remembers what you have seen",
+        "builds_on": "Days 39 to 42 · Linked List, and Day 22 · Two Pointers",
         "points": [
-          "Two ideas today: copying a list whose nodes point to more than their next node, and building a new list while walking two old ones at once.",
-          "A deep copy makes new nodes, and every pointer in the copy must point to new nodes, never back into the old list. A pointer to any node in the list is the hard part: the node it points to may not have been copied yet.",
-          "A dict from old node to new node solves it. Pass 1 creates a bare copy of every node and stores old → new; pass 2 sets each copy's pointers by looking up where the old node's pointers went. O(n) time and O(n) extra memory.",
-          "Nodes can be dict keys: a plain class is hashed by identity, so two nodes with the same value stay different keys. A `@dataclass` node is not hashable by default, so use a plain class.",
-          "Copy List With Random Pointer uses this dict. Draw three nodes and their extra pointers first, and decide what the lookup does with None.",
-          "Walking two lists at once: keep one pointer in each (Day 22) and move both every step. The new part is deciding what happens when one list ends before the other.",
-          "Add Two Numbers stores the digits ones first, the order you add them on paper. Before coding, answer: when one list runs out first, what do you add for it? When exactly may the loop stop? Where would a dummy head (Day 39) save you a special case?",
-          "Edge cases to test: lists of different lengths, 99 + 1, a single node, and a pointer from a node to itself."
+          "Two ideas today: copying a list whose nodes point to more than their next node, and building a new list while walking two old ones at once."
         ],
+        "hints": {
+          "copy-linked-list-with-random-pointer": [
+            "A deep copy makes new nodes, and every pointer in the copy must point to new nodes, never back into the old list. A pointer to any node in the list is the hard part: the node it points to may not have been copied yet.",
+            "A dict from old node to new node solves it. When can you fill it, and when can you use it to set the copy's pointers? O(n) time and O(n) extra memory.",
+            "Nodes can be dict keys: a plain class is hashed by identity, so two nodes with the same value stay different keys. A `@dataclass` node is not hashable by default, so use a plain class.",
+            "Draw three nodes and their extra pointers first, one of them pointing to itself, and decide what the lookup does with None."
+          ],
+          "add-two-numbers": [
+            "Walking two lists at once: keep one pointer in each (Day 22) and move both every step. The new part is deciding what happens when one list ends before the other.",
+            "Add Two Numbers stores the digits ones first, the order you add them on paper. Before coding, answer: when one list runs out first, what do you add for it? When exactly may the loop stop? Where would a dummy head (Day 39) save you a special case?",
+            "Edge cases to test: lists of different lengths, 99 + 1, and a single node."
+          ]
+        },
         "say": "To deep-copy a list with extra pointers I map each old node to its copy in one pass and wire the pointers through that dict in a second; to combine two lists I walk both at once behind a dummy head, carrying what overflows.",
         "example": [
-          "Practice problem (not on today's list): copy a team where each Employee has a name and a manager, who can be anyone in the team or None. Asha (no manager), Ravi (manager Asha), Meera (manager Ravi), Kabir (manager Asha).",
-          "One pass can fail: when you copy Ravi first, Asha has no copy yet, and pointing the new Ravi at the old Asha ties the copy to the original.",
-          "Pass 1: make a bare copy of each person and store copies = {old Asha: new Asha, old Ravi: new Ravi, …}. No managers are set yet.",
-          "Pass 2: for each old person p, set copies[p].manager = copies[p.manager], or None when p has no manager. New Ravi now points to new Asha, and new Meera to new Ravi.",
-          "Check: no copy points into the old team. Two passes over n people and a dict of n entries: O(n) time and O(n) memory."
+          "Practice problem (not on today's list): deep-copy 3 orders, each with an item and a customer. Two of them point to the same Customer object: o1 (book, Asha), o2 (pen, Ravi), o3 (lamp, Asha). The copy must share customers the same way: 3 new orders and exactly 2 new customers.",
+          "Copying each order's customer on its own gives 3 new customers: the copy of o3 gets a second, separate Asha, so a change to Asha in the copy would miss one of her orders.",
+          "Keep copies = {} from old customer to new. For each order, if its customer isn't in copies yet, make a new customer and store it there; then point the new order at copies[old customer].",
+          "o1: Asha isn't in copies, so create a new Asha. o2: Ravi isn't either, so create a new Ravi. o3: Asha is already there, so reuse the new Asha.",
+          "Check: 3 new orders, len(copies) == 2, the copies of o1 and o3 point to the same new Asha (`is` gives True), and no copy points to an old customer. One pass over n orders: O(n) time and O(n) memory."
         ],
+        "example_for": "copy-linked-list-with-random-pointer",
         "primary": {
           "title": "Linked list cheatsheet: read only Techniques → Sentinel/dummy nodes",
           "url": "https://www.techinterviewhandbook.org/algorithms/linked-list/",
@@ -1982,23 +2076,29 @@
   {
     "day": 44,
     "date": "2026-12-15",
-    "title": "Where a cycle starts, reverse a stretch · Singleton and dependency injection",
+    "title": "A duplicate number, reversing part of a list · Singleton and dependency injection",
     "blocks": [
       {
         "track": "dsa",
-        "title": "Linked List: where a cycle starts, and reversing only a middle stretch",
+        "title": "Linked List: finding a duplicate number, and reversing part of a list",
         "minutes": 75,
-        "builds_on": "Day 40 · fast and slow pointers meet inside a loop, Day 39 · reversing a list by saving next first, and Day 4 · the dummy head",
+        "builds_on": "Days 39 to 43 · Linked List, and Day 4 · nodes and next pointers",
         "points": [
           "Two ideas today: finding where a loop starts, the second phase of Day 40's fast and slow pointers, and reversing only part of a list.",
-          "Day 40's pointers meet somewhere inside the loop, not necessarily at its start. Phase 2: put one pointer back at the head, leave the other at the meeting point, and move both one step at a time. Where they meet is the loop's entrance.",
-          "Why it works: when they first meet, fast has walked twice as far as slow, and the extra distance is a whole number of laps. So walking the tail's length from the meeting point lands on the entrance, the same place you reach by walking the tail from the head. In an interview, \"the extra distance is whole laps\" is enough.",
-          "Find the Duplicate Number forbids changing the array and wants O(1) extra memory. Every value is a valid index, so ask: what if you read nums[i] as \"the node after i\"? What would two equal values look like in that picture, and which of today's ideas finds it?",
-          "Reversing only positions left to right: reverse the stretch with Day 39's loop, which saves next before changing it, then work out on paper which two pointers must be reconnected at its two ends.",
-          "When left is 1 there is no node before the stretch. A dummy head (Day 4) gives it one, so there is no special case; return dummy.next.",
-          "Before coding, draw the four nodes that matter (the one before the stretch, its first, its last and the one after) and count how many pointers change.",
-          "Edge cases: left equal to right (nothing changes), a stretch that is the whole list, and a loop whose entrance is the head itself."
+          "Day 40's pointers meet somewhere inside the loop, not necessarily at its start. Phase 2: put one pointer back at the head, leave the other at the meeting point, and move both one step at a time. Where they meet is the loop's entrance. Check it on a loop whose entrance is the head itself.",
+          "Why it works: when they first meet, fast has walked twice as far as slow, and the extra distance is a whole number of laps. So walking the tail's length from the meeting point lands on the entrance, the same place you reach by walking the tail from the head. In an interview, \"the extra distance is whole laps\" is enough."
         ],
+        "hints": {
+          "find-duplicate-integer": [
+            "Find the Duplicate Number forbids changing the array and wants O(1) extra memory. Every value is a valid index, so ask: what if you read nums[i] as \"the node after i\"? What would two equal values look like in that picture, and which of today's ideas finds it?"
+          ],
+          "reverse-linked-list-ii": [
+            "Reversing only positions left to right: reverse the stretch with Day 39's loop, which saves next before changing it, then work out on paper which two pointers must be reconnected at its two ends.",
+            "When left is 1 there is no node before the stretch. What from Day 4 gives it one, so it needs no special case?",
+            "Before coding, draw the four nodes that matter (the one before the stretch, its first, its last and the one after) and count how many pointers change.",
+            "Edge cases: left equal to right (nothing changes), and a stretch that is the whole list."
+          ]
+        },
         "say": "To find where a loop starts I let fast and slow pointers meet, then restart one from the head and step both by one until they meet at the entrance; an array of indexes is just a list of next pointers.",
         "example": [
           "Practice problem (not on today's list): a bus route where each stop names the next one: A → B → C → D → E → F → G, and G → D again. Where does the loop start?",
@@ -2007,6 +2107,7 @@
           "Check: the tail A → B → C → D is 3 stops, and E is also 3 stops before D going round the loop (E → F → G → D). That is why the same number of steps works from both places.",
           "O(n) time and O(1) memory. A set of visited stops finds D too, but with O(n) memory."
         ],
+        "example_for": "find-duplicate-integer",
         "primary": {
           "title": "Cycle detection: read Example and the opening paragraphs of Floyd's tortoise and hare (skip the proofs)",
           "url": "https://en.wikipedia.org/wiki/Cycle_detection",
@@ -2104,19 +2205,25 @@
     "blocks": [
       {
         "track": "dsa",
-        "title": "Linked List: a ring buffer that wraps with %, and a doubly linked list you can unlink from in O(1)",
+        "title": "Linked List: two O(1) designs, a circular queue and an LRU cache",
         "minutes": 75,
-        "builds_on": "Day 13 · LRU eviction as a cache policy, Day 4 · a queue with deque, and the dummy head, Day 33 · a bounded buffer between producer and consumer, and Day 1 · list pop(0) is O(n)",
+        "builds_on": "Days 39 to 44 · Linked List, Day 4 · queues, Day 13 · caching, and Day 33 · producer–consumer",
         "points": [
-          "Two design problems today: you write a class whose every method is O(1).",
-          "A circular queue keeps a fixed list of size k, the index of the front item (head) and how many items it holds (count). The next free slot is (head + count) % k, so positions wrap round to 0 instead of shifting items, which is what makes Day 1's pop(0) O(n). With k = 4, head = 3 and count = 2, the next free slot is 5 % 4 = 1.",
-          "With a count, full is count == k and empty is count == 0. With only a head and a tail index, head == tail can mean full or empty, the classic off-by-one. Say which you chose.",
-          "An LRU cache is Day 13's policy, now built: get and put in O(1), and when full, evict the key used longest ago. A dict alone finds keys in O(1) but can't tell which is oldest; a list in use order can, but moving an item is O(n). The example shows the two pieces you need, a dict to nodes and an O(1) unlink; using them for recency and eviction is the problem.",
-          "LRU Cache also stores a value per key. When a node falls off the old end, you must delete its dict entry too: what must each node carry so you know which entry to delete?",
-          "get and put both move a node to the recent end, and put sometimes removes one. Which two small helpers would they share? Write those first and test them on their own.",
-          "What should put do for a key that is already there: does it count as a use, and does the size change?",
-          "Python's `OrderedDict` does it in a few lines with `move_to_end` and `popitem(last=False)`. Say so, then expect the interviewer to ask you to build the list yourself."
+          "Two design problems today: you write a class whose every method is O(1)."
         ],
+        "hints": {
+          "design-circular-queue": [
+            "A circular queue keeps a fixed list of size k and never shifts items (shifting is what makes Day 1's pop(0) O(n)). If you keep the index of the front item (head) and how many items it holds (count), where is the next free slot, and how do positions wrap round to 0? Check it with k = 4, head = 3 and count = 2: slot 1.",
+            "With a count, full is count == k and empty is count == 0. With only a head and a tail index, head == tail can mean full or empty, the classic off-by-one. Say which you chose."
+          ],
+          "lru-cache": [
+            "An LRU cache is Day 13's policy, now built: get and put in O(1), and when full, evict the key used longest ago. A dict alone finds keys in O(1) but can't tell which is oldest; a list in use order can, but moving an item is O(n). The worked example (the next step) shows the two pieces you need, a dict to nodes and an O(1) unlink; using them for recency and eviction is the problem.",
+            "LRU Cache also stores a value per key. When a node falls off the old end, you must delete its dict entry too: what must each node carry so you know which entry to delete?",
+            "get and put both move a node to the recent end, and put sometimes removes one. Which two small helpers would they share? Write those first and test them on their own.",
+            "What should put do for a key that is already there: does it count as a use, and does the size change?",
+            "Python's `OrderedDict` does it in a few lines with `move_to_end` and `popitem(last=False)`. Say so, then expect the interviewer to ask you to build the list yourself."
+          ]
+        },
         "say": "A circular queue is a fixed array with a head index and a count, wrapping with %; a dict from key to node plus a doubly linked list with dummy ends lets me find, unlink and add any item in O(1), which is what an LRU cache is built on.",
         "example": [
           "Practice problem (not on today's list): a browser keeps its tabs in order. Open a new tab at the end, close any tab by its id, and list the tabs in order, with open and close both O(1).",
@@ -2126,6 +2233,7 @@
           "Open Docs: link it between tail.prev (News) and tail: Maps, News, Docs. Close Maps, the first real tab: the same two lines work, because the dummy head stands before it. No None checks.",
           "Every step is O(1). In a Python list, closing a tab in the middle would be an O(n) remove."
         ],
+        "example_for": "lru-cache",
         "primary": {
           "title": "Circular buffer: read Overview, Uses and Circular buffer mechanics",
           "url": "https://en.wikipedia.org/wiki/Circular_buffer",
@@ -2223,31 +2331,37 @@
   {
     "day": 46,
     "date": "2026-12-17",
-    "title": "Stack: what is still open · Distributed transactions: 2PC, saga, outbox",
+    "title": "Valid brackets, keeping score · Distributed transactions: 2PC, saga, outbox",
     "blocks": [
       {
         "track": "dsa",
-        "title": "Stack: the stack holds what is still open",
+        "title": "Stack: valid brackets, and keeping score",
         "minutes": 75,
-        "builds_on": "Day 4 · a stack as a list, for the most recent unfinished thing, and Day 5 · each call waits on the call stack",
+        "builds_on": "Day 4 · stack, queue and linked list, and Day 5 · recursion and the call stack",
         "points": [
           "A new topic, Stack. The question it answers: what is the most recent thing that hasn't finished yet? Push when something opens, pop when it closes.",
-          "The stack holds exactly what is still open, newest on top. A close must match the top: if it matches something deeper, the newer open thing was never closed.",
-          "Three checks catch every bad input: a close when the stack is empty (nothing open to close), a close that doesn't match the top, and a stack that isn't empty at the end (something never closed).",
-          "A dict from closer to opener, such as `{\")\": \"(\", \"]\": \"[\"}`, keeps the match check to one line, and a new kind of pair is one more entry.",
-          "A stack also holds history that later entries can undo or combine: Baseball Game keeps scores where an entry may cancel or add up the most recent ones, which are always on top.",
           "In Python a list is the stack: `append` to push, `pop()` to pop and `stack[-1]` to look at the top, all O(1). Check `if stack` before looking or popping, or an empty list raises.",
-          "Each item is pushed once and popped at most once, so a pass is O(n) time, and O(n) memory when everything opens and nothing closes.",
-          "Edge cases: an empty input, a single closer, and an input of odd length, which can never balance."
+          "Each item is pushed once and popped at most once, so a pass is O(n) time, and O(n) memory when everything opens and nothing closes."
         ],
+        "hints": {
+          "validate-parentheses": [
+            "Three checks catch every bad input: a close when the stack is empty (nothing open to close), a close that doesn't match the top, and a stack that isn't empty at the end (something never closed).",
+            "A dict from closer to opener keeps the match check to one line, and a new kind of pair is one more entry.",
+            "Edge cases: an empty input, a single closer, and an input of odd length, which can never balance."
+          ],
+          "baseball-game": [
+            "Baseball Game: which earlier scores can \"C\", \"D\" and \"+\" touch, and where are they if you keep the scores on a stack?"
+          ]
+        },
         "say": "When the most recent unfinished thing matters, I push on open and pop on close, check each close against the top, and check the stack is empty at the end: one pass, O(n).",
         "example": [
-          "Practice problem (not on today's list): a log of function calls, [\"call main\", \"call load\", \"return load\", \"call save\", \"return main\"]. Did every function return in the right order?",
-          "\"call main\": push, stack [main]. \"call load\": push, [main, load].",
-          "\"return load\": the top is load, a match, so pop: [main]. \"call save\": push, [main, save].",
-          "\"return main\": the top is save, not main. save never returned, so the log is invalid: return False at once.",
-          "Had the log ended \"return save\", \"return main\", the stack would end empty: valid. One pass, O(n) time and O(n) memory."
+          "Practice problem (not on today's list): in \"(a(b)c)(d)\", which \"(\" does each \")\" close? Give each closer's index and its opener's index. The input is always balanced.",
+          "Walk left to right and push the index of each \"(\": index 0, so [0]; index 2, so [0, 2]. Letters change nothing.",
+          "Index 4 is \")\": the top, 2, is the newest \"(\" still open, so pop it: 4 closes 2, and the stack is [0]. Index 6 is \")\": pop 0, so 6 closes 0.",
+          "Index 7: push, [7]. Index 9: pop 7, so 9 closes 7. Answer {4: 2, 6: 0, 9: 7}.",
+          "Storing indexes rather than the brackets is what lets you answer \"which one\". One pass, O(n) time and O(n) memory."
         ],
+        "example_for": "validate-parentheses",
         "primary": {
           "title": "Stack cheatsheet: read Introduction, Time complexity and Corner cases",
           "url": "https://www.techinterviewhandbook.org/algorithms/stack/",
@@ -2347,14 +2461,20 @@
         "title": "Stack: clear the revision queue, then build one structure from another",
         "minutes": 30,
         "builds_on": "Day 46 · a stack's push, pop and top, Day 4 · a queue as a deque, and a linked list of nodes, and Day 1 · saying each operation's Big-O",
-        "points": [
-          "Fridays start with revision. Today's guide reading (about 20 minutes, in the CS block) shares this time, so re-solve at most one due problem, about 5 minutes; anything left shows again tomorrow.",
-          "Then a new kind of question: build one structure using only another one's operations. The interviewer is testing whether you can say what each operation costs and where the work goes.",
-          "Write down what you are allowed to use first (for a queue: add at the back, remove from the front, look at the front, size) and stick to it, even though Python's deque could do more.",
-          "Choose which operation pays. Usually one stays O(1) and the other does the reshuffling in O(n). Say which you made cheap and why: favour the operation callers use most.",
-          "A stack and a queue hand items back in opposite orders, so somewhere the order must be reversed. Find the moment it happens.",
-          "Edge cases: pop or top on an empty structure, and a structure with one item."
+        "first": [
+          "Fridays start with revision. Today's guide reading (about 20 minutes, in the CS block) shares this time, so the re-solves get about 5 minutes: enough for one Easy from the Revise row, not a medium from a blank file. Re-solve one if it fits and rate it; anything left shows again tomorrow."
         ],
+        "points": [
+          "Today's new kind of question: build one structure using only another one's operations. The interviewer is testing whether you can say what each operation costs and where the work goes.",
+          "Choose which operation pays. Usually one stays O(1) and the other does the reshuffling in O(n). Say which you made cheap and why: favour the operation callers use most."
+        ],
+        "hints": {
+          "implement-stack-using-queues": [
+            "Write down what you are allowed to use first (for a queue: add at the back, remove from the front, look at the front, size) and stick to it, even though Python's deque could do more.",
+            "A stack and a queue hand items back in opposite orders, so somewhere the order must be reversed. Find the moment it happens.",
+            "Edge cases: pop or top on an empty structure, and a structure with one item."
+          ]
+        },
         "say": "When I build one structure from another, I list the operations I'm allowed, decide which operation pays the O(n) cost and which stays O(1), and say why.",
         "example": [
           "Practice problem (not on today's list): build a stack from linked-list nodes only (Day 4), with no Python list.",
@@ -2475,16 +2595,22 @@
         "track": "dsa",
         "title": "Stack: two stacks make a queue, and what amortised O(1) means",
         "minutes": 30,
-        "builds_on": "Day 47 · building one structure from another and saying which operation pays, Day 46 · a stack's push and pop, and Day 1 · list append is O(1)",
+        "builds_on": "Days 46 and 47 · Stack, and Day 1 · Big-O",
+        "first": [
+          "This block's guide reading (Résumé Mastery, about 15 minutes) goes at the end of today's HLD block, which has about 20 minutes to spare, not inside these 30 minutes."
+        ],
         "points": [
           "Today's problem builds a queue from two stacks. The new idea is how to state its cost: amortised O(1).",
           "Amortised cost is the cost per operation averaged over any long run of operations, even if a few single operations are expensive. It is a promise about the total, not about each call.",
           "The counting trick: follow one item through its life. If each item can only be moved a fixed number of times, then n operations do at most a constant × n moves, so the average is O(1).",
-          "Implement Queue using Stacks: decide when items should move from one stack to the other, then follow one item through its life and count how many times it can be moved.",
           "Amortised is not average case: no luck or random input is involved. Every run of n operations costs O(n) in total, but a single call can still be O(n), which matters where one slow call is unacceptable, such as a payment's deadline.",
-          "In an interview say both: \"this pop is O(n) in the worst case and O(1) amortised.\"",
-          "This block's guide reading (Résumé Mastery, about 15 minutes) goes at the end of today's HLD block, which has about 20 minutes to spare, not inside these 30 minutes."
+          "In an interview say both: \"this pop is O(n) in the worst case and O(1) amortised.\""
         ],
+        "hints": {
+          "implement-queue-using-stacks": [
+            "Implement Queue using Stacks: decide when items should move from one stack to the other, then follow one item through its life and count how many times it can be moved."
+          ]
+        },
         "say": "Amortised O(1) means any run of n operations costs O(n) in total; I show it by counting how many times each item can move, even though a single call can still be O(n).",
         "example": [
           "Practice problem (not on today's list): a list that starts with room for 1 item and doubles its room when full, copying everything across. Append 8 items.",
@@ -2513,18 +2639,24 @@
       },
       {
         "track": "hard",
-        "title": "Binary Search (hard): Find in Mountain Array, three searches through a limited API",
+        "title": "Binary Search (hard): Find in Mountain Array",
         "minutes": 60,
-        "builds_on": "Day 37 · comparing nums[mid] with another value to tell which side of the turn mid is on, Day 33 · searching through an API you call, and Day 5 · the first-true loop",
-        "points": [
-          "You solved Find Minimum in Rotated Sorted Array (Day 37) and Guess Number Higher or Lower (Day 33). This hard combines them: an array that rises and then falls, read only through an API that allows 100 calls.",
-          "Step 1, brute force: call get(i) for every index until you find the target. How many calls is that for 10,000 items, and why does the call limit rule it out?",
-          "Step 2: the peak splits the array into two sorted parts. Standing at mid, what single extra call tells you whether you are on the rising side or the falling side? Write it as a check that flips once, and use Day 5's first-true loop.",
-          "Step 3: with the peak known, which side do you search first, given that the question wants the smallest index? What changes in the loop on the falling side, where bigger values are on the left?",
-          "Count your calls: about how many does each search use on 10,000 items, and is the total under 100? Reading the same index twice wastes calls, so save values you already have.",
-          "Trace each step on paper on your own small mountain before coding, including a target at the peak and one that isn't there.",
-          "Timer: 40 minutes. Stuck when it rings: one line in My notes on where, watch only the idea in the row's Video link, then close it and code it from blank. Turn its bookmark on if you needed the video."
+        "builds_on": "Days 32 to 38, 41 and 42 · Binary Search",
+        "first": [
+          "Timer: 40 minutes. Stuck when it rings: one line in My notes on where, then take the help on its row one step at a time. Show the answer last and watch only the idea in its Video, then close it and code it from blank. Show the answer turns its bookmark on for you."
         ],
+        "points": [
+          "You solved Find Minimum in Rotated Sorted Array (Day 37) and Guess Number Higher or Lower (Day 33). This hard combines them: an array that rises and then falls, read only through an API that allows 100 calls."
+        ],
+        "hints": {
+          "find-in-mountain-array": [
+            "Step 1, brute force: call get(i) for every index until you find the target. How many calls is that for 10,000 items, and why does the call limit rule it out?",
+            "Step 2: the peak splits the array into two sorted parts, so find the peak first. The worked example (the next step) has a check that flips once at the peak: run it through the API. How many get calls does one check cost, and how many checks does the search take?",
+            "Step 3: with the peak known, which side do you search first, given that the question wants the smallest index? What changes in the loop on the falling side, where bigger values are on the left?",
+            "Count your calls: about how many does each search use on 10,000 items, and is the total under 100? Reading the same index twice wastes calls, so save values you already have.",
+            "Trace each step on paper on your own small mountain before coding, including a target at the peak and one that isn't there."
+          ]
+        },
         "say": "I find the peak with a binary search that compares mid with mid + 1, then binary search the rising side and, if needed, the falling side with the comparison reversed: about 4 log n calls, about 56 for 10,000 items.",
         "example": [
           "Practice problem (not NeetCode 250): hourly temperatures rise and then fall, [21, 24, 28, 31, 33, 30, 26]. Find the hottest hour in O(log n).",
@@ -2645,25 +2777,29 @@
     "blocks": [
       {
         "track": "dsa",
-        "title": "Stack: each entry remembers the answer for everything below it",
+        "title": "Stack: a stack that answers for everything in it, in O(1)",
         "minutes": 30,
-        "builds_on": "Day 46 · the stack holds what is still open, Day 47 · saying what each operation costs, and Day 17 · a few running variables instead of rescanning",
+        "builds_on": "Days 46 to 48 · Stack, and Day 17 · Arrays & Hashing",
         "points": [
           "Some stacks must answer a question about everything inside them, such as the smallest item, in O(1), while items keep being pushed and popped.",
           "One running variable is not enough: when the item that set it is popped, finding the next answer means rescanning the stack, O(n).",
-          "The fix: each entry stores its value together with the answer for the stack up to and including it. The entries below never change while it sits above them, so its stored answer stays right.",
+          "What if each entry also stored the answer for the stack up to and including it? The entries below never change while it sits above them: could its stored answer ever go stale?",
           "Pop removes an entry and its stored answer together, and the entry below already holds the answer for what remains: nothing to recompute.",
           "This suits any answer you can't undo by subtracting: a minimum, a maximum, a gcd. A sum can be undone on pop, so one running total would do.",
-          "Cost: O(1) per operation and O(n) extra memory for the stored answers, either a pair per entry or a second stack beside the first.",
-          "Min Stack uses this idea. Before coding, say what each entry stores, then check pop, top and an empty stack."
+          "Cost: O(1) per operation and O(n) extra memory for the stored answers, either a pair per entry or a second stack beside the first."
         ],
+        "hints": {
+          "minimum-stack": [
+            "Min Stack uses this idea. Before coding, say what each entry stores, then check pop, top and an empty stack."
+          ]
+        },
         "say": "To answer \"the minimum so far\" in O(1) on a stack, I store with each entry the answer for everything up to it, because the entries below never change while it is on top.",
         "example": [
-          "Practice problem (not on today's list): a stack of numbers that must report the gcd (greatest common divisor) of everything in it in O(1).",
-          "Push 12: store (12, 12). Push 18: gcd(18, 12) = 6, store (18, 6). Push 8: gcd(8, 6) = 2, store (8, 2). The answer is the top's stored value: 2.",
-          "Pop: (8, 2) goes, and the new top already says 6, the gcd of 12 and 18. No rescan.",
-          "A single running gcd couldn't do this: once it reached 2, nothing tells you what it was without the 8.",
-          "Each push does one gcd and each pop is O(1); storing the answers doubles the memory."
+          "Practice problem (not on today's list): a tiny markup whose tags close in order: <b>Hi <i>there <b>you</b> all</i>!</b>. Which styles does each piece of text get?",
+          "Keep a stack whose entries store the set of styles active at that depth, starting with [{}]. An opening tag pushes the top's set plus its own style: <b> pushes {b}, <i> pushes {b, i}, and the inner <b> pushes {b, i} again. Text reads the top: \"Hi \" is {b}, \"there \" and \"you\" are {b, i}.",
+          "</b> pops, and the top is {b, i} again: \" all\" is still bold, because the outer <b> is still open. A single bold on/off flag would have switched off here, which is wrong.",
+          "</i> pops to {b}, so \"!\" is bold. The last </b> pops to {}, plain text.",
+          "Each tag is one push or one pop, and the entry below already holds the styles for what remains, so nothing is rescanned: O(n) time and O(depth) memory."
         ],
         "primary": {
           "title": "Stack cheatsheet: re-read Time complexity and Corner cases",
@@ -2677,16 +2813,22 @@
         "track": "hard",
         "title": "Linked List (hard): LFU Cache, evicting the least used key in O(1)",
         "minutes": 60,
-        "builds_on": "Day 45 · LRU Cache, a dict to nodes plus a doubly linked list, Day 13 · LFU as an eviction policy, and Day 7 · heaps",
-        "points": [
-          "You built LRU Cache (Day 45). LFU evicts the key used the fewest times, and among keys tied on that count, the one used longest ago. get and put must both be O(1).",
-          "Step 1, brute force: store key → (value, count, last used time) and, when full, scan every key for the smallest (count, time). What does each operation cost?",
-          "Step 2: a heap of (count, time, key) (Day 7) finds the smallest quickly, but a key's count changes on every get. What happens to its old entry in the heap, and what does that cost you?",
-          "Step 3, O(1): group the keys by their count. For each count, what structure keeps its keys in least-recently-used order and lets you remove any key in O(1)? You built one on Day 45. When a key is used, where does it move?",
-          "You also need the lowest count in O(1). When can it go up, and when must it reset? Think about a get on the last key with the lowest count, and about a brand-new key.",
-          "Trace on paper first with capacity 2: put 1, put 2, get 1, put 3 (which key goes?), get 2, get 3.",
-          "Timer: 40 minutes. Stuck when it rings: one line in My notes on where, watch only the idea in the row's Video link, then close it and code it from blank. Turn its bookmark on if you needed the video."
+        "builds_on": "Days 39 to 45 · Linked List, Day 13 · caching, and Day 7 · heaps",
+        "first": [
+          "Timer: 40 minutes. Stuck when it rings: one line in My notes on where, then take the help on its row one step at a time. Show the answer last and watch only the idea in its Video, then close it and code it from blank. Show the answer turns its bookmark on for you."
         ],
+        "points": [
+          "You built LRU Cache (Day 45). LFU evicts the key used the fewest times, and among keys tied on that count, the one used longest ago. get and put must both be O(1)."
+        ],
+        "hints": {
+          "lfu-cache": [
+            "Step 1, brute force: store key → (value, count, last used time) and, when full, scan every key for the smallest (count, time). What does each operation cost?",
+            "Step 2: a heap of (count, time, key) (Day 7) finds the smallest quickly, but a key's count changes on every get. What happens to its old entry in the heap, and what does that cost you?",
+            "Step 3, O(1): group the keys by their count. For each count, what structure keeps its keys in least-recently-used order and lets you remove any key in O(1)? You built one on Day 45. When a key is used, where does it move?",
+            "You also need the lowest count in O(1). The worked example (the next step) has a rule for the lowest score that carries over to a get. A put on a full cache evicts and then adds a brand-new key: in which order, and what is the lowest count afterwards?",
+            "Trace on paper first with capacity 2: put 1, put 2, get 1, put 3 (which key goes?), get 2, get 3."
+          ]
+        },
         "say": "LFU keeps a dict from key to node, a dict from each use count to its own doubly linked list in least-recently-used order, and the lowest count, so get, put and eviction are all O(1).",
         "example": [
           "Practice problem (not NeetCode 250): a quiz where each player's score only goes up, 1 point at a time. Support add_point(player) and any_lowest() in O(1).",
@@ -2889,22 +3031,28 @@
   {
     "day": 50,
     "date": "2026-12-21",
-    "title": "Stacks of waiting numbers and survivors · Recurrent neural networks",
+    "title": "Reverse Polish notation and Asteroid Collision · Recurrent neural networks",
     "blocks": [
       {
         "track": "dsa",
-        "title": "Stack: numbers waiting for an operator, and a stack of survivors",
+        "title": "Stack: Evaluate Reverse Polish Notation and Asteroid Collision",
         "minutes": 75,
-        "builds_on": "Day 46 · the stack holds what is still open, Day 4 · a stack as a list, for the most recent unfinished thing, and Day 48 · each item moves at most twice, so the total stays O(n)",
+        "builds_on": "Days 46 to 49 · Stack, and Day 4 · stack, queue and linked list",
         "points": [
-          "Day 46's stack held brackets still waiting to be closed. Today's two problems keep the same \"most recent unfinished thing\" (Day 4) in two new shapes: numbers waiting for an operator, and items still standing.",
-          "Reverse Polish notation writes each operator after its two numbers: \"3 4 +\" is 3 + 4, and \"2 3 4 × +\" is 2 + 3 × 4 = 14. It needs no brackets and no precedence rules. Evaluate Reverse Polish Notation keeps a stack of numbers waiting for their operator; Day 46's Baseball Game read the top two scores for \"+\" in the same way.",
-          "Order matters for − and ÷: say which of the two numbers is the left one before you code. And Python's // rounds down, so −7 // 2 is −4; when a question wants division that cuts toward zero, int(−7 / 2) gives −3.",
-          "A stack of survivors: walk the items left to right, and the stack holds the ones still standing. A new item may meet the item on top: decide who stays. If the new item wins, it meets the next one down too, so the check is a while loop, not an if.",
-          "Before coding Asteroid Collision, write in one line when two items actually meet. Not every new item fights the top: say which directions collide, and what happens on a tie.",
-          "Each item is pushed once and popped at most once, so the while loop inside the for loop is still O(n) in total: the same counting as Day 48's queue made of two stacks.",
-          "Edge cases: one item, nothing ever meets, everything is destroyed (an empty answer), and a tie that removes both."
+          "Day 46's stack held brackets still waiting to be closed. Today's two problems keep the same \"most recent unfinished thing\" (Day 4) on a stack: for each, say what waits there, and what takes it off.",
+          "Each item is pushed once and popped at most once, so popping inside the pass is still O(n) in total: the same counting as Day 48's queue made of two stacks."
         ],
+        "hints": {
+          "evaluate-reverse-polish-notation": [
+            "Reverse Polish notation writes each operator after its two numbers: \"3 4 +\" is 3 + 4, and \"2 3 4 × +\" is 2 + 3 × 4 = 14. It needs no brackets and no precedence rules. When an operator arrives, where are its two numbers? Day 46's Baseball Game had a \"+\" that needed the two scores before it.",
+            "Order matters for − and ÷: say which of the two numbers is the left one before you code. And Python's // rounds down, so −7 // 2 is −4; when a question wants division that cuts toward zero, int(−7 / 2) gives −3."
+          ],
+          "asteroid-collision": [
+            "Walk the asteroids left to right, and let the stack hold the ones still flying. When a new one meets the one on top, who stays? And if the new one wins, what does it meet next: is that check an if or a while?",
+            "Before coding Asteroid Collision, write in one line when two items actually meet. Not every new item fights the top: say which directions collide, and what happens on a tie.",
+            "Edge cases: one item, nothing ever meets, everything is destroyed (an empty answer), and a tie that removes both."
+          ]
+        },
         "say": "When a problem leaves work unfinished, I keep it on a stack: numbers wait there for their operator, or survivors wait there for the next item to challenge the top, and since each item is pushed and popped at most once the pass is O(n).",
         "example": [
           "Practice problem (not on today's list): in \"abBAcC\", a letter next to the same letter in the other case cancels with it (b and B, a and A). Cancel until nothing more can go. What is left?",
@@ -2913,6 +3061,7 @@
           "c: push, [c]. C cancels it: []. Answer: the empty string.",
           "Each letter was pushed once and popped at most once: O(n). In Asteroid Collision one arrival can knock off several items in a row, which is why its check is a while loop."
         ],
+        "example_for": "asteroid-collision",
         "primary": {
           "title": "Reverse Polish notation: read Explanation",
           "url": "https://en.wikipedia.org/wiki/Reverse_Polish_notation",
@@ -3013,19 +3162,23 @@
     "blocks": [
       {
         "track": "dsa",
-        "title": "Stack: the monotonic stack, popping what can never matter again",
+        "title": "Stack: the monotonic stack",
         "minutes": 75,
-        "builds_on": "Day 35 · the monotonic deque in Sliding Window Maximum, Day 50 · a stack of survivors where one new item knocks several off the top, and Day 46 · the stack holds what is still open",
+        "builds_on": "Day 35 · the monotonic deque, and Days 46 to 50 · Stack",
         "points": [
           "Day 35's deque kept indexes with decreasing values and popped from the back anything smaller than the new item, because it could never be the maximum again. A monotonic stack is the same move with one open end: there is no window, so nothing leaves from the front.",
           "The question it answers: for each item, the next item to its right that is bigger (or smaller). The brute force scans every later item for each one: O(n²).",
           "The stack holds indexes still waiting for their answer. When a new item is bigger than the top, it is the top's answer: record it and pop, and keep popping while the new item is bigger. Then push the new index, which now waits too.",
-          "Why it stays sorted: anything smaller than the new item was just popped, so the new item sits on something at least as big. The waiting values always decrease from bottom to top, so the first one that isn't smaller stops the loop.",
+          "Why it stays sorted: anything smaller than the new item was just popped, so the new item sits on something at least as big. The waiting values never increase from bottom to top (equal values can sit together), so the first one that isn't smaller stops the loop.",
           "Store indexes, not values: an index gives you the value (nums[i]) and the distance (j − i), and many questions ask for the distance.",
-          "Items left on the stack at the end never found a bigger item; their answer is the default, such as 0 or −1. Decide it before coding.",
-          "Each index is pushed once and popped at most once: O(n) time and O(n) memory, the same counting as Day 50.",
-          "Flavours: pop while smaller for \"next greater\", pop while bigger for \"next smaller\", and < or ≤ decides what happens to ties. Daily Temperatures asks for a distance forward; Online Stock Span gets one price per call and looks backwards, so its stack lives on the object between calls."
+          "Items left on the stack at the end never found a bigger item; their answer is the default, such as 0 or −1. Decide it before coding. Each index is pushed once and popped at most once: O(n) time and O(n) memory, the same counting as Day 50.",
+          "Flavours: pop while smaller for \"next greater\", pop while bigger for \"next smaller\", and < or ≤ decides what happens to ties."
         ],
+        "hints": {
+          "online-stock-span": [
+            "Online Stock Span gets one price per call and looks backwards, so its stack lives on the object between calls. What must each entry hold so you can return a span without rescanning the old prices, and should ties pop?"
+          ]
+        },
         "say": "For next-greater questions I keep a monotonic stack of indexes still waiting for an answer; a new item pops and answers every smaller one, and since each index is pushed and popped once, it's O(n) instead of O(n²).",
         "example": [
           "Practice problem (not on today's list): prices [2, 1, 2, 4, 3]. For each day, what is the next price that is strictly higher? Use −1 if there is none.",
@@ -3038,7 +3191,8 @@
           "title": "Stacks: read Stacks and Application - Nearest Smaller Element",
           "url": "https://usaco.guide/gold/stacks",
           "kind": "article",
-          "source": "USACO Guide"
+          "source": "USACO Guide",
+          "first": true
         },
         "tasks": []
       },
@@ -3127,23 +3281,28 @@
   {
     "day": 52,
     "date": "2026-12-23",
-    "title": "Sort first, then a stack · Attention: queries, keys and values",
+    "title": "Car Fleet and Simplify Path · Attention: queries, keys and values",
     "blocks": [
       {
         "track": "dsa",
-        "title": "Stack: sort or split the input first, then a stack",
+        "title": "Stack: Car Fleet and Simplify Path",
         "minutes": 75,
-        "builds_on": "Day 51 · the monotonic stack, Day 50 · a stack of survivors, where one item absorbs the ones that reach it, and Day 11 · sorting in O(n log n)",
+        "builds_on": "Days 46 to 51 · Stack",
         "points": [
-          "Both of today's problems need the input put into the right shape before a stack can work: one needs sorting first, the other splitting first.",
-          "Sort first when the order the input arrives in isn't the order things happen in. Sorting costs O(n log n) (Day 11), more than a stack's single pass, so say the whole answer's Big-O with the sort in it.",
-          "Turn each item into the one number that decides things; comparing numbers is simpler than simulating every move. For Car Fleet, ask before coding: what one number per car decides whether it catches the car ahead before the target? Work it out on paper for two cars.",
-          "Then decide three things: which end of the road to walk from, what the stack holds, and what happens to a car that catches the one ahead. Day 50's stack of survivors is a good place to start.",
-          "Splitting: Python's split keeps empty pieces, so `\"a,,b,\".split(\",\")` gives ['a', '', 'b', '']. Before coding Simplify Path, list every kind of piece its input can produce.",
-          "A stack can hold where you are: each step in pushes, each step back pops. For Simplify Path, write one line per kind of piece: what should it do to the stack? And what should happen when there is nothing to pop?",
-          "Build the answer from the stack once, at the end, with a join (Day 22), rather than adding to a string inside the loop.",
-          "Test the smallest inputs too: one car, two cars that reach the target at the same moment (read what the problem says about them), and the shortest possible path."
+          "Both of today's problems need the input put into the right shape before a stack can work. For each, ask before coding: in what order, and in what pieces, should the stack see it?"
         ],
+        "hints": {
+          "car-fleet": [
+            "Sort first when the order the input arrives in isn't the order things happen in. Sorting costs O(n log n) (Day 11), more than a stack's single pass, so say the whole answer's Big-O with the sort in it.",
+            "Turn each item into the one number that decides things; comparing numbers is simpler than simulating every move. For Car Fleet, ask before coding: what one number per car decides whether it catches the car ahead before the target? Work it out on paper for two cars.",
+            "Then decide three things: which end of the road to walk from, what the stack holds, and what happens to a car that catches the one ahead. Day 50's stack of survivors is a good place to start. Test one car, and two cars that reach the target at the same moment (read what the problem says about them)."
+          ],
+          "simplify-path": [
+            "Splitting: Python's split keeps empty pieces, so `\"a,,b,\".split(\",\")` gives ['a', '', 'b', '']. Before coding Simplify Path, list every kind of piece its input can produce, and test the shortest possible path.",
+            "For Simplify Path, what should the stack hold? Write one line per kind of piece: what should it do to the stack? And what should happen when there is nothing to pop?",
+            "Build the answer from the stack once, at the end, with a join (Day 22), rather than adding to a string inside the loop."
+          ]
+        },
         "say": "When the input order isn't the event order I sort first, turn each item into the one number that decides things, then let a stack hold the groups or the position so far; the sort makes it O(n log n).",
         "example": [
           "Practice problem (not on today's list): a text box keeps an undo stack. You type \"dosa\", type \" batter\", press undo, type \" chutney\", then press undo three times. What is left after each step?",
@@ -3152,6 +3311,7 @@
           "Undo pops \" chutney\": \"dosa\". Undo pops \"dosa\": \"\". The third undo finds the stack empty, so it must check before popping and do nothing.",
           "Each edit is pushed once and popped at most once: O(n). The stack is the state so far, and the newest change is always the first to be taken back."
         ],
+        "example_for": "simplify-path",
         "primary": {
           "title": "Stack (abstract data type): read Applications of stacks → Backtracking only",
           "url": "https://en.wikipedia.org/wiki/Stack_(abstract_data_type)",
@@ -3241,22 +3401,26 @@
   {
     "day": 53,
     "date": "2026-12-24",
-    "title": "A stack of unfinished work · Quorums, LSM trees and B-trees",
+    "title": "Decoding nested strings · Quorums, LSM trees and B-trees",
     "blocks": [
       {
         "track": "dsa",
-        "title": "Stack: a stack of unfinished work, pushed at \"[\" and popped at \"]\"",
+        "title": "Stack: decoding nested strings",
         "minutes": 75,
-        "builds_on": "Day 46 · push when something opens, pop when it closes, Day 5 · recursion and the call stack, and Day 52 · a result built from a stack and joined once at the end",
+        "builds_on": "Days 46 to 52 · Stack",
         "points": [
           "Nested brackets mean nested unfinished work: when a bracket opens, the work outside it pauses until the matching one closes (Day 46).",
-          "When you pause, push everything you will need to carry on later. Before coding, ask: what must you save when a bracket opens so you can finish the job when it closes, and how does the inner result join what you saved?",
           "The stack and recursion are twins: a recursive call pauses the caller, and the call stack (Day 5) saves its local variables for you. Any stack solution for nested brackets can be written either way.",
-          "Numbers can have more than one digit. Check your plan on an input like \"12[ab]\": what should happen as you read each digit, and when is the number finished?",
-          "Build text as a list of parts and join once (Day 22): `s += part` inside a loop copies the whole string each time.",
-          "Say Big-O in terms of the output: \"100[100[a]]\" is 11 characters and decodes to 10,000 letters, so the time is at least the length of the answer.",
-          "Edge cases: brackets inside brackets, as in \"3[a2[c]]\"; letters after a closing bracket; and no brackets at all."
+          "Build text as a list of parts and join once (Day 22): `s += part` inside a loop copies the whole string each time."
         ],
+        "hints": {
+          "decode-string": [
+            "When you pause, push everything you will need to carry on later. Before coding, ask: what must you save when a bracket opens so you can finish the job when it closes, and how does the inner result join what you saved?",
+            "Numbers can have more than one digit. Check your plan on an input like \"12[ab]\": what should happen as you read each digit, and when is the number finished?",
+            "Say Big-O in terms of the output: \"100[100[a]]\" is 11 characters and decodes to 10,000 letters, so the time is at least the length of the answer.",
+            "Edge cases: brackets inside brackets, as in \"3[a2[c]]\"; letters after a closing bracket; and no brackets at all."
+          ]
+        },
         "say": "For nested brackets I push the outer level's state when a bracket opens, and pop and combine it when it closes; the call stack does the same thing if I write it recursively.",
         "example": [
           "Practice problem (not on today's list): reverse the text inside each pair of brackets, innermost first. What does \"(ab(cd)e)\" become?",
@@ -3268,7 +3432,7 @@
         "tasks": [
           {
             "id": "d53-dsa-1",
-            "text": "After Decode String passes, solve it again in d53.py the other way: if you used a stack, write it recursively (a helper that reads from position i and returns the decoded text and where it stopped), or the reverse. Run both on \"3[a2[c]]\" (\"accaccacc\") and \"2[abc]3[cd]ef\" (\"abcabccdcdcdef\")."
+            "text": "After Decode String passes, solve it again in d53.py a second way, built differently from your first. Run both on \"3[a2[c]]\" (\"accaccacc\") and \"2[abc]3[cd]ef\" (\"abcabccdcdcdef\")."
           }
         ],
         "primary": {
@@ -3371,17 +3535,23 @@
         "track": "dsa",
         "title": "Trees: clear the revision queue, then the three DFS orders",
         "minutes": 30,
-        "builds_on": "Day 6 · binary tree nodes, and DFS by recursion or with a stack, Day 5 · recursion and the call stack, Day 46 · a stack holds what is still open, and Day 50 · Reverse Polish notation",
+        "builds_on": "Day 6 · trees and graphs, Day 5 · recursion and the call stack, and Days 46 to 53 · Stack",
+        "first": [
+          "Fridays start with revision. Today's two guide readings (about 20 minutes, one in this block and one in the CS block) share this time, so the re-solves get about 5 minutes: enough for one Easy from the Revise row, not a medium from a blank file. Re-solve one if it fits and rate it; anything left shows again tomorrow."
+        ],
         "points": [
-          "Fridays start with revision. Today's two guide readings (about 20 minutes, one in this block and one in the CS block) share this time, so keep the re-solves to one problem from the Revise row, about 5 minutes; anything left shows again tomorrow.",
-          "Then a new topic, Trees. Day 6 wrote a TreeNode with a value, a left child and a right child, and walked trees with recursion. Today makes the order of that walk exact.",
+          "Today's new topic, Trees. Day 6 wrote a TreeNode with a value, a left child and a right child, and walked trees with recursion. Today makes the order of that walk exact.",
           "DFS on a binary tree does three things at each node: visit it, walk its left subtree, walk its right subtree. The three orders differ only in where the visit goes: preorder is visit, left, right; inorder is left, visit, right; postorder is left, right, visit.",
           "What each is for: preorder meets a parent before its children (copying a tree, printing it top-down); inorder of a binary search tree gives the values sorted (Day 59); postorder finishes the children before their parent (a folder's size, deleting a tree, working out an expression).",
-          "Solve today's problem by recursion first, as Day 6 did: a base case for None, then the visit and the two calls in the order you want. Recursion keeps its place on the call stack (Day 5): each paused call remembers which node it is on and what it still has to do.",
-          "Optional step up, if time is left: your own stack can do the call stack's job, and it avoids Python's limit of about 1,000 levels on a very deep tree. For inorder it holds the nodes you have walked left past but not yet visited (Day 46: what is still open). Trace it on the example's tree: when do you push, when do you pop and visit, and where do you go next? Tomorrow brings in your own stack properly, on preorder, the easier order for it.",
           "Every order visits each node once: O(n) time. The memory is O(h), the height of the tree: about log n when it is balanced, but n when it is one long chain.",
           "Base case: an empty tree (None) visits nothing. Test on an empty tree, one node, and a tree that leans all one way."
         ],
+        "hints": {
+          "binary-tree-inorder-traversal": [
+            "Solve today's problem by recursion first, as Day 6 did: a base case for None, then the visit and the two calls in the order you want. Recursion keeps its place on the call stack (Day 5): each paused call remembers which node it is on and what it still has to do.",
+            "Optional step up, if time is left: your own stack can do the call stack's job, and it avoids Python's limit of about 1,000 levels on a very deep tree. For inorder it holds the nodes you have walked left past but not yet visited (Day 46: what is still open). Trace it on the tree in the worked example (the next step): when do you push, when do you pop and visit, and where do you go next? Tomorrow brings in your own stack properly, on preorder, the easier order for it."
+          ]
+        },
         "say": "Preorder, inorder and postorder differ only in where the visit sits around the two recursive calls; each visits every node once, O(n) time, with the call stack as deep as the tree, O(h) memory.",
         "example": [
           "Practice problem (not on today's list): the tree for (2 + 3) × 4 has × at the root, + as its left child with children 2 and 3, and 4 as its right child. Write all three orders.",
@@ -3511,28 +3681,31 @@
   {
     "day": 55,
     "date": "2026-12-26",
-    "title": "Preorder with a stack · Merge K Sorted Lists · Design a key-value store",
+    "title": "Preorder traversal · Merge K Sorted Lists · Design a key-value store",
     "blocks": [
       {
         "track": "dsa",
-        "title": "Trees: preorder with your own stack",
+        "title": "Trees: preorder traversal",
         "minutes": 30,
-        "builds_on": "Day 54 · the three DFS orders by recursion, with the call stack keeping your place, and Day 6 · DFS with a stack and BFS with a queue",
+        "builds_on": "Day 54 · Trees, and Day 6 · trees and graphs",
         "points": [
           "Yesterday's recursion let the call stack keep your place in the tree. Today you keep that place yourself, in a list used as a stack. Preorder is the easiest order to start with, because a node is visited the moment it comes off the stack.",
-          "A stack hands back the last thing pushed. To visit the left child before the right, push the right child first, then the left.",
           "Skip empty children: either don't push None, or check for it when you pop. Choose one and stick to it.",
           "Swap the stack for a deque popped from the left, push the left child first and then the right, and the same loop visits level by level, left to right: Day 6's BFS. One data structure decides the order.",
           "Each node is pushed and popped once: O(n) time. The stack holds the right children still waiting, about one per level on the way down: O(h) memory.",
           "Test on an empty tree, one node, and trees where every node has only a left child, or only a right child."
         ],
+        "hints": {
+          "binary-tree-preorder-traversal": [
+            "A stack hands back the last thing pushed. Preorder visits the left child before the right: so which child do you push first?"
+          ]
+        },
         "say": "For preorder with my own stack I pop a node, visit it, then push its right child before its left so the left comes out first; a queue instead of a stack turns the same loop into BFS.",
         "example": [
-          "Practice problem (not on today's list): print a folder tree top-down with indents. home holds docs (with cv.pdf) and photos (with goa.jpg and ooty.jpg).",
-          "Push (home, depth 0). Pop it, print \"home\", then push its children last first: photos, then docs, each at depth 1.",
-          "Pop docs (pushed last), print it indented, and push cv.pdf. Pop cv.pdf and print it.",
-          "Pop photos, print it, and push ooty.jpg, then goa.jpg. Pop goa.jpg, then ooty.jpg.",
-          "Printed: home, docs, cv.pdf, photos, goa.jpg, ooty.jpg, each folder before what it holds: preorder. Pushing the children in reverse is today's \"right before left\"."
+          "Practice problem (not on today's list): the total size of a folder tree, without recursion. home holds docs (with cv.pdf, 2 MB) and photos (with goa.jpg, 5 MB, and ooty.jpg, 4 MB); a folder itself counts 0.",
+          "Push home. Pop it, add 0, and push its children: [docs, photos].",
+          "Pop photos and push its two files: [docs, goa.jpg, ooty.jpg]. Pop ooty.jpg: total 4. Pop goa.jpg: total 9. Pop docs and push cv.pdf. Pop cv.pdf: total 11.",
+          "Answer 11 MB. Each item was pushed and popped once, O(n), and the stack never held more than 3. For a total, the order the items come off doesn't matter."
         ],
         "primary": {
           "title": "Tree traversal: read Data structures for tree traversal and Depth-first search → Pre-order, NLR; after your solution passes, compare it with Implementations → Pre-order implementation",
@@ -3544,24 +3717,30 @@
       },
       {
         "track": "hard",
-        "title": "Linked List (hard): Merge K Sorted Lists, the smallest of many heads",
+        "title": "Linked List (hard): Merge K Sorted Lists",
         "minutes": 60,
-        "builds_on": "Day 39 · Merge Two Sorted Lists with a dummy head, Day 7 · heapq, a min-heap with the smallest at heap[0], and Day 11 · merge sort, merging halves level by level",
-        "points": [
-          "You solved Merge Two Sorted Lists (Day 39), wrote merge sort (Day 11) and used heapq (Day 7). This hard combines them: k sorted lists in, one sorted list out.",
-          "Step 1, brute force: merge the first two lists, then merge the result with the third, and so on. With k lists of n nodes each, how many nodes does the last merge walk? Add up all the merges and say the Big-O.",
-          "Step 2: the next node out is always the smallest of the k current heads. Which structure from Day 7 gives you the smallest of k items, and takes a replacement, in O(log k)? What goes in after you take a head? Python can't compare two ListNode objects, so what goes in each entry to settle ties before Python ever reaches the node?",
-          "Step 3, no heap: merge the lists in pairs, then pair up the results, like merge sort's levels (Day 11). How many levels are there, and how many nodes does each level walk in total?",
-          "Trace on paper first with three short lists, and count the node steps for Step 1 and for Step 2. Don't forget the dummy head (Day 39) and empty lists in the input.",
-          "Timer: 40 minutes. Stuck when it rings: one line in My notes on where, watch only the idea in the row's Video link, then close it and code it from blank. Turn its bookmark on if you needed the video."
+        "builds_on": "Days 39 to 45 · Linked List",
+        "first": [
+          "Timer: 40 minutes. Stuck when it rings: one line in My notes on where, then take the help on its row one step at a time. Show the answer last and watch only the idea in its Video, then close it and code it from blank. Show the answer turns its bookmark on for you."
         ],
+        "points": [
+          "You solved Merge Two Sorted Lists (Day 39), wrote merge sort (Day 11) and used heapq (Day 7). This hard combines them: k sorted lists in, one sorted list out."
+        ],
+        "hints": {
+          "merge-k-sorted-linked-lists": [
+            "Step 1, brute force: merge the first two lists, then merge the result with the third, and so on. With k lists of n nodes each, how many nodes does the last merge walk? Add up all the merges and say the Big-O.",
+            "Step 2: the next node out is always the smallest of the k current heads. Which structure from Day 7 gives you the smallest of k items, and takes a replacement, in O(log k)? What goes in after you take a head? Python can't compare two ListNode objects, so what goes in each entry to settle ties before Python ever reaches the node?",
+            "Step 3, no heap: merge the lists in pairs, then pair up the results, like merge sort's levels (Day 11). How many levels are there, and how many nodes does each level walk in total?",
+            "Trace on paper first with three short lists, and count the node steps for Step 1 and for Step 2. Don't forget the dummy head (Day 39) and empty lists in the input."
+          ]
+        },
         "say": "I keep a min-heap of the k current heads with an index as a tie breaker, pop the smallest into the result and push its next node, so N nodes cost O(N log k); merging in pairs reaches the same bound without a heap.",
         "example": [
-          "Practice problem (not NeetCode 250): three ticket counters at a railway station each give a sorted list of booking times: [5, 9], [3, 8, 12] and [7]. Merge them Step 1's way, and count the work.",
-          "Merge counter 1 with counter 2 using Day 39's two-list merge: [3, 5, 8, 9, 12]. That walked 5 items.",
-          "Merge that result with counter 3's [7]: [3, 5, 7, 8, 9, 12]. That walked 6 items, 5 of them a second time.",
-          "Total: 11 steps for 6 times. Every merge walks the whole growing result again, and with many lists that re-walking is the cost Step 1 asks you to add up.",
-          "On three short lists the waste is small. On k long lists, the first lists get re-walked almost k times: that gap is what Steps 2 and 3 close."
+          "Practice problem (not NeetCode 250): build one string from four 3-letter pieces, \"abc\", \"def\", \"ghi\" and \"jkl\", with `s = s + piece` in a loop. Count the letters copied.",
+          "A string can't change, so each `s + piece` builds a new string and copies both parts. Piece 1: 0 + 3 = 3 letters. Piece 2: 3 + 3 = 6.",
+          "Piece 3: 6 + 3 = 9. Piece 4: 9 + 3 = 12. Total 30 letters copied for a 12-letter result: \"abc\" was copied 4 times, \"jkl\" once.",
+          "For k pieces of m letters the copies add up to m × (1 + 2 + … + k) = m·k(k + 1)/2: O(k²·m), while the answer is only k·m long. `\"\".join(pieces)` sizes the result once and copies each letter once: O(k·m). (CPython can sometimes grow a string in place, but the language doesn't promise it.)",
+          "When each step re-copies everything built so far, add up the growing sizes, not the number of steps. Step 1 asks you to do that count for lists."
         ],
         "primary": {
           "title": "heapq: read Basic Examples and Priority Queue Implementation Notes",
@@ -3688,19 +3867,26 @@
         "track": "checkpoint",
         "title": "Monthly checkpoint: cold re-solves + one design question",
         "minutes": 90,
-        "builds_on": "Day 25 · Container With Most Water, Days 26 to 45 · Sliding Window, Binary Search and Linked List, Day 0 · Find All Anagrams and the baseline quiz, Day 28 · checkpoint 1, and Day 48 · the rate limiter design",
-        "points": [
-          "The second monthly checkpoint, about 90 minutes: four problems cold, one each from Two Pointers, Binary Search and Linked List plus Day 0's Find All Anagrams (a sliding window), then one design question. Stack and Trees wait for the next checkpoint: they are too fresh to test cold. It measures what has stuck, not what you could do on the day you learnt it.",
+        "builds_on": "Days 19 to 45 · Container With Most Water, Koko Eating Bananas and Reorder List, Day 0 · Find All Anagrams and the baseline quiz, Day 28 · checkpoint 1, and Day 48 · the rate limiter design",
+        "first": [
+          "The second monthly checkpoint, about 90 minutes: one design question, then four problems cold, three from Days 19 to 45 plus Day 0's Find All Anagrams. Stack and Trees are too fresh to re-solve cold, so their problems wait for the next checkpoint. It measures what has stuck, not what you could do on the day you learnt it.",
           "Rules, as on Days 0 and 28: a blank file, no notes, no video and no old code. Before each problem, say the pattern, the brute force, the better idea and its Big-O, then start its timer. When the timer rings, stop and write one line on where you got stuck.",
           "Score each problem as before: 1 if it passes the tests inside its timer (NeetCode's, or LeetCode's for Find All Anagrams), 0.5 if the idea was right but the code wasn't finished, 0 otherwise.",
-          "Rate each problem Easy, OK or Struggled in My notes. For OK or Struggled, make sure its bookmark is on, so it comes back after 1, 3, 7 and 21 days; Easy has stuck, so leave the bookmark as it is. If one is in today's Revise row, rate it there instead. Ticking it here only records today's checkpoint and leaves the original day's tick alone.",
-          "Find All Anagrams is the like-for-like check: on Day 0 you met it unseen with 25 minutes, and today it gets 15, after a month of windows (Days 26 to 31; Day 30's Permutation in String is its near twin). Write today's score and minutes beside Day 0's.",
+          "Rate each problem Easy, OK or Struggled in My notes. For OK or Struggled, turn its bookmark on, and if it is already on, tap it off and on again, so it comes back after 1, 3, 7 and 21 days; Easy has stuck, so leave the bookmark as it is. If one is in today's Revise row, rate it there instead. Ticking it here only records today's checkpoint and leaves the original day's tick alone.",
+          "Find All Anagrams is the like-for-like check: on Day 0 you met it unseen with 25 minutes, and today it gets 15. Write today's score and minutes beside Day 0's.",
+          "Do the design question first: ticking the problems opens its scoring list."
+        ],
+        "points": [
           "The design question, 25-minute cap, on paper and out loud: design a rate limiter (Day 48). A good answer covers six things: requirements with numbers, the key you limit by (user, IP or API key) and the peak requests a second (Days 32 and 11); where it runs, in the API gateway in front of the stateless servers (Days 6 and 48); the algorithm and its trade-off, such as a token bucket's bursts against a fixed window letting twice the limit through at a window's edge (Day 48); one shared counter per key in Redis with an atomic increment and an expiry (Days 13 and 48); the race it avoids, two servers both reading the count before either writes it (Day 26); and the reply, 429 Too Many Requests with Retry-After, plus sharding the counters by key when one Redis isn't enough (Day 41). Score one point for each covered well.",
           "Write the result in My notes as \"Checkpoint 2: DSA x/4 · design x/6\", for example \"Checkpoint 2: DSA 3/4 · design 4/6, missed the race and the shards\". Put it beside your Checkpoint 1 line and say what moved, what didn't, and what Month 3 should push. Then close a loop from Day 28: Day 0's LLD 4, LLD 5 and AI 5 (Singleton, the parking lot and attention) were taught on Days 44, 35 and 52, so re-answer those three from memory, 2 minutes each, and note the scores beside Day 0's.",
-          "After the checkpoint, the rest of today is catch-up, with no set time: open any day from Days 29 to 55 that isn't marked done, finish what you skipped, and tap Mark day 56 done. Today's two guide readings (about 35 minutes) sit in this time too. If nothing is left, rest."
+          "After the checkpoint, re-answer the self-tests of Days 51 and 55, the hardest of Days 50 to 55, which had no weekly review. Then the rest of today is catch-up, with no set time: open any day from Days 29 to 55 that isn't marked done, finish what you skipped, and tap Mark day 56 done. Today's two guide readings (about 35 minutes) sit in this time too. If nothing is left, rest."
         ],
         "say": "Once a month I re-solve old problems cold and answer a design question under time, compare the scores with last month's, and let the misses drive what comes back for revision.",
         "tasks": [
+          {
+            "id": "d56-cp-5",
+            "text": "Design question · 25-minute cap, on paper and out loud: design a rate limiter for a food-delivery app's public API, the Day 48 kind. Then score your answer against the six items in the design-question point below, which opens once the four problems are ticked."
+          },
           {
             "id": "d56-cp-1",
             "text": "Find All Anagrams in a String (Medium, Day 0) · cold, from a blank file · 15-minute timer (Day 0 gave it 25) · write today's score and minutes beside Day 0's",
@@ -3708,22 +3894,18 @@
           },
           {
             "id": "d56-cp-2",
-            "text": "Container With Most Water (Medium, Day 25) · cold, from a blank file · 15-minute timer",
+            "text": "Container With Most Water (Medium) · cold, from a blank file · 15-minute timer",
             "url": "https://neetcode.io/problems/max-water-container/question"
           },
           {
             "id": "d56-cp-3",
-            "text": "Koko Eating Bananas (Medium, Day 36) · cold, from a blank file · 15-minute timer · say the lowest and highest possible speeds first",
+            "text": "Koko Eating Bananas (Medium) · cold, from a blank file · 15-minute timer",
             "url": "https://neetcode.io/problems/eating-bananas/question"
           },
           {
             "id": "d56-cp-4",
-            "text": "Reorder List (Medium, Day 41) · cold, from a blank file · 15-minute timer",
+            "text": "Reorder List (Medium) · cold, from a blank file · 15-minute timer",
             "url": "https://neetcode.io/problems/reorder-linked-list/question"
-          },
-          {
-            "id": "d56-cp-5",
-            "text": "Design question · 25-minute cap, on paper and out loud: design a rate limiter for a food-delivery app's public API, the Day 48 kind. Then score your answer against the six items in point 6."
           },
           {
             "id": "d56-cp-6",
@@ -3785,23 +3967,29 @@
   {
     "day": 57,
     "date": "2026-12-28",
-    "title": "Trees that return a value · Masking and multi-head attention",
+    "title": "Postorder, inverting a tree, its depth · Masking and multi-head attention",
     "blocks": [
       {
         "track": "dsa",
-        "title": "Trees: a recursive function that returns a value up the tree",
+        "title": "Trees: postorder, inverting a tree, and its depth",
         "minutes": 75,
-        "builds_on": "Day 54 · the three DFS orders, where the visit sits around the two recursive calls, Day 55 · preorder with an explicit stack, Day 6 · trees and DFS by recursion (count_leaves), and Day 5 · base cases and the call stack",
+        "builds_on": "Days 54 and 55 · Trees, Day 6 · trees and graphs, and Day 5 · recursion and the call stack",
         "points": [
           "Today's idea: most tree questions are answered by a function that returns the answer for one subtree. A node's answer is built from its children's answers.",
           "It has three parts. A base case for None: what does an empty tree return? Then call the function on each child and trust it to return the right answer for that subtree. Then combine the two answers with the node's own value.",
           "The combining happens after both calls have returned, so the work is done in post-order (Day 54). Answers flow up from the leaves to the root.",
           "Choose the base case with care: a count or a sum of an empty tree is 0, and \"every value is positive?\" is True for an empty tree. A wrong base case is the commonest bug, so test on hand-built trees: empty, one node, three nodes in a line leaning left, and a full tree of seven.",
-          "Some functions also change the tree on the way, and return the node so the caller can link it back in.",
           "Today's three problems fit this shape: Postorder Traversal is the order itself, and Invert Binary Tree and Maximum Depth each work subtree by subtree. Before coding each, say its base case and its combine step in one line.",
-          "Optional step up for Postorder Traversal, once the recursive version passes: run Day 55's preorder stack but push left before right, which visits node, right, left; reverse that list and you have left, right, node, which is postorder.",
           "Each node is visited once: O(n) time. The call stack holds one frame per level: O(h), where h is the height. A balanced tree has h ≈ log n; a tree shaped like a line has h = n, and Python stops at about 1,000 levels (Day 5)."
         ],
+        "hints": {
+          "invert-a-binary-tree": [
+            "Some functions also change the tree on the way, and return the node so the caller can link it back in."
+          ],
+          "binary-tree-postorder-traversal": [
+            "Optional step up for Postorder Traversal, once the recursive version passes: Day 55's preorder stack visits node, left, right. If you push the children the other way round, what order comes out, and what simple change to that list gives left, right, node?"
+          ]
+        },
         "say": "For a tree question I write a function that returns the answer for a subtree: a base case for None, trust the calls on both children, and combine their answers at the node, which is a post-order walk in O(n) time and O(h) stack.",
         "example": [
           "Practice problem (not on today's list): the sum of all values in a tree. Root 5 has children 3 and 8; 3 has children 1 and 4.",
@@ -3915,29 +4103,35 @@
   {
     "day": 58,
     "date": "2026-12-29",
-    "title": "Return one thing, record another · Builder pattern",
+    "title": "Diameter, balance and Same Tree · Builder pattern",
     "blocks": [
       {
         "track": "dsa",
-        "title": "Trees: return one thing, record another, and walk two trees together",
+        "title": "Trees: a tree's diameter, balanced trees, and Same Tree",
         "minutes": 75,
-        "builds_on": "Day 57 · a recursive function that returns a value up the tree, Day 54 · the three DFS orders, and Day 5 · base cases and the call stack",
+        "builds_on": "Days 54 to 57 · Trees, and Day 5 · recursion and the call stack",
         "points": [
           "Yesterday's functions returned the answer itself. Some questions need one value passed up the tree but ask for a different one. The helper returns what the parent needs and records the real answer outside, as it goes.",
           "The shape: the helper handles None, calls both children, uses their two results and the node to update the record, then returns the value the parent needs. Say both in words before coding: \"it returns …, and it records …\".",
           "Where to keep the record: a variable in the outer function. A nested function can read it, but to assign it Python needs `nonlocal best`. Without that line, a plain `best = s` quietly makes a new local variable and the outer one never changes, and `best = max(best, s)` raises UnboundLocalError. `self.best` on the Solution object also works.",
-          "Say whether a length counts nodes or edges. A height can be either; LeetCode's Diameter of Binary Tree counts edges between nodes.",
-          "One pass, not two: if the work at each node starts another full walk of its subtree, that is O(n) per node and O(n²) on a tree shaped like a line. For each of today's problems ask: what must the helper return so no parent ever walks a subtree again, and what does it record? Then each node is visited once: O(n).",
-          "Walking two trees together: the function takes one node from each tree and moves both the same way at each step. First decide what happens when one side runs out before the other; that is where Same Tree is won or lost."
+          "One pass, not two: if the work at each node starts another full walk of its subtree, that is O(n) per node and O(n²) on a tree shaped like a line. For each of today's problems ask: what must the helper return so no parent ever walks a subtree again, and what does it record? Then each node is visited once: O(n)."
         ],
+        "hints": {
+          "binary-tree-diameter": [
+            "Say whether a length counts nodes or edges. A height can be either; LeetCode's Diameter of Binary Tree counts edges between nodes."
+          ],
+          "same-binary-tree": [
+            "Walking two trees together: the function takes one node from each tree and moves both the same way at each step. First decide what happens when one side runs out before the other; that is where Same Tree is won or lost."
+          ]
+        },
         "say": "When the answer isn't the value I pass up, my helper returns what the parent needs, such as a subtree's sum, and records the real answer in an outer variable with nonlocal, so one O(n) pass does both.",
         "example": [
           "Practice problem (not on today's list): the largest sum of any subtree. Root 2 has children −8 and 5; −8 has children 1 and 3; 5 has a left child 4. The helper returns the subtree's sum (what the parent needs) and records the largest sum seen in `best` (the answer).",
           "Leaves: 1 returns 1 and 3 returns 3, so best = 3. Node −8 returns −8 + 1 + 3 = −4; best stays 3.",
           "4 returns 4 (best 4). Node 5 returns 5 + 4 = 9: best = 9. The root returns 2 + (−4) + 9 = 7.",
           "The root returned 7, but the answer is the recorded 9, from node 5's subtree. One post-order pass: O(n).",
-          "Two trees, a second practice problem (not on today's list): is tree B the mirror image of tree A? A is 1 with children 2 and 3; B is 1 with children 3 and 2. The function takes one node from each tree.",
-          "Compare the roots: 1 and 1. Then pair crosswise: A's left (2) with B's right (2), and A's right (3) with B's left (3). Each pair's children pair the same crossed way, and here they are None on both sides, so every pair matched: B is A's mirror."
+          "Two trees, a second practice problem (not on today's list): merge tree A into tree B, adding the values where both have a node and keeping the one node where only one does. A is 1, with left child 3, whose left child is 5; B is 2 with children 1 and 4. The function takes one node from each tree.",
+          "Roots: 1 + 2 = 3. Left pair: 3 + 1 = 4; below it A has 5 and B has None, so return A's 5 as it is. Right pair: A has None, so return B's 4. The result is 3, with children 4 (whose left child is 5) and 4."
         ],
         "primary": {
           "title": "The Python Tutorial · Classes: read 9.2 Python Scopes and Namespaces and 9.2.1 Scopes and Namespaces Example (nonlocal)",
@@ -4043,9 +4237,9 @@
     "blocks": [
       {
         "track": "dsa",
-        "title": "Trees: the binary search tree rule, so one comparison picks a side",
+        "title": "Trees: the binary search tree rule",
         "minutes": 75,
-        "builds_on": "Day 58 · walking two trees together (Same Tree), Day 54 · the three DFS orders, including inorder, and Day 32 · binary search: each comparison throws away half",
+        "builds_on": "Days 54 to 58 · Trees, and Days 32 to 38 · Binary Search",
         "points": [
           "A binary search tree (BST) keeps one rule at every node: every value in its left subtree is smaller, and every value in its right subtree is bigger. LeetCode's BSTs have no duplicates.",
           "The rule covers whole subtrees, not only children. Root 8 with left child 3, whose right child is 10, breaks it: 10 is bigger than 3, but it sits in 8's left subtree.",
@@ -4053,8 +4247,13 @@
           "h depends on the shape. A balanced BST of a million values is about 20 levels deep (log₂ of a million ≈ 20). Inserting values in sorted order builds a line with h = n, as slow as a linked list; self-balancing trees (AVL, red-black) prevent that, by name only for now.",
           "An inorder walk (Day 54) of a BST gives its values in sorted order: a quick check, and a tool you'll use again.",
           "Because each step picks one side, BST code is often a loop, not recursion: `while node:`, then `if x == node.val: return node`, else `node = node.left if x < node.val else node.right`; after the loop, return None. O(1) memory.",
-          "Today's problems: Lowest Common Ancestor of a BST and Insert into a BST both walk down using the rule. Subtree of Another Tree doesn't use the rule at all: which of yesterday's functions could you reuse there, and at which nodes would you call it?"
+          "Today's problems: Lowest Common Ancestor of a BST and Insert into a BST both walk down using the rule."
         ],
+        "hints": {
+          "subtree-of-a-binary-tree": [
+            "Subtree of Another Tree doesn't use the rule at all: which of yesterday's functions could you reuse there, and at which nodes would you call it?"
+          ]
+        },
         "say": "A BST keeps smaller values to the left and bigger to the right of every node, so each comparison discards a whole subtree and search costs O(h): about log n when balanced, n when it has grown into a line.",
         "example": [
           "Practice problem (not on today's list): search a BST. Root 8; left 3 (children 1 and 6, and 6 has children 4 and 7); right 10 (right child 14, whose left child is 13).",
@@ -4176,22 +4375,28 @@
   {
     "day": 60,
     "date": "2026-12-31",
-    "title": "Deleting from a BST, BFS by level · Live updates",
+    "title": "Deleting from a BST, a tree level by level · Live updates",
     "blocks": [
       {
         "track": "dsa",
-        "title": "Trees: deleting from a BST, and BFS one level at a time",
+        "title": "Trees: deleting from a BST, and visiting a tree level by level",
         "minutes": 75,
-        "builds_on": "Day 59 · the BST rule, Day 54 · the three DFS orders, including inorder, and Day 6 · BFS with a deque, and the level_sums task",
+        "builds_on": "Days 54 to 59 · Trees, and Day 6 · trees and graphs",
         "points": [
-          "A node's in-order successor is the next value after it in sorted order (Day 54's inorder of a BST). Today's example finds it two ways, depending on whether the node has a right subtree.",
-          "Deleting from a BST: first sort the node into a case by how many children it has, 0, 1 or 2. For each case, draw it and ask: after it goes, what should its parent point to, and does every value still sit on the correct side of every ancestor?",
-          "No children and one child are the easy cases. Two children is the hard one: two subtrees and one empty place. Ask: which value already in the tree could move into this node and keep the rule on both sides? The successor from the example is one candidate; why does it work?",
-          "When a recursive call might change which node sits at the top of a subtree, how does the parent find out? Think about what the function should return, and what the parent does with it. Deleting costs O(h).",
-          "Level by level: BFS with a deque (Day 6) visits the nodes in level order, but the queue holds the end of one level and the start of the next at the same time. Ask: at the moment a level starts, what tells you how many nodes in the queue belong to it? Day 6's level_sums answered this.",
           "BFS takes O(n) time and holds about one level at a time: O(width) memory, up to about n ÷ 2 for the bottom level of a full tree. DFS holds O(h).",
           "Pick BFS on a tree when the question is about levels or about nodes nearest the root first; DFS for most others."
         ],
+        "hints": {
+          "delete-node-in-a-bst": [
+            "A node's in-order successor is the next value after it in sorted order (Day 54's inorder of a BST). The worked example (the next step) finds it two ways, depending on whether the node has a right subtree.",
+            "Deleting from a BST: first sort the node into a case by how many children it has, 0, 1 or 2. For each case, draw it and ask: after it goes, what should its parent point to, and does every value still sit on the correct side of every ancestor?",
+            "No children and one child are the easy cases. Two children is the hard one: two subtrees and one empty place. Ask: which value already in the tree could move into this node and keep the rule on both sides? The successor from the worked example is one candidate; why does it work?",
+            "When a recursive call might change which node sits at the top of a subtree, how does the parent find out? Think about what the function should return, and what the parent does with it. Deleting costs O(h)."
+          ],
+          "level-order-traversal-of-binary-tree": [
+            "Level by level: BFS with a deque (Day 6) visits the nodes in level order, but the queue holds the end of one level and the start of the next at the same time. Ask: at the moment a level starts, what tells you how many nodes in the queue belong to it? Day 6's level_sums answered this."
+          ]
+        },
         "say": "To change a BST I sort the node into cases by its number of children and check that every value still sits on the correct side of every ancestor; for anything by level I run BFS and keep the levels apart in the queue.",
         "example": [
           "Practice problem (not on today's list): find a value's in-order successor in a BST. The tree: root 8; left 3 (children 1 and 6, and 6 has 4 and 7); right 10 (right child 14, whose left child is 13).",
@@ -4200,6 +4405,7 @@
           "Successor of 13: the path is 8, 10, 14, 13 and the last left turn was at 14, so 14. Successor of 14: you never turned left on the way down, so it has none: it is the largest.",
           "Check with an inorder walk: [1, 3, 4, 6, 7, 8, 10, 13, 14]. After 3 comes 4, after 7 comes 8, after 13 comes 14, and 14 is last. Each search walks one path: O(h)."
         ],
+        "example_for": "delete-node-in-a-bst",
         "primary": {
           "title": "Binary search tree: read Operations → Searching → Successor and predecessor (skip its parent-link climb: LeetCode nodes have no parent, so walk down from the root as in the example)",
           "url": "https://en.wikipedia.org/wiki/Binary_search_tree",

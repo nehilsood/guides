@@ -2,7 +2,7 @@ import { DAYS } from "../dates.js";
 import { dayModel } from "../models.js";
 import { dayFlow, afterChange } from "../dayflow.js";
 import { SUBJECTS } from "../subjects.js";
-import { setSolved, setMinutes, setFlag, setResult, setDay, rate } from "../store.js";
+import { setSolved, setMinutes, setFlag, setResult, setDay, rate, setHelp, showAnswer } from "../store.js";
 import { el, busy, getState, commit, loadData, renderHeader, showError, guarded, today, now, rerender, onExternalChange, debounced, flushPending, safeHref, formatViews, codeParts, leadIn, plain, sentence, longDate, fullDate, trackLabel, todayDayClamped, ratingButtons, reviseTag, barParts } from "./common.js";
 import { icon, ring } from "./icons.js";
 
@@ -27,13 +27,27 @@ const ext = (url, ...content) => {
   return href ? el("a", { class: "ext", href, target: "_blank", rel: "noopener" }, content, icon("external")) : content;
 };
 
-const chip = (url, text, name) => {
+const chip = (url, text, name, focusKey) => {
   const href = safeHref(url);
-  return href && el("a", { class: "chip", href, target: "_blank", rel: "noopener" }, name && icon(name), text, icon("external"));
+  return href && el("a", { class: "chip", href, target: "_blank", rel: "noopener", "data-f": focusKey }, name && icon(name), text, icon("external"));
 };
 
-// Where to solve it (either site), then help. A chip whose link the problem lacks is left out.
-const linkChips = (x) => [chip(x.ncUrl, "NeetCode"), chip(x.lcUrl, "LeetCode"), chip(x.solutionUrl, "Solution"), chip(x.videoUrl, "Video", "video")];
+// Where to solve it (either site), then help. A chip whose link the problem lacks is left out, and Solution and
+// Video wait until the problem is ticked or its answer shown; Solution takes the help button's focus key, so
+// focus stays put when Show the answer replaces the button with it.
+const linkChips = (x) => [chip(x.ncUrl, "NeetCode"), chip(x.lcUrl, "LeetCode"), x.hideAnswer ? null : [chip(x.solutionUrl, "Solution", null, `help-${x.answerId}`), chip(x.videoUrl, "Video", "video")]];
+
+const STEP_TEXT = { idea: "Show the idea", example: "Show the worked example" };
+
+// One button for a coding row's next step of help; the same focus key keeps focus on it from step to step.
+// Its accessible name adds the row's name, so a screen reader can tell the rows apart.
+const helpButton = (x, name, mutate) => {
+  const attrs = (text) => ({ type: "button", class: "link-btn", "data-f": `help-${x.answerId}`, "aria-label": `${text}: ${name}`, text });
+  if (x.nextStep) return el("button", { ...attrs(STEP_TEXT[x.nextStep]), onclick: () => mutate((s) => setHelp(s, x.answerId, x.nextStep, now())) });
+  return x.canShowAnswer
+    ? el("button", { ...attrs("Show the answer"), title: "Shows the Solution and Video, and adds it to revision", onclick: () => mutate((s) => showAnswer(s, x.answerId, x.flagId ?? x.answerId, today(), now())) })
+    : null;
+};
 
 const resource = (item) =>
   el(
@@ -77,7 +91,7 @@ const problem = (p, mutate) => {
     checkbox(p.solved, `Solved: ${p.title}`, () => mutate((s) => setSolved(s, id, s.items[id]?.solved !== true, box.minutesFor(s), now())), `done-${id}`),
     [ext(p.ncUrl, p.title), el("span", { class: `tag ${p.difficulty.toLowerCase()}`, text: p.difficulty })],
     reviseToggle(id, p.flagged, p.title, mutate),
-    [linkChips(p), box.input],
+    [linkChips(p), helpButton(p, p.title, mutate), box.input],
   );
 };
 
@@ -89,7 +103,7 @@ const task = (t, mutate) => {
     checkbox(t.done, `Done: ${name}`, () => mutate((s) => setSolved(s, t.doneId, s.items[t.doneId]?.solved !== true, box ? box.minutesFor(s) : null, now())), `done-${t.doneId}`),
     ext(t.url, rich(t.text)),
     reviseToggle(t.flagId, t.flagged, name, mutate),
-    [linkChips(t), box?.input],
+    [linkChips(t), helpButton(t, name, mutate), box?.input],
   );
 };
 
@@ -116,16 +130,44 @@ const point = (text) => {
   return el("li", {}, l ? [el("b", {}, rich(l.lead)), ": ", rich(l.rest)] : rich(text));
 };
 
-const blockBody = (b, r, mutate) => [
-  b.builds_on ? buildsOn(b.builds_on) : null,
-  b.points.length ? group("In plain words", el("ul", { class: "points" }, b.points.map(point))) : null,
-  b.example?.length ? el("details", { class: "example", "data-k": `${b.key}-ex` }, el("summary", { text: "Worked example" }), el("ol", { class: "steps" }, b.example.map((s) => el("li", {}, rich(s))))) : null,
-  b.say ? el("div", { class: "say" }, el("p", { class: "say-h", text: "Say it in the interview" }), el("p", {}, rich(b.say))) : null,
-  b.problems.length ? todo("Solve today", b.problems.filter((p) => p.solved).length, b.problems.map((p) => problem(p, mutate))) : null,
-  b.tasks.length ? todo("Do today", b.tasks.filter((t) => t.done).length, b.tasks.map((t) => task(t, mutate))) : null,
-  b.primary ? group("Start here", el("div", { class: "start" }, resource(b.primary))) : null,
+const points = (lines) => el("ul", { class: "points" }, lines.map(point));
+// One span per step: each li is a two-column grid (number, text), and a bare <code> would take the number's column.
+const steps = (lines) => el("ol", { class: "steps" }, lines.map((s) => el("li", {}, el("span", {}, rich(s)))));
+
+// The help a coding row has taken, under the row: none taken, nothing drawn.
+const hintPanel = (x) => {
+  const idea = x.taken.idea && x.help.idea.length > 0;
+  const example = x.taken.example && x.help.example.length > 0;
+  return idea || example
+    ? el(
+        "div",
+        { class: "hint" },
+        idea ? [el("p", { class: "hint-h", text: "The idea" }), points(x.help.idea)] : null,
+        example ? [el("p", { class: "hint-h", text: "Worked example" }), steps(x.help.example)] : null,
+      )
+    : null;
+};
+
+// Once the block is in its debrief, a row's help moves into the debrief's "The idea".
+const todos = (b, mutate) => {
+  const rows = (x, drawn) => [drawn, b.debrief ? null : hintPanel(x)];
+  return [
+    b.problems.length ? todo("Solve today", b.problems.filter((p) => p.solved).length, b.problems.map((p) => rows(p, problem(p, mutate)))) : null,
+    b.tasks.length ? todo("Do today", b.tasks.filter((t) => t.done).length, b.tasks.map((t) => rows(t, task(t, mutate)))) : null,
+  ];
+};
+
+const exampleBox = (b) => (b.example?.length ? el("details", { class: "example", "data-k": `${b.key}-ex` }, el("summary", { text: "Worked example" }), steps(b.example)) : null);
+
+const sayBox = (b) => (b.say ? el("div", { class: "say" }, el("p", { class: "say-h", text: "Say it in the interview" }), el("p", {}, rich(b.say))) : null);
+
+const readings = (b, primary) => [
+  primary ? group("Start here", el("div", { class: "start" }, resource(primary))) : null,
   b.extras.length ? el("details", { "data-k": `${b.key}-x` }, el("summary", { text: "Extras, if you have time" }), b.extras.map(resource)) : null,
   b.own.length ? group("From my own guides", b.own.map(ownLink)) : null,
+];
+
+const tail = (b, r, mutate) => [
   b.questions.length ? group(`${trackLabel(b.track)} ${scoreText(r.score)}`, b.questions.map((q) => question(q, true, mutate))) : null,
   // Ticking everything finishes a block on its own; the button is for leaving one early, or undoing that.
   !r.done || b.closed
@@ -136,6 +178,48 @@ const blockBody = (b, r, mutate) => [
       )
     : null,
 ];
+
+// The debrief's idea: the block's points, then each coding item's own hint lines under its name.
+const debriefIdea = (b) => {
+  const hinted = [...b.problems.map((p) => [p.title, p.slug]), ...b.tasks.filter((t) => t.linked).map((t) => [plain(t.text), t.slug])].filter(([, slug]) => b.hints[slug]?.length);
+  return b.points.length || hinted.length
+    ? group("The idea", b.points.length ? points(b.points) : null, hinted.map(([title, slug]) => [el("p", {}, el("b", { text: title })), points(b.hints[slug])]))
+    : null;
+};
+
+// A coding block opens on its problems; its teaching waits for help on a row or for the debrief below them.
+const solveFirstBody = (b, r, mutate) => {
+  const early = b.primary?.first ? b.primary : null;
+  return [
+    b.builds_on ? buildsOn(b.builds_on) : null,
+    b.first.length || early ? group("Before you start", b.first.length ? points(b.first) : null, early ? el("div", { class: "start" }, resource(early)) : null) : null,
+    b.debrief ? null : el("p", { text: `Restate it with a tiny example, list the edge cases and say the brute force before you code. ${b.track === "checkpoint" ? "Stuck? Use Show the answer on its row." : "Stuck on one? Take the help on its row, one step at a time."}` }),
+    todos(b, mutate),
+    b.debrief
+      ? [debriefIdea(b), exampleBox(b), sayBox(b), readings(b, early ? null : b.primary)]
+      : el("p", {
+          class: "small",
+          text:
+            b.track === "checkpoint"
+              ? "The scoring list and what to do next open once you've ticked each problem (solved or not), or with Done with this block."
+              : "How to say it and the readings open once you've solved today's problems.",
+        }),
+    tail(b, r, mutate),
+  ];
+};
+
+const blockBody = (b, r, mutate) =>
+  b.solveFirst
+    ? solveFirstBody(b, r, mutate)
+    : [
+        b.builds_on ? buildsOn(b.builds_on) : null,
+        b.points.length ? group("In plain words", points(b.points)) : null,
+        exampleBox(b),
+        sayBox(b),
+        todos(b, mutate),
+        readings(b, b.primary),
+        tail(b, r, mutate),
+      ];
 
 const reviseBody = (m, mutate) => {
   if (!m.due.length) return el("p", { class: "small", text: "All revised for today." });

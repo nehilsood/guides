@@ -89,6 +89,8 @@ const problemView = (problem, state) => {
   const item = state.items["p:" + problem.id] ?? {};
   return {
     id: problem.id,
+    answerId: "p:" + problem.id,
+    slug: problem.ncSlug,
     title: problem.title,
     difficulty: problem.difficulty,
     ncUrl: ncProblemUrl(problem.ncSlug),
@@ -118,17 +120,18 @@ const LC_PROBLEM = /^https:\/\/leetcode\.com\/problems\/([a-z0-9-]+)/;
 // entry, not two. Its ✓ stays on the task's own record, so ticking a re-solve never un-solves the original.
 const taskView = (task, state, problems) => {
   const doneId = "t:" + task.id;
-  const own = { doneId, done: state.items[doneId]?.solved === true, cap: capMinutes(task.text), minutes: state.items[doneId]?.minutes ?? null };
+  const own = { doneId, answerId: doneId, done: state.items[doneId]?.solved === true, cap: capMinutes(task.text), minutes: state.items[doneId]?.minutes ?? null };
   const nc = task.url?.match(NC_PROBLEM)?.[1];
   const lc = task.url?.match(LC_PROBLEM)?.[1];
   const problem = nc ? problems.byNc[nc] : lc ? problems.byLc[lc] : undefined;
   if (!problem) {
-    const plain = { ...task, ...own, flagId: doneId, flagged: state.items[doneId]?.flag === true };
+    const plain = { ...task, ...own, slug: null, linked: false, flagId: doneId, flagged: state.items[doneId]?.flag === true };
     // A LeetCode problem outside the 250 has the same slug on NeetCode; refresh_links.py checks NeetCode's sitemap.
     return lc ? { ...plain, ncUrl: ncProblemUrl(lc), lcUrl: lcProblemUrl(lc) } : plain;
   }
   const view = problemView(problem, state);
-  return { ...task, ...own, flagId: "p:" + problem.id, flagged: view.flagged,
+  const linked = !task.lesson;
+  return { ...task, ...own, slug: linked ? problem.ncSlug : null, linked, flagId: "p:" + problem.id, flagged: view.flagged,
     ncUrl: view.ncUrl, lcUrl: view.lcUrl, solutionUrl: view.solutionUrl, videoUrl: view.videoUrl };
 };
 
@@ -142,6 +145,9 @@ const blockFromSlot = (slot) => ({
   primary: null,
   extras: [],
   own: [],
+  first: [],
+  hints: {},
+  exampleFor: null,
 });
 
 const blockFromCard = (block, state, problems) => ({
@@ -152,6 +158,9 @@ const blockFromCard = (block, state, problems) => ({
   primary: block.primary ?? null,
   extras: block.extras ?? [],
   own: block.own ?? [],
+  first: block.first ?? [],
+  hints: block.hints ?? {},
+  exampleFor: block.example_for ?? null,
 });
 
 // task id -> "Day N · task text", so a ⭐ on a task that is not a NeetCode problem still names it
@@ -198,6 +207,34 @@ const keyed = (day, state) => (block) => {
   return { ...block, key, closed: state.items[key]?.solved === true, questions: [] };
 };
 
+// Solve-first: a block's coding items (its problems, and tasks linking the 250) each hide their answer behind their own
+// help steps, idea then example (a checkpoint is a no-help test: its answer is offered at once); the debrief opens once they are all ticked or the block is closed.
+const withHelp = (block, state) => {
+  const coding = [...block.problems.map((p) => ({ ...p, ticked: p.solved })), ...block.tasks.filter((t) => t.linked).map((t) => ({ ...t, ticked: t.done }))];
+  const solveFirst = coding.length > 0;
+  const debrief = solveFirst && (block.closed || coding.every((c) => c.ticked));
+  const view = (item, ticked, coded) => {
+    const rec = state.items[item.answerId] ?? {};
+    const taken = { idea: rec.idea === true, example: rec.example === true };
+    const help = coded && block.track !== "checkpoint"
+      ? { idea: [...block.points, ...(block.hints[item.slug] ?? [])], example: block.exampleFor === null || block.exampleFor === item.slug ? block.example ?? [] : [] }
+      : { idea: [], example: [] };
+    const steps = ["idea", "example"].filter((k) => help[k].length > 0);
+    const hideAnswer = coded && !ticked && rec.answer !== true;
+    return {
+      ...item, help, taken,
+      nextStep: coded && !ticked && !debrief ? steps.find((k) => !taken[k]) ?? null : null,
+      hideAnswer,
+      canShowAnswer: hideAnswer && (debrief || steps.every((k) => taken[k])),
+    };
+  };
+  return {
+    ...block, solveFirst, debrief,
+    problems: block.problems.map((p) => view(p, p.solved, true)),
+    tasks: block.tasks.map((t) => view(t, t.done, t.linked)),
+  };
+};
+
 // On Day 0 each question sits in the block its prefix names; any it can't place stay in the self-test.
 const placeQuestions = (day, blocks, selftest, state) => {
   if (day !== 0) return { blocks, selftest: selftest.map((t) => questionView(day, state, t)) };
@@ -239,7 +276,7 @@ export const dayModel = (day, outline, cardsByDay, schedule, problemsById, state
     revisedToday,
     showRevise: isToday && due.length + revisedToday > 0,
     baseline: day === 0,
-    blocks: blocks.map((b) => ({ ...b, problems: problemsFor(b.track) })),
+    blocks: blocks.map((b) => withHelp({ ...b, problems: problemsFor(b.track) }, state)),
     totalMinutes: totalMinutes(blocks.map((b) => ({ minutes: b.minutes ?? 0 }))),
     wholeFlagged: state.items["day:" + day]?.flag === true,
     feelNote: record.feelNote ?? "",

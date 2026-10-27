@@ -34,7 +34,7 @@ const blockRow = (b) => {
   const total = b.problems.length + b.tasks.length + b.questions.length;
   const ticked = total - open.length;
   const row = counted(
-    { key: b.key, kind: "block", title: b.title, track: b.track, subject: subjectOf(b.track), minutes: b.minutes ?? 0, nextLabel: open[0] },
+    { key: b.key, kind: "block", title: b.title, track: b.track, subject: subjectOf(b.track), minutes: b.minutes ?? 0, nextLabel: open[0], holdsOpen: b.solveFirst === true && !b.closed },
     ticked,
     total,
     b.closed || (total > 0 && ticked === total),
@@ -77,12 +77,15 @@ export const dayFlow = (m) => {
 const doneIn = (flow, key) => flow.rows.find((r) => r.key === key)?.done === true;
 
 // Which row is open after a change: the current one on first draw; none, after a beat, when the day just
-// finished; the next one, after a beat, when the row the reader had open just finished; otherwise whatever the
-// reader chose (including none). Only the reader's own changes (`local`) move rows; a sync never does.
+// finished (it finishes only when marked done); the next one, after a beat, when the row the reader had open just
+// finished, unless it holds open (a solve-first block finished by ticks stays on its explanation); otherwise
+// whatever the reader chose (including none). Only the reader's own changes (`local`) move rows; a sync never does.
 export const afterChange = (before, after, open, local = true) => {
   if (before === null) return { open: open ?? after.current, delay: 0 };
   if (!local) return { open, delay: 0 };
   if (!before.done && after.done) return { open: null, delay: FOLD_DELAY };
-  if (open !== null && !doneIn(before, open) && doneIn(after, open)) return { open: after.current, delay: FOLD_DELAY };
+  if (open !== null && !doneIn(before, open) && doneIn(after, open)) {
+    return after.rows.find((r) => r.key === open).holdsOpen ? { open, delay: 0 } : { open: after.current, delay: FOLD_DELAY };
+  }
   return { open, delay: 0 };
 };

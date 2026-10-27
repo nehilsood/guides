@@ -43,6 +43,13 @@ const restart = (existing, today) => ({
 export const setFlag = (state, id, flag, today, nowMs) =>
   touch(state, "items", id, flag ? { flag, srs: restart(state.items[id]?.srs, today) } : { flag }, nowMs);
 
+// One step of help on a problem or re-solve task ("idea" or "example"); its tick and minutes are left alone.
+export const setHelp = (state, answerId, step, nowMs) => touch(state, "items", answerId, { [step]: true }, nowMs);
+
+// Looking at the answer marks the item and puts the problem back on the review schedule from today.
+export const showAnswer = (state, answerId, flagId, today, nowMs) =>
+  setFlag(touch(state, "items", answerId, { answer: true }, nowMs), flagId, true, today, nowMs);
+
 export const rate = (state, id, rating, today, nowMs) => {
   const current = state.items[id]?.srs ?? srs.start(today);
   return touch(state, "items", id, { srs: srs.next(current, rating, today) }, nowMs);
