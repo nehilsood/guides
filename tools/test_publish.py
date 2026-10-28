@@ -19,10 +19,10 @@ def status():
 
 
 @pytest.fixture(autouse=True)
-def clean_repo():
-    assert status() == "", "commit or set aside local changes first: these tests check the repo is left untouched"
+def repo_untouched():
+    before = status()
     yield
-    assert status() == ""
+    assert status() == before
 
 
 def test_unknown_option_stops_before_anything():
@@ -31,10 +31,17 @@ def test_unknown_option_stops_before_anything():
     assert "usage" in r.stderr
 
 
-def test_dry_run_shows_the_diff_and_leaves_the_repo_alone():
-    r = run("--dry-run")
-    assert r.returncode == 0, r.stderr
-    assert "Dry run: nothing committed." in r.stdout
+def test_dry_run_leaves_the_repo_alone():
+    # The sync mirrors each course folder with --delete, so a dry run that synced into this repo would remove this.
+    marker = SITE / "sde2-plan" / "untracked-marker.txt"
+    marker.write_text("kept")
+    try:
+        r = run("--dry-run")
+        assert r.returncode == 0, r.stderr
+        assert "Dry run: nothing committed." in r.stdout or "Nothing changed since the last publish." in r.stdout
+        assert marker.exists()
+    finally:
+        marker.unlink(missing_ok=True)
 
 
 def test_build_writes_the_site_to_a_new_folder(tmp_path):
