@@ -1,7 +1,8 @@
-// A day as an ordered list of rows (revise, blocks, self-test, close), with progress, the current row and
+// A day as an ordered list of rows (revise, lessons, blocks, still to read, self-test, close), with progress, the current row and
 // what to do next. Pure: the day page draws it, the tests check it.
 
 import { subjectOf } from "./subjects.js";
+import { GUIDES, VISIT_MINUTES, guideKey, visitMarks } from "./lessons.js";
 
 const MAX_LABEL = 48;
 const FOLD_DELAY = 450;
@@ -23,15 +24,35 @@ const reviseRow = (m) => {
   return counted({ key: "revise", kind: "revise", title: `Revise ${plural(n, "item")}`, minutes: null }, m.revisedToday, n, m.due.length === 0);
 };
 
+const VISIT_QUESTIONS = 3;
+
+// A rated visit shows all its ticks; one in progress counts the marks so far (no mark is dated today until rated).
+// Its subtitle names the guide. Rating holds the row open on its note of when the lesson comes back.
+const lessonRow = (v) => {
+  const ticked = v.rated ? VISIT_QUESTIONS : Math.min(VISIT_QUESTIONS, Object.keys(visitMarks(v.item, null)).length);
+  return counted({ key: `lesson-${v.lesson}`, kind: "lesson", title: v.title, sub: GUIDES[guideKey(v.lesson)], track: v.track, subject: subjectOf(v.track), minutes: VISIT_MINUTES, holdsOpen: true }, ticked, VISIT_QUESTIONS, v.rated);
+};
+
+// Like a block: its minutes are every part's, and its progress is the closed share of them, so the sticky bar's
+// "minutes left" comes out as the open parts' minutes. The title counts the open parts, as Home does.
+const toReadRow = (parts) => {
+  const open = parts.filter((p) => !p.closed);
+  const minutes = parts.reduce((s, p) => s + (p.minutes ?? 0), 0);
+  const row = counted({ key: "toread", kind: "toread", title: open.length ? `Still to read, ${plural(open.length, "part")}` : "Still to read", minutes }, parts.length - open.length, parts.length, open.length === 0);
+  return minutes ? { ...row, progress: (minutes - open.reduce((s, p) => s + (p.minutes ?? 0), 0)) / minutes } : row;
+};
+
 const SCORE = { got: 1, partly: 0.5 };
 
+// An optional lab can be ticked but never holds its block open. A reading part skipped on a later day is closed.
 const blockRow = (b) => {
+  const tasks = b.tasks.filter((t) => !t.lab);
   const open = [
     ...b.problems.filter((p) => !p.solved).map((p) => p.title),
-    ...b.tasks.filter((t) => !t.done).map((t) => shortLabel(t.text)),
+    ...tasks.filter((t) => !(t.done || t.skipped)).map((t) => shortLabel(t.text)),
     ...b.questions.filter((q) => q.result === null).map((q) => shortLabel(q.q)),
   ];
-  const total = b.problems.length + b.tasks.length + b.questions.length;
+  const total = b.problems.length + tasks.length + b.questions.length;
   const ticked = total - open.length;
   const row = counted(
     { key: b.key, kind: "block", title: b.title, track: b.track, subject: subjectOf(b.track), minutes: b.minutes ?? 0, nextLabel: open[0], holdsOpen: b.solveFirst === true && !b.closed },
@@ -55,7 +76,9 @@ const closeRow = (m) => counted({ key: "close", kind: "close", title: "Close the
 export const dayFlow = (m) => {
   const rows = [
     m.showRevise ? reviseRow(m) : null,
+    ...(m.lessons ?? []).map(lessonRow),
     ...m.blocks.map(blockRow),
+    m.toRead?.length ? toReadRow(m.toRead) : null,
     m.selftest.length ? selftestRow(m) : null,
     closeRow(m),
   ].filter(Boolean);

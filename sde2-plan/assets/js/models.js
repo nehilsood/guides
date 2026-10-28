@@ -2,6 +2,7 @@ import { START, DAYS, dayNumber, dateOf, addDays } from "./dates.js";
 import { isDue, isCold } from "./srs.js";
 import { codeParts } from "./format.js";
 import { capMinutes, questionTrack, textKey } from "./wording.js";
+import { DEFAULT_TRACK, guideKey, lessonName, lessonQueue, stillToRead } from "./lessons.js";
 
 const FINISH = dateOf(DAYS);
 const DSA_TOTAL = 250;
@@ -60,7 +61,7 @@ const expectedFinish = (days, state, todayDay) => {
 
 const totalMinutes = (slots) => slots.reduce((sum, s) => sum + s.minutes, 0);
 
-export const homeModel = (outline, state, today, started = new Set()) => {
+export const homeModel = (outline, state, today, started = new Set(), cardsByDay = {}) => {
   const todayDay = dayNumber(today);
   const days = outline.filter((e) => e.day >= 1 && e.day <= DAYS);
   const todayEntry = outline[todayDay];
@@ -81,6 +82,10 @@ export const homeModel = (outline, state, today, started = new Set()) => {
     dsa: dsaProgress(state),
     expectedFinish: expectedFinish(days, state, todayDay),
     dueCount: dueItems(state, today).length,
+    // What Today still has open: unrated lesson visits, and parts from earlier days not yet ticked or skipped. Outside
+    // the plan, Today is Day 0 or Day 180, not today, and shows neither.
+    lessonVisits: todayEntry ? lessonQueue(state, today).today.filter((v) => !v.rated).length : 0,
+    toRead: todayEntry ? stillToRead(cardsByDay, state, today).filter((p) => !p.closed).length : 0,
   };
 };
 
@@ -118,22 +123,25 @@ const problemsByTrack = (day, entry, schedule, problemsById, state) => {
 const NC_PROBLEM = /^https:\/\/neetcode\.io\/problems\/([a-z0-9-]+)\/question$/;
 const LC_PROBLEM = /^https:\/\/leetcode\.com\/problems\/([a-z0-9-]+)/;
 
+// `logged` is the minutes the reader saved; `minutes` stays the card's planned minutes.
 // A task that links a NeetCode 250 problem (on either site) shares that problem's ⭐, so a re-solve is one revision
 // entry, not two. Its ✓ stays on the task's own record, so ticking a re-solve never un-solves the original.
 const taskView = (task, state, problems) => {
   const doneId = "t:" + task.id;
-  const own = { doneId, answerId: doneId, done: state.items[doneId]?.solved === true, cap: capMinutes(task.text), minutes: state.items[doneId]?.minutes ?? null };
+  const own = { doneId, answerId: doneId, done: state.items[doneId]?.solved === true, cap: capMinutes(task.text), logged: state.items[doneId]?.minutes ?? null };
   const nc = task.url?.match(NC_PROBLEM)?.[1];
   const lc = task.url?.match(LC_PROBLEM)?.[1];
   const problem = nc ? problems.byNc[nc] : lc ? problems.byLc[lc] : undefined;
+  // A lesson to-do has no star: its revision is the lesson's own, not a separate 1/3/7/21 item. `started` says
+  // whether that revision has begun; `skipped`, whether the part was closed by Skip it on a later day.
+  if (task.lesson) return { ...task, ...own, skipped: state.items[doneId]?.skipped === true, started: Boolean(state.items["l:" + task.lesson]?.started), slug: null, linked: false, flagged: false };
   if (!problem) {
     const plain = { ...task, ...own, slug: null, linked: false, flagId: doneId, flagged: state.items[doneId]?.flag === true };
     // A LeetCode problem outside the 250 has the same slug on NeetCode; refresh_links.py checks NeetCode's sitemap.
     return lc ? { ...plain, ncUrl: ncProblemUrl(lc), lcUrl: lcProblemUrl(lc) } : plain;
   }
   const view = problemView(problem, state);
-  const linked = !task.lesson;
-  return { ...task, ...own, slug: linked ? problem.ncSlug : null, linked, flagId: "p:" + problem.id, flagged: view.flagged,
+  return { ...task, ...own, slug: problem.ncSlug, linked: true, flagId: "p:" + problem.id, flagged: view.flagged,
     ncUrl: view.ncUrl, lcUrl: view.lcUrl, solutionUrl: view.solutionUrl, videoUrl: view.videoUrl };
 };
 
@@ -254,9 +262,16 @@ const placeQuestions = (day, blocks, selftest, state) => {
   return { blocks, selftest: loose };
 };
 
+// Today's due lesson visits, with the index's title, track and link (a lesson not in the index shows its label).
+const lessonsToday = (state, today, lessonIndex) =>
+  lessonQueue(state, today).today.map((v) => {
+    const entry = lessonIndex[v.lesson] ?? {};
+    return { ...v, ...lessonName(v.lesson, lessonIndex), track: entry.track ?? DEFAULT_TRACK[guideKey(v.lesson)], url: entry.url ?? null, item: state.items["l:" + v.lesson] ?? {} };
+  });
+
 const ratedOn = (state, today) => flaggedItems(state).filter(([, item]) => item.srs.history.some((h) => h.date === today)).length;
 
-export const dayModel = (day, outline, cardsByDay, schedule, problemsById, state, today) => {
+export const dayModel = (day, outline, cardsByDay, schedule, problemsById, state, today, lessonIndex = {}) => {
   if (!Number.isInteger(day) || day < 0 || day > DAYS) {
     return { ok: false, message: `There is no day ${day} — the plan runs from Day 0 to Day ${DAYS}.` };
   }
@@ -281,6 +296,7 @@ export const dayModel = (day, outline, cardsByDay, schedule, problemsById, state
     revisedToday,
     showRevise: isToday && due.length + revisedToday > 0,
     baseline: day === 0,
+    ...(isToday ? { lessons: lessonsToday(state, today, lessonIndex), toRead: stillToRead(cardsByDay, state, today) } : { lessons: [], toRead: [] }),
     blocks: blocks.map((b) => withHelp({ ...b, problems: problemsFor(b.track) }, state)),
     totalMinutes: totalMinutes(blocks.map((b) => ({ minutes: b.minutes ?? 0 }))),
     wholeFlagged: state.items["day:" + day]?.flag === true,

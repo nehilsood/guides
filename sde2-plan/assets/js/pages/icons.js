@@ -16,6 +16,7 @@ export const PATHS = {
   article: ["M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z", "M14 2v4a2 2 0 0 0 2 2h4", "M10 9H8", "M16 13H8", "M16 17H8"],
   video: ["M2 12a10 10 0 1 0 20 0a10 10 0 1 0-20 0", "m10 8 6 4-6 4V8z"],
   check: ["M20 6 9 17l-5-5"],
+  x: ["M18 6 6 18", "m6 6 12 12"],
   "chevron-left": ["m15 18-6-6 6-6"],
   "chevron-right": ["m9 18 6-6-6-6"],
   external: ["M7 7h10v10", "M7 17 17 7"],

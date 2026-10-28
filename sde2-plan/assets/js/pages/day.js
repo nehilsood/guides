@@ -2,8 +2,10 @@ import { DAYS } from "../dates.js";
 import { dayModel } from "../models.js";
 import { dayFlow, afterChange } from "../dayflow.js";
 import { SUBJECTS } from "../subjects.js";
-import { setSolved, setMinutes, setFlag, setResult, setDay, rate, setHelp, hideHelp, showAnswer } from "../store.js";
-import { el, busy, getState, commit, loadData, renderHeader, showError, guarded, today, now, rerender, onExternalChange, debounced, flushPending, safeHref, formatViews, codeParts, leadIn, plain, sentence, longDate, fullDate, trackLabel, todayDayClamped, reviseRow, barParts } from "./common.js";
+import { setSolved, setMinutes, setFlag, setResult, setDay, rate, setHelp, showAnswer, hideHelp } from "../store.js";
+import { guideOf, isLastPart, labelOf, skipPart, tickPart } from "../lessons.js";
+import { el, busy, getState, commit, loadData, renderHeader, showError, guarded, today, now, rerender, onExternalChange, debounced, flushPending, safeHref, formatViews, codeParts, leadIn, plain, sentence, longDate, fullDate, trackLabel, todayDayClamped, reviseRow, barParts, chip, liveNote, say, MARK_WORD } from "./common.js";
+import { lessonBody, cardKey, takeFocus } from "./lessoncard.js";
 import { icon, ring } from "./icons.js";
 import { PROBLEM_CAP, elapsed, start, pause, clear, clock, isOver, toMinutes, runningId, parseRuns } from "../timer.js";
 
@@ -26,11 +28,6 @@ const rich = (text) => codeParts(text).map((p) => (p.code ? el("code", { text: p
 const ext = (url, ...content) => {
   const href = safeHref(url);
   return href ? el("a", { class: "ext", href, target: "_blank", rel: "noopener" }, content, icon("external")) : content;
-};
-
-const chip = (url, text, name, focusKey) => {
-  const href = safeHref(url);
-  return href && el("a", { class: "chip", href, target: "_blank", rel: "noopener", "data-f": focusKey }, name && icon(name), text, icon("external"));
 };
 
 // Where to solve it (either site), then help. A chip whose link the problem lacks is left out, and Solution and
@@ -155,12 +152,12 @@ const problem = (p, mutate, redraw) => {
 
 const task = (t, mutate, redraw) => {
   const name = plain(t.text);
-  const box = t.cap !== null ? minutesBox(t.doneId, t.minutes, name) : null;
+  const box = t.cap !== null ? minutesBox(t.doneId, t.logged, name) : null;
   return item(
     t.done,
     checkbox(t.done, `Done: ${name}`, tick(t.doneId, box, mutate), `done-${t.doneId}`),
     ext(t.url, rich(t.text)),
-    reviseToggle(t.flagId, t.flagged, name, mutate),
+    t.flagId ? reviseToggle(t.flagId, t.flagged, name, mutate) : null,
     [linkChips(t), helpButton(t, name, mutate), box && !t.done ? timer(t.doneId, name, redraw) : null, box?.input],
   );
 };
@@ -206,14 +203,69 @@ const hintPanel = (x) => {
     : null;
 };
 
-// Once the block is in its debrief, a row's help moves into the debrief's "The idea".
+// A lesson's reading part (a card task or a still-to-read Part). Its tick goes through tickPart, so ticking the
+// last part starts the lesson's revision.
+const tickLesson = (part, mutate) => () => mutate((s) => tickPart(s, part, s.items[`t:${part.id}`]?.solved !== true, null, today(), now()));
+
+const minutesTag = (minutes) => el("span", { class: "tag", text: `${minutes} min` });
+
+// No star (the lesson has its own revision) and no timer. A lab is optional. The guide sits beside the book icon,
+// the one the Stories tab uses. A part skipped from Still to read shows Skipped here too, as Still to read does.
+const lessonTask = (t, mutate) =>
+  item(
+    t.done || t.skipped,
+    checkbox(t.done, `Done: ${plain(t.text)}`, tickLesson(t, mutate), `done-${t.doneId}`),
+    [ext(t.url, rich(t.text)), t.minutes ? minutesTag(t.minutes) : null, t.lab ? el("span", { class: "tag", text: "optional" }) : null],
+    null,
+    [el("span", { class: "lesson-src" }, icon("stories"), guideOf(t.lesson)), t.skipped ? el("span", { class: "tag", text: "Skipped" }) : null],
+  );
+
+// The last part's note follows the lesson's revision, not the tick: unticking after the start leaves it started.
+const partNote = (t) =>
+  !isLastPart(t) ? `Part ${t.part} of ${t.of}. Revision starts after part ${t.of}.`
+  : t.started ? "Added to revision. It comes back tomorrow, then after 3, 7 and 21 days, then every 60 days, with different questions each time."
+  : "Ticking it starts the lesson's revision.";
+
+// A note per reading part (labs and rereads have none), led by the lesson's label when the panel has several.
+const partNotes = (lessons) => {
+  const parts = lessons.filter((t) => t.part !== undefined);
+  return parts.map((t) => el("p", { class: "small" }, parts.length > 1 ? `${labelOf(t.lesson)}: ` : null, partNote(t)));
+};
+
+// Once the block is in its debrief, a row's help moves into the debrief's "The idea". Lesson tasks have their own
+// panel after "Do today", drawn in every state of a solve-first block.
 const todos = (b, mutate, redraw) => {
   const rows = (x, drawn) => [drawn, b.debrief ? null : hintPanel(x)];
+  const tasks = b.tasks.filter((t) => !t.lesson);
+  const lessons = b.tasks.filter((t) => t.lesson);
   return [
     b.problems.length ? todo("Solve today", b.problems.filter((p) => p.solved).length, b.problems.map((p) => rows(p, problem(p, mutate, redraw)))) : null,
-    b.tasks.length ? todo("Do today", b.tasks.filter((t) => t.done).length, b.tasks.map((t) => rows(t, task(t, mutate, redraw)))) : null,
+    tasks.length ? todo("Do today", tasks.filter((t) => t.done).length, tasks.map((t) => rows(t, task(t, mutate, redraw)))) : null,
+    lessons.length ? [todo("Today's lesson", lessons.filter((t) => t.done || t.skipped).length, lessons.map((t) => lessonTask(t, mutate))), partNotes(lessons)] : null,
   ];
 };
+
+// A part from an earlier day, closed by its tick or by Skip it. Once skipped, its tag takes the button's focus key.
+const toReadPart = (p, mutate) => {
+  const name = plain(p.text);
+  return item(
+    p.closed,
+    checkbox(p.solved, `Done: ${name}`, tickLesson(p, mutate), `done-t:${p.id}`),
+    [ext(p.url, rich(p.text)), p.minutes ? minutesTag(p.minutes) : null],
+    null,
+    [
+      el("span", { class: "small", text: `from Day ${p.day}` }),
+      p.skipped ? el("span", { class: "tag", tabindex: "-1", "data-f": `skip-${p.id}`, text: "Skipped" })
+      : p.closed ? null
+      : el("button", { type: "button", class: "btn skip", "aria-label": `Skip it: ${name}`, "data-f": `skip-${p.id}`, onclick: () => mutate((s) => skipPart(s, p, today(), now())), text: "Skip it" }),
+    ],
+  );
+};
+
+const toReadBody = (m, mutate) => [
+  todo("Still to read", m.toRead.filter((p) => p.closed).length, m.toRead.map((p) => toReadPart(p, mutate))),
+  el("p", { class: "small", text: "Skipping a lesson's last part still starts its revision." }),
+];
 
 const exampleBox = (b) => (b.example?.length ? el("details", { class: "example", "data-k": `${b.key}-ex` }, el("summary", { text: "Worked example" }), steps(b.example)) : null);
 
@@ -290,8 +342,7 @@ const reviseBody = (m, mutate) => {
 
 // A self-test question: tap to reveal the answer, then mark it. On normal days a Missed question goes into
 // revision; Day 0 marks only score the baseline (decision 22).
-const MARKS = [["got", "Got it"], ["partly", "Partly"], ["missed", "Missed"]];
-const MARK_WORD = Object.fromEntries(MARKS);
+const MARKS = Object.entries(MARK_WORD);
 
 const question = (q, baseline, mutate) => {
   const mark = (result) =>
@@ -388,7 +439,7 @@ const row = (r, isCurrent, body, onToggle) => {
           "span",
           { class: "row-name" },
           el("span", { class: "row-title", text: r.title }),
-          el("span", { class: "row-sub" }, el("span", { class: "subj", text: SUBJECTS[r.subject] }), isCurrent ? el("span", { class: "now", text: "Now" }) : null),
+          el("span", { class: "row-sub" }, el("span", { class: "subj", text: r.sub ?? SUBJECTS[r.subject] }), isCurrent ? el("span", { class: "now", text: "Now" }) : null),
         ),
         r.minutes ? el("span", { class: "row-mins", text: `${r.minutes} min` }) : null,
       ),
@@ -405,7 +456,7 @@ const reader = (r, body, dayDone) =>
     r
       ? [
           el("h2", { class: "reader-h", tabindex: "-1", text: r.title }),
-          el("p", { class: "reader-sub" }, el("span", { class: "subj", text: SUBJECTS[r.subject] }), r.minutes ? ` ${r.minutes} min` : null),
+          el("p", { class: "reader-sub" }, el("span", { class: "subj", text: r.sub ?? SUBJECTS[r.subject] }), r.minutes ? ` ${r.minutes} min` : null),
           body,
         ]
       : el("p", { class: "small", text: dayDone ? "Day done. Open any row to look back at it." : "Open a row to read it here." }),
@@ -466,7 +517,6 @@ const watchHeading = (root) => {
 // the tab title, and once per run a vibration and a screen-reader line). Only a timer on this day's rows counts;
 // one left running on another day's page waits there.
 const pageTitle = document.title;
-const capNote = el("p", { class: "sr-only", "aria-live": "polite" });
 const paintTimers = () => {
   const t = now();
   const shown = (id) => (isOver(runs[id], t, timed[id]?.cap) ? `${clock(elapsed(runs[id], t))} up` : clock(elapsed(runs[id], t)));
@@ -486,7 +536,7 @@ const paintTimers = () => {
   if (over && !buzzed.has(id)) {
     buzzed.add(id);
     navigator.vibrate?.(200);
-    capNote.textContent = `${timed[id].name}: ${timed[id].cap} minutes up`;
+    say(`${timed[id].name}: ${timed[id].cap} minutes up`);
   }
 };
 
@@ -530,9 +580,12 @@ const notFound = (message) =>
 
 const build = (data, m, flow, mutate, redraw) => {
   const blocks = new Map(m.blocks.map((b) => [b.key, b]));
+  const lessons = new Map(m.lessons.map((v) => [`lesson-${v.lesson}`, v]));
   const bodyOf = (r) =>
     r.kind === "revise" ? reviseBody(m, mutate)
+    : r.kind === "lesson" ? lessonBody(lessons.get(r.key), mutate, redraw)
     : r.kind === "block" ? blockBody(blocks.get(r.key), r, mutate, redraw)
+    : r.kind === "toread" ? toReadBody(m, mutate)
     : r.kind === "selftest" ? m.selftest.map((q) => question(q, m.baseline, mutate))
     : r.kind === "close" ? closeBody(m, mutate)
     : null;
@@ -586,12 +639,13 @@ const whenIdle = (fn, delay) => {
 };
 
 renderHeader("day.html");
-document.body.append(capNote);
+document.body.append(liveNote);
+document.addEventListener("keydown", (e) => wide.matches && cardKey(e));
 loadData()
   .then((data) => {
     const root = document.getElementById("app");
     const draw = guarded(() => {
-      const m = dayModel(day, data.outline, data.cardsByDay, data.schedule, data.problemsById, getState(), today());
+      const m = dayModel(day, data.outline, data.cardsByDay, data.schedule, data.problemsById, getState(), today(), data.lessonIndex);
       if (!m.ok) return root.replaceChildren(notFound(m.message));
       timed = Object.fromEntries(
         m.blocks.flatMap((b) => [
@@ -630,6 +684,7 @@ loadData()
         }, next.delay);
       } else open = next.open;
       rerender(root, () => build(data, m, flow, mutate, draw));
+      takeFocus(root);
       watchHeading(root);
       paintTimers();
     });

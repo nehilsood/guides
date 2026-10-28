@@ -2,7 +2,8 @@ import { load, save, merge, KEY } from "../store.js";
 import { todayIST, dayNumber, DAYS } from "../dates.js";
 import { startSync, scheduleSync, onStatus, getStatus, describe } from "./syncwire.js";
 import { icon } from "./icons.js";
-import { plain } from "../format.js";
+import { plain, longDate } from "../format.js";
+import { RATING_WORD } from "../lessons.js";
 
 export const today = () => todayIST(new Date());
 export const now = () => Date.now();
@@ -149,15 +150,41 @@ export const rerender = (root, build) => {
 // Only link out to https pages (or, with `pattern`, to a relative path); anything else shows as plain text.
 export const safeHref = (url, pattern = /^https:\/\//) => (typeof url === "string" && pattern.test(url) ? url : null);
 
-export const longDate = (dateStr) =>
-  new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(
-    new Date(dateStr + "T00:00:00Z"),
-  );
+export const chip = (url, text, name, focusKey) => {
+  const href = safeHref(url);
+  return href && el("a", { class: "chip", href, target: "_blank", rel: "noopener", "data-f": focusKey }, name && icon(name), text, icon("external"));
+};
+
+// A polite live region; a page that speaks through say() appends liveNote to its body.
+export const liveNote = el("p", { class: "sr-only", "aria-live": "polite" });
+export const say = (text) => (liveNote.textContent = text);
+
+// The words for a mark, shared by the self-test and the lesson card.
+export const MARK_WORD = { got: "Got it", partly: "Partly", missed: "Missed" };
+
+// Question HTML copied from the guides, as nodes: only these tags are kept, with no attributes, and an https link
+// opens in a new tab. Any other element is replaced by what it holds.
+const KEEP = new Set(["A", "B", "CODE", "EM", "I", "STRONG", "SUB", "SUP", "P", "BR", "UL", "OL", "LI"]);
+const clean = (node) => {
+  if (node.nodeType === Node.TEXT_NODE) return [node];
+  if (node.nodeType !== Node.ELEMENT_NODE || node.tagName === "SCRIPT" || node.tagName === "STYLE") return [];
+  const inner = [...node.childNodes].flatMap(clean);
+  if (node.tagName === "A") {
+    const href = safeHref(node.getAttribute("href"));
+    return href ? [el("a", { href, target: "_blank", rel: "noopener" }, inner)] : inner;
+  }
+  return KEEP.has(node.tagName) ? [el(node.tagName.toLowerCase(), {}, inner)] : inner;
+};
+export const fragment = (html) => {
+  const t = document.createElement("template");
+  t.innerHTML = html;
+  return [...t.content.childNodes].flatMap(clean);
+};
 
 export const fullDate = (dateStr) =>
   new Intl.DateTimeFormat("en-GB", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" }).format(new Date(dateStr + "T00:00:00Z"));
 
-export { formatViews, formatHours, codeParts, leadIn, plain, sentence } from "../format.js";
+export { formatViews, formatHours, codeParts, leadIn, plain, sentence, longDate } from "../format.js";
 
 const TRACKS = { dsa: "DSA", hld: "HLD", lld: "LLD", ai: "AI", cs: "CS basics", hard: "DSA hard", catchup: "Catch-up" };
 export const trackLabel = (track) => (typeof track === "string" ? TRACKS[track] ?? track.charAt(0).toUpperCase() + track.slice(1) : "");
@@ -184,12 +211,15 @@ export const loadData = async () => {
     ["outline", "dsa-schedule", "problems"].map((name) => getJson(`data/${name}.json`)),
   );
   if (!outline || !schedule || !problems) throw new Error("Could not load the plan data.");
+  const lessons = await getJson("data/questions/index.json").catch(() => null);
+  const lessonIndex = {};
+  for (const { lesson, label, title, track, url } of Array.isArray(lessons) ? lessons : []) if (typeof lesson === "string") lessonIndex[lesson] = { label, title, track, url };
   const index = await getJson("data/days/index.json").catch(() => null);
   const files = Array.isArray(index) ? index : [];
   const months = await Promise.all(files.map(loadCardFile));
   const cardsByDay = {};
   for (const card of months.flat()) cardsByDay[card.day] = card;
-  return { outline, schedule, problems, problemsById: Object.fromEntries(problems.map((p) => [p.id, p])), cardsByDay };
+  return { outline, schedule, problems, problemsById: Object.fromEntries(problems.map((p) => [p.id, p])), cardsByDay, lessonIndex };
 };
 
 const NAV = [
@@ -267,26 +297,29 @@ const ratingButtons = (id, name, onRate) =>
   el(
     "span",
     { class: "seg", role: "group", "aria-label": `How well did you remember ${name}?` },
-    [["easy", "Easy"], ["ok", "OK"], ["struggled", "Struggled"]].map(([rating, label]) =>
+    Object.entries(RATING_WORD).map(([rating, label]) =>
       el("button", { type: "button", "aria-label": `${label}: ${name}`, "data-f": `${id}-${rating}`, onclick: () => onRate(id, rating), text: label }),
     ),
   );
 
 const reviseTag = (id, step) => (id.startsWith("p:") ? `re-solve #${step + 1}` : "re-read");
 
-// One thing in revision, on Revise and on the day page's Revise row: due ones take a rating, later ones show the
-// date they come back.
-export const reviseRow = (r, onRate) =>
+// One row in revision: its name, a tag, overdue or the date it comes back, then `action` (a due row's way to do it, or null).
+export const dueRow = (r, text, tag, action) =>
   el(
     "div",
     { class: "due" },
-    el("p", { class: "due-text", text: plain(r.label) }),
+    el("p", { class: "due-text", text }),
     el(
       "p",
       { class: "due-meta" },
-      el("span", { class: "tag", text: reviseTag(r.id, r.step) }),
+      el("span", { class: "tag", text: tag }),
       r.overdue ? el("span", { class: "tag warn", text: `overdue since ${longDate(r.due)}` }) : null,
       r.isDue ? null : el("span", { class: "tag", text: longDate(r.due) }),
     ),
-    r.isDue ? ratingButtons(r.id, plain(r.label), onRate) : null,
+    action,
   );
+
+// One thing in revision, on Revise and on the day page's Revise row: due ones take a rating, later ones show the
+// date they come back.
+export const reviseRow = (r, onRate) => dueRow(r, plain(r.label), reviseTag(r.id, r.step), r.isDue ? ratingButtons(r.id, plain(r.label), onRate) : null);

@@ -1,9 +1,8 @@
 /* ==========================================================================
    progress.js — powers lessons/index.html.
 
-   Reads what quiz.js recorded and answers two questions the learner actually
-   has: what have I not read, and what is due for review. Spacing is handled
-   by SDS.dueState; this file only renders it.
+   Reads what quiz.js recorded and shows what is unread and how the quizzes
+   went. Revision runs in the SDE2 plan, so no due dates are shown here.
 
    Markup contract — the index declares the lessons, this enhances them:
 
@@ -29,8 +28,7 @@
     var items = Array.prototype.slice.call(document.querySelectorAll(".lesson-list > li[data-lesson-id]"));
     if (!items.length) return;
 
-    var counts = { unread: 0, due: 0, resting: 0 };
-    var dueList = [];
+    var unreadCount = 0;
 
     items.forEach(function (li) {
       var id = li.getAttribute("data-lesson-id");
@@ -47,22 +45,8 @@
       slot.textContent = "";
 
       if (state.status === "unread") {
-        counts.unread++;
+        unreadCount++;
         slot.appendChild(chip("unread", "is-unread"));
-      } else if (state.status === "due") {
-        counts.due++;
-        slot.appendChild(chip("due for review", "is-due"));
-        li.classList.add("is-due");
-        var title = li.querySelector(".l-title");
-        dueList.push({
-          id: id,
-          title: title ? title.textContent.trim() : id,
-          href: (li.querySelector("a") || {}).getAttribute ? li.querySelector("a").getAttribute("href") : null,
-          elapsed: state.elapsedDays
-        });
-      } else {
-        counts.resting++;
-        slot.appendChild(chip("review in " + state.days + (state.days === 1 ? " day" : " days"), "is-resting"));
       }
 
       if (state.asked > 0) {
@@ -71,14 +55,13 @@
     });
 
     /* ---- headline counts ---- */
-    var read = items.length - counts.unread;
+    var read = items.length - unreadCount;
     function set(sel, value) {
       var n = document.querySelector(sel);
       if (n) n.textContent = value;
     }
     set("[data-stat=read]", read);
     set("[data-stat=total]", items.length);
-    set("[data-stat=due]", counts.due);
 
     var bar = document.querySelector("[data-stat=bar]");
     if (bar) {
@@ -89,36 +72,6 @@
       var track = bar.parentNode;
       if (track && track.setAttribute) {
         track.setAttribute("aria-valuenow", String(Math.round(pct)));
-      }
-    }
-
-    /* ---- due-for-review panel ---- */
-    var panel = document.querySelector("[data-due-panel]");
-    if (panel) {
-      panel.textContent = "";
-      if (!dueList.length) {
-        var p = document.createElement("p");
-        p.className = "due-empty";
-        p.textContent = read === 0
-          ? "Nothing due — nothing read yet. Start with lesson 0001."
-          : "Nothing due for review. Spacing is doing its job; go forward instead.";
-        panel.appendChild(p);
-      } else {
-        var ul = document.createElement("ul");
-        ul.className = "due-items";
-        dueList.forEach(function (d) {
-          var li = document.createElement("li");
-          var a = document.createElement("a");
-          a.href = d.href || "#";
-          a.textContent = d.title;
-          li.appendChild(a);
-          var meta = document.createElement("span");
-          meta.className = "due-meta";
-          meta.textContent = "last opened " + (d.elapsed === 0 ? "today" : d.elapsed + (d.elapsed === 1 ? " day ago" : " days ago"));
-          li.appendChild(meta);
-          ul.appendChild(li);
-        });
-        panel.appendChild(ul);
       }
     }
 

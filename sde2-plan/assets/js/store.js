@@ -11,15 +11,15 @@ const fieldsOf = (rec) => Object.keys(rec).filter((f) => !META.has(f));
 // A record with no `ats`, or an `at` newer than all its `ats`, was last written by old code that only stamped `at`:
 // every field then reads at `at`. New code keeps `at` never above its newest `ats` entry, so it is never misread.
 const byOldCode = (rec) => !rec.ats || (rec.at ?? 0) > Math.max(0, ...Object.values(rec.ats));
-// `old` is byOldCode(rec), passed in so a loop over fields computes it once.
-const fieldAt = (rec, f, old = byOldCode(rec)) => (old ? rec.at : rec.ats[f] ?? rec.at) ?? 0;
+// When field `f` was written. `old` is byOldCode(rec), passed in so a loop over fields computes it once.
+export const fieldTime = (rec, f, old = byOldCode(rec)) => (old ? rec.at : rec.ats[f] ?? rec.at) ?? 0;
 
 // Each field whose value changed gets its own time; the others keep theirs (a stale device re-sending an old value
 // must not look new). Fields from before `ats` existed take the record's old `at`.
 const touch = (state, collection, key, patch, nowMs) => {
   const old = state[collection][key] ?? {};
   const wasOld = byOldCode(old);
-  const ats = Object.fromEntries(fieldsOf(old).map((f) => [f, fieldAt(old, f, wasOld)]));
+  const ats = Object.fromEntries(fieldsOf(old).map((f) => [f, fieldTime(old, f, wasOld)]));
   for (const f of Object.keys(patch)) if (patch[f] !== old[f]) ats[f] = nowMs;
   const times = Object.values(ats);
   return { ...state, [collection]: { ...state[collection], [key]: { ...old, ...patch, at: times.length ? Math.max(...times) : nowMs, ats } } };
@@ -58,6 +58,37 @@ export const rate = (state, id, rating, today, nowMs) => {
   return touch(state, "items", id, { srs: srs.next(current, rating, today) }, nowMs);
 };
 
+// "Skip it" on a reading part; `id` is the full item key (t:<part id>).
+export const setSkipped = (state, id, nowMs) => touch(state, "items", id, { skipped: true }, nowMs);
+
+// Lesson revision records are l:<lesson>. Each writer patches only the fields it changes, so a stale device
+// can't wipe a newer value of a field it didn't touch.
+const lessonKey = (lesson) => `l:${lesson}`;
+const lessonOf = (state, lesson) => state.items[lessonKey(lesson)] ?? {};
+
+export const startLesson = (state, lesson, today, nowMs) =>
+  lessonOf(state, lesson).started
+    ? state
+    : touch(state, "items", lessonKey(lesson), { started: today }, nowMs);
+
+// A null result removes the mark. A new `marks` object is written, never the old one changed.
+export const markLesson = (state, lesson, qid, result, nowMs) => {
+  const { [qid]: _gone, ...rest } = lessonOf(state, lesson).marks ?? {};
+  return touch(state, "items", lessonKey(lesson), { marks: result == null ? rest : { ...rest, [qid]: result } }, nowMs);
+};
+
+export const rateLesson = (state, lesson, rating, today, nowMs) => {
+  const { visits = [], marks = {} } = lessonOf(state, lesson);
+  return touch(state, "items", lessonKey(lesson), { visits: [...visits, { date: today, rating, marks }], marks: {} }, nowMs);
+};
+
+// Only today's visit can be re-rated.
+export const rerateLesson = (state, lesson, rating, today, nowMs) => {
+  const { visits = [] } = lessonOf(state, lesson);
+  if (visits.at(-1)?.date !== today) return state;
+  return touch(state, "items", lessonKey(lesson), { visits: [...visits.slice(0, -1), { ...visits.at(-1), rating }] }, nowMs);
+};
+
 export const setDay = (state, day, patch, nowMs) => touch(state, "days", day, patch, nowMs);
 
 export const setStory = (state, id, patch, nowMs) => touch(state, "stories", id, patch, nowMs);
@@ -75,9 +106,9 @@ const mergeRecord = (a, b) => {
   const oldA = byOldCode(a);
   const oldB = byOldCode(b);
   for (const f of new Set([...fieldsOf(a), ...fieldsOf(b)])) {
-    const fromB = !(f in a) || (f in b && fieldAt(b, f, oldB) >= fieldAt(a, f, oldA));
+    const fromB = !(f in a) || (f in b && fieldTime(b, f, oldB) >= fieldTime(a, f, oldA));
     out[f] = (fromB ? b : a)[f];
-    ats[f] = fromB ? fieldAt(b, f, oldB) : fieldAt(a, f, oldA);
+    ats[f] = fromB ? fieldTime(b, f, oldB) : fieldTime(a, f, oldA);
   }
   const at = Math.max(a.at ?? 0, b.at ?? 0);
   return a.ats || b.ats ? { ...out, at, ats } : { ...out, at }; // two old records stay old, so syncing them doesn't churn the repo

@@ -99,7 +99,7 @@ document.addEventListener("DOMContentLoaded", function () {
   var rows = Array.prototype.slice.call(document.querySelectorAll("[data-guide-id]"));
   if (!rows.length) return;
 
-  var read = 0, due = [], evidence = 0;
+  var read = 0, evidence = 0;
 
   rows.forEach(function (row) {
     var id = row.getAttribute("data-guide-id");
@@ -110,7 +110,6 @@ document.addEventListener("DOMContentLoaded", function () {
       row.classList.add("has-evidence");
     }
     var badge = row.querySelector(".g-state");
-    var title = row.querySelector(".g-title a");
 
     if (state.status === "unread") {
       if (badge) badge.textContent = "unread";
@@ -118,16 +117,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     read++;
-
-    if (state.status === "due") {
-      if (badge) { badge.textContent = "due for review"; badge.className = "g-state is-due"; }
-      due.push(title ? title.textContent : id);
-    } else {
-      if (badge) {
-        badge.textContent = state.days === 1 ? "review in 1 day" : "review in " + state.days + " days";
-        badge.className = "g-state is-read";
-      }
-    }
+    if (badge) badge.hidden = true;
   });
 
   function setStat(name, value) {
@@ -136,24 +126,10 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   setStat("read", read);
-  setStat("due", due.length);
   setStat("evidence", evidence);
 
   var bar = document.querySelector('[data-stat="bar"]');
   if (bar) bar.style.width = Math.round((read / rows.length) * 100) + "%";
   var progressbar = document.querySelector('[role="progressbar"]');
   if (progressbar) progressbar.setAttribute("aria-valuenow", Math.round((read / rows.length) * 100));
-
-  var panel = document.querySelector("[data-due-panel]");
-  if (panel && due.length) {
-    var list = document.createElement("ol");
-    list.className = "due-list";
-    due.forEach(function (name) {
-      var li = document.createElement("li");
-      li.textContent = name;
-      list.appendChild(li);
-    });
-    var empty = panel.querySelector(".due-empty");
-    if (empty) { empty.replaceWith(list); } else { panel.appendChild(list); }
-  }
 });

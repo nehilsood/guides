@@ -74,14 +74,15 @@ const map = (m) => [
   el("p", { class: "map-foot", text: `One row is one month. ${m.counts.done} done, ${m.counts.partial} partly done, ${m.counts.missed} missed.` }),
 ];
 
-const render = ({ outline, cardsByDay, schedule, problemsById }) => {
+const render = ({ outline, cardsByDay, schedule, problemsById, lessonIndex }) => {
   const now = today();
   const state = getState();
-  const flowOf = (day) => dayFlow(dayModel(day, outline, cardsByDay, schedule, problemsById, state, now));
+  const flowOf = (day) => dayFlow(dayModel(day, outline, cardsByDay, schedule, problemsById, state, now, lessonIndex));
   // The map shows a past day that isn't marked done as partly done when some of its work is saved.
   const past = outline.filter((e) => e.day >= 1 && e.day < dayNumber(now)).map((e) => e.day);
-  const m = homeModel(outline, state, now, new Set(past.filter((day) => started(flowOf(day)))));
-  const d = dayModel(todayDayClamped(), outline, cardsByDay, schedule, problemsById, state, now);
+  const m = homeModel(outline, state, now, new Set(past.filter((day) => started(flowOf(day)))), cardsByDay);
+  const due = m.dueCount + m.lessonVisits;
+  const d = dayModel(todayDayClamped(), outline, cardsByDay, schedule, problemsById, state, now, lessonIndex);
   return el(
     "div",
     {},
@@ -92,10 +93,11 @@ const render = ({ outline, cardsByDay, schedule, problemsById }) => {
     el("h2", { text: "Progress" }),
     bar("dsa", m.dsa.solved, m.dsa.total, `${m.dsa.solved}/${m.dsa.total}${m.dsa.cold ? ` · ${m.dsa.cold} cold` : ""}`),
     m.tracks.filter((t) => SHOWN.includes(t.track)).map((t) => bar(t.track, t.done, t.total)),
-    m.dueCount
+    due || m.toRead
       ? [
           el("h2", { text: "Revision" }),
-          el("p", { class: "due-link" }, icon("bookmark"), el("b", { text: `${plural(m.dueCount, "item")} due for revision` }), el("a", { class: "more", href: "revise.html", text: "Revise" })),
+          due ? el("p", { class: "due-link" }, icon("bookmark"), el("b", { text: `${plural(due, "item")} due for revision` }), el("a", { class: "more", href: "revise.html", text: "Revise" })) : null,
+          m.toRead ? el("p", { class: "due-link" }, icon("article"), el("b", { text: `${plural(m.toRead, "part")} still to read` }), el("a", { class: "more", href: "day.html", text: "Today" })) : null,
         ]
       : null,
   );

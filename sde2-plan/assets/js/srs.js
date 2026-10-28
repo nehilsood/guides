@@ -3,7 +3,7 @@ import { addDays } from "./dates.js";
 export const STEPS = [1, 3, 7, 21];
 
 const LAST = STEPS.length - 1;
-const MOVES = { easy: 2, ok: 1 };
+export const MOVES = { easy: 2, ok: 1 };
 
 export const start = (today) => ({ step: 0, due: addDays(today, STEPS[0]), history: [] });
 

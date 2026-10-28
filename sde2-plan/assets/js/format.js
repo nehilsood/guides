@@ -34,3 +34,9 @@ export const leadIn = (text) => {
   if (lead.length > 40 || lead.includes("`") || lead.trim().split(/\s+/).length > 5) return null;
   return { lead, rest: text.slice(at + 2) };
 };
+
+// "2026-12-07" -> "Mon 7 Dec"
+export const longDate = (dateStr) =>
+  new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).format(
+    new Date(dateStr + "T00:00:00Z"),
+  );
