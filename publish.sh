@@ -10,7 +10,11 @@ set -euo pipefail
 SITE="$(cd "$(dirname "$0")" && pwd)"
 SRC="$(dirname "$SITE")"
 DRY=0
-[[ "${1:-}" == "--dry-run" ]] && DRY=1
+case "${1:-}" in
+  "") ;;
+  --dry-run) DRY=1 ;;
+  *) echo "usage: publish.sh [--dry-run]" >&2; exit 2 ;;
+esac
 
 sync() { rsync -a --delete --exclude .DS_Store "$@"; }
 
