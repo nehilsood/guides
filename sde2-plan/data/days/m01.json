@@ -134,23 +134,13 @@
         "track": "refresher",
         "title": "Python for interviews: idioms, built-ins and Big-O",
         "minutes": 75,
-        "points": [
-          "Big-O says how the work grows as the input grows. Drop constants and keep the biggest term: 2n + 5 is O(n).",
-          "A loop inside a loop over the same n items is O(n²). Sorting is O(n log n). One pass is O(n).",
-          "Space counts too: a new list or set of n items is O(n) extra space.",
-          "`x in some_list` scans the list: O(n). `x in some_set` or `key in some_dict` is O(1) on average, because it jumps straight to a hashed slot.",
-          "List costs: append and pop from the end are O(1). `pop(0)` and `insert(0, x)` shift every item, so they are O(n). Slicing `a[i:j]` copies the j − i items it takes: O(j − i).",
-          "Building a string with `+=` in a loop can copy it every time. Collect parts in a list and `''.join(parts)` once.",
-          "Use the built-ins: `enumerate` for index and value, `zip` to walk two lists together, and `sorted(items, key=...)` with a tuple key to sort by several things.",
-          "In an interview, say the Big-O of your plan before you code it, then again at the end."
-        ],
         "say": "Before coding I state the time and space Big-O, and I pick the container whose operations make that Big-O true: a set for membership, a list for order.",
         "example": [
-          "Task: do two lists, a with n items and b with m items, share any item?",
-          "Try 1: for each x in a, check `x in b`. Each check scans b, so n × m checks: O(n·m) time, O(1) extra space.",
-          "Try 2: put b in a set (O(m) to build), then check each x of a against the set in O(1). O(n + m) time, O(m) extra space.",
-          "Tweak: build the set from the shorter list, so the extra memory is O(min(n, m)).",
-          "Trade-off to say out loud: try 2 is much faster but uses memory; try 1 only wins when both lists are tiny or memory is very tight."
+          "The question: do two lists, a with n items and b with m items, share any item?",
+          "First thought: for each x in a, check `x in b`. Each check scans b, so that's n × m checks: O(n·m) time, O(1) extra space. Fine for ten items, hopeless for a million.",
+          "Where does the time go? Into scanning b again and again. What answers \"is x in here?\" in one step? A set. So build a set from b once (O(m)), then check each x of a against it in O(1): O(n + m) time, O(m) extra space.",
+          "Can I save memory? Build the set from the shorter list, so the extra space is O(min(n, m)).",
+          "Say the trade-off out loud: the set version is far faster but uses memory; the first version only wins when both lists are tiny or memory is very tight."
         ],
         "tasks": [
           {
@@ -186,28 +176,89 @@
             "kind": "article",
             "source": "Tech Interview Handbook"
           }
+        ],
+        "why": "Every coding interview ends with the same question: \"What's the time and space complexity?\" LeetCode's \"Time Limit Exceeded\" asks it too, without words: your code can give the right answers and still grow too fast. Today you learn to see how fast your code grows before you press Submit, and to pick the Python tool that keeps it fast.",
+        "builds_on": "Day 0 · your baseline: three timed problems against LeetCode's judge",
+        "recall": {
+          "q": "If LeetCode says \"Time Limit Exceeded\", is your code wrong?",
+          "a": "Not always. It may give the right answer but do too much work on the biggest tests: its work grows too fast as the input grows. Today gives that growth a name, Big-O, and shows how to spot it before you submit."
+        },
+        "goals": [
+          "Work out the Big-O of a short piece of code by counting its loops.",
+          "Say which list, set and dict operations are cheap, and which quietly cost O(n).",
+          "Choose between a list and a set for a job, and say what the choice costs in memory."
+        ],
+        "lesson": [
+          {
+            "lead": "Big-O is about growth, not seconds",
+            "text": "You need a friend's number from a 500-page phone book, but the names are in random order. In the worst case you read every page. Hand you a 1,000-page book and the work doubles. That is O(n): the work grows in step with the input size, n.\n\nBig-O doesn't care how fast your laptop is. It asks one question: when the input grows, how does the work grow?",
+            "check": {
+              "q": "A function takes 1 second on 1,000 items. Roughly how long on 10,000 items if it is O(n)? And if it is O(n²)?",
+              "a": "About 10 seconds for O(n): ten times the input, ten times the work. About 100 seconds for O(n²): ten times the input, a hundred times the work."
+            }
+          },
+          {
+            "lead": "Count the loops, then keep the biggest term",
+            "text": "Find the line that runs the most and ask how many times it runs. One loop over n items: n times, O(n). A loop inside a loop over the same items: n × n, O(n²). Two loops one after the other: n + n, still O(n). Nesting multiplies; one after another adds.\n\nThen drop what stops mattering when n is huge. 3n² + 100n + 7 is O(n²), because at n = a million the n² part swamps the rest. One cost to simply learn for now: `sorted()` is O(n log n), a little more than one pass and far less than n². Day 11 shows where the log n comes from.",
+            "check": {
+              "q": "A loop over n items, and after it a separate loop over the same n items with another loop over n inside. What is the Big-O?",
+              "a": "n + n², which is O(n²). The first loop adds; the nested pair multiplies, and the biggest term wins."
+            }
+          },
+          {
+            "lead": "Space counts too",
+            "text": "Big-O measures memory as well as time. A few variables is O(1) extra space. A new list or set of n items is O(n). Interviewers often follow up with \"can you do it with less memory?\", and you can only answer if you know what your plan uses."
+          },
+          {
+            "lead": "Same `in`, very different cost",
+            "text": "Back to the phone book, but now it has an index that takes you from a name straight to its page. Whether the book has 500 pages or 5 million, it is one lookup: O(1).\n\nIn Python a list is the book with no index, and a set or dict is the book with one. `x in my_list` checks the items one by one: O(n). `x in my_set` turns x into a slot number (a hash) and jumps straight there: O(1) on average. It's the same `in` keyword at very different costs. Day 2 opens up how that slot number works.",
+            "check": {
+              "q": "a has n items and b is a list of m items. What does `for x in a: if x in b: ...` cost, and how would you make it faster?",
+              "a": "Each `in` scans b, so n × m in total. Turn b into a set first (O(m)) and each check is O(1), so O(n + m). That is today's worked example."
+            }
+          },
+          {
+            "lead": "List operations that look cheap and aren't",
+            "text": "A list is a row of boxes side by side. Adding or removing at the end touches one box, so `append` and `pop()` are O(1). Removing at the front means every other box shifts left, so `pop(0)` and `insert(0, x)` are O(n). Do that inside a loop and an O(n) plan quietly becomes O(n²). Day 4's queue fixes exactly this.\n\nTwo more: a slice `a[i:j]` builds a new list, so it copies j − i items. And `s += \"x\"` in a loop can copy the whole string each time, so collect the pieces in a list and `''.join(pieces)` once at the end.",
+            "check": {
+              "q": "Which of these are O(1): `append`, `pop()`, `pop(0)`, `insert(0, x)`?",
+              "a": "`append` and `pop()`. The other two shift every item, so they are O(n)."
+            }
+          },
+          {
+            "lead": "Built-ins that keep interview code short",
+            "text": "`enumerate(items)` gives you the index and the value together. `zip(a, b)` walks two lists side by side. `sorted(items, key=...)` sorts by anything you compute, and a tuple key sorts by several things in order: `sorted(people, key=lambda p: (-p.age, p.name))` puts the oldest first and breaks ties by name. The minus sign flips a number's order."
+          },
+          {
+            "lead": "The habit to build from today",
+            "text": "Say the Big-O of your plan before you code, then check it again when you finish. It shows the interviewer you think about cost, and it catches a slow plan before you've spent 20 minutes typing it."
+          }
+        ],
+        "mistakes": [
+          "Saying `x in some_list` is O(1). It is O(n); only sets and dicts are O(1) on average.",
+          "Calling two loops one after the other O(n²). Only nested loops multiply; loops in a row add.",
+          "Forgetting that building the set costs time and memory too: O(m) of each.",
+          "Calling `pop(0)` inside a loop, which turns a one-pass plan into O(n²)."
+        ],
+        "next": [
+          "Day 2 · why a set or dict lookup is O(1): hashing, and counting with a dict",
+          "Day 4 · the `pop(0)` problem solved: stacks, queues and `deque`",
+          "Day 8 · every coding problem from here on starts by saying the brute force and its Big-O",
+          "Day 11 · merge sort: where sorting's O(n log n) comes from",
+          "Day 14 · strings again: `''.join` and slicing in practice"
         ]
       },
       {
         "track": "ai",
         "title": "What machine learning is: features, labels, supervised vs unsupervised (k-means as the example)",
         "minutes": 45,
-        "points": [
-          "Machine learning means learning a rule from examples instead of writing the rule by hand.",
-          "Features are the inputs, one column each: a flat's area, its floor, its distance to the metro. The label is the answer we want to predict: its rent.",
-          "Supervised learning trains on examples that come with labels. It predicts a number (regression, like rent) or a category (classification, like spam or not).",
-          "Unsupervised learning has no labels. It finds structure, such as groups of similar customers.",
-          "k-means is the classic unsupervised method. Pick k, place k centres, give each point to its nearest centre, move each centre to the average of its points, and repeat until nothing moves.",
-          "k-means needs k chosen up front, and a bad start can give a poor grouping, so it is often run a few times from different starts.",
-          "Always keep some labelled examples aside (a test set) to check the model on data it never saw."
-        ],
         "say": "Supervised learning learns from examples that carry the right answer; unsupervised learning finds structure without answers, like k-means grouping points around k centres.",
         "example": [
-          "Points on a line: 1, 2, 3, 10, 11, 12. Group them with k = 2, starting centres at 1 and 2.",
-          "Assign: 1 is nearest centre 1. 2, 3, 10, 11 and 12 are nearer centre 2.",
-          "Move: centre 1 = 1. Centre 2 = (2 + 3 + 10 + 11 + 12) / 5 = 7.6.",
-          "Assign again: 1, 2 and 3 are nearer 1 than 7.6; 10, 11 and 12 are nearer 7.6.",
-          "Move: centre 1 = (1 + 2 + 3) / 3 = 2. Centre 2 = 11. Assign again: nothing changes, so stop."
+          "Points on a line: 1, 2, 3, 10, 11, 12. Group them with k = 2, starting the centres at 1 and 2 (a deliberately bad start: both centres sit in the left group).",
+          "Assign each point to its nearest centre: 1 goes to centre 1; 2, 3, 10, 11 and 12 are all nearer centre 2.",
+          "Move each centre to the average of its points: centre 1 stays at 1; centre 2 moves to (2 + 3 + 10 + 11 + 12) / 5 = 7.6.",
+          "Assign again: 1, 2 and 3 are nearer 1 than 7.6; 10, 11 and 12 are nearer 7.6. Move again: centre 1 = (1 + 2 + 3) / 3 = 2, centre 2 = 11.",
+          "Assign once more: nothing changes, so stop. The centres end at 2 and 11, the two real groups, even from a bad start. On harder data a bad start can stay stuck, which is why k-means is run several times."
         ],
         "tasks": [
           {
@@ -223,6 +274,12 @@
         },
         "extras": [
           {
+            "title": "Visualizing K-Means Clustering (step it yourself)",
+            "url": "https://www.naftaliharris.com/blog/visualizing-k-means-clustering/",
+            "kind": "article",
+            "source": "Naftali Harris"
+          },
+          {
             "title": "StatQuest: K-means clustering",
             "url": "https://www.youtube.com/watch?v=4b5d3muPQmA",
             "kind": "video",
@@ -235,6 +292,76 @@
             "kind": "article",
             "source": "Google ML Crash Course"
           }
+        ],
+        "why": "\"What's the difference between supervised and unsupervised learning?\" opens many AI interviews. More than that, every AI day for the next two months is built on today's words: features, labels, training and testing.",
+        "builds_on": "Day 0 · the AI baseline quiz, whose first question was today's topic",
+        "recall": {
+          "q": "Day 0's AI 1 asked: what is the difference between supervised and unsupervised learning? Say your answer out loud now, then compare it with what you can say at the end of this block.",
+          "a": "Supervised learning learns from examples that come with the right answer (labels). Unsupervised learning gets no answers and finds structure on its own, such as groups. By the end you'll also be able to name the two kinds of supervised problem and run k-means by hand."
+        },
+        "goals": [
+          "Point at a table of data and say which columns are features and which is the label.",
+          "Say whether a problem is regression, classification or unsupervised.",
+          "Run k-means by hand on a few points, and say its two weaknesses."
+        ],
+        "lesson": [
+          {
+            "lead": "Rules from examples, not by hand",
+            "text": "Try writing a spam filter by hand: if the email says \"free money\", it's spam. Then spammers write \"fr3e m0ney\", so you add a rule, and another, and you never finish. Machine learning flips it round: show the computer 10,000 emails already marked spam or not spam, and let it learn the rule itself. That is all machine learning means: learning a rule from examples instead of writing it.",
+            "check": {
+              "q": "Is a calculator machine learning?",
+              "a": "No. Its rules were written by hand; it never learned them from examples."
+            }
+          },
+          {
+            "lead": "Features and labels",
+            "text": "Picture a spreadsheet of flats with columns for area, floor, distance to the metro and rent. Each row is one example. The columns you know up front are features: the inputs. The column you want to predict is the label: the answer. Here, rent is the label.",
+            "check": {
+              "q": "You want to predict whether a customer will cancel their subscription, from how many months they've subscribed and how many support calls they made. What are the features, and what is the label?",
+              "a": "Features: months subscribed and number of support calls. Label: cancelled or not."
+            }
+          },
+          {
+            "lead": "Supervised learning: examples come with answers",
+            "text": "Like a student practising with a marked answer key, a supervised model trains on rows that include the label. If the label is a number (rent, a price, a temperature), the problem is regression. If it's a category (spam or not, cat or dog), it's classification.",
+            "check": {
+              "q": "Tomorrow's temperature, whether a card payment is fraud, a house's price: which are regression and which is classification?",
+              "a": "Temperature and house price are regression (numbers). Fraud or not is classification (a category)."
+            }
+          },
+          {
+            "lead": "Unsupervised learning: no answers at all",
+            "text": "A shop has thousands of customers and only knows what each one buys and how often. Nobody can tell the computer the right groups, because no right groups are written down anywhere. It has to find the structure on its own, such as groups of customers who shop alike. That is unsupervised learning."
+          },
+          {
+            "lead": "k-means, the classic way to find groups",
+            "text": "Picture opening k warehouses to serve customers spread across a map. Drop the warehouses anywhere. Each customer goes to its nearest warehouse. Now move each warehouse to the middle (the average position) of its customers. The customers re-pick their nearest warehouse, the warehouses move again, and you stop when nothing moves. The warehouses are the centres, and k is how many you chose.",
+            "check": {
+              "q": "The points clearly form 2 groups, but you run k-means with k = 3. What happens?",
+              "a": "It still makes 3 groups, splitting one real group in two. k-means never questions the k you give it."
+            }
+          },
+          {
+            "lead": "Its two weaknesses",
+            "text": "First, you must choose k up front, so people try a few values and compare. Second, a bad start can leave two centres stuck inside one real group, so people run it several times from different starts and keep the best result. Try the k-means visualiser in the extras: pick a bad start on purpose and watch it get stuck."
+          },
+          {
+            "lead": "Keep some answers back for the test",
+            "text": "A model judged on the examples it learned from can look perfect and still fail on new data, like a student who memorised last year's paper. So always keep some labelled examples aside, a test set, and judge the model only on those."
+          }
+        ],
+        "mistakes": [
+          "Calling k-means classification. It has no labels, so it is clustering: unsupervised.",
+          "Thinking k-means finds the right k. You choose k; it only places the centres.",
+          "Judging a model on the data it trained on. Keep a test set it never sees."
+        ],
+        "next": [
+          "Day 3 · your first supervised model: linear regression predicts a number from features",
+          "Day 7 · gradient descent: how a model actually learns from its examples",
+          "Day 8 · logistic regression: the same idea for classification",
+          "Day 10 · the test set grows into train, validation and test sets, and how data leaks between them",
+          "Day 29 · embeddings: nearest comes back, as the distance between things turned into vectors",
+          "Day 108 · RAG: vector search finds the nearest chunks, the same idea at scale"
         ]
       }
     ],
@@ -271,21 +398,13 @@
         "title": "Arrays and hashing: dicts, sets, counting",
         "minutes": 75,
         "builds_on": "Day 1 · Big-O: a set or dict lookup is O(1) on average, a list scan is O(n)",
-        "points": [
-          "A dict maps keys to values, with O(1) average get, set and `in`. A set is a dict with keys only.",
-          "Keys must be hashable, meaning they can't change: str, int and tuple work, but a list doesn't. Turn a list into a tuple to use it as a key.",
-          "Counting: `Counter(items)` counts everything in one O(n) pass. `counts[x] = counts.get(x, 0) + 1` is the same thing by hand.",
-          "Grouping: `defaultdict(list)` and `groups[key].append(item)`. The key is whatever the items in one group share.",
-          "The seen pattern: walk once, and for each item ask whether the item you need is already in the set or dict, before adding this one.",
-          "Most hashing answers trade O(n) extra memory for turning O(n²) into O(n). Say that trade out loud."
-        ],
         "say": "When I need fast lookups, counts or groups, I reach for a dict or a set: one O(n) pass with O(n) extra memory instead of O(n²) nested loops.",
         "example": [
-          "Task: find the first character that repeats in \"interview\".",
-          "Keep a set called seen. Walk the string once.",
-          "i: not seen, add. n: add. t: add. e: add. r: add.",
-          "v: add. i: already in seen, so return \"i\".",
-          "One pass with O(1) set checks gives O(n) time. The set holds at most one entry per distinct character, so O(n) space in general."
+          "The question: which character is the first to repeat in \"interview\"?",
+          "Brute force would compare every pair of letters: O(n²). What do I need to know at each letter? Only whether I've met it before. That's a seen set.",
+          "Walk: i is new, add it. n, t, e, r, v are all new, add each.",
+          "Next is i again. Before adding it, I ask: is i in seen? Yes, so return \"i\".",
+          "One pass with O(1) checks: O(n) time. The set holds at most one entry per distinct character, so O(n) space in general."
         ],
         "tasks": [
           {
@@ -314,6 +433,76 @@
             "kind": "article",
             "source": "Python docs"
           }
+        ],
+        "why": "A huge share of coding questions have the same fast answer: one pass with a dict or a set. When the interviewer asks \"can you do better than O(n²)?\", this is usually the tool they're waiting for. Today you learn why it's fast, and the three ways you'll use it again and again: counting, grouping and remembering what you've seen.",
+        "recall": {
+          "q": "Day 1's worked example: how did you check whether two lists share an item in O(n + m) instead of O(n·m)?",
+          "a": "Put one list into a set (O(m)), then check each item of the other list against the set in O(1). Today you see why that set check is O(1), and turn the same move into a pattern."
+        },
+        "goals": [
+          "Explain in two sentences why a dict lookup is O(1) on average, and why a list can't be a key.",
+          "Count, group and look things up in one O(n) pass with `Counter`, `defaultdict` and a seen set.",
+          "Say the memory trade-off out loud: O(n) extra space to turn O(n²) into O(n)."
+        ],
+        "lesson": [
+          {
+            "lead": "Why a lookup is O(1): the key picks its own slot",
+            "text": "Picture a cloakroom with numbered hooks. You don't search every hook for your coat: your token's number tells the attendant exactly which hook to go to. A dict works the same way. It runs the key through a hash function, which turns it into a number, and that number picks a slot. For a small int, `hash(42)` is 42, so in a table of 8 slots it lands in slot 42 % 8 = 2. Looking it up later repeats the same sum and goes straight there.\n\nTwo keys can land in the same slot (a collision), and the dict handles that, which is why it's O(1) on average rather than always. Day 10 opens up how collisions are handled. A set is the same machine with keys and no values.",
+            "check": {
+              "q": "Why is a dict lookup O(1) on average, but `x in some_list` O(n)?",
+              "a": "The dict hashes the key and jumps straight to its slot. The list has no such rule, so it has to check the items one by one."
+            }
+          },
+          {
+            "lead": "Keys must not change",
+            "text": "The slot comes from the key's contents. If a key could change after you stored it, its hash would change, and the dict would look in the wrong slot and never find it again. So Python only lets you use keys that can't change: `str`, `int` and a `tuple` of things that can't change work; a `list` or another dict doesn't. When you need a list as a key, turn it into a tuple first: `tuple([1, 2])` is `(1, 2)`, and that works.",
+            "check": {
+              "q": "Which of these can be a dict key: `(1, 2)`, `[1, 2]`, `\"ab\"`, `{\"a\": 1}`?",
+              "a": "`(1, 2)` and `\"ab\"`. The list and the dict can change, so Python refuses them (TypeError: unhashable type)."
+            }
+          },
+          {
+            "lead": "Counting in one pass",
+            "text": "Counting is the most common hashing job: how often does each item appear? By hand it's `counts[x] = counts.get(x, 0) + 1` for each item, where `.get(x, 0)` gives 0 the first time instead of a KeyError. `Counter(items)` does the same in one line: `Counter(\"banana\")` gives a: 3, n: 2, b: 1. Both are one O(n) pass. Counters can also be combined: `Counter(a) & Counter(b)` keeps each item at the smaller of its two counts, which task 3 uses.",
+            "check": {
+              "q": "What does `Counter(\"banana\")[\"z\"]` give, and what would `{}[\"z\"]` give?",
+              "a": "The Counter gives 0 for a missing item. A plain dict raises KeyError, which is why the by-hand version uses `.get(x, 0)`."
+            }
+          },
+          {
+            "lead": "Grouping: pick what the group shares as the key",
+            "text": "Grouping is counting's big brother: instead of how many, you want which ones. Ask what the items in one group have in common, and make that the key. With `groups = defaultdict(list)`, a missing key starts as an empty list, so `groups[key].append(item)` just works with no checks. For example, grouping words by first letter uses `word[0]` as the key.",
+            "check": {
+              "q": "You want to group people by the city they live in. What is the key, and what is each value?",
+              "a": "The key is the city. Each value is the list of people in that city, built with `defaultdict(list)` and `.append`."
+            }
+          },
+          {
+            "lead": "The seen pattern: remember as you walk",
+            "text": "Walk the list once. For each item, first ask: is the partner I need already in seen? Then add this item to seen. Asking before adding matters: it means an item never matches itself, and each item only looks back at earlier ones. Each step is O(1), so the whole walk is O(n), where checking every pair would be O(n²).",
+            "check": {
+              "q": "Walk [4, 7, 2] asking \"is double this, or half this, already in seen?\" before adding each number. Where does it first answer yes?",
+              "a": "At 2. When you reach it, seen holds {4, 7}, and 4 is double 2. At 4 seen was empty, and at 7 neither 14 nor 3.5 was there."
+            }
+          },
+          {
+            "lead": "The trade you're making",
+            "text": "Every answer today buys speed with memory: a dict or set that can grow to n entries, so O(n) extra space, to turn O(n²) time into O(n). That is almost always worth it in an interview, but say it out loud. It's the follow-up the interviewer is about to ask."
+          }
+        ],
+        "mistakes": [
+          "Adding the item to seen before checking it. Then every item finds itself and the answer is always yes.",
+          "Using a list as a dict key. Turn it into a tuple first.",
+          "Writing `counts[x] += 1` on a plain dict. The first time x appears it raises KeyError; use `.get(x, 0)`, `Counter` or `defaultdict(int)`.",
+          "Forgetting to mention the O(n) extra memory when you give the Big-O."
+        ],
+        "next": [
+          "Day 3 · a count dict tracks what is inside a sliding window",
+          "Day 8 · the Arrays & Hashing topic begins, with a routine for every problem",
+          "Day 9 · more Arrays & Hashing practice with dicts",
+          "Day 10 · inside a hash set",
+          "Day 11 · more hash map problems, beside merge sort",
+          "Day 13 · picking the top items from a count"
         ]
       },
       {
@@ -321,23 +510,14 @@
         "title": "Classes and objects in Python: state, behaviour, dataclasses",
         "minutes": 45,
         "builds_on": "Day 1 · Python built-ins: today's classes wrap those lists, dicts and sets",
-        "points": [
-          "A class is a blueprint. An object is one thing built from it, with its own data.",
-          "State is the data an object holds (its attributes). Behaviour is what it can do (its methods).",
-          "`__init__` sets the starting state. `self` is the object the method is running on.",
-          "Keep the rule next to the data: the method that changes state should check it, for example `withdraw` refuses to go below zero.",
-          "`@dataclass` writes `__init__`, `__repr__` and `__eq__` for you, which suits classes that mostly hold data.",
-          "`@dataclass(frozen=True)` makes objects that can't change after creation. Good for values like Money or a Ticket.",
-          "Machine-coding rounds score readable classes with clear names more than clever code."
-        ],
         "say": "An object bundles state with the behaviour that changes it, so the rules live in one place; I use dataclasses for plain data and normal classes when there are rules to guard.",
         "example": [
-          "Model a bank account: its state is owner and balance; its behaviour is deposit and withdraw.",
-          "class Account: __init__(self, owner) sets self.owner = owner and self.balance = 0.",
-          "deposit(self, amount): raise ValueError if amount <= 0, else add it to self.balance.",
-          "withdraw(self, amount): raise ValueError if amount > self.balance, else subtract it.",
-          "A record of each move is plain data: @dataclass(frozen=True) class Txn: kind: str, amount: int.",
-          "Now no caller can make the balance negative; the rule lives inside the class."
+          "The job: model a bank account. First question: what does it hold? An owner and a balance. What can it do? Deposit and withdraw.",
+          "So `class Account`, whose `__init__(self, owner)` sets `self.owner = owner`, `self.balance = 0` and an empty `self.history = []`.",
+          "What could go wrong with deposit? A zero or negative amount. So `deposit(self, amount)` raises ValueError if `amount <= 0`, and otherwise adds it.",
+          "And withdraw? Taking more than there is. So `withdraw(self, amount)` raises ValueError if `amount > self.balance`, and otherwise subtracts it.",
+          "Each move should be recorded, and a record never changes once written: plain data, so `@dataclass(frozen=True) class Txn` with `kind: str` and `amount: int`, and `deposit` and `withdraw` each append a `Txn` to `self.history`.",
+          "Check the result: no caller can make the balance negative, because the only way in is through methods that check."
         ],
         "tasks": [
           {
@@ -366,6 +546,73 @@
             "kind": "article",
             "source": "Python docs"
           }
+        ],
+        "why": "Every machine-coding round, and every object design question, starts the same way: what are the classes, what does each one hold, and what can it do? Today you learn to write a clean class in Python, and the most important habit in object design: the rule lives next to the data it protects.",
+        "recall": {
+          "q": "From Day 1: a Library needs to find a book by its title quickly. Which built-in should hold the books, and what does a lookup cost?",
+          "a": "A dict keyed by title: O(1) on average to find a book. A list would cost O(n) per lookup. Today's task puts that dict inside a Library class."
+        },
+        "goals": [
+          "Write a class with a starting state, methods that change it, and a rule that guards it.",
+          "Use `@dataclass` for plain data, and `frozen=True` for values that must never change.",
+          "Say why a rule belongs inside the class, not in the code that calls it."
+        ],
+        "lesson": [
+          {
+            "lead": "A class is a blueprint; an object is one thing built from it",
+            "text": "An architect draws one plan for a house, and builders put up many houses from it. Each house has its own paint and its own furniture. A class is the plan; an object (an instance) is one house. Two Account objects built from the same Account class each keep their own balance.",
+            "check": {
+              "q": "You make two Account objects, a and b, and deposit 100 into a. What is b's balance?",
+              "a": "Still 0. Each object has its own state; the class is only the blueprint they share."
+            }
+          },
+          {
+            "lead": "State and behaviour",
+            "text": "State is what an object holds: its attributes, such as owner and balance. Behaviour is what it can do: its methods, such as deposit and withdraw. `__init__` runs when the object is made and sets its starting state. `self` is the object the method is working on: when you call `a.deposit(50)`, Python runs `deposit` with `self` set to a.\n\nIn code: `class Account:` with a `def __init__(self, owner):` that sets `self.owner = owner` and `self.balance = 0`. Every new Account starts with its owner's name and nothing in it.",
+            "check": {
+              "q": "In `b.withdraw(30)`, what is `self` inside `withdraw`?",
+              "a": "The object b. That is how the same method changes a's balance in one call and b's in another."
+            }
+          },
+          {
+            "lead": "Keep the rule next to the data",
+            "text": "At a bank you don't walk into the vault and take cash yourself: the teller checks your balance first. Put your rules in the same place. The method that changes the state checks the rule: `withdraw` refuses to go below zero. If callers changed `balance` directly, every caller would need to remember the rule, and the one that forgets breaks it. With the rule inside the class, it holds for everyone.",
+            "check": {
+              "q": "A train-booking system must never book one seat twice. Where should that check live?",
+              "a": "Inside the method that books the seat, on the class that holds the seat's state, so every booking passes through the same check."
+            }
+          },
+          {
+            "lead": "`@dataclass` writes the boring parts",
+            "text": "Many classes mostly hold data. For those, `@dataclass` writes `__init__` from the fields you list, a readable `__repr__` (it prints as `Point(x=1, y=2)`), and an `__eq__` that compares the fields. Without it, two objects with the same fields are not equal: a plain class's `==` only asks whether they are the very same object.",
+            "check": {
+              "q": "With a plain class (no @dataclass), what does `Point(1, 2) == Point(1, 2)` give? And with @dataclass?",
+              "a": "False with a plain class: they are two different objects. True with @dataclass, because its `__eq__` compares the fields."
+            }
+          },
+          {
+            "lead": "`frozen=True` for values that must not change",
+            "text": "Some things should never change once made: an amount of money, a booked ticket, a point on a map. `@dataclass(frozen=True)` makes setting a field after creation raise an error (FrozenInstanceError). There's a bonus that ties back to the hashing block: a frozen dataclass can't change, so it can be a dict key or go in a set. A normal dataclass can't.",
+            "check": {
+              "q": "Why can a frozen dataclass go in a set when a normal dataclass can't?",
+              "a": "A set needs keys that never change (the hashing block's rule). Frozen objects can't change, so Python gives them a hash; normal dataclasses can change, so they get none and raise TypeError: unhashable type."
+            }
+          },
+          {
+            "lead": "Which one, when",
+            "text": "Use a dataclass when the class is mostly data, like a Book or a transaction record. Use a normal class, with methods that check the rules, when there's something to guard, like an Account's balance or a Library that refuses duplicate titles. Machine-coding rounds reward readable classes with clear names far more than clever code."
+          }
+        ],
+        "mistakes": [
+          "Letting callers change the data directly (`acct.balance -= 50`). The rule then lives in every caller, and one of them will forget it.",
+          "Putting a list on the class itself (`class Library: books = []`). It is shared by every Library; set `self.books` in `__init__` instead.",
+          "Expecting `==` to compare fields on a plain class. It only does that with @dataclass, or with your own `__eq__`."
+        ],
+        "next": [
+          "Day 7 · the four OOP ideas, and building objects out of other objects (composition)",
+          "Day 9 · SOLID 1: when one class is doing too much, and how to split it",
+          "Day 21 · the machine-coding playbook: entities that hold the data, services that hold the rules",
+          "Day 35 · a full machine-coding round: a parking lot"
         ]
       }
     ],
@@ -402,23 +649,13 @@
         "title": "Two pointers and sliding window",
         "minutes": 75,
         "builds_on": "Day 2 · counting with a dict, used today to track what is inside a window",
-        "points": [
-          "Two pointers: keep two indexes and move them by a rule instead of trying every pair. Each step rules out options, so the walk is O(n).",
-          "Opposite ends: on sorted data, start one pointer at each end and move them inward.",
-          "Same direction: a slow pointer marks where to write and a fast one reads ahead, for in-place filtering.",
-          "Sliding window: a run of neighbouring items from left to right. Move right to grow it; move left to shrink it when it breaks the rule.",
-          "Keep a running total or a count dict for the window, so each move costs O(1) instead of re-adding the whole window.",
-          "Each index enters the window once and leaves once, so a sliding window is O(n) even though it has a loop inside a loop.",
-          "Fixed-size windows add one item and drop one. Variable windows shrink only while the rule is broken, which works when adding an item can never fix a broken window, for example a sum limit with all numbers ≥ 0."
-        ],
         "say": "Instead of checking every pair or every subarray, I move two indexes by a rule; each index moves forward at most n times, so it is O(n).",
         "example": [
-          "Task: longest run of 1s in [1, 1, 0, 1, 1, 1, 0, 1] if you may flip at most one 0.",
-          "Window rule: at most one 0 inside. Keep zeros = count of 0s in the window.",
-          "Move right one step at a time. Up to index 5 there is one 0, so the window is indices 0 to 5, length 6.",
-          "Index 6 is a second 0, so zeros = 2. Move left forward until zeros = 1: left passes the 0 at index 2 and stops at 3.",
-          "Window 3 to 6 (length 4), then 3 to 7 (length 5). The best stays 6.",
-          "Each index is added once and removed at most once, so the work is O(n)."
+          "The question: the longest run of 1s in [1, 1, 0, 1, 1, 1, 0, 1] if you may flip at most one 0. Every run is a window, so this is a variable window. Its rule: at most one 0 inside. I'll keep zeros = how many 0s are in the window.",
+          "Grow right one step at a time. Up to index 5 there's only one 0 (at index 2), so the window 0 to 5 is fine: length 6, the best so far.",
+          "Index 6 is a second 0, so zeros = 2 and the window is broken. Shrink: move left forward until zeros is back to 1. Left passes the 0 at index 2 and stops at 3.",
+          "Window 3 to 6 has length 4. Grow to index 7: window 3 to 7, length 5. The best stays 6.",
+          "Each index came in once and left at most once, so the work is O(n), and the only extra memory is a few numbers: O(1)."
         ],
         "tasks": [
           {
@@ -447,6 +684,81 @@
             "kind": "article",
             "source": "Tech Interview Handbook"
           }
+        ],
+        "why": "\"Check every pair\" and \"check every subarray\" are the brute forces interviewers expect you to beat. Two pointers and the sliding window are how you beat them on lists and strings: two indexes that move by a rule, O(n) instead of O(n²). Weeks of problems (Days 19–35) are built on today.",
+        "recall": {
+          "q": "From Day 2: how do you add one to x's count in a plain dict without a KeyError?",
+          "a": "`counts[x] = counts.get(x, 0) + 1`, or use a `Counter` or `defaultdict(int)`. Today the same count dict follows a window as it slides: add one when an item comes in, take one away when it leaves."
+        },
+        "goals": [
+          "Pick between opposite-end pointers, a reader and a writer, and a sliding window for a problem.",
+          "Run a variable sliding window by hand, and say when its shrink rule is safe.",
+          "Explain why a loop inside a loop can still be O(n)."
+        ],
+        "lesson": [
+          {
+            "lead": "Two pointers: every move rules something out",
+            "text": "The brute force tries every pair: O(n²). Two pointers keep two indexes and move one of them by a rule, and each move throws away options you never need to try.\n\nOpposite ends, on sorted data: say you're counting pairs in [1, 2, 3, 5, 8] that add up to less than 7. Put one pointer on 1 and one on 8. 1 + 8 is too big, and since 1 is the smallest number, 8 is too big with anything: drop 8 by moving the right pointer in. Now 1 + 5 = 6 fits, and so does 1 with everything between, so count all three pairs at once and move the left pointer on. Each step moves one pointer, so it's O(n).",
+            "check": {
+              "q": "Why does the opposite-ends trick need the list sorted?",
+              "a": "Sorting is what lets one comparison rule out a whole group: if the smallest number plus 8 is too big, everything plus 8 is too big. On unsorted data, one sum tells you nothing about the others."
+            }
+          },
+          {
+            "lead": "A reader and a writer, moving the same way",
+            "text": "Picture tidying a bookshelf in place. One hand (the reader) looks at every book from left to right. The other hand (the writer) marks where the next book you keep should go. Keep a book: put it at the writer's spot and move the writer on. Throw one away: only the reader moves. At the end, everything before the writer is what you kept, with no second shelf: O(n) time, O(1) extra space.\n\nKeep the even numbers of [3, 4, 7, 8, 10]: the reader passes 3, copies 4 to slot 0, passes 7, copies 8 to slot 1 and 10 to slot 2. The writer ends at 3: three numbers kept, with [4, 8, 10] at the front.",
+            "check": {
+              "q": "When the reader finishes, what does the writer's position tell you?",
+              "a": "How many items were kept: the kept items are exactly the ones before the writer."
+            }
+          },
+          {
+            "lead": "A sliding window: a run of neighbours",
+            "text": "A window is a run of neighbouring items, from index left to index right. Fixed size: to find the rainiest 3 days in a row, slide a 3-day window along. Don't re-add the 3 days each time: add the day coming in and subtract the day going out. If rain is [30, 32, 35, 31], the first window sums to 97, and sliding one step gives 97 − 30 + 31 = 98. Each slide costs O(1), not O(k).",
+            "check": {
+              "q": "A window of size k slides along n items. How much work does a running total save over re-adding each window?",
+              "a": "Re-adding costs k per window, about n × k in total. The running total costs O(1) per slide, so O(n) in total."
+            }
+          },
+          {
+            "lead": "Variable windows: grow right, shrink left while it's broken",
+            "text": "When the window size isn't fixed, move right one step at a time to grow the window. Whenever the window breaks the rule (too many zeros, too big a sum), move left forward until it's fine again, then record the best window so far.\n\nThis only works when adding items can never fix a broken window, so shrinking is the only cure. A sum limit with all numbers ≥ 0 is fine: adding more can only push the sum up. With negative numbers it breaks.",
+            "check": {
+              "q": "Find the longest run in [6, −5, 1] with sum at most 5 using grow-and-shrink. What does it answer, and what's the truth?",
+              "a": "It drops 6 straight away (6 > 5) and answers 2 ([−5, 1]). But the whole list sums to 2, so the true answer is 3. The negative number could fix the window, so shrinking threw the answer away."
+            }
+          },
+          {
+            "lead": "A count dict follows the window",
+            "text": "Often the rule is about what is inside the window: how many zeros, how many different letters. Keep a count dict for the window, as on Day 2. When an item comes in on the right, add one to its count. When one leaves on the left, take one away, and delete the key when it hits 0, so `len(counts)` is always the number of different items inside. Each move is O(1)."
+          },
+          {
+            "lead": "Why a loop inside a loop is still O(n)",
+            "text": "The code has a `while` (shrink) inside a `for` (grow), which looks like O(n²). But left never moves backwards. Over the whole run, right moves n times and left moves at most n times, so there are at most 2n moves in total: O(n). Count the moves of each pointer across the whole run, not loop by loop.",
+            "check": {
+              "q": "On a list of 1,000 items, at most how many pointer moves does a sliding window make in total?",
+              "a": "About 2,000: right moves 1,000 times and left at most 1,000 times. That's O(n)."
+            }
+          },
+          {
+            "lead": "Which one does the question want?",
+            "text": "Ask what the question gives you and what it wants. A sorted list, and a pair or a meeting point: opposite-end pointers. Change a list in place, keeping some items: a reader and a writer. A run of neighbours (a subarray or substring) with the best length or sum: a sliding window.",
+            "check": {
+              "q": "Find the longest run of days whose total rainfall stays under 50 mm. Which of the three?",
+              "a": "A sliding window: it asks about a run of neighbours and its best length."
+            }
+          }
+        ],
+        "mistakes": [
+          "Using grow-and-shrink when the data has negative numbers. Shrinking is only safe when adding items can never fix a broken window.",
+          "Re-adding the whole window on every slide, which turns O(n) into O(n × k).",
+          "Leaving a key at count 0 in the window's dict, so `len(counts)` overcounts the different items inside.",
+          "Calling a sliding window O(n²) because of the nested loops. Count each pointer's moves over the whole run."
+        ],
+        "next": [
+          "Day 19 · the Two Pointers topic begins: reversing in place",
+          "Day 26 · the Sliding Window topic begins: a window of fixed size",
+          "Day 27 · the first hard two-pointer problem, on the weekend"
         ]
       },
       {
@@ -454,22 +766,13 @@
         "title": "Linear regression and the loss function",
         "minutes": 45,
         "builds_on": "Day 1 · supervised learning: features in, a labelled number out (regression)",
-        "points": [
-          "Linear regression predicts a number with a straight line: prediction = w × x + b.",
-          "w (the weight) is the slope: how much the prediction moves when x goes up by 1. b (the bias) is where the line crosses x = 0.",
-          "With several features it is the same idea: w1 × x1 + w2 × x2 + … + b.",
-          "The error for one example is prediction minus the true label.",
-          "The loss is one number for how wrong the model is overall. Mean squared error (MSE) averages the squared errors.",
-          "Squaring stops positive and negative errors cancelling and punishes big misses more than small ones.",
-          "Training means finding the w and b that give the lowest loss. On Day 7 gradient descent does that search for us."
-        ],
         "say": "Linear regression fits prediction = w·x + b, and training picks w and b to minimise a loss such as mean squared error, the average squared gap between prediction and truth.",
         "example": [
-          "Data (x, y): (1, 2), (2, 4), (3, 5).",
-          "Guess w = 2, b = 0. Predictions 2, 4, 6. Errors 0, 0, 1. MSE = (0 + 0 + 1) / 3 ≈ 0.33.",
-          "Guess w = 1.5, b = 0.67. Predictions 2.17, 3.67, 5.17. Errors 0.17, -0.33, 0.17.",
-          "MSE = (0.03 + 0.11 + 0.03) / 3 ≈ 0.06. A lower loss means a better line.",
-          "1.5 and 0.67 is in fact the best possible line for these three points."
+          "Data (x, y): (1, 2), (2, 4), (3, 5). y roughly doubles with x, so my first guess is w = 2, b = 0.",
+          "Predictions 2, 4, 6. Errors 0, 0, 1. Squared 0, 0, 1. MSE = 1 / 3 ≈ 0.33. Only the last point is off, by 1.",
+          "The line overshoots at the end, so make it a bit flatter and lift it up: w = 1.5, b = 0.67. Predictions 2.17, 3.67, 5.17. Errors 0.17, −0.33, 0.17.",
+          "Squared about 0.03, 0.11, 0.03, so MSE ≈ 0.17 / 3 ≈ 0.06. Lower loss: a better line.",
+          "Can I beat it? No: w = 1.5 and b = 0.67 is the best straight line for these three points. Finding it by hand took guesses; Day 7 finds it step by step."
         ],
         "tasks": [
           {
@@ -496,6 +799,62 @@
             "source": "StatQuest",
             "views": 1590228
           }
+        ],
+        "why": "Linear regression is the \"hello world\" of machine learning, and interviewers use it to check you really understand training: what a model is, what a loss is, and what \"learning\" means. Everything up to neural networks reuses today's two ideas, a weighted sum plus a bias and a loss to make small.",
+        "recall": {
+          "q": "From Day 1: in the table of flats, what is the label, and is predicting it regression or classification?",
+          "a": "The rent. It's a number, so it's regression. Today is your first regression model."
+        },
+        "goals": [
+          "Say what w and b mean in prediction = w × x + b, and make a prediction with them.",
+          "Work out the MSE of a model by hand, and explain why the errors are squared.",
+          "Explain what \"training\" means: searching for the w and b with the lowest loss."
+        ],
+        "lesson": [
+          {
+            "lead": "A straight line that predicts",
+            "text": "A taxi charges 50 to start and 12 per kilometre. The fare is 12 × km + 50: a straight line. Linear regression predicts a number the same way: prediction = w × x + b. w, the weight, is the slope: how much the prediction moves when x goes up by 1 (12 per km). b, the bias, is the prediction when x is 0 (the 50 starting charge).",
+            "check": {
+              "q": "With w = 12 and b = 50, what fare does the line predict for a 10 km ride?",
+              "a": "12 × 10 + 50 = 170."
+            }
+          },
+          {
+            "lead": "Several features, same idea",
+            "text": "Rent depends on more than one thing, so give each feature its own weight: w1 × area + w2 × floor + w3 × distance to metro + b. Each weight says how much its feature pushes the prediction up or down when that feature goes up by 1 and the others stay the same.",
+            "check": {
+              "q": "The weight for distance to the metro comes out negative. What does that mean?",
+              "a": "The further from the metro, the lower the predicted rent: each extra kilometre pulls the prediction down by that weight."
+            }
+          },
+          {
+            "lead": "Error, then loss: one number for how wrong",
+            "text": "For one example, the error is prediction minus the true label. To judge the whole model you need one number, the loss. You can't just add the errors: +3 and −3 add up to 0, and a bad model would look perfect. Mean squared error (MSE) squares each error, then takes the average. Squaring makes every error count as positive, and it punishes big misses far more than small ones: one miss of 4 costs 16, but four misses of 1 cost only 4.",
+            "check": {
+              "q": "Model A misses two houses by 2 and 2. Model B misses them by 0 and 4. Which has the lower MSE?",
+              "a": "A: (4 + 4) / 2 = 4. B: (0 + 16) / 2 = 8. Both are 4 off in total, but B's one big miss costs more."
+            }
+          },
+          {
+            "lead": "Training means searching for the best w and b",
+            "text": "Picture two dials, w and b, and a meter showing the MSE. Training is turning the dials until the meter is as low as it goes. The model has \"learned\" when it has found the w and b with the lowest loss on its examples. Today you turn the dials by hand. On Day 7, gradient descent turns them for you, using the loss to tell it which way is downhill.",
+            "check": {
+              "q": "Three (w, b) guesses give MSE 0.33, 0.06 and 0.5. Which do you keep, and why?",
+              "a": "The one with 0.06: lower loss means the line sits closer to the examples."
+            }
+          }
+        ],
+        "mistakes": [
+          "Adding the raw errors as the loss. Positive and negative errors cancel and hide a bad model.",
+          "Forgetting b, which forces the line through 0 and usually fits worse.",
+          "Reading a weight as \"how important\" a feature is. It is how much the prediction moves per unit of that feature, so it depends on the feature's units."
+        ],
+        "next": [
+          "Day 7 · gradient descent: turning the w and b dials automatically, using your mse file",
+          "Day 8 · logistic regression: the same w × x + b, turned into a probability, with a new loss",
+          "Day 14 · overfitting and underfitting: when a straight line is too simple, or a curve too wiggly",
+          "Day 15 · regularisation: adding a cost for big weights to today's MSE",
+          "Day 36 · neural networks: each neuron is a weighted sum plus a bias, then an activation"
         ]
       }
     ],
@@ -532,22 +891,13 @@
         "title": "Stack, queue and linked list",
         "minutes": 75,
         "builds_on": "Day 1 · list costs: append and pop at the end are O(1), pop(0) is O(n)",
-        "points": [
-          "A stack is last in, first out, like a pile of plates. In Python: list.append to push and list.pop() to pop, both O(1).",
-          "Reach for a stack when the most recent unfinished thing matters: undo, matching brackets, going back.",
-          "A queue is first in, first out, like a ticket line. Use collections.deque: append and popleft are both O(1). A list's pop(0) is O(n).",
-          "A linked list is a chain of nodes, each holding a value and a pointer to the next node.",
-          "Inserting or removing next to a node you already hold is O(1). Finding the i-th node means walking from the head: O(n).",
-          "A dummy head (a fake node before the real first one) means you never special-case removing the first node.",
-          "Draw the pointers before you change them, and change them in an order that never loses the rest of the list."
-        ],
         "say": "A stack gives me the most recent item, a queue the oldest, and a linked list cheap inserts and removals where I already hold a node; I pick by which item I need next.",
         "example": [
-          "Browser history is a stack. Visit A, B, C: the stack is [A, B, C] and C is on screen.",
-          "Press back: pop C, and B is on screen. The stack is [A, B].",
-          "A print queue is a deque. Jobs j1 and j2 arrive: append both. The printer takes popleft(), which is j1, the oldest.",
-          "A playlist is a linked list: 1 → 2 → 3. To drop 2, point 1's next at 3. Nothing else moves.",
-          "With a dummy node d → 1 → 2 → 3, removing 1 is the same move: point d's next at 2."
+          "Browser history needs the newest page next, so it's a stack. Visit A, B, C: the stack is [A, B, C] and C is on screen.",
+          "Press Back: pop C, and B is on screen. The stack is now [A, B]. Both moves touched only the top, so both were O(1).",
+          "A print queue needs the oldest job next, so it's a queue. Jobs j1 and j2 arrive: `append` both to a deque. The printer calls `popleft()` and gets j1, the oldest, in O(1).",
+          "A playlist 1 → 2 → 3 is a linked list. To drop song 2, I hold song 1 and point its next at 3. Nothing else moves.",
+          "Now drop song 1, the first. With a dummy node d → 1 → 2 → 3 it's the same move: point d's next at 2. No special case, and the playlist starts at d.next."
         ],
         "tasks": [
           {
@@ -582,29 +932,88 @@
             "kind": "article",
             "source": "Tech Interview Handbook"
           }
+        ],
+        "why": "Many coding problems quietly ask one question: which item do I need next, the newest, the oldest, or the one right beside me? Stacks, queues and linked lists are the three answers. Pick the right one and the code almost writes itself; pick the wrong one and a one-pass solution turns O(n²).",
+        "recall": {
+          "q": "From Day 1: which list operations are O(1), and which one quietly costs O(n)?",
+          "a": "`append` and `pop()` at the end are O(1). `pop(0)` and `insert(0, x)` shift every other item, so they are O(n). Today that tells you which end of a list is safe to use, and when you need something else."
+        },
+        "goals": [
+          "Pick a stack, a queue or a linked list for a job by asking which item you need next.",
+          "Use a Python list as a stack and `collections.deque` as a queue, each with O(1) operations.",
+          "Insert and remove linked-list nodes without losing the rest of the list, using a dummy head."
+        ],
+        "lesson": [
+          {
+            "lead": "Three ways to line things up",
+            "text": "Think of three everyday lines. A pile of plates: you take the one on top, the one you put down last. A ticket queue: the person who arrived first is served first. A treasure hunt: each note tells you where the next note is hidden.\n\nThose are a stack, a queue and a linked list. The question that picks between them is always the same: which item do I need next?"
+          },
+          {
+            "lead": "The stack: last in, first out",
+            "text": "A stack only touches its top. In Python a plain list is a perfect stack: `append` pushes onto the top and `pop()` takes from the top, both O(1), because both work at the end of the list (Day 1).\n\nReach for a stack when the most recent unfinished thing matters: undo in an editor, the browser's Back button, or matching an opening bracket with the next closing one.",
+            "check": {
+              "q": "You visit pages A, B, C and D, then press Back three times. Which page is on screen?",
+              "a": "A. The history stack is [A, B, C, D]; each Back pops the top: D, then C, then B, leaving A."
+            }
+          },
+          {
+            "lead": "The queue: first in, first out",
+            "text": "A queue adds at the back and serves from the front. A list is the wrong tool here: serving from the front is `pop(0)`, which shifts every other item, O(n) each time.\n\nUse `collections.deque` (a double-ended queue) instead: `append` adds at the back and `popleft` serves the front, both O(1). It is built so both ends are cheap.",
+            "check": {
+              "q": "You serve every one of n waiting jobs from a queue. What does it cost in total with a list and `pop(0)`, and with a deque and `popleft`?",
+              "a": "List: n pops of up to n shifts each, O(n²). Deque: n pops of O(1) each, O(n)."
+            }
+          },
+          {
+            "lead": "The linked list: a chain of nodes",
+            "text": "A Python list is a row of boxes side by side (Day 1), so adding at the front shoves everything along. A linked list is the treasure hunt instead: each node holds a value and a pointer to the next node, and the nodes can live anywhere in memory.\n\nThat gives it the opposite costs. Inserting or removing right next to a node you already hold is O(1): you only change a pointer. But finding the i-th node means walking from the head, one note at a time: O(n).",
+            "check": {
+              "q": "You need to add a million items, each at the front. Which is cheaper per insert, a Python list or a linked list?",
+              "a": "The linked list: O(1) per insert, a new node pointing at the old head. The list's `insert(0, x)` shifts every item, O(n) each time."
+            }
+          },
+          {
+            "lead": "The dummy head removes a special case",
+            "text": "Removing a node means pointing the node before it at the node after it. But the very first node has no node before it, so removing it needs its own code: move the head instead.\n\nThe fix is a dummy head: a fake node placed before the real first one. Now every real node has a node before it, so removing the first node is the same move as removing any other. At the end, the real list starts at `dummy.next`.",
+            "check": {
+              "q": "Without a dummy head, what must you do differently when the value to remove is in the first node?",
+              "a": "Change the head itself to `head.next`, since there is no earlier node whose pointer you can change. With a dummy head, that case disappears."
+            }
+          },
+          {
+            "lead": "Draw before you rewire",
+            "text": "Pointer bugs come from changing pointers in the wrong order. To insert node x after node a, first set `x.next = a.next`, then `a.next = x`. Do it the other way round and `a.next` already points at x, so x can no longer find the rest of the list: it is lost.\n\nThe habit: draw the boxes and arrows on paper, decide the order, then write the code.",
+            "check": {
+              "q": "What goes wrong if you write `a.next = x` before `x.next = a.next`?",
+              "a": "After the first line, `a.next` is x, so the second line sets `x.next = x`. The node points at itself and the rest of the list is lost."
+            }
+          }
+        ],
+        "mistakes": [
+          "Using a list with `pop(0)` as a queue. Each pop is O(n); use a deque and `popleft`.",
+          "Rewiring pointers in the wrong order and losing the rest of the list. Set the new node's next first.",
+          "Writing a special case for the first node. Put a dummy head in front and return `dummy.next`.",
+          "Reading `node.next` when node is already None at the end of the list. Check the node before you step."
+        ],
+        "next": [
+          "Day 5 · recursion: each call waits on a stack, the call stack",
+          "Day 6 · BFS walks a graph with a queue, and DFS with a stack",
+          "Day 35 · the HitCounter's deque comes back as a new tool, the monotonic deque",
+          "Day 39 · the Linked List topic: today's pointer moves on real problems",
+          "Day 46 · the Stack topic: today's last-in-first-out on real problems"
         ]
       },
       {
         "track": "hld",
         "title": "A request's journey: DNS, TCP, HTTP, server, database",
         "minutes": 45,
-        "points": [
-          "DNS turns a name like shop.example.com into an IP address. The answer is cached by the browser, the operating system and the resolver, so most lookups are fast.",
-          "TCP opens a reliable connection with a three-step handshake (SYN, SYN-ACK, ACK): one network round trip before any data moves.",
-          "For HTTPS, TLS then agrees on encryption keys, which adds about one more round trip.",
-          "An HTTP request has a method (GET, POST), a path, headers and an optional body. The response has a status code (200 OK, 404 not found, 500 server error), headers and a body.",
-          "The server runs your code. It often asks a database, which is another network hop plus the query time.",
-          "Every hop adds delay. Round trips across a network and slow database queries usually cost the most.",
-          "In a design interview, this journey is the skeleton you draw first: client, DNS, server, database."
-        ],
         "say": "A request resolves the name with DNS, opens a TCP connection and TLS on top, sends HTTP, and the server runs code that usually hits a database; each hop adds latency, so I know which ones dominate.",
         "example": [
-          "You open https://shop.example.com/products/42.",
-          "DNS: the browser asks the resolver for shop.example.com and gets 203.0.113.7.",
-          "TCP + TLS: SYN, SYN-ACK, ACK, then the TLS handshake. About two round trips so far.",
-          "HTTP: GET /products/42 with headers such as Host and Cookie.",
-          "Server: the app looks up product 42 in the database, builds JSON and replies 200 OK.",
-          "Browser: reads the response and renders the page. Next time, DNS is cached and the connection can be reused."
+          "You open https://shop.example.com/products/42. First I need an address, so DNS: the browser asks the resolver for shop.example.com and gets 203.0.113.7, unless a cache already has it.",
+          "Next a connection: SYN, SYN-ACK, ACK, then the TLS handshake. That's about two round trips before I've asked for anything.",
+          "Now the order: GET /products/42, with headers such as Host and Cookie, sent inside the encrypted connection.",
+          "The server runs the app, which asks the database for product 42. That's another hop plus the query time, and usually the slowest part. It builds JSON and replies 200 OK.",
+          "The browser reads the response and renders the page. On the next visit, DNS comes from a cache and the open connection can be reused, so both handshakes are skipped."
         ],
         "tasks": [
           {
@@ -636,6 +1045,81 @@
             "title": "System Design School · Latency Reference Card",
             "href": "../system-design-school/reference/latency-numbers.html"
           }
+        ],
+        "why": "\"What happens when you type a URL and press Enter?\" is one of the most asked interview questions, and every system design answer starts by drawing this same journey. Once you can tell it as a story, each later design day just zooms into one of its boxes.",
+        "builds_on": "Day 0 · the HLD baseline's first question: what happens between typing a URL and seeing the page",
+        "recall": {
+          "q": "Day 0's HLD 1 asked what happens, step by step, between typing https://example.com and seeing the page. Say the steps you remember out loud before you read on.",
+          "a": "DNS turns the name into an IP address. The browser opens a TCP connection, and TLS adds encryption on top. It sends an HTTP request. The server runs code, often reads a database, and sends an HTTP response. The browser renders it. Today explains why each step exists and where the time goes."
+        },
+        "goals": [
+          "Tell the journey of a request as a story: DNS, TCP, TLS, HTTP, server, database, response.",
+          "Say what each hop does and roughly what it costs in round trips.",
+          "Look at a slow request and say which hop to suspect first."
+        ],
+        "lesson": [
+          {
+            "lead": "The story: calling a friend's shop",
+            "text": "You want something from a friend's shop across town. First you look up their address in your phone's contacts. Then you call ahead: \"Can you hear me?\" \"Yes, can you hear me?\" \"Yes.\" You agree on a private code so nobody on the line can listen. You say what you want. Your friend fetches it from the storeroom and hands it back with a note: \"here you go\".\n\nEvery step of a web request is one of those moves. The address lookup is DNS, the call is TCP, the private code is TLS, the order is HTTP, your friend is the server, and the storeroom is the database. Keep this picture; each step below fills in one part of it."
+          },
+          {
+            "lead": "DNS: the contacts list",
+            "text": "Computers find each other by IP address (like 203.0.113.7), not by names like shop.example.com. DNS turns the name into the address, the way your contacts turn \"Asha\" into a phone number.\n\nA full lookup asks several servers in turn, but the answer is cached in the browser, in the operating system and at the resolver (the DNS server your network uses), each for a set time. So most lookups are answered from a cache and cost almost nothing.",
+            "check": {
+              "q": "Why is the DNS step usually much faster on your second visit to a site?",
+              "a": "The answer was cached by the browser, the operating system or the resolver on the first visit, so the full lookup is skipped until the cached answer expires."
+            }
+          },
+          {
+            "lead": "TCP: the call before you talk",
+            "text": "TCP gives you a reliable connection: data arrives complete and in order, and lost pieces are resent. Opening one takes a three-step handshake, just like the phone call: SYN (\"can you hear me?\"), SYN-ACK (\"yes, can you hear me?\"), ACK (\"yes\").\n\nThat costs one network round trip, a message there and back, before any real data moves. Inside one data centre a round trip is about half a millisecond; between continents it can be over 100 ms. So handshakes matter most when the user is far away.",
+            "check": {
+              "q": "A round trip to a far-away server takes 100 ms. Roughly how long after the TCP handshake starts can the first HTTP request leave?",
+              "a": "About 100 ms: one round trip for the handshake, then the request goes out."
+            }
+          },
+          {
+            "lead": "TLS: agreeing on a private code",
+            "text": "Before anything private is said, the browser and server run the TLS handshake: the server proves who it is with a certificate, and both agree on encryption keys. That adds about one more round trip with TLS 1.3; the older TLS 1.2 takes two.\n\nHTTPS is not a different language from HTTP. It is ordinary HTTP sent inside a TLS-encrypted connection.",
+            "check": {
+              "q": "Same 100 ms round trip, but the site is HTTPS with TLS 1.3. Now how long before the first request can leave?",
+              "a": "About 200 ms: one round trip for TCP, then one more for TLS. With TLS 1.2 it would be about 300 ms."
+            }
+          },
+          {
+            "lead": "HTTP: the order and the reply",
+            "text": "Now the browser says what it wants. An HTTP request has a method (GET to read, POST to send data), a path such as /products/42, headers (extra details like Host and Cookie) and sometimes a body.\n\nThe response has a status code, headers and a body. The first digit of the code tells you whose problem it is: 2xx means it worked (200 OK), 4xx means the request was wrong (404: nothing at that path), and 5xx means the server failed (500: its code broke).",
+            "check": {
+              "q": "One request gets 404 and another gets 500. Which one points at a bug in the server's code?",
+              "a": "The 500. A 5xx code means the server failed. A 404 means the server worked fine but found nothing at that path, so the request was wrong."
+            }
+          },
+          {
+            "lead": "Server and database: where the work happens",
+            "text": "The server runs your code: it reads the request, works out the answer and builds the response. Most of the time it needs data, so it asks a database. That is another network hop, plus however long the query takes.\n\nAdd up the journey and the expensive parts are nearly always the same two: round trips across a network, and slow database queries. Running code on the server is usually the cheap part.",
+            "check": {
+              "q": "A page takes 2 seconds. DNS took 20 ms, TCP and TLS 200 ms, the server's code 30 ms, and one database query 1.6 s. Where do you look first?",
+              "a": "The database query: it is 1.6 of the 2 seconds. Speeding up anything else barely changes the total."
+            }
+          },
+          {
+            "lead": "Why the interviewer cares",
+            "text": "In a design interview, this journey is the skeleton you draw first: client, DNS, server, database, with arrows. Every later topic is a change to one box: more servers behind a load balancer, a cache in front of the database, a CDN closer to the user. If you can tell this story and say where the time goes, you have the base all of them build on."
+          }
+        ],
+        "mistakes": [
+          "Forgetting DNS caching, and so blaming DNS for every slow request. Most lookups come from a cache.",
+          "Treating HTTPS as something separate from HTTP. It is HTTP inside a TLS connection, and TLS costs about one extra round trip (two on the older TLS 1.2).",
+          "Mixing up 4xx and 5xx. 4xx: the request was wrong. 5xx: the server failed.",
+          "Drawing the boxes without saying where the time goes. Name the round trips and the database as the usual costs."
+        ],
+        "next": [
+          "Day 6 · DNS gave one IP address; now that address belongs to a load balancer in front of many servers",
+          "Day 11 · back-of-the-envelope maths: how many requests per second this journey must handle",
+          "Day 13 · caching: a copy in memory so the database hop is skipped",
+          "Day 18 · API design: shaping the HTTP requests and responses themselves",
+          "Day 60 · live updates: keeping the TCP connection open so the server can speak first",
+          "Day 74 · CDNs: copies of files near the user, so the long round trip shrinks"
         ]
       }
     ],
@@ -672,23 +1156,13 @@
         "title": "Binary search and recursion",
         "minutes": 30,
         "builds_on": "Day 4 · the stack: each recursive call waits on the call stack until the smaller call returns",
-        "points": [
-          "Binary search needs sorted data. Look at the middle, then throw away the half that can't hold the answer. Halving each time makes it O(log n).",
-          "To find one value: keep lo and hi as the range still possible, loop while lo <= hi, with mid = (lo + hi) // 2. Python's bisect module does the sorted-list versions for you.",
-          "It also works on answers, not just arrays: if a yes/no check flips once, from no to yes, binary search finds where it flips.",
-          "To find the first index where a check turns true: lo, hi = 0, len(nums); while lo < hi, take mid; if the check holds at mid, hi = mid (mid might be the first), else lo = mid + 1. lo ends on the first true, or len(nums) if none.",
-          "Recursion means a function solves a smaller copy of the problem by calling itself.",
-          "Every recursive function needs a base case that returns without calling itself, or it never stops.",
-          "Each call waits on the call stack, so the extra space is O(depth). Python stops at about 1,000 levels."
-        ],
         "say": "Binary search halves the search space each step, so it is O(log n); recursion solves a smaller copy of the same problem, and I always state the base case first.",
         "example": [
-          "Find 7 in [1, 3, 5, 7, 9, 11]. lo = 0, hi = 5.",
-          "mid = 2, value 5. 5 < 7, so the answer is to the right: lo = 3.",
-          "mid = 4, value 9. 9 > 7, so go left: hi = 3.",
-          "mid = 3, value 7. Found at index 3 after three looks instead of up to six.",
-          "Recursion: total([1, 2, 3]) = 1 + total([2, 3]) = 1 + 2 + total([3]) = 1 + 2 + 3 + total([]). Each call waits on the stack.",
-          "The base case total([]) = 0 returns first. Then the waiting calls finish on the way back up: 3 + 0 = 3, then 2 + 3 = 5, then 1 + 5 = 6."
+          "Find 7 in [1, 3, 5, 7, 9, 11]. The range starts as lo = 0, hi = 5.",
+          "mid = 2, value 5. 5 is less than 7, so 7 can only be to the right: lo = 3.",
+          "mid = 4, value 9. 9 is more than 7, so go left: hi = 3. mid = 3, value 7: found at index 3 after three looks instead of up to six.",
+          "Now recursion: total([1, 2, 3]). Base case first: total([]) is 0. Step: the first item plus total of the rest, so 1 + total([2, 3]), which needs 2 + total([3]), which needs 3 + total([]). Each of those calls waits on the stack.",
+          "total([]) returns 0 first. Then the waiting calls finish on the way back up: 3 + 0 = 3, then 2 + 3 = 5, then 1 + 5 = 6."
         ],
         "tasks": [
           {
@@ -719,6 +1193,75 @@
             "kind": "article",
             "source": "Python docs"
           }
+        ],
+        "why": "Binary search turns a million checks into about twenty, and interviewers expect you to write it without off-by-one bugs. Recursion is how you'll write trees, graphs and dynamic programming over the next months. Both come up in almost every coding round.",
+        "recall": {
+          "q": "From Day 4: what is a stack, and which item does it give you next?",
+          "a": "Last in, first out, like a pile of plates: it gives you the newest item. Today you'll meet the stack Python keeps for you, the call stack, where each recursive call waits."
+        },
+        "goals": [
+          "Write binary search for a value, and for the first index where a yes/no check turns true.",
+          "Write a recursive function by stating its base case first.",
+          "Say the time and space cost of each, including the call stack's O(depth)."
+        ],
+        "lesson": [
+          {
+            "lead": "Finding a page in a thick book",
+            "text": "You want page 700 of a 1,000-page book. You don't turn pages from the start. You open near the middle, see page 500, and know your page is in the right half: in one look you've thrown away 500 pages. Open the middle of what's left each time and you need at most 10 looks, since 2¹⁰ = 1,024.\n\nThat is binary search: look at the middle, throw away the half that can't hold the answer, repeat. Each step halves what's left, so it takes about log₂(n) steps: O(log n). It only works because the pages are in order; that's what tells you which half to drop.",
+            "check": {
+              "q": "About how many looks does binary search need in a sorted list of a million items?",
+              "a": "About 20, since 2²⁰ is just over a million. A scan from the start could need a million."
+            }
+          },
+          {
+            "lead": "Finding one value",
+            "text": "Keep `lo` and `hi` as the range of indexes still possible. While `lo <= hi`, take `mid = (lo + hi) // 2`. If `nums[mid]` is the value, you're done. If it's too small, the answer is to the right: `lo = mid + 1`. Too big: `hi = mid - 1`.\n\nThe `+ 1` and `- 1` matter: mid has already been checked, so it leaves the range. Forget them and the loop can spin forever on the same mid.",
+            "check": {
+              "q": "Why must the list be sorted for binary search to work?",
+              "a": "Dropping a half is only safe if everything in it is too small or too big. Order is what guarantees that."
+            }
+          },
+          {
+            "lead": "Searching for where a check flips",
+            "text": "Binary search works on more than finding a value. Any yes/no check that flips once, from no to yes, can be searched: is this number ≥ 6? Is this version broken? Binary search finds the first yes.\n\nThe first-true loop: `lo, hi = 0, len(nums)`. While `lo < hi`, take mid. If the check holds at mid, set `hi = mid`, because mid might be the first yes. Otherwise `lo = mid + 1`. When the loop ends, `lo` is the first index where the check is true, or `len(nums)` if it never is. Python's `bisect` module does this for sorted lists: `bisect_left(nums, x)` is the first index with `nums[i] >= x`.",
+            "check": {
+              "q": "In [1, 3, 5, 7, 9, 11], what is the first index where the value is ≥ 6? Trace the first-true loop.",
+              "a": "lo = 0, hi = 6. mid = 3, value 7 ≥ 6, yes: hi = 3. mid = 1, value 3, no: lo = 2. mid = 2, value 5, no: lo = 3. Now lo = hi = 3, so the answer is index 3. `bisect_left(nums, 6)` gives 3 too."
+            }
+          },
+          {
+            "lead": "Recursion: a smaller copy of the same problem",
+            "text": "Picture a set of nesting dolls. To count them, open the outer doll: one doll, plus however many are inside. Inside is the same problem, only smaller. Keep opening until you reach the smallest doll, which doesn't open.\n\nRecursion is a function that solves a problem by calling itself on a smaller copy of it. The smallest doll is the base case: the input small enough to answer directly, without calling yourself again."
+          },
+          {
+            "lead": "Base case first, always",
+            "text": "Every recursive function needs a base case, or it calls itself forever. Write it first: what is the smallest input, and what is its answer without any more calls? For the sum of a list, the empty list has sum 0. Then write the step: the first item plus the sum of the rest. Each call must move towards the base case.",
+            "check": {
+              "q": "What happens if a recursive function has no base case?",
+              "a": "It keeps calling itself until the call stack runs out. In Python that raises RecursionError at about 1,000 levels."
+            }
+          },
+          {
+            "lead": "The call stack: where the calls wait",
+            "text": "When a function calls itself, the first call can't finish until the smaller one returns, so it waits on the call stack: Day 4's stack, kept by Python for you. The newest call is on top and finishes first; then the waiting calls finish on the way back up.\n\nSo recursion uses O(depth) extra space for the waiting calls. Python stops at about 1,000 levels, so a recursion as deep as a long list fails where a loop would not.",
+            "check": {
+              "q": "`total(nums)` returns `nums[0] + total(nums[1:])`, with an empty list as the base case. Why does it fail on a list of 5,000 numbers, and what else is costly about it?",
+              "a": "It recurses 5,000 levels deep, past Python's limit of about 1,000, so it raises RecursionError. Also, each `nums[1:]` copies the rest of the list (Day 1), so the copies add up to O(n²) time."
+            }
+          }
+        ],
+        "mistakes": [
+          "Mixing the two loops: `while lo <= hi` with `hi = len(nums) - 1` finds a value; `while lo < hi` with `hi = len(nums)` finds the first true. Pick one and keep its rules.",
+          "Writing `lo = mid` instead of `lo = mid + 1`, so the loop can stop moving and never end.",
+          "Starting a recursive function without its base case. Write the base case first.",
+          "Recursing on slices like `nums[1:]`: each one is a copy. Pass an index instead."
+        ],
+        "next": [
+          "Day 6 · DFS: walking a tree or graph with recursion",
+          "Day 7 · a first feel for dynamic programming: recursion that remembers its answers",
+          "Day 11 · merge sort: recursion that splits a list in half, and where O(n log n) comes from",
+          "Day 32 · the Binary Search topic: finding a value, and where it would go",
+          "Day 54 · Trees: the three DFS orders, all written with recursion"
         ]
       },
       {
@@ -726,21 +1269,12 @@
         "title": "Processes vs threads, and context switches",
         "minutes": 30,
         "builds_on": "Day 4 · a request's journey: the server that runs your code is a process on a machine",
-        "points": [
-          "A process is a running program with its own memory, files and at least one thread.",
-          "A thread is one line of execution inside a process. Threads of one process share its memory.",
-          "Shared memory makes threads cheap to start and quick to share data, but two threads changing the same data at once can corrupt it. Locks prevent that, and come later in the plan.",
-          "Processes are isolated: one crashing doesn't take down the others, but sharing data needs pipes, queues or a database.",
-          "A context switch is the operating system pausing one thread, saving where it was, and resuming another. It is pure overhead.",
-          "Switching between processes costs more than between threads, because the memory view changes too and the CPU's caches go cold.",
-          "In standard CPython, the GIL lets only one thread run Python code at a time. Threads help when waiting on network or disk; for heavy computing, use processes."
-        ],
         "say": "A process owns its memory and a thread is a path of execution inside it that shares that memory; in Python I use threads for waiting on I/O and processes for CPU-heavy work.",
         "example": [
-          "A web server must handle three slow downloads at once.",
-          "Option 1: one process with three threads. Cheap, and they share an in-memory cache, but one bad thread can crash all three.",
-          "Option 2: three processes. More memory and slower switches, but a crash stays contained.",
-          "The work is mostly waiting on the network, so in Python threads are fine: the GIL is released while a thread waits."
+          "A web server must handle three slow downloads at once. First question: does the work wait or compute? It mostly waits on the network.",
+          "Option 1: one process with three threads. Cheap to start, and they can share an in-memory cache, but one thread corrupting memory or crashing can take down all three.",
+          "Option 2: three processes. More memory and dearer switches, and no shared cache, but a crash stays inside its own process.",
+          "Since the work is waiting, threads are fine in Python: each thread releases the GIL while it waits on the network, so all three downloads progress together. If it were resizing images instead, I'd choose processes."
         ],
         "tasks": [
           {
@@ -762,6 +1296,68 @@
             "kind": "article",
             "source": "OSTEP"
           }
+        ],
+        "why": "\"Should this use threads or processes?\" comes up in almost every backend interview, often as \"why is my Python service slow?\". And yesterday's server, the box that runs your code, is a process: today you see how it handles many requests at once.",
+        "recall": {
+          "q": "From Day 4: in a request's journey, where does your code actually run, and what does it usually do there?",
+          "a": "On the server. It reads the request, often queries a database, and builds the response. Today: that server is a process, and it handles several requests at once with threads or more processes."
+        },
+        "goals": [
+          "Say the difference between a process and a thread, and what each one shares.",
+          "Explain what a context switch is and why switching processes costs more.",
+          "Choose threads or processes for a Python job by asking whether it waits or computes."
+        ],
+        "lesson": [
+          {
+            "lead": "The kitchen picture",
+            "text": "Picture a restaurant kitchen with its own pantry. The cooks in it share the pantry: anyone can grab anything. A second restaurant down the road has its own kitchen and its own pantry, and a fire in one kitchen doesn't reach the other.\n\nA process is a kitchen: a running program with its own memory, open files and at least one thread. A thread is a cook: one line of work inside the process. All the threads of a process share its memory, the pantry."
+          },
+          {
+            "lead": "Threads share memory",
+            "text": "Because threads share memory, they are cheap to start and can share data directly: one thread can put a result in a dict and another can read it.\n\nThe danger is the same as two cooks reaching for the same tray at once. If two threads change the same data at the same moment, it can end up corrupted. Locks prevent that; they come on Day 26.",
+            "check": {
+              "q": "Two threads of one process append to the same Python list. Does each thread see the other's items?",
+              "a": "Yes. Threads of one process share its memory, so it is the same list object for both."
+            }
+          },
+          {
+            "lead": "Processes are walled off",
+            "text": "Processes don't share memory. That's the fire wall: one process crashing doesn't take the others down. It's why a browser can run tabs as separate processes, so one broken page doesn't close them all.\n\nThe price is sharing. Processes can't just read each other's variables; they send data through pipes, queues or a database, and each process uses its own memory.",
+            "check": {
+              "q": "Why would a browser run each tab as its own process instead of a thread?",
+              "a": "Isolation: a crash or a bad page in one tab stays in its process, and the other tabs keep running."
+            }
+          },
+          {
+            "lead": "Context switches are pure overhead",
+            "text": "A CPU core runs one thread at a time. To share it, the operating system pauses a thread, saves where it was, and resumes another: a context switch. It's a cook putting down one dish, noting where they got to, and picking up another. No cooking happens during the swap.\n\nSwitching between threads of the same process is cheaper than switching between processes. A process switch also changes the memory view, and the CPU's caches, full of the old process's data, go cold.",
+            "check": {
+              "q": "Why is a switch between two threads of one process cheaper than a switch between two processes?",
+              "a": "The threads share one memory view, so it stays as it is. A process switch changes the memory view too, and leaves the CPU's caches cold."
+            }
+          },
+          {
+            "lead": "Python's twist: the GIL",
+            "text": "In standard CPython, the GIL (global interpreter lock) lets only one thread run Python code at a time, even on a machine with many cores. A thread that is waiting on the network or the disk releases the GIL, so the others can run meanwhile.\n\nSo the question is: does the work wait, or compute? Waiting work (downloads, database calls) speeds up with threads. Heavy computing doesn't, so use processes, each with its own interpreter and its own GIL, running on separate cores.",
+            "check": {
+              "q": "You split a CPU-heavy calculation across 4 threads in standard Python. Will it run about 4 times faster?",
+              "a": "No. The GIL lets one thread run Python code at a time, so it runs about as fast as one thread, or a little slower. Four processes can use four cores."
+            }
+          }
+        ],
+        "mistakes": [
+          "Adding threads to speed up CPU-heavy Python. The GIL runs one at a time; use processes.",
+          "Assuming processes see each other's variables. They don't; send data through a queue, pipe or database.",
+          "Starting a process pool without `if __name__ == \"__main__\":` on macOS. Each new process re-runs the file, so the pool fails.",
+          "Forgetting that context switches cost time. Thousands of busy threads can spend more time switching than working."
+        ],
+        "next": [
+          "Day 12 · CPU scheduling: how the operating system picks which thread runs next",
+          "Day 19 · virtual memory: how each process gets its own memory view",
+          "Day 26 · race conditions and mutexes: the locks that keep shared memory safe",
+          "Day 33 · semaphores and producer–consumer: threads handing work through a bounded queue",
+          "Day 40 · deadlock: when threads wait on each other's locks forever",
+          "Day 47 · Python concurrency: the GIL again, with threads, processes and asyncio side by side"
         ]
       }
     ],
@@ -798,22 +1394,13 @@
         "title": "Trees and graphs: BFS and DFS",
         "minutes": 90,
         "builds_on": "Day 4 · stack and queue, and Day 5 · recursion: DFS is recursion or a stack, BFS is a queue",
-        "points": [
-          "A tree is nodes joined by edges, with one root and no loops. A binary tree node has a value, a left child and a right child.",
-          "A graph is nodes and edges with no such limits: it can have loops and be split into parts. Store it as an adjacency list: a dict from each node to its neighbours.",
-          "DFS (depth-first) goes as deep as it can before backing up. Write it as recursion, or with an explicit stack.",
-          "BFS (breadth-first) visits level by level using a deque as a queue. In an unweighted graph it finds the fewest-edges path.",
-          "In a graph, keep a visited set and mark a node when you first reach it, or loops will trap you.",
-          "Both visit every node and edge once: O(V + E) time, where V is nodes and E is edges, and O(V) memory."
-        ],
         "say": "BFS uses a queue and explores level by level, so it finds the fewest-hops path; DFS uses recursion or a stack and goes deep first; both are O(V + E) with a visited set.",
         "example": [
-          "Graph: A–B, A–C, B–D, C–D, D–E. Find the fewest hops from A to E.",
-          "BFS: queue [A], visited {A}. Take A and add B and C: queue [B, C].",
-          "Take B: A is already visited, so add D. Queue [C, D].",
-          "Take C: A and D are already visited. Queue [D].",
-          "Take D and add E. Take E: it is the target. Levels A(0), B and C(1), D(2), E(3), so 3 hops.",
-          "DFS from A might go A, B, D, C, then E: it reaches everything but says nothing about the shortest path."
+          "The question: in the graph A–B, A–C, B–D, C–D, D–E, what is the fewest hops from A to E? \"Fewest hops\" means BFS.",
+          "Start: queue [A], visited {A}. Take A; its neighbours B and C are new, so mark them and queue them: [B, C]. They are 1 hop away.",
+          "Take B: A is already visited, D is new, so mark and queue it: [C, D]. Take C: A and D are both visited already, so nothing is added: [D]. D is 2 hops away.",
+          "Take D: E is new, so queue it at 3 hops. Take E: it is the target, reached at level 3. Answer: 3 hops.",
+          "Compare DFS from A with neighbours tried in order: A, B, D, C, E. It reaches every node, but the order tells you nothing about distance. That is why a fewest-hops question is a BFS question."
         ],
         "tasks": [
           {
@@ -856,6 +1443,78 @@
             "kind": "article",
             "source": "Tech Interview Handbook"
           }
+        ],
+        "why": "A huge share of interview problems are secretly trees or graphs: a folder structure, a friends network, a maze, a list of course prerequisites. Today you learn the two ways to walk through any of them, BFS and DFS, and how to tell which one a question needs.",
+        "recall": {
+          "q": "From Days 4 and 5: which item does a stack give back first, which does a queue give back first, and what waits on the call stack during recursion?",
+          "a": "A stack gives back the newest item (last in, first out); a queue gives back the oldest (first in, first out), and `deque.popleft()` does that in O(1). During recursion, each call waits on the call stack until the smaller call it made returns."
+        },
+        "goals": [
+          "Store a graph as an adjacency dict and walk it with BFS and DFS.",
+          "Say which of the two finds the fewest-hops path, and why.",
+          "Give the cost of either walk, O(V + E), and say why a graph needs a visited set."
+        ],
+        "lesson": [
+          {
+            "lead": "A tree: one way down to everything",
+            "text": "Picture the folders on your laptop. One top folder (the root) holds folders, which hold more folders, down to files with nothing inside (the leaves). Every item sits in exactly one parent, so there is one path from the top to anything, and no loops.\n\nA binary tree is the version interviews use most: each node holds a value, a left child and a right child, either of which can be empty.",
+            "check": {
+              "q": "In a tree, how many different paths lead from the root down to a given node?",
+              "a": "Exactly one. That is what \"no loops\" buys you, and why tree walks never visit a node twice."
+            }
+          },
+          {
+            "lead": "A graph: a tree with the limits removed",
+            "text": "Now picture a metro map. Stations are nodes, the lines between them are edges. There is no top station, you can ride in a circle, and one network can be split into parts that don't connect at all. That is a graph.\n\nIn Python, store it as an adjacency list: a dict from each node to its neighbours. For an undirected graph, each edge goes in twice, once from each end: the edge A–B makes `g['A']` include 'B' and `g['B']` include 'A'.",
+            "check": {
+              "q": "Write the adjacency dict for the undirected edges A–B and B–C.",
+              "a": "`{'A': ['B'], 'B': ['A', 'C'], 'C': ['B']}`. B appears in both of the others' lists because each edge is stored from both ends."
+            }
+          },
+          {
+            "lead": "DFS: go deep, then back up",
+            "text": "Explore a cave with one rule: keep taking a new tunnel until you hit a dead end, then walk back to the last junction with a tunnel you haven't tried. That is depth-first search.\n\n\"Walk back to the last junction\" is exactly what a stack remembers (Day 4), and what recursion does for you on the call stack (Day 5). So DFS is a short recursive function: visit a node, then call yourself on each neighbour you haven't seen."
+          },
+          {
+            "lead": "BFS: spread out like a ripple",
+            "text": "Drop a stone in a pond. The ripple reaches everything 1 step away, then everything 2 steps away, and so on. Breadth-first search does the same: it visits all nodes one hop from the start before any node two hops away.\n\nThe tool is a queue (Day 4): take the oldest node from the front with `popleft()`, add its unseen neighbours to the back. Because it goes level by level, the first time BFS reaches a node is by the fewest hops. In an unweighted graph, that makes BFS the shortest-path tool.",
+            "check": {
+              "q": "Why doesn't DFS give you the fewest hops?",
+              "a": "It dives down whichever path it tries first, so it can reach the target the long way round before it ever tries the short path. BFS can't: it finishes every 1-hop node before any 2-hop node."
+            }
+          },
+          {
+            "lead": "The visited set: don't go round in circles",
+            "text": "A graph can have loops: A–B, B–C, C–A. Walk it without memory and you circle forever. So keep a visited set, and mark a node the moment you first reach it.\n\nIn BFS, mark a node when you add it to the queue, not when you take it out. Otherwise a node reachable from two neighbours gets queued twice. A tree needs no visited set, because it has no loops.",
+            "check": {
+              "q": "In the graph A–B, A–C, B–D, C–D, what goes wrong if BFS marks nodes only when it takes them out of the queue?",
+              "a": "D is added twice: once from B and once from C, because neither saw it marked yet. In a big graph that duplicate work piles up."
+            }
+          },
+          {
+            "lead": "What it costs: O(V + E)",
+            "text": "Both walks touch every node once and look along every edge (in an undirected graph, from each end, which is still a constant times E). With V nodes and E edges that is O(V + E) time. The visited set and the queue or call stack hold up to V nodes: O(V) memory.\n\nOne trap from Day 5: recursive DFS on a very deep graph can hit Python's limit of about 1,000 nested calls. Then switch to an explicit stack.",
+            "check": {
+              "q": "A graph has 1,000 nodes and 5,000 edges. Roughly how much work is one BFS?",
+              "a": "In the order of 1,000 + 5,000 steps: a few thousand, not a million. O(V + E), not O(V²)."
+            }
+          },
+          {
+            "lead": "Which one does the question want?",
+            "text": "Fewest steps, fewest hops, nearest anything: BFS. Visit everything, explore every path, or work on the shape of a tree (its depth, its leaves): DFS is usually shorter to write. When either works, say why you picked one."
+          }
+        ],
+        "mistakes": [
+          "Forgetting the visited set on a graph, so a loop traps the walk forever.",
+          "Using `list.pop(0)` as the queue. It is O(n) per pop (Day 1); use `deque.popleft()`.",
+          "Answering a fewest-hops question with DFS. Only BFS reaches nodes in order of distance.",
+          "Recursing on a graph thousands of levels deep and hitting Python's recursion limit. Use an explicit stack there."
+        ],
+        "next": [
+          "Day 7 · a heap is a binary tree kept in a plain list",
+          "Day 54 · the Trees topic opens: the three DFS orders on real tree problems",
+          "Day 86 · the Graphs topic opens, starting with a grid seen as a graph",
+          "Day 98 · Advanced Graphs opens: graphs whose edges carry costs"
         ]
       },
       {
@@ -863,23 +1522,13 @@
         "title": "Scaling out: stateless servers behind a load balancer",
         "minutes": 150,
         "builds_on": "Day 4 · a request's journey: DNS gave one IP; now that IP belongs to a load balancer",
-        "points": [
-          "Scaling up means a bigger machine. It is simple but has a ceiling, and that one machine is a single point of failure.",
-          "Scaling out means more machines running the same code. It needs something in front to share the requests: a load balancer.",
-          "Common ways to pick a server: round robin (take turns), least connections (the least busy), and hashing a user id (the same user always goes to the same server).",
-          "The load balancer runs health checks and stops sending traffic to a server that fails them.",
-          "Servers must be stateless: no login session in one server's memory. Put sessions in a shared store such as Redis, or in a signed token the client sends each time.",
-          "Sticky sessions (one user pinned to one server) are a workaround. They break when that server dies and make load uneven.",
-          "The load balancer is run as a redundant pair so it isn't the new single point of failure. The database becomes the next bottleneck, which later days cover."
-        ],
         "say": "I scale the web tier out by keeping servers stateless, with sessions in a shared store, and putting them behind a health-checked load balancer, so any server can take any request and I add capacity by adding machines.",
         "example": [
-          "Start: one server runs the app and keeps logged-in sessions in its memory. Traffic triples.",
-          "Add two more servers. A user logs in on server 1, but the next request lands on server 2 and they are logged out.",
-          "Fix: move sessions into Redis. Every server reads the session from there, so the servers are now stateless.",
-          "Put a load balancer in front, using least connections and a health check every few seconds.",
-          "Server 2 crashes: its health check fails, traffic goes to 1 and 3, and nobody is logged out.",
-          "Point DNS at the load balancer's address. The next weak spot is the single database."
+          "The situation: one server runs the app and keeps logged-in sessions in its memory. Traffic triples. A bigger machine buys time but keeps the single point of failure, so I scale out.",
+          "I add two more servers. Immediately a user logs in on server 1, their next request lands on server 2, and they are logged out. The servers aren't stateless yet.",
+          "So I move sessions into Redis. Every server reads the session from there, so any server can serve any request.",
+          "I put a load balancer in front with least connections, since requests vary in length, and a health check every few seconds. When server 2 crashes, its check fails, traffic goes to 1 and 3, and nobody is logged out.",
+          "DNS now points at the load balancer, which runs as a pair. Last, I say the next weak spot out loud: all three servers share one database."
         ],
         "tasks": [
           {
@@ -915,6 +1564,75 @@
             "kind": "article",
             "source": "GitHub · donnemartin"
           }
+        ],
+        "why": "Nearly every design interview reaches the moment: \"traffic grows 10 times, what do you change?\" The first answer is always this lesson: more servers behind a load balancer, made possible by keeping the servers stateless. Get it crisp and you have the opening move of every design.",
+        "recall": {
+          "q": "From Day 4: what does DNS hand the browser, and what happens next on the way to your code?",
+          "a": "DNS turns the name into an IP address. The browser opens a TCP (and TLS) connection to that IP, sends an HTTP request, and the server runs your code, often asking a database. Today, that IP stops being one server and becomes a load balancer."
+        },
+        "goals": [
+          "Explain scaling up versus scaling out, and why scaling out needs a load balancer.",
+          "Say what stateless means, why the servers must be stateless, and where the state goes instead.",
+          "Draw the scaled-out design from memory and name its next weak spot."
+        ],
+        "lesson": [
+          {
+            "lead": "Scaling up: a bigger kitchen",
+            "text": "Picture a busy food stall with one cook. Orders triple. The first idea is a bigger stove and a faster cook: scaling up, meaning a bigger machine with more CPU and memory. It is simple, because nothing in your code changes.\n\nBut it has two limits. There is a biggest machine you can buy, and the price climbs steeply near the top. And it is still one machine: if it goes down, the whole stall closes. That is a single point of failure.",
+            "check": {
+              "q": "Name the two problems with scaling up.",
+              "a": "A ceiling (there is a biggest machine, and it gets very expensive), and a single point of failure (one machine down means everything is down)."
+            }
+          },
+          {
+            "lead": "Scaling out: more cooks and someone at the counter",
+            "text": "The other idea: hire more cooks who all follow the same recipes. Now you need someone at the counter taking each order and handing it to a cook. That is scaling out: more machines running the same code, with a load balancer in front sharing the requests between them.\n\nConnect it to Day 4: DNS now returns the load balancer's IP. Clients never see the servers behind it, so you can add or remove servers without anyone noticing."
+          },
+          {
+            "lead": "How the load balancer picks a server",
+            "text": "Three common rules. Round robin: take turns, 1, 2, 3, 1, 2, 3. Least connections: send the request to the server with the fewest requests still open, the least busy cook. Hash of the user id: the same user always lands on the same server, usually by `hash(user_id) % number_of_servers`.\n\nRound robin is fine when requests are similar. When some take 50 ms and others take 5 seconds, least connections stops long requests piling up on one unlucky server.",
+            "check": {
+              "q": "You send users to `hash(user_id) % 3` servers, then add a 4th server and switch to `% 4`. Roughly what share of users now land on a different server?",
+              "a": "About 75%: a user stays put only when their id gives the same remainder for 3 and 4, which is 3 ids in every 12. Moving that many users at once is the problem consistent hashing solves (Day 41)."
+            }
+          },
+          {
+            "lead": "Health checks: stop sending orders to a sick cook",
+            "text": "Every few seconds the load balancer asks each server \"are you OK?\", usually a request to a small health endpoint. A server that fails the check gets no new traffic. When it passes again, it goes back into the rotation. This is what turns more servers into higher availability: one crash costs some capacity, not the whole site."
+          },
+          {
+            "lead": "Stateless servers: the order slip, not the cook's memory",
+            "text": "Suppose each cook remembers their customers' orders in their head. Then only that cook can serve you, and if they leave, your order is lost. Fix: write every order on a shared board that any cook can read, or hand the customer a signed slip to show each time.\n\nThat is a stateless server: it keeps no per-user data in its own memory between requests. The login session goes into a shared store such as Redis (the board) or into a signed token the client sends with every request (the slip). Now any server can handle any request, and the load balancer can move traffic freely.",
+            "check": {
+              "q": "A user logs in on server 1. Their next request lands on server 2, and they are logged out. Why, and what is the proper fix?",
+              "a": "The session lived in server 1's memory, so server 2 has never heard of them. Move sessions into a shared store like Redis, or into a signed token, so every server can read them."
+            }
+          },
+          {
+            "lead": "Sticky sessions: the tempting workaround",
+            "text": "Sticky sessions pin each user to one server, so stateful servers seem to work. But when that server dies, its users lose their sessions anyway, and load gets uneven when a few heavy users share one server. Name it in an interview as a workaround, then give the stateless fix."
+          },
+          {
+            "lead": "Remove the new single points, then find the next bottleneck",
+            "text": "The load balancer is now the one thing everyone passes through, so it runs as a redundant pair: if the active one dies, the standby takes over its address. Also run one server more than the peak needs, so a crash at peak doesn't overload the rest.\n\nThen look further back. Every server still talks to one database, so the database is now the weak spot. Caching (Day 13) and replication (Day 27) are the next steps.",
+            "check": {
+              "q": "Each server handles 1,000 requests per second, and peak traffic is 4,500 requests per second. How many servers do you run?",
+              "a": "5 carry the peak, and a 6th means one can die at peak without overloading the rest. Day 11 makes estimates like this properly."
+            }
+          }
+        ],
+        "mistakes": [
+          "Keeping sessions, carts or uploaded files in one server's memory or local disk. The next request may land elsewhere.",
+          "Offering sticky sessions as the fix. They break when the server dies; the fix is stateless servers.",
+          "Adding a load balancer and forgetting it is now a single point of failure. Run it as a pair.",
+          "Stopping at \"add servers\" without noticing the single database behind them is the next bottleneck."
+        ],
+        "next": [
+          "Day 11 · estimates: working out how many servers the traffic really needs",
+          "Day 13 · caching: taking load off the single database",
+          "Day 20 · choosing a database: SQL or NoSQL, and what indexes buy you",
+          "Day 27 · replication: copies of the database, and the lag they bring",
+          "Day 41 · sharding and consistent hashing: hashing by key without moving most users when a server is added"
         ]
       }
     ],
@@ -951,24 +1669,14 @@
         "title": "Heaps, and a first feel for dynamic programming",
         "minutes": 90,
         "builds_on": "Day 6 · trees (a heap is a tree kept in a list) and Day 5 · recursion (dynamic programming is recursion that remembers)",
-        "points": [
-          "A heap always keeps the smallest item at the front. Python's heapq stores it in a plain list, so heap[0] is the smallest.",
-          "The list is a binary tree read level by level: the children of index i sit at 2i + 1 and 2i + 2, and every parent is ≤ its children.",
-          "heappush and heappop are O(log n). heapify turns a list into a heap in O(n).",
-          "heapq is a min-heap only. For a max-heap, push negated numbers.",
-          "k largest: keep a min-heap of size k and pop the smallest when it grows past k. That is O(n log k), better than sorting when k is small.",
-          "Dynamic programming (DP) fits when plain recursion solves the same smaller problem again and again.",
-          "Memoise: store each answer the first time and reuse it. functools.cache does this for a function in one line.",
-          "Three questions set up any DP: what is the state (the inputs that define a subproblem), what choice do I make, and what is the base case?"
-        ],
         "say": "A heap gives me the smallest item in O(1) and push or pop in O(log n), which makes top-k O(n log k); dynamic programming is recursion that stores answers to repeated subproblems.",
         "example": [
-          "Heap: the 3 largest of [5, 1, 9, 3, 7, 2], with a min-heap capped at 3. heappush 5, 1, 9: heap [1, 5, 9], so heap[0] = 1.",
-          "heappush 3 → size 4, so heappop removes 1: [3, 5, 9]. heappush 7 → heappop removes 3: [5, 7, 9].",
-          "heappush 2 → heappop removes 2 itself: [5, 7, 9]. The heap holds the top 3: 5, 7 and 9.",
-          "DP: fib(n) = fib(n - 1) + fib(n - 2), fib(0) = 0, fib(1) = 1. Plain recursion for fib(5) calls fib(3) twice and fib(2) three times, and the repeats grow exponentially.",
-          "Add @functools.cache: the second fib(3) is just a lookup, so each n from 0 to 5 is computed once: O(n) time and memory.",
-          "Bottom-up: a, b = 0, 1, then a, b = b, a + b, n times. O(1) memory."
+          "Heap question: the 3 largest of [5, 1, 9, 3, 7, 2]. I keep a min-heap capped at 3, so its front is always the weakest of my top 3. Push 5, 1, 9: heap [1, 5, 9], front 1.",
+          "Push 3: size 4, too big, so pop the smallest, 1. Heap [3, 5, 9]. Push 7: pop 3. Heap [5, 7, 9].",
+          "Push 2: pop the smallest, which is 2 itself, so it never really got in. Heap [5, 7, 9]: the top 3 are 5, 7 and 9, and the work was O(n log 3).",
+          "DP question: fib(5). Plain recursion calls fib(3) twice and fib(2) three times, 15 calls in all, and the repeats grow exponentially with n.",
+          "Add `@functools.cache`: the second fib(3) is just a lookup, so each n from 0 to 5 is computed once: O(n) time and memory.",
+          "Can I do better on memory? Bottom-up: start with a, b = 0, 1 and repeat a, b = b, a + b, n times. O(n) time, O(1) memory."
         ],
         "tasks": [
           {
@@ -1010,6 +1718,77 @@
             "kind": "article",
             "source": "Tech Interview Handbook"
           }
+        ],
+        "why": "\"Find the k largest\", \"always process the most urgent next\", \"merge these sorted streams\": whenever you need the smallest or biggest item again and again while items keep arriving, the answer is a heap. And when plain recursion is too slow because it redoes the same work, the answer is dynamic programming. Today you get a first, gentle feel for both.",
+        "recall": {
+          "q": "From Days 5 and 6: what does a binary tree node hold, and what two things does every recursive function need?",
+          "a": "A value, a left child and a right child. A recursive function needs a base case that returns without calling itself, and a call on a smaller problem that moves toward it."
+        },
+        "goals": [
+          "Use `heapq` to get the smallest item fast, and keep the k largest of a list in O(n log k).",
+          "Spot when plain recursion repeats work, and fix it with `@functools.cache`.",
+          "Ask the three set-up questions of any DP problem: state, choice, base case."
+        ],
+        "lesson": [
+          {
+            "lead": "Why a heap: the next deadline, always",
+            "text": "You have a pile of assignments, each with a due date, and new ones keep arriving. You only ever need one answer: which is due soonest? Sorting the whole pile after every arrival costs O(n log n) each time. A heap keeps just enough order to answer that one question: the smallest item is always at the front, adding or removing costs O(log n), and reading the front is O(1)."
+          },
+          {
+            "lead": "A heap is a tree kept in a list",
+            "text": "Python's `heapq` stores the heap in a plain list. Read the list as a binary tree (Day 6), level by level: index 0 is the root, and the children of index i sit at 2i + 1 and 2i + 2. The one rule: every parent is ≤ its children. So the smallest item is always the root, `heap[0]`.\n\nThe rest of the list is not sorted, and doesn't need to be.",
+            "check": {
+              "q": "In the heap `[1, 3, 2, 7, 4]`, which values are the children of index 1? Is the list sorted?",
+              "a": "Index 1 holds 3; its children are at 3 and 4: the values 7 and 4. Both are ≥ 3, so the rule holds. The list is not sorted (2 comes after 3), and that's fine."
+            }
+          },
+          {
+            "lead": "Why push and pop cost O(log n)",
+            "text": "`heappush` puts the new item at the end of the list, then swaps it up past any parent bigger than it. `heappop` takes the root, moves the last item to the top, and swaps it down. A tree of n items has about log n levels, so each costs at most about log n swaps. `heapify` turns a whole list into a heap in O(n).",
+            "check": {
+              "q": "A heap holds a million items. About how many swaps can one push need, at most?",
+              "a": "About 20, since a tree of a million items has about log₂(1,000,000) ≈ 20 levels."
+            }
+          },
+          {
+            "lead": "Min only: flip the sign for a max-heap",
+            "text": "`heapq` only keeps the smallest at the front. When you want the largest, push each number negated: the most negative item is then the biggest original number, and you flip the sign back when you read it.",
+            "check": {
+              "q": "You push 5, 1 and 9 as -5, -1 and -9. What is `-heap[0]`?",
+              "a": "9. The smallest stored item is -9, so flipping it back gives the largest original number."
+            }
+          },
+          {
+            "lead": "Top k: the doorkeeper trick",
+            "text": "Picture a top-3 leaderboard where the weakest of the three stands at the door. A new score gets in only by beating the doorkeeper, who is then pushed out. That is a min-heap of size k: push each item, and when the heap grows past k, pop the smallest.\n\nEach push or pop costs O(log k), so n items cost O(n log k), and memory is only O(k). When k is small, that beats sorting everything in O(n log n).",
+            "check": {
+              "q": "Why does keeping the k largest use a min-heap, not a max-heap?",
+              "a": "You need instant access to the weakest of your current top k, so you can throw it out when something better arrives. The min-heap keeps exactly that item at the front."
+            }
+          },
+          {
+            "lead": "Dynamic programming: recursion that remembers",
+            "text": "Fibonacci: fib(n) = fib(n - 1) + fib(n - 2), with fib(0) = 0 and fib(1) = 1. Plain recursion for fib(5) makes 15 calls, because it computes fib(3) twice and fib(2) three times. The repeats grow exponentially: fib(30) makes about 2.7 million calls.\n\nThe fix is to write each answer down the first time, in a dict from the arguments to the answer, and look it up after that. That is memoisation, and `@functools.cache` does it in one line. Now each n is computed once: O(n). DP fits whenever plain recursion solves the same smaller problem again and again.",
+            "check": {
+              "q": "Why can't you put `@functools.cache` on a function that takes a list?",
+              "a": "The cache stores answers in a dict keyed by the arguments, and a list can't be a dict key (it is unhashable), so Python raises a TypeError. Pass a tuple or plain numbers instead."
+            }
+          },
+          {
+            "lead": "Three questions set up any DP",
+            "text": "Before you code, answer three questions. The state: which inputs define one subproblem? For fib, just n. The choice: how does a subproblem's answer come from smaller ones? Fib has no real choice: it always adds the two before, fib(n - 1) + fib(n - 2). The base case: which answers do you know without recursing? fib(0) and fib(1).\n\nToday's third task asks you to answer the same three questions for a new problem."
+          }
+        ],
+        "mistakes": [
+          "Expecting the `heapq` list to be sorted. Only `heap[0]` is guaranteed; the rest is just heap order.",
+          "Keeping the k largest with a max-heap. You need the weakest of the top k at the front, so use a min-heap. For the k smallest, push negated numbers.",
+          "Writing recursion that repeats subproblems and not caching it: exponential time on inputs as small as 35.",
+          "Putting `@functools.cache` on a function that takes a list. Its arguments must be hashable."
+        ],
+        "next": [
+          "Day 79 · the Heap / Priority Queue topic opens on real problems",
+          "Day 101 · 1-D Dynamic Programming opens: state, choice and base case on real problems",
+          "Day 110 · 2-D Dynamic Programming: when the state needs two numbers"
         ]
       },
       {
@@ -1017,23 +1796,13 @@
         "title": "The four OOP ideas in Python, and composition over inheritance",
         "minutes": 90,
         "builds_on": "Day 2 · classes and objects: state, behaviour and rules kept inside the class",
-        "points": [
-          "Encapsulation: keep data and the rules that guard it together, and let callers use methods. In Python, a leading underscore marks something as internal.",
-          "Abstraction: show what an object does and hide how. A caller asks pay(amount) and doesn't care whether it is UPI or a card.",
-          "Inheritance: a subclass is a kind of its parent and reuses its code, as in class Car(Vehicle).",
-          "Polymorphism: the same call does the right thing for each type. shape.area() works for a circle and a square alike.",
-          "An abstract base class (abc.ABC with @abstractmethod) declares the methods every subclass must provide.",
-          "Composition: an object has parts and passes work to them, as in Logger(sink, formatter). Parts can be swapped without touching the Logger.",
-          "Prefer composition. Inheritance ties a subclass to its parent's insides, and mixing two kinds of variation by inheritance multiplies classes: 2 sinks × 2 formats = 4 subclasses."
-        ],
         "say": "I use inheritance only for a true is-a relationship with a shared interface, and otherwise compose objects from small swappable parts, which keeps classes few and testable.",
         "example": [
-          "Need: send notices by email or SMS, in plain or HTML format.",
-          "With inheritance: PlainEmail, HtmlEmail, PlainSms, HtmlSms. A third channel makes six classes.",
-          "With composition: Notifier(channel, formatter). channel has send(to, text); formatter has format(msg).",
-          "Notifier.notify(to, msg) calls channel.send(to, formatter.format(msg)).",
-          "Add WhatsApp: write one WhatsAppChannel class. The formatters and the Notifier don't change.",
-          "Tests pass in a fake channel that records messages instead of sending them."
+          "The need: send notices by email or SMS, in plain text or HTML. My first instinct is subclasses: PlainEmail, HtmlEmail, PlainSms, HtmlSms. Four classes already, and a third channel makes six.",
+          "Two things vary independently here, the channel and the format. Two independent variations is the signal to compose instead of inherit.",
+          "So: `Notifier(channel, formatter)`. A channel has `send(to, text)`; a formatter has `format(msg)`. `Notifier.notify(to, msg)` calls `channel.send(to, formatter.format(msg))`, and it knows nothing about email or HTML.",
+          "WhatsApp arrives: I write one WhatsAppChannel class. The formatters and the Notifier don't change at all.",
+          "Testing is easy too: I pass in a fake channel that records messages instead of sending them, and check what it recorded."
         ],
         "tasks": [
           {
@@ -1065,6 +1834,75 @@
             "kind": "article",
             "source": "Python docs"
           }
+        ],
+        "why": "Every machine-coding round and object-design interview is scored on how you shape classes: what goes inside a class, what is hidden, and how the parts fit. Today's ideas (the four OOP ideas, and composition over inheritance) are the vocabulary every design pattern after this uses. Strategy, which Day 0 asked about, is composition with a name.",
+        "recall": {
+          "q": "From Day 2's bank account: where did the rule \"the balance never goes below zero\" live, and why there?",
+          "a": "Inside `withdraw`, right next to the balance it guards. Then no caller can break the rule, because the only way to change the balance is through the method that checks it. Today that idea gets its name: encapsulation."
+        },
+        "goals": [
+          "Explain encapsulation, abstraction, inheritance and polymorphism, each with an everyday picture and a line of Python.",
+          "Use the is-a test to decide whether inheritance fits.",
+          "Rebuild a tangle of subclasses as one class composed of small swappable parts."
+        ],
+        "lesson": [
+          {
+            "lead": "Encapsulation: the ATM, not the cash drawer",
+            "text": "At an ATM you press \"withdraw\". You can't reach into the cash drawer, and the machine checks your balance before it pays. Encapsulation is the same: keep the data and the rules that guard it together, and let callers use methods, not the raw data. That is exactly Day 2's `withdraw`.\n\nIn Python, a leading underscore (`self._balance`) marks a name as internal: a signal to other programmers not to touch it from outside."
+          },
+          {
+            "lead": "Abstraction: say what, hide how",
+            "text": "When you press a car's brake pedal you don't care whether it has disc or drum brakes. Abstraction means a caller sees what an object does and not how. A checkout calls `payment.pay(amount)` and doesn't care whether it is UPI or a card underneath. The caller depends only on the what, so you can change the how freely.",
+            "check": {
+              "q": "Your checkout code calls `card.charge_visa(amount)` directly. What does abstraction suggest, and what does it buy you?",
+              "a": "Call a general `payment.pay(amount)` instead. Then adding UPI or changing card providers doesn't touch the checkout at all."
+            }
+          },
+          {
+            "lead": "Inheritance and the is-a test",
+            "text": "A savings account is a kind of account, so `class SavingsAccount(Account)` reuses everything an account does and adds interest. That is inheritance: a subclass is a kind of its parent and reuses its code.\n\nThe test before you inherit: can the child be used anywhere the parent is used, with no surprises? If a subclass has to switch off or break a method it inherited, it isn't really a kind of its parent, and inheritance is the wrong tool. Day 14 gives this test its formal name.",
+            "check": {
+              "q": "You write `class Stack(list)` so your stack reuses list's methods. Does it pass the is-a test?",
+              "a": "No. Callers can now use `insert(0, x)` or `sort()` on it and break last in, first out, so it isn't a safe stand-in. A stack should have a list inside (composition) and offer only push and pop."
+            }
+          },
+          {
+            "lead": "Polymorphism, and the contract that makes it safe",
+            "text": "A universal remote has one power button, and each device turns on in its own way. Polymorphism is the same: one call does the right thing for each type. A loop runs `for m in methods: m.pay(100)`, and each payment method pays its own way, with no `if type == ...` checks.\n\nTo make sure every type really has the method, write the contract as an abstract base class: `class PaymentMethod(ABC):` with `@abstractmethod def pay(self, amount)`. A subclass that forgets `pay` can't even be created: Python raises a TypeError when you try.",
+            "check": {
+              "q": "`UpiPayment(PaymentMethod)` defines no `pay` method. What happens when you write `UpiPayment()`?",
+              "a": "Python refuses with a TypeError: it can't create an abstract class that is missing an implementation of `pay`. The mistake shows up at once, not in production."
+            }
+          },
+          {
+            "lead": "Composition: a drill with swappable bits",
+            "text": "A drill doesn't come in a separate model for every bit size. You keep one drill and swap the bit. Composition is the same: an object has parts and hands work to them. `Logger(sink, formatter)` has a sink that decides where text goes and a formatter that decides how it looks. Swap either part and the Logger itself never changes.\n\nThis is the shape Day 0's Strategy question was about. Passing in a swappable behaviour part is the Strategy pattern, and Day 16 names it."
+          },
+          {
+            "lead": "Why prefer composition: the class explosion",
+            "text": "Try covering two kinds of variation with inheritance. Two sinks (file, console) times two formats (plain, timestamped) is 2 × 2 = 4 subclasses. Add a third sink and it's 6; add a third format and it's 9. Every new option multiplies the classes.\n\nWith composition you write one class per option: 2 sinks + 2 formatters, plus one Logger, and a new sink is one new class. Inheritance also ties a subclass to its parent's insides, so a change in the parent can break every child.",
+            "check": {
+              "q": "Notifications go out by email, SMS or WhatsApp, in plain or HTML. How many classes does inheritance need, and how many parts does composition need?",
+              "a": "Inheritance: 3 × 2 = 6 subclasses. Composition: 3 channels + 2 formatters = 5 small parts, plus one Notifier that holds a channel and a formatter."
+            }
+          },
+          {
+            "lead": "The rule to carry into every design",
+            "text": "Use inheritance only for a true is-a relationship with a shared interface, usually an abstract base class. For everything else, compose: give the object its parts through `__init__`. In a machine-coding round, that one habit keeps your classes few, small and easy to test."
+          }
+        ],
+        "mistakes": [
+          "Inheriting just to reuse code when the child isn't truly a kind of the parent. Run the is-a test first.",
+          "A subclass that overrides an inherited method to raise an error. That is a sign it should not have inherited at all.",
+          "Covering two independent variations with subclasses, so the class count multiplies. Compose one part per variation.",
+          "Checking types with if-else (`if isinstance(m, Upi): ...`) instead of letting polymorphism call the right method."
+        ],
+        "next": [
+          "Day 9 · SOLID 1: single responsibility (when to split a class) and open/closed (how to extend it without editing it)",
+          "Day 14 · SOLID 2: the is-a test gets its name (Liskov), and passing parts in becomes dependency inversion",
+          "Day 16 · the Strategy pattern: today's swappable part, named and used to replace if-else chains",
+          "Day 23 · the Factory pattern: one place that decides which part to build",
+          "Day 51 · Decorator and Composite: two more ways to build objects out of objects"
         ]
       },
       {
@@ -1072,22 +1910,13 @@
         "title": "Gradient descent: walking downhill on the loss",
         "minutes": 45,
         "builds_on": "Day 3 · linear regression and MSE: the loss we now minimise automatically",
-        "points": [
-          "Goal: find the w and b with the lowest loss without guessing by hand.",
-          "The gradient is the slope of the loss for each parameter. It points uphill, so step the other way.",
-          "Update rule: w = w - learning_rate × (slope of the loss with respect to w), and the same for b.",
-          "For MSE with prediction = w × x + b, the slope for w is the average of 2 × error × x, and for b the average of 2 × error.",
-          "The learning rate is the step size. Too big and the loss jumps around or grows; too small and training crawls.",
-          "Repeat until the loss stops dropping. Each full pass over the data is called an epoch.",
-          "On big data, each step uses a small random batch instead of every example: stochastic or mini-batch gradient descent."
-        ],
         "say": "Gradient descent computes how the loss changes with each weight and steps every weight a little in the downhill direction, with the learning rate setting the step size.",
         "example": [
-          "Day 3 data (1, 2), (2, 4), (3, 5). Start at w = 0, b = 0, learning rate 0.1. MSE = 15.",
-          "Predictions 0, 0, 0, so errors (prediction - truth) are -2, -4, -5.",
-          "Slope for w = average of 2 × error × x = 2 × (-2 - 8 - 15) / 3 ≈ -16.7. Slope for b = 2 × (-11) / 3 ≈ -7.3.",
-          "Step: w = 0 - 0.1 × (-16.7) ≈ 1.67, and b = 0 - 0.1 × (-7.3) ≈ 0.73.",
-          "New MSE ≈ 0.23, down from 15 in one step. Many more steps settle near w = 1.5, b = 0.67."
+          "Day 3's data: (1, 2), (2, 4), (3, 5). I start at w = 0, b = 0 with learning rate 0.1. Every prediction is 0, so MSE = (4 + 16 + 25) / 3 = 15.",
+          "Errors are prediction − truth: −2, −4, −5. All negative: the line is too low.",
+          "Slope for w = average of 2 × error × x = 2 × (−2 − 8 − 15) / 3 ≈ −16.7. Slope for b = 2 × (−2 − 4 − 5) / 3 ≈ −7.3. Both negative, so both should go up.",
+          "Step: w = 0 − 0.1 × (−16.7) ≈ 1.67, and b = 0 − 0.1 × (−7.3) ≈ 0.73. I computed both slopes before changing either.",
+          "New MSE ≈ 0.23, down from 15 in one step. Repeating it settles near w = 1.5, b = 0.67, the best line from Day 3."
         ],
         "tasks": [
           {
@@ -1114,6 +1943,70 @@
             "kind": "article",
             "source": "Google ML Crash Course"
           }
+        ],
+        "why": "\"How does a model actually learn?\" The answer behind almost every model you'll meet, from linear regression to large language models, is gradient descent. Explain it clearly with the update rule and the learning rate, and you have the core of any AI interview's fundamentals round.",
+        "recall": {
+          "q": "From Day 3: with data (1, 2), (2, 4), (3, 5), what are the predictions, errors and MSE of the line w = 2, b = 0?",
+          "a": "Predictions 2, 4, 6; errors 0, 0, 1; MSE = (0 + 0 + 1) / 3 ≈ 0.33. On Day 3 you guessed lines by hand. Today the computer finds the best one."
+        },
+        "goals": [
+          "Explain gradient descent with the downhill picture and write its update rule.",
+          "Compute one step by hand for a straight line under MSE.",
+          "Say what goes wrong when the learning rate is too big or too small."
+        ],
+        "lesson": [
+          {
+            "lead": "Walking downhill in the fog",
+            "text": "You stand on a hillside in thick fog and want the bottom of the valley. You can't see it, but you can feel which way the ground slopes under your feet. So you take a step downhill, feel again, step again. You'll reach the bottom without ever seeing the whole hill.\n\nThe hill is the loss: one number for how wrong the model is (Day 3's MSE). Where you stand is the current w and b. Walking downhill means changing w and b so the loss drops."
+          },
+          {
+            "lead": "The gradient points uphill",
+            "text": "The gradient is the slope of the loss for each parameter: how much the loss changes when you nudge w, and when you nudge b. A positive slope means increasing that parameter raises the loss, so the slope points uphill. You step the other way.",
+            "check": {
+              "q": "The slope of the loss for w is +4. Should w go up or down?",
+              "a": "Down. A positive slope means raising w raises the loss, so you lower w."
+            }
+          },
+          {
+            "lead": "The update rule",
+            "text": "Every step does the same thing to every parameter: w = w − learning_rate × (slope for w), and b = b − learning_rate × (slope for b). The minus sign is the walking downhill. The learning rate is the length of your step.\n\nCompute both slopes from the same old w and b first, then update both. Updating w before working out b's slope mixes old and new values."
+          },
+          {
+            "lead": "The slopes for a straight line under MSE",
+            "text": "With prediction = w × x + b and error = prediction − truth, the slope for w is the average of 2 × error × x, and the slope for b is the average of 2 × error.\n\nWhy the x? Nudging w moves each prediction by x, so examples with a big x feel a change in w more strongly. Nudging b moves every prediction equally, so there's no x in its slope.",
+            "check": {
+              "q": "At some w and b, every error is 0. What are both slopes, and what does the next step do?",
+              "a": "Both slopes are 0, so the step changes nothing. You are at the bottom: a perfect fit."
+            }
+          },
+          {
+            "lead": "The learning rate: step size",
+            "text": "Too small and you shuffle down the hill for ages. Too big and you leap right over the valley to the far side, higher than you started, then leap back even higher. On Day 3's data, starting from w = 0 and b = 0, a rate of 0.1 takes the loss from 15 to about 0.23 in one step. A rate of 0.5 takes it to 309, then about 6,385: it blows up.",
+            "check": {
+              "q": "Your loss goes 15, 309, 6,385. What do you change?",
+              "a": "Lower the learning rate. The steps overshoot the bottom and land higher each time."
+            }
+          },
+          {
+            "lead": "Epochs: repeat until it stops dropping",
+            "text": "One full pass over all the training data is an epoch. Here every step uses all three points, so each step is one epoch. You keep stepping, epoch after epoch, until the loss stops falling much. On Day 3's data, 1,000 steps at rate 0.1 settle at w = 1.5 and b ≈ 0.67, the best line you met on Day 3."
+          },
+          {
+            "lead": "Big data: small random batches",
+            "text": "Computing the slope over a million examples for every single step is slow. So each step uses a small random batch instead, say 32 examples. The slope is a bit noisy, but you take far more steps for the same work, and it gets there faster. This is stochastic or mini-batch gradient descent, and it is how real models are trained."
+          }
+        ],
+        "mistakes": [
+          "Adding the gradient instead of subtracting it. That walks uphill, and the loss grows every step.",
+          "Updating w, then computing b's slope with the new w. Compute every slope from the same old values, then update.",
+          "Blaming the model when the loss explodes. Lower the learning rate first.",
+          "Mixing up the error's sign. Pick prediction − truth and keep it everywhere, or the slopes flip."
+        ],
+        "next": [
+          "Day 8 · logistic regression: the same loop with a new output and a new loss",
+          "Day 15 · regularisation and early stopping: knowing when to stop walking downhill",
+          "Day 38 · backpropagation: finding the slopes for every weight in a neural network",
+          "Day 42 · training loops: mini-batches, the learning rate in practice, and Adam"
         ]
       },
       {

@@ -174,10 +174,12 @@ const todo = (title, done, items) =>
   el("div", { class: "todo" }, el("h3", { class: "grp" }, title, el("span", { class: "count", text: `${done} of ${items.length} done` })), items);
 
 // "Day 2 · counting with a dict…": the day it names links to that day.
-const buildsOn = (text) => {
+const dayLink = (text) => {
   const m = text.match(/^Day (\d+)/);
-  return el("p", { class: "builds" }, icon("revise"), el("span", {}, "Builds on ", m ? [el("a", { href: `day.html?d=${m[1]}`, text: m[0] }), text.slice(m[0].length)] : text));
+  return m ? [el("a", { href: `day.html?d=${m[1]}`, text: m[0] }), rich(text.slice(m[0].length))] : rich(text);
 };
+
+const buildsOn = (text) => el("p", { class: "builds" }, icon("revise"), el("span", {}, "Builds on ", dayLink(text)));
 
 // A point whose short name comes before a colon shows the name in bold.
 const point = (text) => {
@@ -318,9 +320,33 @@ const solveFirstBody = (b, r, mutate, redraw) => {
   ];
 };
 
+// A question to answer in your head before opening its answer.
+const ask = (c, key) => el("details", { class: "ask", "data-k": key }, el("summary", {}, el("span", {}, el("b", { text: "Check yourself: " }), rich(c.q))), el("p", { class: "answer" }, rich(c.a)));
+
+const paras = (text) => text.split("\n\n").map((p) => el("p", {}, rich(p)));
+
+const lessonStep = (s, key) => el("li", {}, el("h4", { class: "lesson-h" }, rich(s.lead)), paras(s.text), s.check ? ask(s.check, key) : null);
+
+// A block taught as a lesson, in lesson order; its worked example stays open, since thinking aloud is what teaches.
+const taughtBody = (b, r, mutate, redraw) => [
+  group("Why this matters", paras(b.why)),
+  b.builds_on ? group("Last time", buildsOn(b.builds_on), b.recall ? ask(b.recall, `${b.key}-recall`) : null) : null,
+  group("By the end you can", points(b.goals)),
+  group("The lesson", el("ol", { class: "lesson" }, b.lesson.map((s, i) => lessonStep(s, `${b.key}-ask-${i}`)))),
+  b.example?.length ? group("Worked example", el("div", { class: "example" }, steps(b.example))) : null,
+  group("Mistakes people make", points(b.mistakes)),
+  todos(b, mutate, redraw),
+  sayBox(b),
+  group("Where this goes next", el("ul", { class: "points next" }, b.next.map((n) => el("li", {}, dayLink(n))))),
+  readings(b, b.primary),
+  tail(b, r, mutate),
+];
+
 const blockBody = (b, r, mutate, redraw) =>
   b.solveFirst
     ? solveFirstBody(b, r, mutate, redraw)
+    : b.lesson
+    ? taughtBody(b, r, mutate, redraw)
     : [
         b.builds_on ? buildsOn(b.builds_on) : null,
         b.points.length ? group("In plain words", points(b.points)) : null,
