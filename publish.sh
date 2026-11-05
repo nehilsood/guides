@@ -62,6 +62,9 @@ for course in system-design-school resume-mastery; do
   done
 done
 
+echo "sync: agent-questions"
+sync --exclude README.md --exclude docs/ --exclude tools/ --exclude tests/ --exclude .superpowers/ --exclude .pytest_cache/ --exclude .git/ --exclude .gitignore "$SRC/agent-questions/" "$DEST/agent-questions/"
+
 echo "sync: sde2-plan"
 sync "$SRC/sde2-plan/site/" "$DEST/sde2-plan/"
 

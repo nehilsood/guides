@@ -48,7 +48,7 @@ def test_build_writes_the_site_to_a_new_folder(tmp_path):
     out = tmp_path / "site"
     r = run("--build", str(out))
     assert r.returncode == 0, r.stderr
-    for page in ["index.html", "sde2-plan/index.html", "system-design-school/lessons/index.html", "interview-prep/index.html", "resume-mastery/lessons/index.html"]:
+    for page in ["index.html", "sde2-plan/index.html", "system-design-school/lessons/index.html", "interview-prep/index.html", "resume-mastery/lessons/index.html", "agent-questions/index.html"]:
         assert (out / page).is_file(), page
     assert not (out / ".git").exists()
     assert "check: " in r.stdout and "pages clean" in r.stdout
