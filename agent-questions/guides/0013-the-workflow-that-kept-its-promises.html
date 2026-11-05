@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Workflow That Kept Its Promises</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 13 of 30 · Day 18 · about 10 minutes</div>
+    <h1>The workflow that kept its promises</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-26">AI Agent Engineering Interview #6 · The Benchmark Autonomy Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “Last year you built a fixed LLM workflow for buying supplies: a hard-coded list of approved vendors, set steps, and the cheapest offer wins. Now a newer model, left to run the whole job as an open-ended agent, scores higher on your benchmark. Should you delete the old workflow?”
+      <small>Senior AI Engineer interview, Google</small>
+    </div>
+    <p>The <b>benchmark</b> here is your own test set: past tasks with known good outcomes, scored as a percentage. A workflow and an agent are the two designs from <a href="0001-the-pipeline-that-beat-the-agent.html">guide 1</a>: your code picks the steps, or the model does.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Delete it. The model is better now, so the fixed steps are just in its way.”</p>
+      <p><strong>Trap B:</strong> “Keep it. You can never trust an agent.”</p>
+      <p>Both decide before asking what the workflow was <em>for</em>. Its job wasn't only to score well. It was to make some mistakes impossible.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“Not straight away. I built that workflow for its promises, not its score: only approved vendors, always the cheapest. If my benchmark came from the workflow's own past runs, no case in it ever let those promises break.</p>
+      <p>So first I list each promise and move it into code the agent can't talk its way past, like an order tool that only accepts approved vendors. Then I test each promise as pass or fail, over many runs. I switch over gradually, and I delete the workflow last.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>Your office has a buying clerk with a rule card: “Buy only from these five suppliers. Pick the cheapest.” It's dull, and it works.</p>
+    <p>A clever new hire arrives. You test both of them on last year's 100 orders, and the new hire finds better deals more often. Time to tear up the rule card?</p>
+    <p>Look at where the test came from. If it's built from last year's orders, every one of them went to one of the five suppliers, because the rule card made sure of it. So the test never asked: “A stranger offers a much cheaper price. Do you take it?” The new hire might take that deal. The test can't tell you, because that situation never appears in it.</p>
+    <p>The rule card is a set of <b>guarantees</b>: promises that hold every single time, like the <a href="0003-the-call-with-no-answer.html">guide 3</a> invariants. A score is an average over the cases you happened to collect. Guarantees are about the cases you made impossible, and impossible cases leave no examples behind.</p>
+    <div class="flows" aria-label="Benchmark score compared with guarantees">
+      <div class="flow">
+        <div class="flow-label">What the benchmark measures</div>
+        <div class="strip"><span class="box">Past orders</span><span class="arrow">→</span><span class="box">All from approved vendors</span><span class="arrow">→</span><span class="box">Average score</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">What the workflow promised</div>
+        <div class="strip"><span class="box">Any order, ever</span><span class="arrow">→</span><span class="box">Never an unapproved vendor</span><span class="arrow">→</span><span class="box">Pass or fail, every time</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> Say your benchmark was built from last year's real orders, a typical setup. How many of them went to an unapproved vendor? None. The workflow made that impossible. So how many points could an agent lose on the benchmark for breaking that rule? Also none. The test is blind to exactly the thing you'd most hate to get wrong.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: replacing a workflow safely</h2>
+    <ol>
+      <li><b>Write down every promise.</b> Approved vendors only, cheapest wins, a manager approves before the order, a spending cap. Read the code, not just the docs, since some promises live in one quiet line.</li>
+      <li><b>Ask whether the benchmark can see each one.</b> If no case tempts the agent to break a promise, the score says nothing about it. Add cases that do: a cheaper unapproved vendor, or a vendor page with planted instructions, the <a href="0012-the-comment-that-gave-the-orders.html">guide 12</a> attack.</li>
+      <li><b>Move each promise into code.</b> The order tool rejects any vendor not on the list. The price rule is checked in code. Now the agent can be as free as it likes inside the fence.</li>
+      <li><b>Test promises as pass or fail, over many runs.</b> One break is a failure, not a slightly lower average.</li>
+      <li><b>Switch gradually.</b> Run the agent alongside the workflow on real orders and compare. Move traffic over in steps. Delete the workflow last: until then it's your way back.</li>
+    </ol>
+    <p>Why was the old workflow hard to hijack? The <a href="https://arxiv.org/abs/2506.08837">design patterns paper</a> (2025) names the shape: in Plan-Then-Execute, the agent fixes its list of actions first, so data it reads later can't make it leave the plan. The authors note this doesn't stop every injection, but it protects which actions run. A fixed workflow has that by design. A free-form agent gives it up unless you rebuild it in code.</p>
+    <p><b>Worked example, with real numbers.</b> Averages hide how often an agent fails. <a href="https://arxiv.org/abs/2406.12045">τ-bench</a> (Yao et al., 2024) tests customer-service agents that must follow a policy document, like an airline's change rules. It introduced <b>pass^k</b>: the chance that all <em>k</em> tries at the same task succeed. GPT-4o's average success on its retail tasks was about <span class="num">61%</span>. But the chance of getting the same task right in all 8 of 8 tries fell to under <span class="num">25%</span>. Same agent, same tasks. One number sounds decent, the other doesn't.</p>
+    <p>An illustration, with my own numbers: say the agent picks an approved vendor in 999 of every 1,000 orders. That's 99.9%, which sounds perfect. At 10,000 orders a year, it's about 10 orders to unapproved vendors. The old workflow's number was zero, by construction.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">So should the agent never replace the workflow?</p><p>It can, once every promise lives in code and passes its tests. Then the agent decides only what was never promised, like how to compare messy offers. Anthropic's advice fits: workflows give “predictability and consistency for well-defined tasks”, agents suit work that needs flexibility.</p></div>
+      <div class="fu" id="fu-2"><p class="q">Why does the agent score higher at all?</p><p>Find out which cases it wins. If it wins on messy orders the fixed steps handled badly, that's real value worth keeping, inside the fence.</p></div>
+      <div class="fu" id="fu-3"><p class="q">What else does the switch cost?</p><p>Anthropic's guide warns that agentic systems often trade speed and cost for better results. Compare cost per correct order, not just the score.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>Why can't a benchmark built from the workflow's own past runs see its guarantees?</summary><p>The workflow never broke them, so no case in the data shows a promise being broken, or even tempts the agent to break one.</p></details>
+      <details class="cy" id="cy-2"><summary>What is pass^k, and why does it suit a guarantee?</summary><p>The chance that all k tries at the same task succeed. A guarantee has to hold every time, so you care about the worst run, not the average.</p></details>
+      <details class="cy" id="cy-3"><summary>Put the safe switch in order.</summary><p>List the promises, move each into code, test them pass or fail with tempting cases, run the agent alongside the workflow, and delete the workflow last.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>Guarantee</dt><dd>A promise that holds every time, usually because code makes breaking it impossible.</dd>
+      <dt>pass^k</dt><dd>The chance that all k tries at the same task succeed. It falls fast when an agent is inconsistent.</dd>
+      <dt>Plan-Then-Execute</dt><dd>Fixing the actions before reading untrusted data, so that data can't change what runs.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://www.anthropic.com/engineering/building-effective-agents">Building effective agents</a> (Anthropic, Dec 2024): when a workflow beats an agent, and the costs of autonomy.</li>
+      <li><a href="https://arxiv.org/abs/2406.12045">τ-bench</a> (Yao et al., 2024): policy rules in agent tasks, and the pass^k measure.</li>
+      <li><a href="https://arxiv.org/abs/2506.08837">Design Patterns for Securing LLM Agents against Prompt Injections</a> (Beurer-Kellner et al., 2025): Plan-Then-Execute and five other patterns.</li>
+      <li>Later in your plan, the long version: Interview Prep's <a href="https://nehilsood.github.io/guides/interview-prep/guides/0007-the-guarantee-register.html">The Guarantee Register</a>.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-26">AI Interview Prep #6</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

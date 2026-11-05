@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Habit That Came Back</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 8 of 30 · Day 13 · about 10 minutes</div>
+    <h1>The habit that came back</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-14">AI Agent Engineering Interview #14 · The Language Prior Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “A user has your coding agent move a big data-processing pipeline from Python to Rust, and the result is excellent. But on every task after that, it switches back to Python, writing it and running it. Is the prompt the problem?”
+      <small>Senior AI Engineer interview, GitHub</small>
+    </div>
+    <p>Moving code from one language to another is called a <b>port</b>. <b>Rust</b> is a fast, compiled language; its build tool is <code>cargo</code>, and <code>cargo test</code> runs a Rust project's tests.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Write the instruction more clearly: ALWAYS use Rust.”</p>
+      <p><strong>Trap B:</strong> “The model just can't do Rust.”</p>
+      <p>The user did ask clearly, and it worked once. The port proves the model can write Rust. What's missing is something that holds the choice after the request goes quiet.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“Not really. The request is one sentence in one turn. Against it stands the model's habit: models reach for Python even where it's a poor fit, likely because the code and practice tasks they learn from are Python-heavy. And they forget earlier instructions as a conversation goes on. So the sentence wins once, then fades. I'd make the project itself say Rust: the rule in its instructions file, the old Python archived, and a check that keeps Python files out and passes only when <code>cargo test</code> does.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>Your family moves the mugs from the right-hand cupboard to the left one. Someone tells you once. The next morning you get it right, because you've just heard it. A week later, half asleep, your hand goes straight to the right-hand cupboard. Years of habit beat one sentence.</p>
+    <p>What would actually fix it? A note on the old cupboard door helps, though after a while you stop seeing notes. Emptying the old cupboard works better: your hand finds nothing there. A lock on it works best, because then it doesn't matter what you remember.</p>
+    <p>The model has a habit too. Researchers call it a <b>prior</b>: what the model leans towards before it reads your request. For coding, the prior says Python. The user's sentence is the one-time reminder. The rest of this guide is about the note, the empty cupboard and the lock.</p>
+    <div class="flows" aria-label="An instruction that fades compared with a project that enforces">
+      <div class="flow">
+        <div class="flow-label">The rule lives in one chat message</div>
+        <div class="strip"><span class="box">“Use Rust” (turn 1)</span><span class="arrow">→</span><span class="box">Port done in Rust</span><span class="arrow">→</span><span class="box">Next task: back to Python</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">The rule lives in the project</div>
+        <div class="strip"><span class="box">Rule file + Rust-only repo</span><span class="arrow">→</span><span class="box">Python run blocked</span><span class="arrow">→</span><span class="box">Done only when cargo test passes</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> The port went perfectly. Why does that tell you little about the next task? The port had the Python original to copy and a fresh request; the next task has neither. Only one of those is about the prompt.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: moving the rule out of the chat</h2>
+    <ol>
+      <li><b>Find where the rule lives.</b> If it's only in a chat message, it gets older with every turn. The Multi-IF study found that as turns go by, models increasingly forget instructions they had followed in earlier turns.</li>
+      <li><b>Put it where every session reads it.</b> Claude Code loads its project instructions file (<code>CLAUDE.md</code>, or a repo's <code>AGENTS.md</code>) at the start of every conversation. That's the note on the door. Its docs are honest about the limit: “Claude treats them as context, not enforced configuration.”</li>
+      <li><b>Make the repo agree.</b> Archive the old Python pipeline. If a search of the project finds working Python, the project argues for Python.</li>
+      <li><b>Block what must never happen.</b> The same docs say: “To block an action regardless of what Claude decides, use a PreToolUse hook instead.” A <b>hook</b> is your script that runs before the tool calls you choose. If it exits with code 2, the call is blocked and the script's message goes back to the model as the tool's error: “This project is Rust. Use cargo.” That's the lock.</li>
+      <li><b>Judge the result.</b> A task counts as done only when <code>cargo test</code> passes. A check doesn't have to be remembered to work.</li>
+    </ol>
+    <p><b>Worked example, with real numbers.</b> First, the prior itself can be measured. <a href="https://arxiv.org/abs/2503.17181">Twist et al.</a> (2025) asked eight models, including GPT-4o-mini, Claude 3.5 Sonnet and Qwen-2.5-Coder, to start five projects where Python is a weaker fit, such as a low-latency trading platform, 100 times each. Python was the most-used language in <span class="num">23 of the 40</span> model-and-project pairs (58%), and Rust was not used once.</p>
+    <p>Where it comes from is harder to see, since we can't inspect these models' training data. Two likely sources are the code models learn from and the practice tasks coding agents train and are tested on, and the public training sets and benchmarks we can see lean heavily on Python. <a href="https://arxiv.org/abs/2412.21139">SWE-Gym</a>, the first training environment for such agents by its authors' account, holds <span class="num">2,438</span> tasks, all in Python. The <a href="https://arxiv.org/abs/2504.02605">Multi-SWE-bench</a> authors note that existing benchmarks such as SWE-bench (guide 1) focus almost entirely on Python.</p>
+    <p>And the fading: <a href="https://arxiv.org/abs/2410.15553">Multi-IF</a> tested 14 models on three-turn conversations, and every one followed instructions less well with each extra turn. o1-preview fell from <span class="num">0.877</span> at turn 1 to <span class="num">0.707</span> at turn 3. No study measured this exact relapse, but together these findings explain it.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Why not repeat “use Rust” in every turn?</p><p>It's still a request the model weighs against its habit, paid for on every turn. A check works whether the model remembers or not.</p></div>
+      <div class="fu" id="fu-2"><p class="q">Should every Python run fail?</p><p>Only Python that would ship. A throwaway script to compare two outputs is the agent thinking with a tool. Block Python files landing in the project, and let <code>cargo test</code> decide when the task is done.</p></div>
+      <div class="fu" id="fu-3"><p class="q">Isn't the real fix retraining the model?</p><p>Longer term, maybe: Twist et al. call for targeted fine-tuning and more varied training data. But you don't control that. You do control the repo, the hooks and the tests, today.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>Why doesn't one perfect port prove the agent will keep using Rust?</summary><p>During the port it had the Python original to copy and a fresh request. Later tasks have neither, and the model's Python prior is still there.</p></details>
+      <details class="cy" id="cy-2"><summary>Name two likely sources of the Python prior.</summary><p>The code models learn from, and the practice tasks coding agents train and are tested on. A model's training data isn't public, but the public training sets and benchmarks we can see are mostly Python.</p></details>
+      <details class="cy" id="cy-3"><summary>Put these in order from weakest to strongest: a hook that blocks Python, a chat message, the project instructions file.</summary><p>Chat message, then instructions file, then hook. The first two are context the model weighs and can forget. The hook acts whatever the model decides.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>Port</dt><dd>Moving a program from one language to another.</dd>
+      <dt>Prior</dt><dd>What a model leans towards before it reads your request, learned in training.</dd>
+      <dt>Hook</dt><dd>Your own script that runs at a set point, such as before every tool call, and can block it.</dd>
+      <dt>cargo test</dt><dd>The command that runs a Rust project's tests.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2503.17181">A Study of LLMs' Preferences for Libraries and Programming Languages</a> (Twist et al., 2025): the Python default, measured.</li>
+      <li><a href="https://arxiv.org/abs/2410.15553">Multi-IF</a> (He et al., 2024): instruction following over several turns.</li>
+      <li><a href="https://code.claude.com/docs/en/memory">How Claude remembers your project</a> (Claude Code docs): instruction files, and why they're context, not enforcement.</li>
+      <li><a href="https://code.claude.com/docs/en/hooks">Hooks reference</a> (Claude Code docs): blocking a tool call with exit code 2.</li>
+      <li>Later in your plan, the long version: Interview Prep's <a href="https://nehilsood.github.io/guides/interview-prep/guides/0015-the-half-life-of-an-instruction.html">The Half-Life of an Instruction</a>.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-14">AI Interview Prep #14</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

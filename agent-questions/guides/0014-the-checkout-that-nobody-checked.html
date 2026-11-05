@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Checkout That Nobody Checked</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 14 of 30 · Day 19 · about 10 minutes</div>
+    <h1>The checkout that nobody checked</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-16">AI Agent Engineering Interview #16 · The Side-Effect Blindspot</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “Your computer-use agent is told: ‘Find a blue mug under $20 and put it in the cart. Do not check out.’ The check at the end sees the mug sitting in the cart, so the run passes. What did that check never look at, and how do you make the ‘do not’ part hold, both in testing and in production?”
+      <small>Senior AI Engineer interview, Google DeepMind</small>
+    </div>
+    <p>A <b>computer-use agent</b>, from <a href="0007-the-step-it-did-twice.html">guide 7</a>, works a screen by clicking and typing. The check described here is an <b>outcome check</b>: a test that runs after the agent stops and looks at the end result.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Make the prompt firmer: NEVER check out.”</p>
+      <p><strong>Trap B:</strong> “Add one more check: no order was placed.”</p>
+      <p>Trap A is still a request, the lesson of guides <a href="0008-the-habit-that-came-back.html">8</a> and <a href="0012-the-comment-that-gave-the-orders.html">12</a>. Trap B is a start, but it names one more thing. What about a saved card, a changed address, a newsletter sign-up? A “don't” covers everything you didn't name.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“The check only looked at what we asked for, the mug in the cart. The task had a second half, don't check out, and nothing looked at it. Agents can finish a job and still break a rule.</p>
+      <p>So in testing I'd compare everything that changed against what was allowed to change. Any order placed or card charged fails the run. In production I wouldn't rely on the prompt either: the checkout and payment actions are blocked in code, or wait for the user to confirm.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>You leave a babysitter with two rules: “Kids in bed by eight. No sweets.”</p>
+    <p>You get home at nine and peek into the bedroom. Both kids are asleep. Rule one, checked. You go to bed happy. You never looked at the sweet jar.</p>
+    <p>Suppose you had. The jar is full. But the ice cream in the freezer is gone, and so is the cake. A “no sweets” rule isn't about one jar. It's about everything sweet in the house. A better check walks through the whole kitchen and asks one question: is every change here one I expected?</p>
+    <p>And if the sweets really mattered, you wouldn't trust any check afterwards. You'd lock the cupboard before you left.</p>
+    <p>The mug in the cart is rule one. Checking out is a <b>side effect</b>: a change the agent makes beyond the one you asked for. A “don't” rule is a <b>negative constraint</b>. Comparing the whole kitchen before and after is a <b>state diff</b>. Locking the cupboard is enforcement in code.</p>
+    <div class="flows" aria-label="Outcome check compared with state diff">
+      <div class="flow">
+        <div class="flow-label">Outcome check: reads one thing</div>
+        <div class="strip"><span class="box">Run ends</span><span class="arrow">→</span><span class="box">Is the mug in the cart?</span><span class="arrow">→</span><span class="box">Yes: pass</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">State diff: reads every change</div>
+        <div class="strip"><span class="box">Snapshot before and after</span><span class="arrow">→</span><span class="box">List every change</span><span class="arrow">→</span><span class="box">Any unexplained change: fail</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> Two runs both end with the mug in the cart. In one, the agent stopped there. In the other, it checked out, then put a second mug in the cart. What does the outcome check say about each? Pass and pass. A check that can't tell those two runs apart isn't testing the rule at all.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: testing and enforcing a “don't”</h2>
+    <ol>
+      <li><b>Test in a copy you control.</b> Run the agent against a test shop with its own database, never your real card. <a href="https://arxiv.org/abs/2602.11224">Agent-Diff</a>, a 2026 benchmark, does this with sealed-off copies of real services (a sandbox, as in <a href="0005-the-tool-that-can-do-anything.html">guide 5</a>) like Slack and Google Calendar.</li>
+      <li><b>Snapshot the state before and after, and diff it.</b> Agent-Diff sets a strict rule: every change must be explained by an expected result or sit on a short ignore list, like timestamps. “Any other insertion, deletion, or mutation is treated as a side effect and causes the task to fail.”</li>
+      <li><b>Score finished-and-safe, not just finished.</b> <a href="https://arxiv.org/abs/2410.06703">ST-WebAgentBench</a> calls this Completion under Policy: a run counts only if it completes the task and breaks no rule.</li>
+      <li><b>Block the forbidden action in code.</b> In production there's no diff afterwards, only a charged card. So the payment and checkout actions get stopped before they run, like the hook from guide 8.</li>
+      <li><b>Or ask the user.</b> Anthropic's computer-use docs advise asking a human to confirm decisions with real-world consequences, “such as accepting cookies, completing financial transactions, or agreeing to terms of service.”</li>
+    </ol>
+    <p><b>Worked example, with real numbers.</b> How often does “finished” hide a broken rule? ST-WebAgentBench (latest version, June 2026) runs web agents on business apps such as GitLab and a shop's admin site, with rules attached to each task, such as asking the user before a purchase. The rules were pasted into what the agents saw at every step. Across three open agents, the average completion rate was <span class="num">24.3%</span>. Completion under Policy was only <span class="num">15.0%</span>, so roughly 38% of the finished tasks broke at least one rule. Most broken rules, <span class="num">70%</span>, were about asking the user's consent or not improvising, such as making up data. And the more rules a task carried, the worse it got: Completion under Policy fell from <span class="num">18.2%</span> with one active rule to <span class="num">7.1%</span> with five or more.</p>
+    <p>An outcome-only check would have counted every one of those rule-breaking runs as a success. And being told the rules at every step didn't stop the agents breaking them.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Does a state diff catch everything?</p><p>No. It sees changes, not missing steps. The <a href="https://arxiv.org/abs/2406.12045">τ-bench</a> authors note that a run can reach the right final database yet skip asking for the user's confirmation, which breaks the policy. For rules like that, also read the agent's action log.</p></div>
+      <div class="fu" id="fu-2"><p class="q">Won't blocking actions make the agent useless?</p><p>Block only the few actions you can't undo: pay, send, delete. Reading and adding to a cart stay free. Progent, a 2025 research framework, checks every tool call against rules over tool names and arguments with a deterministic procedure. A model writes and updates the rules, but no model judges each call.</p></div>
+      <div class="fu" id="fu-3"><p class="q">Why not have a second model look at the screenshots instead?</p><p>A screenshot shows the screen, not the database. A charge can happen on a page the agent leaves a second later. The shop's own records don't miss it.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>Why did the outcome check pass a run that might have checked out?</summary><p>It only looked at the one thing the task asked for, the mug in the cart. Nothing looked at the “do not” half.</p></details>
+      <details class="cy" id="cy-2"><summary>What makes a state diff stronger than adding a “no order placed” check?</summary><p>It looks at every change, not one named thing. Any change that isn't expected or on the ignore list fails the run, so you don't have to guess every bad outcome in advance.</p></details>
+      <details class="cy" id="cy-3"><summary>In production, where does the “don't check out” rule live?</summary><p>In code outside the model: the checkout and payment actions are blocked, or wait for the user to confirm. Not in the prompt.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>Outcome check</dt><dd>A test that looks at the end result the task asked for.</dd>
+      <dt>Side effect</dt><dd>Any change the agent makes beyond the one you asked for.</dd>
+      <dt>State diff</dt><dd>A list of everything that changed between snapshots taken before and after a run.</dd>
+      <dt>Completion under Policy</dt><dd>The share of runs that finished the task and broke no rule.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2602.11224">Agent-Diff</a> (Pysklo et al., 2026): state-diff scoring, where any unexplained change fails the task.</li>
+      <li><a href="https://arxiv.org/abs/2410.06703">ST-WebAgentBench</a> (IBM Research): completing tasks while keeping the rules.</li>
+      <li><a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool">Computer use tool</a> (Anthropic docs): the safety steps, including human confirmation.</li>
+      <li><a href="https://arxiv.org/abs/2504.11703">Progent</a> (Shi et al., 2025): blocking tool calls with rules checked by code.</li>
+      <li>Later in your plan, the long version: Interview Prep's <a href="https://nehilsood.github.io/guides/interview-prep/guides/0017-the-unwritten-half.html">The Unwritten Half</a>.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-16">AI Interview Prep #16</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Line That Picks the Skill</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 9 of 30 · Day 14 · about 10 minutes</div>
+    <h1>The line that picks the skill</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-4">AI Agent Engineering Interview #4 · The Skill Trigger Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “Your agent skips a skill that would clearly help. Then, on tasks that have nothing to do with it, it opens a skill that doesn't fit. Which is it: the prompt, the model or your evals? And how would you track it down?”
+      <small>Senior AI Engineer interview, Google DeepMind</small>
+    </div>
+    <p>A <b>skill</b> is a folder of instructions an agent can open when a task needs it. The agent always sees each skill's name and one short description. It reads the full instructions file, <code>SKILL.md</code>, only when it decides the skill applies. Loading in stages like this is called <b>progressive disclosure</b>.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “The skill's instructions are unclear. Rewrite them.”</p>
+      <p><strong>Trap B:</strong> “The model is bad at choosing. Use a bigger one.”</p>
+      <p>Trap A edits the wrong text: the agent reads <code>SKILL.md</code> only after it has decided to open the skill, so the body can't change that decision. Trap B guesses without measuring. Neither looks at the one line that does the choosing.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“It's a routing problem, and only a test can show it. The agent opens a skill based on its short description alone, so that line is really a yes-or-no filter. Skipping a useful skill is a miss. Opening one on unrelated work is a false alarm. First I'd check the skill is listed at all. Then I'd write prompts that should and shouldn't trigger it, including close calls, measure both errors, rewrite the description to say what it does and when, and re-test on prompts I kept back.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>Picture the receptionist in a big office building. Beside her is a board listing every department with a one-line label. Visitors say what they need, and she sends them on. She never reads a department's manual. She routes by the label alone.</p>
+    <p>One department's label says “Accounts”. People who can't log in to their account get sent there by mistake. People with an invoice question never get sent there, because the label doesn't mention invoices. Rewriting the department's manual fixes neither problem. Only the label decides where people go.</p>
+    <p>A skill's description is that label. A decision made from a short piece of text, yes or no, is a <b>classifier</b>, and a classifier makes two kinds of mistakes. A <b>miss</b>: the skill should have fired and didn't. A <b>false alarm</b>: it fired and shouldn't have. Two numbers track them. <b>Recall</b> asks: of the times it should fire, how often does it? <b>Precision</b> asks: of the times it fires, how often was it right to?</p>
+    <div class="flows" aria-label="How a skill gets chosen">
+      <div class="flow">
+        <div class="flow-label">What the agent sees when it decides</div>
+        <div class="strip"><span class="box">User's request</span><span class="arrow">→</span><span class="box">Skill names + descriptions</span><span class="arrow">→</span><span class="box">Open a skill, or none</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">What it reads only afterwards</div>
+        <div class="strip"><span class="box">Skill chosen</span><span class="arrow">→</span><span class="box">Read SKILL.md</span><span class="arrow">→</span><span class="box">Follow the instructions</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> To stop the misses, you widen the description: “Use for anything involving documents.” What happens to the false alarms? They go up, because now a request to rename a file can match too. Widening a description often trades one error for the other. That's why you measure both, not just the one someone complained about.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: debugging a trigger</h2>
+    <ol>
+      <li><b>Check it's on the menu.</b> In Claude Code, ask “What skills are available?”. If the header at the top of <code>SKILL.md</code>, where the name and description live, doesn't parse, Claude can't match against the description. And with many skills installed, Claude Code drops some descriptions to fit a budget (1% of the context window at the time of writing), starting with the least-used. A “miss” may be a skill the model never saw described.</li>
+      <li><b>Write a trigger test set.</b> Anthropic's <code>skill-creator</code> skill suggests 20 realistic prompts, 8–10 that should trigger and 8–10 that shouldn't. The most useful negatives are <b>near-misses</b>: prompts that share words with the skill but need something else. Run each prompt 3 times, since the choice varies.</li>
+      <li><b>Score both errors</b> and read the failing prompts. Misses and false alarms need opposite fixes.</li>
+      <li><b>Rewrite the description.</b> Anthropic's docs say it must cover what the skill does and when to use it, in the words users actually say, written in the third person. For misses, <code>skill-creator</code> notes Claude tends to under-trigger skills and suggests a slightly “pushy” description. For false alarms, Claude Code's docs say to make it more specific.</li>
+      <li><b>Test on prompts you kept back.</b> <code>skill-creator</code> splits the set 60/40 and picks the winning description by its score on the held-back 40%, so you don't just tune to the prompts you've seen.</li>
+    </ol>
+    <p><b>Worked example.</b> An illustration, put together from Anthropic's docs, with my own numbers. A skill's description is “Helps with documents”, which the docs list as too vague. Ten should and ten shouldn't prompts, each run 3 times, give 30 runs of each kind. The fix is the docs' own example: “Extract text and tables from PDF files, fill forms, merge documents. Use when working with PDF files or when the user mentions PDFs, forms, or document extraction.”</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Description</th><th>Fired on “should” runs</th><th>Fired on “shouldn't” runs</th><th>Recall</th><th>Precision</th></tr></thead>
+        <tbody>
+          <tr><td>“Helps with documents”</td><td>12 of 30</td><td>9 of 30</td><td>40%</td><td>12 ÷ 21 = 57%</td></tr>
+          <tr><td>The specific one</td><td>27 of 30</td><td>2 of 30</td><td>90%</td><td>27 ÷ 29 = 93%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Then run the kept-back prompts. If they score about the same, the fix holds beyond the prompts you tuned on.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">So when is it really the model?</p><p>Partly on simple tasks: <code>skill-creator</code> says Claude consults skills only for tasks it can't easily handle itself, so a one-step request may never trigger one. Also when the same test set passes on one model and fails on another. Test with the model your users run.</p></div>
+      <div class="fu" id="fu-2"><p class="q">Is a false alarm worse than a miss?</p><p>Often. A miss loses some help. A false alarm puts instructions that don't fit into the agent's context, and it may follow them. For a skill with side effects, like deploying, Claude Code lets you set <code>disable-model-invocation: true</code> so only a person can start it.</p></div>
+      <div class="fu" id="fu-3"><p class="q">How do you stop it breaking again?</p><p>Keep the test set and rerun it whenever a description changes or a new skill arrives. A new skill with a similar description can start taking another skill's triggers.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>Why doesn't rewriting the SKILL.md body fix a skill that fires at the wrong times?</summary><p>The agent decides from the name and description alone. It reads the body only after it has chosen, so the body can't change the choice.</p></details>
+      <details class="cy" id="cy-2"><summary>In plain words, what are recall and precision for a skill?</summary><p>Recall: of the times it should fire, how often it does. Precision: of the times it fires, how often it was right to.</p></details>
+      <details class="cy" id="cy-3"><summary>What is a near-miss prompt, and why is it the best negative test?</summary><p>A prompt that shares words with the skill but needs something else. An obviously unrelated prompt tests nothing; a near-miss shows whether the description really separates the cases.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>Skill</dt><dd>A folder of instructions (<code>SKILL.md</code>, plus optional files) an agent opens when a task needs it.</dd>
+      <dt>Progressive disclosure</dt><dd>Name and description always in view; the full instructions loaded only when chosen.</dd>
+      <dt>Recall / precision</dt><dd>How many of the right cases it catches / how many of its picks are right.</dd>
+      <dt>Near-miss</dt><dd>A test prompt that looks like a match but isn't.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview">Agent Skills</a> (Anthropic docs): the three loading stages, and why the description decides.</li>
+      <li><a href="https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices">Skill authoring best practices</a> (Anthropic docs): writing descriptions that get chosen correctly.</li>
+      <li><a href="https://github.com/anthropics/skills/blob/main/skills/skill-creator/SKILL.md">skill-creator</a> (Anthropic, GitHub): the trigger test set and the 60/40 split.</li>
+      <li><a href="https://code.claude.com/docs/en/skills">Extend Claude with skills</a> (Claude Code docs): the description budget and troubleshooting triggers.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-4">AI Interview Prep #4</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

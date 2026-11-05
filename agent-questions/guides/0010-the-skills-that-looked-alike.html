@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Skills That Looked Alike</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 10 of 30 · Day 15 · about 10 minutes</div>
+    <h1>The skills that looked alike</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-2">AI Agent Engineering Interview #2 · The Skill Overload Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “To make your coding agent smarter, you gave it 40 well-written skills, and its success rate fell. Each description is just a few lines, so the context window isn't the issue. What's really going wrong, and how would you prove it?”
+      <small>Senior AI Engineer interview, Anthropic</small>
+    </div>
+    <p>You met skills in <a href="0009-the-line-that-picks-the-skill.html">guide 9</a>: the agent always sees each skill's name and description, and opens the full <code>SKILL.md</code> only when it decides the skill applies.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Too many tokens in the prompt. Shorten the descriptions.”</p>
+      <p><strong>Trap B:</strong> “Delete skills until the score comes back.”</p>
+      <p>Trap A answers the question they ruled out, and shorter descriptions leave fewer words to tell neighbours apart. Trap B might delete the useful skills along with the harmful ones. Both skip the “prove it” half.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“Storing forty skills is cheap. Choosing among them isn't. On every turn the agent picks one of forty, or none, from short descriptions. Skills that sound alike make wrong picks likelier, and a wrong pick loads instructions the agent then follows. To prove it, I'd run the same tasks with 0, 10, 20 and 40 skills, add a version padded with filler of the same length, and grade the picks alone against an answer key. The fix: show only a few relevant skills at a time.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A café has 40 dishes on one page. Reading the menu takes a minute, so its length isn't the problem. The problem is that six of the dishes are nearly the same pasta, with slightly different names. You point at one, it's the wrong one, and now that's your lunch. You don't get to swap halfway through.</p>
+    <p><b>Choosing gets harder.</b> Each new skill isn't just one more option. It's one more thing to mix up with every skill that sounds like it. Call these <b>look-alike skills</b>: descriptions close enough that the agent can't reliably tell them apart.</p>
+    <p><b>A wrong pick keeps steering.</b> Opening a skill puts its instructions into the agent's context, written as orders: “always run the linter first”. The agent tends to follow them. Even with hand-written skills, <a href="https://arxiv.org/abs/2602.12670">SkillsBench</a> saw skills lower the score on 13 of its 87 tasks, in some cases because a generic recipe pushed aside a better approach. Pick the wrong skill and that pull is worse. Call it <b>instruction hijacking</b>: a wrongly loaded skill pulling the agent off its task.</p>
+    <div class="flows" aria-label="How forty skills cause failures">
+      <div class="flow">
+        <div class="flow-label">Every turn</div>
+        <div class="strip"><span class="box">40 descriptions + “none”</span><span class="arrow">→</span><span class="box">Look-alikes confused</span><span class="arrow">→</span><span class="box">Wrong skill opened</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">After a wrong pick</div>
+        <div class="strip"><span class="box">Wrong SKILL.md in context</span><span class="arrow">→</span><span class="box">Agent follows its orders</span><span class="arrow">→</span><span class="box">Task drifts</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> Going from 39 skills to 40 adds one option. How many new pairs that could be mixed up does it add? Thirty-nine: the new skill can be confused with each of the others. And libraries don't grow evenly. Someone writes “debug failing test”, someone else later adds “fix flaky test”, and the new one lands right next to the old.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: proving it, then fixing it</h2>
+    <ol>
+      <li><b>Sweep the count.</b> Same tasks, same model, several runs each, with 0, 5, 10, 20 and 40 skills. If success falls as skills are added, the number matters.</li>
+      <li><b>Add an equal-length control.</b> A <b>control</b> is a version that changes only the thing you want to rule out. At 40, swap half the descriptions for filler text of the same length that names no skill. If the filler version holds up and the real one drops, length was never the cause.</li>
+      <li><b>Grade the choice alone.</b> Label each task with its right skill, or “none”, and record what the agent opens. A table of picked against correct shows exactly which pairs get confused. This separates choosing wrong from doing wrong.</li>
+      <li><b>Force a wrong load.</b> Take tasks the agent passes with no skills and load one plausible but wrong skill at the start. Any drop is hijacking, measured with the choice taken out.</li>
+      <li><b>Fix and retest.</b> Put a search step in front so the agent sees only a few relevant skills. Merge look-alikes. Make each description say when <em>not</em> to use it, naming its closest neighbour.</li>
+    </ol>
+    <p><b>Worked example, with real numbers, built from two separate sources, not one experiment.</b> Agents choose tools the same way they choose skills: from a name and a description. Anthropic's <a href="https://www.anthropic.com/engineering/advanced-tool-use">advanced tool use</a> post (Nov 2025) says, beyond token cost, “The most common failures are wrong tool selection and incorrect parameters, especially when tools have similar names”, such as <code>notification-send-user</code> and <code>notification-send-channel</code>. Its Tool Search Tool lets the model search for tools instead of seeing them all. On Anthropic's internal tests with large tool libraries, accuracy rose from <span class="num">49%</span> to <span class="num">74%</span> for Opus 4, and from <span class="num">79.5%</span> to <span class="num">88.1%</span> for Opus 4.5. It also cut tokens by 85%, so on its own it can't say which cause mattered more. That's what your filler control is for.</p>
+    <p>For skills themselves, SkillsBench (latest version, June 2026) compared tasks given different numbers of hand-written skills. Tasks with one skill gained <span class="num">18.0</span> points over no skills, tasks with 2–3 gained <span class="num">19.0</span>, and tasks with 4 or more gained only <span class="num">10.1</span>. The groups are different tasks, so this is a hint, not proof; the authors suggest the extra content adds overhead or conflicting guidance.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">The agent picks the right skill 92% of the time in your offline test. Why is success still down?</p><p>The choice happens on every turn. As an illustration with my own numbers: at 92% per turn, a 20-turn run with no wrong pick happens 0.92 multiplied by itself 20 times, about 19% of the time. It's <a href="0001-the-pipeline-that-beat-the-agent.html">guide 1</a>'s sum again.</p></div>
+      <div class="fu" id="fu-2"><p class="q">What if all 40 are really needed?</p><p>Keep all 40 installed, but don't show them all. Anthropic suggests keeping your three to five most-used tools always loaded and letting search find the rest. Or show skills by project or by phase of the task.</p></div>
+      <div class="fu" id="fu-3"><p class="q">Won't a smarter model fix it?</p><p>It helps: Opus 4.5 started far above Opus 4. But the search step still added about 8.6 points on top. Better models shrink the problem; they haven't removed it.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>Tokens are ruled out. What two costs of 40 skills remain?</summary><p>Choosing: wrong picks among look-alikes, on every turn. And hijacking: a wrongly opened skill's instructions steer the rest of the run.</p></details>
+      <details class="cy" id="cy-2"><summary>What does the equal-length filler control prove?</summary><p>If the same amount of text without extra skills doesn't hurt, while real skills do, then length isn't the cause. The number of choices is.</p></details>
+      <details class="cy" id="cy-3"><summary>Name two fixes that keep every skill installed.</summary><p>A search step that shows only a few relevant skills per turn, and descriptions that say when not to use each skill (or showing skills only in the projects and phases where they apply).</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>Look-alike skills</dt><dd>Skills whose descriptions are too close for the agent to tell apart reliably.</dd>
+      <dt>Instruction hijacking</dt><dd>A wrongly opened skill's instructions pulling the agent off its real task.</dd>
+      <dt>Control</dt><dd>A test version that changes only the thing you want to rule out.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://www.anthropic.com/engineering/advanced-tool-use">Introducing advanced tool use</a> (Anthropic, Nov 2025): similar names, and searching for tools instead of showing them all.</li>
+      <li><a href="https://arxiv.org/abs/2602.12670">SkillsBench</a> (Li et al., 2026): when skills help, and how many is too many.</li>
+      <li><a href="https://arxiv.org/abs/2505.03275">RAG-MCP</a> (Gan and Sun, 2025): tool overload, and retrieval as the fix.</li>
+      <li>Later in your plan, the long version: Interview Prep's <a href="https://nehilsood.github.io/guides/interview-prep/guides/0003-the-41-way-decision.html">The 41-Way Decision</a>.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-2">AI Interview Prep #2</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

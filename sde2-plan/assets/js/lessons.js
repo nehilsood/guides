@@ -52,7 +52,7 @@ const replay = (item, visits, steps) => {
   return { step, due };
 };
 
-export const schedule = (item, lesson = "") => {
+export const schedule = (item, lesson) => {
   const { step, due } = replay(item, item.visits ?? [], stepsOf(lesson));
   return due > dateOf(DAYS) ? { step, due: null, done: true } : { step, due, done: false };
 };

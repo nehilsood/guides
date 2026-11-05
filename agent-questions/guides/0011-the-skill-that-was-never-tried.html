@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Skill That Was Never Tried</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 11 of 30 · Day 16 · about 10 minutes</div>
+    <h1>The skill that was never tried</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-7">AI Agent Engineering Interview #7 · The A Priori Skill Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “To save engineers' time, your PM suggests letting the agent draft its own skills from each task's description. Benchmarks say that can leave the agent worse off. Why? And what should a skill be made from instead?”
+      <small>Senior AI Engineer interview, OpenAI</small>
+    </div>
+    <p>A skill, from <a href="0009-the-line-that-picks-the-skill.html">guide 9</a>, is a folder of instructions an agent opens when a task needs it. Here the question is not when it opens, but what's written inside.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Today's models aren't good enough. Wait for the next one.”</p>
+      <p><strong>Trap B:</strong> “Then skills don't work. Drop them.”</p>
+      <p>In the study below, self-written skills scored below no skills with three leading models, while hand-written skills helped a lot on the same setups. So the problem isn't the writer's strength, and it isn't skills. It's what the skill was written from.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“A skill written from the task description can only hold what the model already believed. Nothing in it was tried. At best it adds nothing. In one benchmark it did worse than no skill on all three setups tested: the skills often went unused, writing them ate the run, and when used, their confident wrong steps got followed. I'd build skills from runs that worked: do the task, confirm it with a test, write down what actually worked, and keep the skill only if it beats no skill.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>On her first day, a new hire is asked to write the team's how-to guide for a job she has never done. The guide looks great: neat numbered steps, firm warnings in bold. But every line is a guess.</p>
+    <p>Worse, next month's new hire trusts it. It's in the official binder, so he follows the steps and stops asking questions. Before the guide existed, he would have tried things, noticed what went wrong and asked.</p>
+    <p>Now picture a colleague who has done the job twenty times writing down the three surprises that caught her out. Same format, same binder. Completely different value, because every line came from doing the job.</p>
+    <p>A skill written from the task description is the first guide. It is made only of what the model could already see and already believed. A skill built from the <a href="0006-the-summary-that-cost-more.html">guide 6</a> <b>trace</b> of a run that worked, the log of every step, is the second. The difference is whether the skill has ever met the real system.</p>
+    <div class="flows" aria-label="Two ways to make a skill">
+      <div class="flow">
+        <div class="flow-label">Written from the description</div>
+        <div class="strip"><span class="box">Task description</span><span class="arrow">→</span><span class="box">Model writes SKILL.md</span><span class="arrow">→</span><span class="box">Guesses, in a confident voice</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">Built from runs</div>
+        <div class="strip"><span class="box">Run the task</span><span class="arrow">→</span><span class="box">A test confirms it worked</span><span class="arrow">→</span><span class="box">Write down what worked</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> A skill written in advance says “search results are always sorted by date.” Without the skill, the agent would look at the results and notice they aren't. With the skill, what does it do? It trusts the file and skips the look. The guess was always in the model; the skill just switched off the checking that used to catch it.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: building a skill from runs</h2>
+    <ol>
+      <li><b>Run the task first</b>, without a skill, and keep the trace.</li>
+      <li><b>Confirm the outcome</b> with something outside the writer: a test, or at least a separate checker. Voyager, a Minecraft agent, stored a program in its skill library only after a <b>self-verification</b> step, a second GPT-4 call reading the game state, confirmed the task was done.</li>
+      <li><b>Write down what worked</b>: the steps, plus the surprises the run ran into. Anthropic's skill guide describes this: finish a task with Claude, notice what context you kept supplying, then ask Claude to turn that into a skill.</li>
+      <li><b>Prove it with an A/B test</b>: the same tasks with and without the skill. Anthropic's guide says to measure the no-skill baseline first. Keep the skill only if it wins.</li>
+      <li><b>Recheck it</b> when the tools or the model change, since what worked may stop working.</li>
+    </ol>
+    <p><b>Worked example, with real numbers.</b> <a href="https://arxiv.org/abs/2602.12670">SkillsBench</a> (latest version, June 2026) tested this directly. In one session the agent wrote skill packs using Anthropic's <code>skill-creator</code> skill; then a fresh agent solved the task with only those packs. It's close to the PM's plan but not identical: the writing agent could look around the task's environment, but was told not to solve the task. Against no skills at all:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Setup</th><th>Self-written skills vs no skills</th></tr></thead>
+        <tbody>
+          <tr><td>Claude Code + Opus 4.7</td><td>−8.1 points</td></tr>
+          <tr><td>Codex + GPT-5.5</td><td>−11.3 points</td></tr>
+          <tr><td>Gemini CLI + Gemini 3.1 Pro</td><td>−11.5 points</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Hand-written skills added <span class="num">18.2</span> to <span class="num">24.8</span> points on the same three setups. The authors audited 12 runs and found the reasons. In 10 of them, the solver never even looked at the generated skills; the authors tie this to the Codex and Gemini CLI setups. In one Claude Code run, writing the skill used up the run before any answer was produced. And when a skill was used, its wrong assumptions were followed: one swapped a careful multi-check routine for a one-shot script whose sanity limits were too loose to flag its own implausible result.</p>
+    <p>Now the other way. <a href="https://arxiv.org/abs/2305.16291">Voyager</a> (2023) built its library only from checked programs and found <span class="num">3.3×</span> more unique items than the previous best agent. Removing self-verification cut the items it discovered by <span class="num">73%</span>.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Isn't Voyager also an agent writing its own skills?</p><p>Yes. The difference is what it writes from: code that ran and was checked. Anthropic's guide also has the model write skills, after doing the task. Who writes matters less than what they write from.</p></div>
+      <div class="fu" id="fu-2"><p class="q">What if your runs come from a mediocre agent?</p><p>Then the skill records what worked, even if clumsily, which is still real. The A/B test stops anything that doesn't beat having no skill.</p></div>
+      <div class="fu" id="fu-3"><p class="q">What if there's no test to confirm a run?</p><p>Use a separate checker, as Voyager did, but treat it as weaker than a test. Add a person's review, or a real outcome such as whether the change was accepted.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>Why can't a skill written from the task description add new information?</summary><p>Everything in it comes from the description and what the model already believed. Nothing was tried against the real system, so nothing new was learned.</p></details>
+      <details class="cy" id="cy-2"><summary>Give the three reasons the SkillsBench audit found for self-written skills hurting.</summary><p>The solver often never opened them; writing them used up the run; and when used, their confident wrong steps were followed without checking.</p></details>
+      <details class="cy" id="cy-3"><summary>What two checks should a skill pass before it ships?</summary><p>It's built from a run that a test (or a separate checker) confirmed, and it beats no skill in an A/B test on the same tasks.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>Self-verification</dt><dd>A separate check, here a second model call, that confirms a task was really done before its program is saved.</dd>
+      <dt>A/B test</dt><dd>Running the same tasks two ways, here with and without the skill, and comparing.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2602.12670">SkillsBench</a> (Li et al., 2026): hand-written against self-written skills, and the audit of why.</li>
+      <li><a href="https://arxiv.org/abs/2305.16291">Voyager</a> (Wang et al., 2023): a skill library built only from checked programs.</li>
+      <li><a href="https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices">Skill authoring best practices</a> (Anthropic docs): build evaluations first, then write skills from real tasks.</li>
+      <li>Later in your plan, the long version: Interview Prep's <a href="https://nehilsood.github.io/guides/interview-prep/guides/0008-the-closed-loop.html">The Closed Loop</a>.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-7">AI Interview Prep #7</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>
