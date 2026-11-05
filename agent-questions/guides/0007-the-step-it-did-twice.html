@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Step It Did Twice</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 7 of 30 · Day 12 · about 10 minutes</div>
+    <h1>The step it did twice</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-15">AI Agent Engineering Interview #15 · The Pixel-Memory Paradox</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “Our agent works a computer screen. It keeps every screenshot and every action in its context. Web tasks of about 15 steps go well. On a 300-step desktop job, from roughly step 80 it begins doing things it has already done. The team's plan is to move to a model with a 2-million-token window. Why won't that help?”
+      <small>Senior AI Engineer interview, Google DeepMind</small>
+    </div>
+    <p>A <b>computer-use agent</b> runs <a href="0001-the-pipeline-that-beat-the-agent.html">guide 1</a>'s loop on a screen: it looks at a screenshot, chooses a click or a keystroke, then gets a new screenshot. Its <b>context window</b> is how much text and images the model can take in at once.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “A bigger window holds the whole run, so it can't forget.”</p>
+      <p><strong>Trap B:</strong> “Shrink the screenshots so more of them fit.”</p>
+      <p>Both assume the problem is room. But the trouble starts at step 80, when the screenshots would fill only a small part of a 2M window (see the table below). The problem is finding the right fact, not storing it.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“Window size is storage, and this is a finding problem. By step 80 the context holds 80 near-identical screenshots, and none of them says which steps are done. Models get worse at using a long context, especially one full of look-alikes. A 2-million-token window just holds more of them.</p>
+      <p>So I'd give memory a structure: a written progress log the agent updates every step, only the last few screenshots, and a check after each action. Then ‘invoice 57: done’ is a line to read, not pixels to compare.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>You're entering 300 invoices into a system at your desk. After each one, a colleague takes a photo of your screen and drops it in a box. To decide what to do next, you flip through the box.</p>
+    <p>For the first 15 photos, this works. By photo 80, every photo shows the same screen with slightly different numbers. Did you enter invoice 57? You'd have to find the right photo and spot a tiny difference. So you guess, and sometimes you enter it again.</p>
+    <p>A bigger box wouldn't help. A checklist would.</p>
+    <p>The box is the model's context window. The trouble you had flipping through it has a name, <b>context rot</b>: as the context grows, the model gets worse at recalling what's in it. The photos that look almost the same are <b>distractors</b>: material similar to the right answer but wrong. The checklist is <b>structured note-taking</b>: the agent writes its progress to a file outside the window and reads it back.</p>
+    <div class="flows" aria-label="Screenshot history compared with a progress log">
+      <div class="flow">
+        <div class="flow-label">Memory as a pile of screenshots</div>
+        <div class="strip"><span class="box">80 look-alike screenshots</span><span class="arrow">→</span><span class="box">“Did I do step 57?”</span><span class="arrow">→</span><span class="box">Guess, maybe repeat</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">Memory as a log plus a few screenshots</div>
+        <div class="strip"><span class="box">Progress log + last 3 screenshots</span><span class="arrow">→</span><span class="box">“57: done”</span><span class="arrow">→</span><span class="box">Go to step 58</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> Two screenshots of a spreadsheet, before and after the agent typed into cell B7, differ by a few pixels. Which tells the agent more reliably that B7 is done: those two images buried among 80 others, or one line in a list saying “B7 filled”? Pixels show what the screen looked like. They don't say what's finished.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: memory in parts</h2>
+    <ol>
+      <li><b>A plan and a progress log.</b> The agent keeps a file with the goal, the steps, and which are done, and updates it after each step. Anthropic describes this as structured note-taking, like a <code>NOTES.md</code> file. Their Pokémon-playing agent kept notes such as how many levels a character had gained toward a target.</li>
+      <li><b>Only recent screenshots.</b> Anthropic's computer-use docs suggest keeping the last three screenshots and removing old ones in batches, every 25 turns, so the prompt cache from <a href="0006-the-summary-that-cost-more.html">guide 6</a> keeps working between removals. For the newest models they suggest clearing old screenshots on the server side instead.</li>
+      <li><b>Check after each action.</b> The same docs warn that the model sometimes acts as if an action worked without checking, and suggest a prompt: after each step, take a screenshot and say whether it succeeded.</li>
+      <li><b>Write facts, not pictures.</b> Log what happened in words: “clicked Submit on invoice 57, confirmation shown.”</li>
+      <li><b>Compact when it gets long.</b> Summarise older history when needed, but keep the log whole, since it is the agent's real memory.</li>
+    </ol>
+    <p><b>Worked example, with real numbers.</b> Anthropic's <a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool">computer-use docs</a> put one screenshot at roughly 1,000–1,800 input tokens. As an illustration built from that range (screenshots only, the real sizes depend on the screen):</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Step</th><th>Screenshot tokens in context</th><th>Share of a 2M window</th></tr></thead>
+        <tbody>
+          <tr><td>15</td><td>15,000–27,000</td><td>about 1%</td></tr>
+          <tr><td>80</td><td>80,000–144,000</td><td>4–7%</td></tr>
+          <tr><td>300</td><td>300,000–540,000</td><td>15–27%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>So a 2M window could hold even the whole 300-step run. Holding it was never the hard part; using it is. <a href="https://arxiv.org/abs/2307.03172">Lost in the Middle</a> (Liu et al., 2023) found models use information best when it sits at the start or end of the input, and much worse in the middle, even models built for long inputs. Chroma's <a href="https://www.trychroma.com/research/context-rot">Context Rot</a> report (Jul 2025) tested 18 models and found performance changes with input length even on simple tasks, and that distractors hurt more as the input grows. Eighty near-identical screenshots are exactly that case.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Why keep three screenshots, not just the latest one?</p><p>The docs don't say why. A likely reason: to check that an action worked, the agent compares the screen before and after it, and one screenshot can't show a change.</p></div>
+      <div class="fu" id="fu-2"><p class="q">What goes in the progress log?</p><p>The goal, the list of steps with done or not done, the last state the agent confirmed, and any values it has typed, such as ids or totals.</p></div>
+      <div class="fu" id="fu-3"><p class="q">How would you show the fix worked?</p><p>Rerun the 300-step job and count repeated actions: the same action on the same item twice. Compare that count, and the success rate, before and after.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>Why won't a 2-million-token window fix the repeats?</summary><p>Room isn't the problem. The agent has to find which steps are done among many look-alike screenshots, models get worse at that as the context grows, and a bigger window only adds more of them.</p></details>
+      <details class="cy" id="cy-2"><summary>What is context rot?</summary><p>As the context grows, the model gets worse at recalling and using what's in it, especially when similar-looking distractors are present.</p></details>
+      <details class="cy" id="cy-3"><summary>Name three parts of a better memory for this agent.</summary><p>A written progress log it updates every step, only the last few screenshots in context, and a check after each action that it worked.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>Computer-use agent</dt><dd>An agent that works a screen: screenshot in, click or keystroke out.</dd>
+      <dt>Context rot</dt><dd>The model's recall getting worse as its context grows.</dd>
+      <dt>Distractor</dt><dd>Material that looks like the right answer but isn't.</dd>
+      <dt>Structured note-taking</dt><dd>The agent writes its progress to a file outside the context and reads it back.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents">Effective context engineering for AI agents</a> (Anthropic, Sep 2025): context rot, compaction and note-taking.</li>
+      <li><a href="https://www.trychroma.com/research/context-rot">Context Rot</a> (Chroma, Jul 2025): 18 models tested on longer and longer inputs.</li>
+      <li><a href="https://arxiv.org/abs/2307.03172">Lost in the Middle</a> (Liu et al., 2023): where in a long input models look.</li>
+      <li><a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool">Computer use tool</a> (Anthropic docs): screenshot sizes, pruning and checking each step.</li>
+      <li>Later in your plan, the long version: Interview Prep's <a href="https://nehilsood.github.io/guides/interview-prep/guides/0016-the-frame-marked-now.html">The Frame Marked Now</a>.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-15">AI Interview Prep #15</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

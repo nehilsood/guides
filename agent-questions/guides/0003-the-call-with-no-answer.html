@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Call With No Answer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 3 of 30 · Day 8 · about 10 minutes</div>
+    <h1>The call with no answer</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-5">AI Agent Engineering Interview #5 · The History Corruption Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “Your agent runs for hours and crashes halfway through. You reload its saved conversation to carry on, and the API refuses all of it, yet every message looks fine. Which rule did you break, and how do you make sure a crash can never leave you here again?”
+      <small>Senior AI Engineer interview, Anthropic</small>
+    </div>
+    <p>An <b>invariant</b> is a rule that must be true at every moment, the way a bank's books must always balance. The interviewer wants you to name the one the crash broke.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “The saved file got damaged. Throw it away and start the task again.”</p>
+      <p><strong>Trap B:</strong> “Retry the request until it goes through.”</p>
+      <p>Nothing is damaged. The history is <em>incomplete</em>. Retrying sends the same gap again. Starting over throws away hours of work, and may repeat actions that already happened, like sending an email twice.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“The rule is: every tool call in the history must be answered by its result, with the same id, in the very next message. My agent saved the model's tool call, then crashed before it saved the result. So the history ends with a call that has no answer. Each message is valid on its own; it's the pair that's broken.</p>
+      <p>To make it impossible, I save a turn as one unit: the model's call message and all its results in a single database transaction, so a crash leaves both or neither. Tools with side effects get the call id as an idempotency key, so running them again can't do the work twice. And on resume I check the history first: any call without a result gets re-run if that's safe, or gets an error result saying it was interrupted, so the model can decide what to do.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>Think of a busy restaurant's order book. The waiter writes “Ticket 12: one soup.” The kitchen's rule is strict: the next line in the book must be “Ticket 12: soup served.” Nothing else may go in between.</p>
+    <p>One night the power cuts out right after the waiter writes the order and before the kitchen writes its reply. The next morning the new manager opens the book, finds ticket 12 with no reply, and refuses to carry on. Was the soup made? Was it served? Was it paid for? The book can't say.</p>
+    <p>An agent's saved history works the same way. In <a href="0001-the-pipeline-that-beat-the-agent.html">guide 1</a>'s loop, each round adds two messages: the model's <b>tool call</b> (with an id, the ticket number) and then the <b>tool result</b> (carrying the same id). The API checks that every call is followed straight away by its result. A crash between the two leaves an unanswered ticket.</p>
+    <div class="flows" aria-label="Saved history after a crash">
+      <div class="flow">
+        <div class="flow-label">What was saved before the crash</div>
+        <div class="strip"><span class="box">User: the task</span><span class="arrow">→</span><span class="box">Model: call tool, id 12</span><span class="arrow">→</span><span class="box">(crash: no result)</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">What the resume code sends</div>
+        <div class="strip"><span class="box">…call id 12</span><span class="arrow">→</span><span class="box">User: “please continue”</span><span class="arrow">→</span><span class="box">Rejected</span></div>
+      </div>
+    </div>
+    <p>The fix is the restaurant writing the order and the reply on the same line, at the same moment. Databases call this a <b>transaction</b>: several changes saved as one, all or nothing.</p>
+    <div class="think"><b>Think about it.</b> The tool actually ran before the crash, but its result was never saved. On resume, should you just run it again? If it only read a file, yes, no harm done. If it sent an email or charged a card, running it again does it twice. That's why the fix needs a second half: tools that are safe to repeat.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: closing the gap</h2>
+    <ol>
+      <li><b>Know the rule exactly.</b> In Anthropic's API, results must come straight after the message with the calls, and they must come first in that message. When the model calls <a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use/parallel-tool-use">several tools at once</a>, all the results go back together in one message. OpenAI's API matches each result to its call by a <code>call_id</code> in the same way.</li>
+      <li><b>Save a turn as one unit.</b> Write the model's call message and all its results in one database transaction. SQLite's docs define this as atomic commit: either all the changes in a transaction happen or none do, even if the machine crashes or loses power.</li>
+      <li><b>Make side effects safe to repeat.</b> Pass the call id to the tool as an <b>idempotency key</b>. Stripe's API works this way: it saves the response to the first request with a given key and returns that saved response on retries, so a repeat can't do the same operation twice.</li>
+      <li><b>Check the history before sending.</b> On load, pair every call with its result. Re-run a missing one if it's safe; otherwise add a result marked as an error, saying the tool was interrupted and may or may not have run.</li>
+      <li><b>Test the crash.</b> In a test, kill the agent at every step boundary and check that resuming always produces a history the API accepts.</li>
+    </ol>
+    <p><b>Worked example, built from Anthropic's docs example.</b> The user asks for the weather in San Francisco. The model replies with a <code>tool_use</code> block for <code>get_weather</code>, id <code>toolu_01A09q90qw90lq917835lq9</code>, and the response's <code>stop_reason</code> is <code>tool_use</code>. Now this guide's own illustration: the agent saves that message and crashes. On restart it appends a plain user message, “please continue”, so the call is no longer followed by its result. When tool results aren't formatted correctly, the docs say you may see an error such as “tool_use ids were found without tool_result blocks immediately after”. The repair is one message with a <code>tool_result</code> carrying the same id. Since <code>get_weather</code> only reads, re-run it and send “15 degrees”. If it were risky, send “Interrupted before the result was saved” with <code>is_error: true</code>, and the model takes it from there.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Why not just delete the unanswered call?</p><p>Dropping the whole unfinished turn gives a valid history, but the model forgets it may already have acted, and might act again. Keeping the call with an error result tells it the truth.</p></div>
+      <div class="fu" id="fu-2"><p class="q">What if the model called three tools and the crash came after two finished?</p><p>All three results must go back together. Save the turn only once every result is in, or fill the missing one with an error result.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>State the rule the crash broke, in one sentence.</summary><p>Every tool call must be followed, in the very next message, by a result with the same id.</p></details>
+      <details class="cy" id="cy-2"><summary>Why does every message look fine while the API rejects the history?</summary><p>The problem isn't in any one message. It's a missing partner: a call whose result was never saved.</p></details>
+      <details class="cy" id="cy-3"><summary>Name the two halves of the fix.</summary><p>Save each turn (call plus results) as one all-or-nothing unit, and make tools safe to repeat with an idempotency key. Then check the history on resume and repair any gap.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>Invariant</dt><dd>A rule that must hold at every moment, not just most of the time.</dd>
+      <dt>Tool call id</dt><dd>The ticket number that links a tool call to its result.</dd>
+      <dt>Transaction (atomic commit)</dt><dd>Several changes saved as one: all of them happen, or none do.</dd>
+      <dt>Idempotency key</dt><dd>A unique key sent with a request so that repeating it returns the first result instead of doing the work again.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use/handle-tool-calls">Handle tool calls</a> (Anthropic docs): the ordering rules, the error text and <code>is_error</code>.</li>
+      <li><a href="https://developers.openai.com/api/docs/guides/function-calling">Function calling</a> (OpenAI docs): the same loop, with results matched by <code>call_id</code>.</li>
+      <li><a href="https://www.sqlite.org/atomiccommit.html">Atomic commit in SQLite</a>: how a database makes “all or nothing” survive a crash.</li>
+      <li><a href="https://docs.stripe.com/api/idempotent_requests">Idempotent requests</a> (Stripe docs): safe retries with an idempotency key.</li>
+      <li>Later in your plan, the long version: Interview Prep's <a href="https://nehilsood.github.io/guides/interview-prep/guides/0006-the-orphaned-call.html">The Orphaned Call</a>.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-5">AI Interview Prep #5</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

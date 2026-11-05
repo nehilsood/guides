@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Summary That Cost More</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 6 of 30 · Day 11 · about 10 minutes</div>
+    <h1>The summary that cost more</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-27">AI Agent Engineering Interview #27 · The Context Compaction Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “In your coding agent, you replaced each raw tool output with a short summary written by a model. The prompts got much smaller. Yet the cost of each fixed issue stayed flat, and sometimes it rose. Where did the money go, and how would you show it from the traces?”
+      <small>Senior AI Engineer interview, Anthropic</small>
+    </div>
+    <p>A <b>trace</b> is the log of one run: every step the agent took, what it sent to the model, what came back, and the tokens billed.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “The summaries cost money to write. Use a cheaper model for them.”</p>
+      <p><strong>Trap B:</strong> “Summarise even harder, so the prompt shrinks more.”</p>
+      <p>Trap A is true but small: in the study below, writing summaries was at most 7.2% of an issue's cost. Trap B makes the real leak worse. Both look at one step; the bill depends on the whole run.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“The cost of an issue is roughly the cost of one step times the number of steps. My first suspect is that I shrank the first and grew the second: when a summary drops a detail, like the exact error line, the agent runs the tool again. Second suspect: summaries that rewrite history break the prompt cache, so cheap cached tokens become full price.</p>
+      <p>The traces settle it: steps per issue, cached tokens per step, repeated tool calls. The usual fix is simpler: hide old outputs, keep the agent's own actions, and only ever add to the history.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>You're cooking a new dish, and a friend reads the recipe to you over the phone. To save time, she gives you one-line versions: “Make the sauce.” Soon you're ringing back: “How much salt?” Shorter calls, more calls, no time saved.</p>
+    <p>That's this bug. In <a href="0001-the-pipeline-that-beat-the-agent.html">guide 1</a>'s loop, each tool result goes back into the model's context, and the whole history is sent again on every step. A summary makes each result smaller, but the agent loses details it didn't know it would need, so it runs more steps. The full path of one run is its <b>trajectory</b>; a longer trajectory can cost more even when every step is smaller.</p>
+    <p>A second picture: a copy shop has already copied the first 40 pages of your report, so copying them again is nearly free. Change page 3, and every page after it must be copied fresh. That's <b>prompt caching</b>: if a request begins with exactly the same text as the last one, those tokens cost much less. Rewrite something early and everything after it is full price.</p>
+    <div class="flows" aria-label="Raw outputs compared with summaries">
+      <div class="flow">
+        <div class="flow-label">Raw outputs: big steps, fewer of them</div>
+        <div class="strip"><span class="box">Run tests</span><span class="arrow">→</span><span class="box">Full log kept</span><span class="arrow">→</span><span class="box">Fix the line</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">Summaries: small steps, more of them</div>
+        <div class="strip"><span class="box">Run tests</span><span class="arrow">→</span><span class="box">“Auth tests failed”</span><span class="arrow">→</span><span class="box">Run tests again</span><span class="arrow">→</span><span class="box">Fix the line</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> The agent ran the tests and got a 500-line log. The summary says “3 tests failed in the login module.” Three steps later it needs the exact error and line number. What does it do? It runs the tests again: one more step, with the whole history resent.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: finding the money in the traces</h2>
+    <ol>
+      <li><b>Split the bill per issue.</b> Number of steps, input tokens per step (cached and not), output tokens, and the summariser's own calls, since each summary is an extra model call.</li>
+      <li><b>Compare step counts</b> on the same issues, before and after.</li>
+      <li><b>Count repeats.</b> The same tool with the same arguments called twice in one run means a detail was lost.</li>
+      <li><b>Check the cache.</b> If the share of cached tokens per step fell after the change, the summaries are rewriting the start of the prompt.</li>
+      <li><b>Fix it simply.</b> Replace old outputs with a short placeholder but keep the agent's reasoning and actions, keep file paths and URLs so detail can be fetched again, and only add to the history, never edit it.</li>
+    </ol>
+    <p><b>Worked example, with real numbers.</b> JetBrains researchers (<a href="https://arxiv.org/abs/2508.21433">The Complexity Trap</a>, 2025) ran SWE-agent on SWE-bench Verified (guide 1), comparing summaries with simply hiding old tool outputs, called <b>observation masking</b>. With Gemini 2.5 Flash, summarised runs averaged <span class="num">52</span> turns against <span class="num">44</span> with masking, about 18% more, and cost $0.24 per issue against $0.18. With Qwen3-Coder 480B, the paper reports summarised runs 15% longer than the raw agent's and 13% longer than masking's. Both methods cut the raw agent's $1.29 roughly in half, but masking was cheaper ($0.61 vs $0.64) and solved slightly more (54.8% vs 53.8%). The authors' guess at why runs grew: summaries may hide the signs of failure that would make the agent stop sooner.</p>
+    <p>Note what the study does <em>not</em> show: flat or rising cost. Against the raw agent, summaries still saved about half. What it shows is why summaries lose ground to simple masking. Whether your agent's flat cost comes from this is what your own traces must show.</p>
+    <p>Now the cache. Anthropic's <a href="https://platform.claude.com/docs/en/build-with-claude/prompt-caching">prompt caching docs</a> say, at the time of writing, that reading cached tokens costs 0.1 times the normal input price on most models, writing them costs 1.25 times, and a change anywhere invalidates everything after it. As an illustration from those numbers (not a measured run): a 50,000-token history read from cache costs about as much as 5,000 normal tokens; a 10,000-token summary rewritten every step, about 12,500. The smaller prompt is the dearer one. Anthropic's own computer-use demo skips trimming old screenshots when caching is on, for this reason.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Isn't masking also throwing information away?</p><p>Yes, but the agent still sees what it did and why, so it knows the output existed and can rerun the tool. In the study, masking solved about as many issues as summarising, and cost less in the runs above.</p></div>
+      <div class="fu" id="fu-2"><p class="q">So is summarising never right?</p><p>It helps when the history truly won't fit. Do it rarely and in batches (the study summarised 21 turns at once and kept the last 10 whole), and keep paths so details can come back.</p></div>
+      <div class="fu" id="fu-3"><p class="q">Which number goes on the dashboard?</p><p>Cost per solved issue, the measure from guide 1's follow-ups, split into steps times cost per step, with the cached share beside it.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>Smaller prompts, same cost per issue. Where's the first place to look?</summary><p>The number of steps per issue. A lost detail makes the agent run tools again, so runs get longer.</p></details>
+      <details class="cy" id="cy-2"><summary>How can rewriting the history raise the price of each step?</summary><p>It breaks the prompt cache. On most models, at the time of writing, cached tokens cost a tenth of the normal price, and a change early in the prompt makes everything after it full price again.</p></details>
+      <details class="cy" id="cy-3"><summary>What does observation masking keep, and what does it drop?</summary><p>It keeps the agent's reasoning and actions and drops the old tool outputs, putting a short placeholder in their place.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>Trajectory</dt><dd>The full sequence of steps an agent takes on one task.</dd>
+      <dt>Prompt caching</dt><dd>The provider reuses the unchanged start of a prompt and bills those tokens at a lower price.</dd>
+      <dt>Observation masking</dt><dd>Replacing old tool outputs with a placeholder while keeping the agent's own reasoning and actions.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2508.21433">The Complexity Trap</a> (Lindenbauer et al., 2025): masking against summarising, with costs and turn counts.</li>
+      <li><a href="https://platform.claude.com/docs/en/build-with-claude/prompt-caching">Prompt caching</a> (Anthropic docs): the prices and what breaks the cache.</li>
+      <li><a href="https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus">Context Engineering for AI Agents</a> (Manus, Jul 2025): keep the context append-only and make compression restorable.</li>
+      <li><a href="https://github.com/anthropics/claude-quickstarts/blob/main/computer-use-demo/computer_use_demo/loop.py">Computer-use demo loop</a> (Anthropic, GitHub): the choice not to break the cache.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-27">AI Interview Prep #27</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

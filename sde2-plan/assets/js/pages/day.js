@@ -234,6 +234,12 @@ const partNotes = (lessons) => {
   return parts.map((t) => el("p", { class: "small" }, parts.length > 1 ? `${labelOf(t.lesson)}: ` : null, partNote(t)));
 };
 
+// The agent question's own row: the same lesson to-do as inside a block, with a note on the quick recall.
+const agentBody = (a, mutate) => [
+  todo("Today's read", a.done || a.skipped ? 1 : 0, [lessonTask(a, mutate)]),
+  el("p", { class: "small", text: a.started ? "Added to quick recall: one question after 3, 7 and 21 days, then every 60 days." : "Ticking it starts a quick recall." }),
+];
+
 // Once the block is in its debrief, a row's help moves into the debrief's "The idea". Lesson tasks have their own
 // panel after "Do today", drawn in every state of a solve-first block.
 const todos = (b, mutate, redraw) => {
@@ -611,6 +617,7 @@ const build = (data, m, flow, mutate, redraw) => {
     r.kind === "revise" ? reviseBody(m, mutate)
     : r.kind === "lesson" ? lessonBody(lessons.get(r.key), mutate, redraw)
     : r.kind === "block" ? blockBody(blocks.get(r.key), r, mutate, redraw)
+    : r.kind === "agent" ? agentBody(m.agent, mutate)
     : r.kind === "toread" ? toReadBody(m, mutate)
     : r.kind === "selftest" ? m.selftest.map((q) => question(q, m.baseline, mutate))
     : r.kind === "close" ? closeBody(m, mutate)

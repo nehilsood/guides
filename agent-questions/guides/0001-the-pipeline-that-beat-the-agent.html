@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Pipeline That Beat the Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 1 of 30 · Day 6 · about 10 minutes</div>
+    <h1>The pipeline that beat the agent</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-20">AI Agent Engineering Interview #20 · The Agent Loop Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “A simple fixed pipeline (first find the buggy file, then write a patch, with no loop and no checking step) outscores your full coding agent on SWE-bench. So are agent loops not worth building?”
+      <small>Senior AI Engineer interview, Google</small>
+    </div>
+    <p><b>SWE-bench</b> is a test set of real bugs taken from GitHub issues in popular Python projects. A fix counts only if the project's own tests pass afterwards.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Agent loops are just hype. A plain fixed pipeline did better, so use that and skip the loop.”</p>
+      <p><strong>Trap B:</strong> “The benchmark is wrong. On real work the agent would win.”</p>
+      <p>Both answers pick a side before asking <em>why</em> the pipeline won. The interviewer wants to see you find the cause.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“Not on its own. The difference between a pipeline and an agent is who picks the next step: my code, or the model. A loop only pays off if the model picks well at every step, because mistakes add up. At 95% per step, a 20-step run goes fully right only about a third of the time.</p>
+      <p>So when a pipeline wins, I check three things before I drop the loop: the <b>task</b> (SWE-bench Lite bugs are small one-file fixes, which suit a fixed route), the <b>harness</b> (are the tools and their feedback good?) and the <b>model</b> (was it trained to work in loops?). With the same model, the Agentless pipeline and a minimal two-tool agent scored almost the same on SWE-bench Verified, about 51% and 49%. So the loop wasn't the problem. I'd use a pipeline when I know the steps, and a loop when I don't.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>You're driving to a friend's new flat. There are two ways to get there.</p>
+    <p><b>Written directions:</b> “Take exit 3, second left, building 12.” This is fast and cheap, and it works perfectly when the directions are right. But if a road is closed you're stuck, because a piece of paper can't notice the roadblock.</p>
+    <p><b>Calling your friend at every junction:</b> “I'm at the petrol pump, where now?” It's slower and costs more, but you can recover from a wrong turn. Every call is a chance to fix a mistake. It's also a chance to make one, if your friend mishears you.</p>
+    <p>The written directions are a <b>pipeline</b> (also called a workflow): the steps are fixed in code ahead of time. Calling your friend is an <b>agent loop</b>: the model looks at the task, chooses an action (open a file, run the tests), sees the result, and chooses again until it decides it's done.</p>
+    <div class="flows" aria-label="Pipeline compared with agent loop">
+      <div class="flow">
+        <div class="flow-label">Pipeline: your code picks each step</div>
+        <div class="strip"><span class="box">Find the file</span><span class="arrow">→</span><span class="box">Write a patch</span><span class="arrow">→</span><span class="box">Done</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">Agent loop: the model picks each step</div>
+        <div class="strip"><span class="box">Think</span><span class="arrow">→</span><span class="box">Act (call a tool)</span><span class="arrow">→</span><span class="box">See the result</span><span class="back">↺ repeat until done</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> Your friend gets each junction right 95% of the time, and the trip has 20 junctions. How often do you arrive without a wrong turn? Multiply 0.95 by itself 20 times and you get about 36%. More steps means more chances to slip. That's why the checking step matters so much: running the tests is what turns those extra steps into a gain instead of a cost.</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Steps</th><th>Each step right 95%</th><th>Each step right 90%</th></tr></thead>
+        <tbody>
+          <tr><td>5</td><td>77%</td><td>59%</td></tr>
+          <tr><td>10</td><td>60%</td><td>35%</td></tr>
+          <tr><td>20</td><td>36%</td><td>12%</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: what to check when a pipeline wins</h2>
+    <ol>
+      <li><b>Does the task fit a fixed route?</b> SWE-bench Lite keeps only bugs whose real fix edits one file in at most three places. “Find the file, then fix it” suits that well. A messy bug spread across many files needs exploring.</li>
+      <li><b>Is the harness good?</b> The harness is the code around the model: its tools, what they return, and the prompts. The SWE-agent paper showed that the tool design alone changes results a lot, for example a file viewer that shows 100 lines at a time, or an editor that rejects a broken edit.</li>
+      <li><b>Is the model good at loops?</b> A model trained on step-by-step tool use stays on track. An older model wanders and burns its steps.</li>
+      <li><b>Is the comparison fair?</b> Use the same model, the same budget and the same test set. Then read the runs to see where they failed.</li>
+      <li><b>Decide per task.</b> Use a pipeline when the steps are known and a loop when they aren't, or mix them: a pipeline with a test step and one retry.</li>
+    </ol>
+    <p><b>Worked example, with real numbers.</b> In mid-2024 the <a href="https://arxiv.org/abs/2407.01489">Agentless</a> pipeline (find, repair, then check the patch) solved 32% of SWE-bench Lite's 300 bugs, the best of any open-source tool then, at an average cost of $0.70. That's where “the pipeline beat the agent” comes from. By December 2024, Agentless with Claude 3.5 Sonnet reached <span class="num">50.8%</span> on SWE-bench Verified. In January 2025, Anthropic's minimal agent (a prompt plus a shell tool and an edit tool) reached <span class="num">49%</span> on the same set with the same model. So with the same model the two scores were almost equal. The early gap came from weaker models and tools, not from the loop itself.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">When would you choose the loop anyway?</p><p>When the steps can't be known in advance: you have to reproduce the bug first, the change touches many files, or test failures and error messages need reading. Also when the model is strong at using tools.</p></div>
+      <div class="fu" id="fu-2"><p class="q">How would you make your agent beat the pipeline?</p><p>Add a checking step (reproduce the bug, then run the tests), improve the tools, cap the number of steps, and start the agent from the pipeline's “find the file” result instead of from scratch.</p></div>
+      <div class="fu" id="fu-3"><p class="q">What does the loop cost you?</p><p>More tokens, more time and more ways to fail. Set a step limit and a spending limit, and compare cost per <em>solved</em> bug, not cost per run.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>In one sentence, what's the difference between a pipeline and an agent?</summary><p>In a pipeline your code fixes the steps ahead of time. In an agent the model picks each next step itself, based on what it has seen so far.</p></details>
+      <details class="cy" id="cy-2"><summary>Each step is right 90% of the time. Roughly how often does a 10-step run go fully right?</summary><p>About 35%, because 0.9 multiplied by itself 10 times is about 0.35.</p></details>
+      <details class="cy" id="cy-3"><summary>Name the three things you check before saying “loops aren't worth it”.</summary><p>The task (does it fit a fixed route?), the harness (tools and feedback) and the model (is it trained for loops?). Then compare fairly: same model, same budget.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>Agent loop</dt><dd>The model repeats think → act → see the result until it decides the task is done.</dd>
+      <dt>Pipeline (workflow)</dt><dd>A fixed sequence of model calls and tools, written in code ahead of time.</dd>
+      <dt>Tool call</dt><dd>The model asks your code to do something (read a file, run tests) and gets the result back.</dd>
+      <dt>Harness</dt><dd>Everything around the model: tools, prompts, and how results are fed back.</dd>
+      <dt>SWE-bench Lite / Verified</dt><dd>Lite: 300 smaller one-file bugs. Verified: 500 bugs that people checked can actually be solved.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://www.anthropic.com/engineering/building-effective-agents">Building effective agents</a> (Anthropic, Dec 2024): workflows vs agents, and why to start simple.</li>
+      <li><a href="https://arxiv.org/abs/2407.01489">Agentless</a> (Xia et al., 2024): the pipeline in this question.</li>
+      <li><a href="https://arxiv.org/abs/2405.15793">SWE-agent</a> (Yang et al., 2024): how tool design changes an agent's score.</li>
+      <li><a href="https://www.anthropic.com/research/swe-bench-sonnet">Raising the bar on SWE-bench Verified</a> (Anthropic, Jan 2025): the minimal two-tool agent.</li>
+      <li>Later in your plan: Interview Prep's <a href="https://nehilsood.github.io/guides/interview-prep/guides/0002-the-chef-who-never-tastes.html">The Chef Who Never Tastes</a> goes deeper on loops and checking.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-20">AI Interview Prep #20</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

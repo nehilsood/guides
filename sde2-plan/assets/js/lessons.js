@@ -5,11 +5,17 @@ import { fieldTime, setSkipped, setSolved, startLesson } from "./store.js";
 
 export const LESSON_STEPS = [1, 3, 7, 21, 60];
 export const VISIT_MINUTES = 5;
-export const GUIDES = { sds: "System Design School", ip: "Interview Prep", rm: "Résumé Mastery" };
+// Agent Questions lessons get a lighter quick recall: 1 question, 2 minutes, its own daily room.
+export const QUICK_STEPS = [3, 7, 21, 60];
+export const QUICK_CAP = 3;
+export const GUIDES = { sds: "System Design School", ip: "Interview Prep", rm: "Résumé Mastery", aq: "Agent Questions" };
 // The track a lesson takes when the lesson index doesn't give one.
-export const DEFAULT_TRACK = { sds: "hld", ip: "ai", rm: "project" };
+export const DEFAULT_TRACK = { sds: "hld", ip: "ai", rm: "project", aq: "ai" };
 
-const LAST = LESSON_STEPS.length - 1;
+const isQuick = (lesson) => lesson.startsWith("aq-");
+export const stepsOf = (lesson) => (isQuick(lesson) ? QUICK_STEPS : LESSON_STEPS);
+export const visitMinutes = (lesson) => (isQuick(lesson) ? 2 : VISIT_MINUTES);
+export const visitQuestions = (lesson) => (isQuick(lesson) ? 1 : 3);
 
 // "sds-0006" -> "sds", the key of its guide in GUIDES; "SDS 0006"; and with the guide's full name, "System Design School 0006".
 const partsOf = (lesson) => lesson.split("-");
@@ -35,19 +41,19 @@ export const capFor = (date) => ([0, 5].includes(new Date(`${date}T00:00:00Z`).g
 
 // Replay `visits` (all of them, or all but today's). A stale device can sync in a later `started` than a saved visit, so the
 // earliest of the two is where the replay begins.
-const replay = (item, visits) => {
+const replay = (item, visits, steps) => {
   const begin = [item.started, item.visits?.[0]?.date].filter(Boolean).sort()[0];
   let step = 0;
-  let due = addDays(begin, LESSON_STEPS[0]);
+  let due = addDays(begin, steps[0]);
   for (const { date, rating } of visits) {
-    step = rating in MOVES ? Math.min(step + MOVES[rating], LAST) : 0;
-    due = addDays(date, LESSON_STEPS[step]);
+    step = rating in MOVES ? Math.min(step + MOVES[rating], steps.length - 1) : 0;
+    due = addDays(date, steps[step]);
   }
   return { step, due };
 };
 
-export const schedule = (item) => {
-  const { step, due } = replay(item, item.visits ?? []);
+export const schedule = (item, lesson = "") => {
+  const { step, due } = replay(item, item.visits ?? [], stepsOf(lesson));
   return due > dateOf(DAYS) ? { step, due: null, done: true } : { step, due, done: false };
 };
 
@@ -59,13 +65,13 @@ const toVisit = (lesson, item, today) => {
   const all = item.visits ?? [];
   const rated = all.at(-1)?.date === today;
   const before = rated ? all.slice(0, -1) : all;
-  const { step, due } = replay(item, before);
+  const { step, due } = replay(item, before, stepsOf(lesson));
   return { lesson, due, step, overdue: overdueDays(due, today), n: before.length + 1, last: lastOf(before), rated };
 };
 
 // After today's rating, the lesson's next visit as tomorrow's later list will show it; null if it has no more in the plan.
 export const nextVisit = (lesson, item) => {
-  const { step, due, done } = schedule(item);
+  const { step, due, done } = schedule(item, lesson);
   const visits = item.visits ?? [];
   return done ? null : { lesson, due, step, overdue: 0, n: visits.length + 1, last: lastOf(visits), rated: false };
 };
@@ -81,15 +87,24 @@ export const lessonQueue = (state, today) => {
     const lesson = key.slice(2);
     if (item.visits?.at(-1)?.date === today) rated.push(toVisit(lesson, item, today));
     else {
-      const next = schedule(item);
+      const next = schedule(item, lesson);
       if (!next.done) (next.due <= today ? due : later).push(toVisit(lesson, item, today));
     }
   }
   due.sort(byDueStepLesson);
   later.sort(byDueStepLesson);
-  const room = Math.max(0, capFor(today) - rated.length);
+  // Quick-recall lessons have their own room, outside the shared cap.
+  const quick = due.filter((v) => isQuick(v.lesson));
+  const rest = due.filter((v) => !isQuick(v.lesson));
+  const ratedQuick = rated.filter((v) => isQuick(v.lesson)).length;
+  const quickRoom = Math.max(0, QUICK_CAP - ratedQuick);
+  const restRoom = Math.max(0, capFor(today) - (rated.length - ratedQuick));
   // A rated row keeps its pre-rating due, so rating one never reorders the list.
-  return { today: [...rated, ...due.slice(0, room)].sort(byDueStepLesson), waiting: due.slice(room), later };
+  return {
+    today: [...rated, ...quick.slice(0, quickRoom), ...rest.slice(0, restRoom)].sort(byDueStepLesson),
+    waiting: [...quick.slice(quickRoom), ...rest.slice(restRoom)].sort(byDueStepLesson),
+    later,
+  };
 };
 
 // Reading parts. Labs and rereads have no `part`. A part is closed once it is solved or skipped; closing the last one
@@ -111,26 +126,29 @@ export const skipPart = (state, task, today, nowMs) => {
 // field. With no time at all it counts as closed long ago.
 const closedAt = (item) => Math.max(0, ...["solved", "skipped"].filter((f) => item[f] === true).map((f) => fieldTime(item, f)));
 
+// A card's block tasks, then its agent question (a card-level field, not in any block).
+const readingTasks = (card) => [...card.blocks.flatMap((b) => b.tasks ?? []), ...(card.agent ? [card.agent] : [])];
+
 // Parts from days before `todayDay` that are still open, or were closed today (so the row stays until tomorrow).
 export const stillToRead = (cardsByDay, state, today) => {
   const out = [];
   const todayDay = dayNumber(today);
   const days = Object.keys(cardsByDay).map(Number).filter((d) => d < todayDay).sort((a, b) => a - b);
   for (const day of days)
-    for (const block of cardsByDay[day].blocks)
-      for (const t of block.tasks ?? []) {
-        if (t.part === undefined) continue;
-        const item = (state.items ?? {})[taskKey(t)] ?? {};
-        const closed = item.solved === true || item.skipped === true;
-        if (closed && (!closedAt(item) || todayIST(closedAt(item)) !== today)) continue;
-        const { id, lesson, part, of, minutes, text, url } = t;
-        out.push({ id, lesson, part, of, minutes, text, url, day, closed, solved: item.solved === true, skipped: item.skipped === true });
-      }
+    for (const t of readingTasks(cardsByDay[day])) {
+      if (t.part === undefined) continue;
+      const item = (state.items ?? {})[taskKey(t)] ?? {};
+      const closed = item.solved === true || item.skipped === true;
+      if (closed && (!closedAt(item) || todayIST(closedAt(item)) !== today)) continue;
+      const { id, lesson, part, of, minutes, text, url } = t;
+      out.push({ id, lesson, part, of, minutes, text, url, day, closed, solved: item.solved === true, skipped: item.skipped === true });
+    }
   return out;
 };
 
 // Which questions a visit asks. Each slot is [kinds, count]; SDS has one slot over quiz and probe together.
 const slotsOf = (lesson) => {
+  if (isQuick(lesson)) return [[["check", "follow-up"], 1]];
   if (lesson.startsWith("rm-")) return [[["probe"], 1], [["deep-dive"], 1], [["edges"], 1]];
   if (lesson === "ip-0002") return [[["headline"], 1], [["trap"], 2]];
   if (lesson.startsWith("ip-")) return [[["follow-up"], 3]];
@@ -186,12 +204,14 @@ export const visitLine = ({ n, last, item }) =>
   last ? `${ordinal(n)} visit. Last seen ${longDate(last.date)}, rated ${RATING_WORD[last.rating]}.`
   : `${ordinal(n)} visit.${item.started ? ` Read on ${longDate(item.started)}.` : ""}`;
 
-export const rateHint = (got) =>
-  got === 3 ? "All 3 usually means Easy." : got === 2 ? "2 of 3 usually means OK." : "1 or none usually means Struggled: it comes back tomorrow.";
+export const rateHint = (got, total) =>
+  total === 1
+    ? got === 1 ? "Got it usually means OK, or Easy if it came at once." : "Missed usually means Struggled: it comes back sooner."
+    : got === 3 ? "All 3 usually means Easy." : got === 2 ? "2 of 3 usually means OK." : "1 or none usually means Struggled: it comes back tomorrow.";
 
 // When a lesson just rated today comes back, from its schedule after that rating.
-export const backNote = (item, today) => {
-  const { due, done } = schedule(item);
+export const backNote = (item, today, lesson) => {
+  const { due, done } = schedule(item, lesson);
   if (done) return "That was its last visit in the plan.";
   const days = dayNumber(due) - dayNumber(today);
   return days === 1 ? "Back tomorrow." : `Back in ${days} days, ${longDate(due)}.`;

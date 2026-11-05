@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Tool That Can Do Anything</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 5 of 30 · Day 10 · about 10 minutes</div>
+    <h1>The tool that can do anything</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-1">AI Agent Engineering Interview #1 · The Meta-Tool Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “Your agent has 70 REST tools. To compare one phone's price in four countries, it makes 12 tool calls, one after another. When you let it write and run a small program instead, it succeeds more often and takes fewer turns. Then why don't all agents work this way?”
+      <small>Senior AI Engineer interview, Google</small>
+    </div>
+    <p><b>Code execution</b> means the model writes a short program and your system runs it, instead of the model asking for one tool at a time. A <b>REST tool</b> wraps one web API endpoint, such as “get price”. Its <b>schema</b> is the JSON definition of the arguments it accepts.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Generated code might be buggy. Tool calls are safer.”</p>
+      <p><strong>Trap B:</strong> “No reason. It's a prompt change, so switch every agent over.”</p>
+      <p>Tool calls have bugs too: a wrong date passes the schema check just fine. The difference is <em>what the model is allowed to do</em>, and what it costs to make that safe.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“A tool call is one checked action from a fixed menu. A program can do anything the language can. That's why it wins: twelve round trips become one program, and the in-between results stay out of the model's context.</p>
+      <p>It's also the cost. I can't check a program in advance, so safety has to come from where it runs: a sandbox with hard limits, no open internet and no secrets inside. That's infrastructure someone must build and run, so it isn't the default everywhere. And payments stay separate tools.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>You need a phone's price in four countries, and you have an assistant.</p>
+    <p><b>Way one:</b> you phone them twelve times. “Check the US price.” “Now the exchange rate.” Slow, but every request comes from a short list of errands you trust them with.</p>
+    <p><b>Way two:</b> you hand over a written plan and your bank card. One trip, much faster. But now they can walk into any shop and buy anything.</p>
+    <p>Way one is ordinary <b>tool calling</b>, the loop from <a href="0001-the-pipeline-that-beat-the-agent.html">guide 1</a>: each tool call is checked against its JSON definition, as in <a href="0002-the-tool-call-nobody-read.html">guide 2</a>. Way two is <b>code execution</b>. People call code a <b>meta-tool</b>: one tool that can do what all the others do, and more.</p>
+    <p>Sensible people don't refuse way two. They hand over a prepaid card with a limit, a list of allowed shops and a time to be back by. In software, that is a <b>sandbox</b>: a sealed-off place to run the program, with limits set from outside it.</p>
+    <div class="flows" aria-label="Tool calls compared with code execution">
+      <div class="flow">
+        <div class="flow-label">Tool calls: 12 turns, each checked</div>
+        <div class="strip"><span class="box">Model picks a tool</span><span class="arrow">→</span><span class="box">Schema check</span><span class="arrow">→</span><span class="box">Result back to model</span><span class="back">↺ 12 times</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">Code execution: 1 turn, contained</div>
+        <div class="strip"><span class="box">Model writes a program</span><span class="arrow">→</span><span class="box">Runs in a sandbox</span><span class="arrow">→</span><span class="box">Only the answer comes back</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> The model makes a mistake and writes a loop that never ends. With tool calls, the worst is one bad call. With code, the loop keeps going, maybe making thousands of calls, while the model waits. Who stops it? Only something outside the program: a timer it can't switch off.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: what you build before code is safe</h2>
+    <ol>
+      <li><b>Run it in a sandbox, never on your own server.</b> Cloudflare's Code Mode, where writing code is how the agent uses its tools, runs each snippet in a fresh V8 isolate (a light, sealed box from the V8 JavaScript engine) and throws it away afterwards. An isolate starts in a few milliseconds and uses a few megabytes.</li>
+      <li><b>Set hard limits from outside.</b> The limits must belong to the sandbox, not the program, so a runaway loop gets stopped. On Cloudflare's <a href="https://developers.cloudflare.com/workers/platform/limits/">Workers platform</a>, which Code Mode runs on, the runtime caps each isolate at 128 MB of memory and ends code that runs past its CPU-time limit.</li>
+      <li><b>Block the internet by default.</b> In Code Mode, the program's own <code>fetch()</code> and <code>connect()</code> calls throw errors. It can reach only the tools it was given.</li>
+      <li><b>Keep the keys outside.</b> Code Mode's supervisor holds the access tokens and adds them to each tool request, so the program never sees a key.</li>
+      <li><b>Keep irreversible steps as tools.</b> A payment or a delete goes through a declared tool that can ask for approval each time.</li>
+    </ol>
+    <p>Step 3 matters most because of Simon Willison's <b>lethal trifecta</b>: an agent with private data, untrusted content (a web page, an email) and a way to send data out can be tricked into leaking that data. Open internet supplies the third part.</p>
+    <p><b>Worked example, with real numbers.</b> The <a href="https://arxiv.org/abs/2402.01030">CodeAct</a> paper tested 17 models and found code as the action format gave up to 20% higher success and needed up to 30% fewer actions. Its new test set has 82 tasks that typically need several tools. Anthropic's <a href="https://www.anthropic.com/engineering/code-execution-with-mcp">Code execution with MCP</a> post (Nov 2025; MCP is a standard way to plug tools into agents) takes a meeting transcript from Google Drive and attaches it to a Salesforce record. In code, the transcript goes straight from one tool to the other without passing through the model. Tokens dropped from <span class="num">150,000</span> to <span class="num">2,000</span>, a 98.7% saving. Both sources name the bill. Anthropic says generated code needs a sandbox, resource limits and monitoring, which adds operational overhead. CodeAct's impact statement warns that, at worst, an agent could break out of its sandbox.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Can't you just check the code before running it?</p><p>A scanner helps, but code can reach the same dangerous call in a roundabout way. The limits have to live where it runs.</p></div>
+      <div class="fu" id="fu-2"><p class="q">When would you keep plain tool calls?</p><p>One-call tasks, where starting a sandbox costs more than the round trip it saves; actions that need a person's approval each time; and weaker models that write unreliable code.</p></div>
+      <div class="fu" id="fu-3"><p class="q">Why are models better at writing code than calling tools?</p><p>Cloudflare's explanation: models have seen huge amounts of real code in training and very few tool calls. Code also lets them loop and keep results in variables.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>Why isn't “code can have bugs” the real reason?</summary><p>Tool calls can carry wrong values too. The real difference is that a tool call is one checked action from a fixed menu, while a program can do anything the language allows.</p></details>
+      <details class="cy" id="cy-2"><summary>Where do the token savings in the Google Drive to Salesforce example come from?</summary><p>The transcript moves from one tool to the other inside the program, so it never passes through the model's context: 150,000 tokens became 2,000.</p></details>
+      <details class="cy" id="cy-3"><summary>Name four things a sandbox setup needs before code execution is safe.</summary><p>A sealed place to run (a sandbox), hard limits set from outside, no internet except named destinations, and no keys inside.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>Code execution</dt><dd>The model writes a program and your system runs it, instead of one tool call per turn.</dd>
+      <dt>Sandbox</dt><dd>A sealed place to run untrusted code, with limits the code can't change.</dd>
+      <dt>Lethal trifecta</dt><dd>Private data, untrusted content and a way to send data out, all in one agent.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://www.anthropic.com/engineering/code-execution-with-mcp">Code execution with MCP</a> (Anthropic, Nov 2025): the token savings and the infrastructure they cost.</li>
+      <li><a href="https://blog.cloudflare.com/code-mode/">Code Mode</a> (Cloudflare, Sep 2025): isolates, blocked internet and keys kept outside.</li>
+      <li><a href="https://arxiv.org/abs/2402.01030">Executable Code Actions Elicit Better LLM Agents</a> (Wang et al., 2024): the CodeAct results.</li>
+      <li><a href="https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/">The lethal trifecta</a> (Simon Willison, Jun 2025): why blocking outbound traffic matters.</li>
+      <li>Later in your plan, the long version: Interview Prep's <a href="https://nehilsood.github.io/guides/interview-prep/guides/0004-the-blank-check.html">The Blank Check</a>.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-1">AI Interview Prep #1</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

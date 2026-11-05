@@ -1,8 +1,8 @@
-// A day as an ordered list of rows (revise, lessons, blocks, still to read, self-test, close), with progress, the current row and
+// A day as an ordered list of rows (revise, lessons, blocks, agent question, still to read, self-test, close), with progress, the current row and
 // what to do next. Pure: the day page draws it, the tests check it.
 
 import { subjectOf } from "./subjects.js";
-import { GUIDES, VISIT_MINUTES, guideKey, visitMarks } from "./lessons.js";
+import { GUIDES, guideKey, visitMarks, visitMinutes, visitQuestions } from "./lessons.js";
 
 const MAX_LABEL = 48;
 const FOLD_DELAY = 450;
@@ -24,14 +24,17 @@ const reviseRow = (m) => {
   return counted({ key: "revise", kind: "revise", title: `Revise ${plural(n, "item")}`, minutes: null }, m.revisedToday, n, m.due.length === 0);
 };
 
-const VISIT_QUESTIONS = 3;
-
 // A rated visit shows all its ticks; one in progress counts the marks so far (no mark is dated today until rated).
 // Its subtitle names the guide. Rating holds the row open on its note of when the lesson comes back.
 const lessonRow = (v) => {
-  const ticked = v.rated ? VISIT_QUESTIONS : Math.min(VISIT_QUESTIONS, Object.keys(visitMarks(v.item, null)).length);
-  return counted({ key: `lesson-${v.lesson}`, kind: "lesson", title: v.title, sub: GUIDES[guideKey(v.lesson)], track: v.track, subject: subjectOf(v.track), minutes: VISIT_MINUTES, holdsOpen: true }, ticked, VISIT_QUESTIONS, v.rated);
+  const n = visitQuestions(v.lesson);
+  const ticked = v.rated ? n : Math.min(n, Object.keys(visitMarks(v.item, null)).length);
+  return counted({ key: `lesson-${v.lesson}`, kind: "lesson", title: v.title, sub: GUIDES[guideKey(v.lesson)], track: v.track, subject: subjectOf(v.track), minutes: visitMinutes(v.lesson), holdsOpen: true }, ticked, n, v.rated);
 };
+
+// The day's Agent Questions read: a card-level field, so it is never a block and never holds one open. Its minutes
+// stay out of the day's total, which counts blocks only.
+const agentRow = (a) => counted({ key: "agent", kind: "agent", title: "Agent question", track: "ai", subject: subjectOf("ai"), minutes: a.minutes }, a.done || a.skipped ? 1 : 0, 1, a.done || a.skipped);
 
 // Like a block: its minutes are every part's, and its progress is the closed share of them, so the sticky bar's
 // "minutes left" comes out as the open parts' minutes. The title counts the open parts, as Home does.
@@ -78,6 +81,7 @@ export const dayFlow = (m) => {
     m.showRevise ? reviseRow(m) : null,
     ...(m.lessons ?? []).map(lessonRow),
     ...m.blocks.map(blockRow),
+    m.agent ? agentRow(m.agent) : null,
     m.toRead?.length ? toReadRow(m.toRead) : null,
     m.selftest.length ? selftestRow(m) : null,
     closeRow(m),

@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Edit That Missed Its Line</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 4 of 30 · Day 9 · about 10 minutes</div>
+    <h1>The edit that missed its line</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-21">AI Agent Engineering Interview #21 · The Unified Diff Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “A coding agent's only tool is a shell. It can search files, edit with sed and patch, and run the tests. Yet its file edits keep going wrong. Why, and what edit tool would you build in place of diffs that point at line numbers?”
+      <small>Senior AI Engineer interview, Google</small>
+    </div>
+    <p>A <b>unified diff</b> is the change format <code>git diff</code> prints: a header with line numbers such as <code>@@ -2,4 +3,5 @@</code>, then the lines, marked <code>+</code> for added and <code>-</code> for removed. <b>sed</b> is a command-line tool that edits text using a pattern typed into the command.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “A bigger model will get the edits right.”</p>
+      <p><strong>Trap B:</strong> “Put more sed examples in the prompt.”</p>
+      <p>Both treat it as a skill problem. It's a tool problem: the edit format asks the model to do things it is bad at, and gives no feedback when it slips.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“Two things break edits in a shell. Line numbers go stale: every edit that adds or removes lines shifts everything below it, so the next diff points at the wrong code. And the code has to survive the shell: quotes and slashes inside a sed command need escaping, one slip changes the wrong thing or nothing, and sed doesn't show you what happened.</p>
+      <p>So I'd give the agent an edit tool that anchors on content: ‘replace this exact text with that text’. It applies only if the old text matches exactly once, and otherwise says why. It shows the edited lines back, and it rejects edits that break the syntax. The SWE-agent paper measured this: removing its edit command and syntax check dropped the agent from 18% to about 10% on SWE-bench Lite.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>You're fixing a shared document with a colleague over the phone. You say: “Go to line 42 and change it to ‘Goodbye’.” But a minute ago you asked them to add three lines near the top. Line 42 is now a different sentence. They overwrite it, and neither of you notices.</p>
+    <p>Now try: “Find the sentence that says ‘Hello!’ and change it to ‘Goodbye!’.” It works wherever that sentence has moved. If ‘Hello!’ appears twice, your colleague asks “which one?” instead of guessing. If it isn't there, they say “not found”, and you know straight away.</p>
+    <p>The first way is a line-number edit. The second is a <b>search-and-replace edit</b>, anchored on content. There's a second problem too. Dictating code through sed is like reading punctuation aloud over the phone: “quote, backslash, slash…”. Every symbol is a chance to slip.</p>
+    <div class="flows" aria-label="Line-number edit compared with content edit">
+      <div class="flow">
+        <div class="flow-label">By line number</div>
+        <div class="strip"><span class="box">Edit 1 adds 3 lines</span><span class="arrow">→</span><span class="box">Edit 2: “change line 40”</span><span class="arrow">→</span><span class="box">Wrong line changed, no error</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">By content</div>
+        <div class="strip"><span class="box">Edit 1 adds 3 lines</span><span class="arrow">→</span><span class="box">Edit 2: “replace this text”</span><span class="arrow">→</span><span class="box">Right place, or a clear error</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> The agent plans two edits at once. The first adds 3 lines at line 10. The second targets line 40. After the first runs, where is the code that used to be on line 40? On line 43. Line 40 now holds what used to be line 37, so the second edit lands three lines too high.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: an edit tool built for a model</h2>
+    <p>The SWE-agent paper calls the tools an agent uses, and what they print back, its <b>agent-computer interface</b> (ACI). It's the part of <a href="0001-the-pipeline-that-beat-the-agent.html">guide 1</a>'s harness the model touches.</p>
+    <ol>
+      <li><b>Anchor on content.</b> The tool takes the old text and the new text. In Anthropic's text editor tool the old text must match exactly, including spaces and indentation, and exactly once. Anthropic tried several edit styles for its SWE-bench agent and found this one the most reliable.</li>
+      <li><b>Fail loudly and helpfully.</b> No match: “No match found.” Several: “Found 3 matches… provide more context.” The model can fix that on the next step.</li>
+      <li><b>Show the result.</b> SWE-agent's authors call shell editing “silent”: checking that an edit worked takes extra commands. Print the changed lines back.</li>
+      <li><b>Reject broken code.</b> Run a linter (a quick syntax checker) and refuse any edit that adds a syntax error, showing what the file would have looked like.</li>
+      <li><b>Keep code out of escaping.</b> Pass old and new text as plain tool arguments, not inside a shell command.</li>
+    </ol>
+    <p><b>Worked example, with real numbers.</b> SWE-agent ran GPT-4 Turbo on SWE-bench Lite's 300 bugs and removed one piece of the edit tool at a time:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Edit setup</th><th>Bugs fixed</th></tr></thead>
+        <tbody>
+          <tr><td>No edit command (sed, or rewrite the whole file)</td><td>10.3%</td></tr>
+          <tr><td>Edit command, no syntax check</td><td>15.0%</td></tr>
+          <tr><td>Edit command with syntax check</td><td>18.0%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Failed edits snowball. Any edit attempt had a <span class="num">90.5%</span> chance of eventually succeeding; after one failed attempt, that fell to <span class="num">57.2%</span>. Among the bugs the agent didn't fix, cascading failed edits made up <span class="num">23.4%</span> of the failures.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">SWE-agent's edit command uses line numbers. Why did it work?</p><p>Its file viewer printed fresh line numbers next to the code and showed the file again after each edit, so the numbers were never stale. Line numbers fail when they're out of date or the model has to work them out.</p></div>
+      <div class="fu" id="fu-2"><p class="q">So are diffs always wrong?</p><p>No. Aider found GPT-4 Turbo did better with a simplified diff than with its search/replace blocks (61% vs 20% on 89 refactoring tasks), but that diff had its line numbers dropped, and each change was applied by matching its content. The lesson is “anchor on content”, whatever the format.</p></div>
+      <div class="fu" id="fu-3"><p class="q">What if the old text appears twice?</p><p>The tool refuses and asks for a few more surrounding lines to make the match unique. Guessing would edit the wrong place silently.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>Why do line numbers in a second edit go wrong?</summary><p>The first edit added or removed lines, so everything below it moved. The old numbers now point at different code.</p></details>
+      <details class="cy" id="cy-2"><summary>What should a content-anchored edit do if the old text matches nowhere, or in two places?</summary><p>Change nothing and return a clear error: “not found”, or “several matches, add more context”.</p></details>
+      <details class="cy" id="cy-3"><summary>In SWE-agent's test, what happened without a proper edit command?</summary><p>The agent fixed 10.3% of SWE-bench Lite instead of 18.0%, with the same model.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>Unified diff</dt><dd>The <code>git diff</code> change format: line-number headers, then lines marked + and −.</dd>
+      <dt>Search-and-replace edit</dt><dd>An edit that finds an exact piece of old text and swaps in new text, with no line numbers.</dd>
+      <dt>Linter</dt><dd>A quick checker that spots syntax errors without running the code.</dd>
+      <dt>Agent-computer interface (ACI)</dt><dd>The tools an agent uses and what they print back.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2405.15793">SWE-agent</a> (Yang et al., 2024): the agent-computer interface, and the edit numbers above.</li>
+      <li><a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use/text-editor-tool">Text editor tool</a> (Anthropic docs): the exact-match rule and its error messages.</li>
+      <li><a href="https://www.anthropic.com/research/swe-bench-sonnet">Raising the bar on SWE-bench Verified</a> (Anthropic, Jan 2025): why they chose string replacement.</li>
+      <li><a href="https://aider.chat/2023/12/21/unified-diffs.html">Unified diffs make GPT-4 Turbo 3X less lazy</a> (Aider, Dec 2023): why models handle line numbers badly, and a diff format without them.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-21">AI Interview Prep #21</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

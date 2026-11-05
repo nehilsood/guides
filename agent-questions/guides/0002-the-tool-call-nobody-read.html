@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Tool Call Nobody Read</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 2 of 30 · Day 7 · about 10 minutes</div>
+    <h1>The tool call nobody read</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-3">AI Agent Engineering Interview #3 · The Tool-Call Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “To save money, you move your agent off DeepSeek and onto Qwen. You keep the prompts and the tool definitions exactly as they were. Now the tools simply never run. There's no error and no crash anywhere. What went wrong?”
+      <small>Senior AI Engineer interview, Google DeepMind</small>
+    </div>
+    <p>DeepSeek and Qwen are two families of open-weight models: you download them and run them on your own servers, usually behind serving software such as <b>vLLM</b>.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Qwen is weaker at using tools. Switch back.”</p>
+      <p><strong>Trap B:</strong> “Make the prompt shout louder: ‘You MUST call a tool.’”</p>
+      <p>Both blame the model. But the model most likely <em>did</em> ask for the tool, and nobody on your side understood the request. Find where the message got lost before blaming the sender.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“Tool calling has two layers. The tool definitions I send are a standard JSON format, so the swap didn't touch them. But the text a model writes when it wants a tool is its own family's style, learned in training. A <b>parser</b> in the serving stack has to recognise that style and turn it into a structured tool call.</p>
+      <p>I changed the model and left the parser set for DeepSeek. So Qwen wrote a fine tool call, the parser didn't recognise it and passed it on as ordinary text, and my agent loop saw ‘no tool call, finished’ and stopped. Nothing failed, because a plain-text reply is a legal reply. The fix is to treat the model, its chat template and its parser as one versioned unit, refuse to start if they don't match, and run a test before every deploy that fails if a known prompt stops producing a tool call.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>Picture an office with a mail clerk. Your old assistant writes every request to another team on a red form. The clerk's one rule: “Red form? Send it to that team. Anything else? Deliver it to the customer.”</p>
+    <p>You hire a cheaper assistant. She's just as good, but where she trained, requests go on blue forms. On day one she writes a perfect request, on blue. The clerk sees no red form and delivers it to the customer as a letter. Nobody complains: she did her job, and he followed his rule.</p>
+    <p>That is this bug. In <a href="0001-the-pipeline-that-beat-the-agent.html">guide 1</a> you met the <b>tool call</b>: the model asks your code to run something. Underneath:</p>
+    <ul>
+      <li>A model only reads and writes one long string of text. A <b>chat template</b>, shipped with each model, flattens your messages and tool definitions into the exact layout that model was trained on. That's the assistant's training.</li>
+      <li>When the model wants a tool, it writes the request in its family's own markup. Hugging Face's docs show one model wrapping the call in <code>&lt;tool_call&gt;</code> tags, another putting each argument in its own <code>&lt;parameter&gt;</code> tag. That's the colour of the form.</li>
+      <li>A <b>tool-call parser</b> in the serving software scans the output for that markup and lifts it into a structured <code>tool_calls</code> field. That's the clerk. In vLLM you pick it with a flag. For the versions in the docs, that's <code>hermes</code> for Qwen2.5 and <code>deepseek_v3</code> for DeepSeek-V3.</li>
+    </ul>
+    <div class="flows" aria-label="Where the tool call gets lost">
+      <div class="flow">
+        <div class="flow-label">Before: model and parser match</div>
+        <div class="strip"><span class="box">DeepSeek writes a call</span><span class="arrow">→</span><span class="box">DeepSeek parser finds it</span><span class="arrow">→</span><span class="box">Tool runs</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">After: new model, old parser</div>
+        <div class="strip"><span class="box">Qwen writes a call</span><span class="arrow">→</span><span class="box">DeepSeek parser finds nothing</span><span class="arrow">→</span><span class="box">Shown as text, loop stops</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> Why did nothing raise an error? Because “I found no tool call” is a normal result. Models may answer in plain words, so a parser that finds nothing it knows looks exactly like a model that chose not to use a tool. Only a test that already knows the right answer can tell them apart.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: finding it and fencing it off</h2>
+    <ol>
+      <li><b>Look at the raw text first.</b> Open a reply where a tool should have run. If the text contains tool-call markup, the model did its part and the parser missed it.</li>
+      <li><b>Render with the model's own template.</b> Hugging Face's <code>apply_chat_template</code> uses the template stored with the model. A hand-written prompt copied from the old model is a second way to break things.</li>
+      <li><b>Pin the parser to the model.</b> Keep model version, template and parser together as one config, and refuse to start if the parser doesn't match the model family.</li>
+      <li><b>Add a canary test.</b> Before every deploy, send a prompt that must call a tool and fail the build if <code>tool_calls</code> comes back empty.</li>
+      <li><b>Alarm in production.</b> Alert when tool-call markup appears in plain replies, or when tool calls drop to zero.</li>
+    </ol>
+    <p><b>Worked example</b> (a picture built from the sources below; no single source shows this exact run). The agent asks for the price of an item. Qwen2.5 writes its request between <code>&lt;tool_call&gt;</code> tags, the Hermes style its template uses. The server still runs vLLM's <code>deepseek_v3</code> parser, which looks for DeepSeek's markup and finds none. The example parser in vLLM's docs returns <code>tools_called=False</code>, an empty <code>tool_calls</code> and the text as <code>content</code>, so a parser that finds nothing hands the text on as ordinary content. An OpenAI-style response would then show <code>finish_reason: "stop"</code> (a natural end) instead of <code>"tool_calls"</code>. The agent loop reads “no tool calls, so this is the final answer”, ends after one turn, and the user sees raw tags. Every field is legal, and the error log stays empty.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Couldn't the parser just raise an error when it finds nothing?</p><p>No. Most replies legitimately have no tool call, so “nothing found” must be allowed. The check has to live where the right answer is known: a test with a prompt that must call a tool.</p></div>
+      <div class="fu" id="fu-2"><p class="q">When would you say the new model really is worse at tools?</p><p>Only after the template and parser are proven to match. Then run both models on a fixed set of prompts with known correct calls and compare.</p></div>
+      <div class="fu" id="fu-3"><p class="q">What can the canary miss?</p><p>Problems that show up only in long conversations or with several calls at once. Add a case each time you find a gap.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>Which part of tool calling stayed the same in the swap, and which part changed?</summary><p>The tool definitions (standard JSON) stayed the same. The markup the model writes when it calls a tool changed, because each family learned its own style.</p></details>
+      <details class="cy" id="cy-2"><summary>Why does the agent loop stop instead of crashing?</summary><p>It sees no tool calls and a normal finish reason, which is exactly what a finished answer looks like, so it returns the text as the final reply.</p></details>
+      <details class="cy" id="cy-3"><summary>Name the three things you'd version together, and the test that guards them.</summary><p>The model version, its chat template and its tool-call parser. The guard is a canary test that fails the deploy if a known prompt stops producing a parsed tool call.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>Chat template</dt><dd>A small script shipped with each model that turns messages and tools into the one string the model was trained to read.</dd>
+      <dt>Tool-call parser</dt><dd>Code in the serving software that finds the model's tool-call markup and turns it into a structured <code>tool_calls</code> field.</dd>
+      <dt>Finish reason</dt><dd>A field in the response saying why the model stopped: <code>"tool_calls"</code> if it called a tool, <code>"stop"</code> at a natural end.</dd>
+      <dt>Canary test</dt><dd>A small check that runs a known case before release and fails loudly if it breaks.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://docs.vllm.ai/en/latest/features/tool_calling.html">Tool calling</a> (vLLM docs): the <code>--tool-call-parser</code> flag and which parser each model family needs.</li>
+      <li><a href="https://huggingface.co/docs/transformers/main/en/chat_templating">Chat templates</a> and <a href="https://huggingface.co/docs/transformers/main/en/chat_extras">Tool use</a> (Hugging Face): each model's own format, and a raw tool call.</li>
+      <li><a href="https://huggingface.co/docs/transformers/main/en/chat_response_parsing">Response parsing</a> (Hugging Face): the reverse step, turning model text back into a tool call.</li>
+      <li><a href="https://github.com/openai/openai-python/blob/main/src/openai/types/chat/chat_completion.py">The <code>finish_reason</code> field</a> (OpenAI Python SDK): <code>stop</code> versus <code>tool_calls</code>.</li>
+      <li>Later in your plan, the long version: Interview Prep's <a href="https://nehilsood.github.io/guides/interview-prep/guides/0005-the-silent-parser.html">The Silent Parser</a>.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-3">AI Interview Prep #3</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

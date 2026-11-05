@@ -297,6 +297,7 @@ export const dayModel = (day, outline, cardsByDay, schedule, problemsById, state
     showRevise: isToday && due.length + revisedToday > 0,
     baseline: day === 0,
     ...(isToday ? { lessons: lessonsToday(state, today, lessonIndex), toRead: stillToRead(cardsByDay, state, today) } : { lessons: [], toRead: [] }),
+    agent: card?.agent ? taskView(card.agent, state, problems) : null,
     blocks: blocks.map((b) => withHelp({ ...b, problems: problemsFor(b.track) }, state)),
     totalMinutes: totalMinutes(blocks.map((b) => ({ minutes: b.minutes ?? 0 }))),
     wholeFlagged: state.items["day:" + day]?.flag === true,

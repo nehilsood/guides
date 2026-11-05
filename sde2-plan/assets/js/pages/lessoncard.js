@@ -96,7 +96,7 @@ const missedList = (v, missed) =>
     ),
   );
 
-const ratings = (v, got, rating, act) => [
+const ratings = (v, got, total, rating, act) => [
   el("p", { class: "rate-h", id: `rate-h-${v.lesson}`, text: "How did it go?" }),
   el(
     "div",
@@ -105,7 +105,7 @@ const ratings = (v, got, rating, act) => [
       el("button", { type: "button", "aria-pressed": String(r === rating), "data-f": `rate-${v.lesson}-${r}`, "data-key": String(i + 1), onclick: () => act.rate(r), text: word }),
     ),
   ),
-  el("p", { class: "rate-hint", text: rateHint(got) }),
+  el("p", { class: "rate-hint", text: rateHint(got, total) }),
 ];
 
 const endScreen = (v, picks, marks, got, rating, act) => {
@@ -122,9 +122,9 @@ const endScreen = (v, picks, marks, got, rating, act) => {
           "div",
           { class: `rated${fade(`rated-${v.lesson}`)}`, tabindex: "-1", "data-f": `rated-${v.lesson}` },
           icon("check"),
-          el("p", {}, el("b", { text: `Rated ${RATING_WORD[rating]}.` }), ` ${backNote(v.item, today())} `, el("button", { type: "button", class: "link-btn", onclick: act.change, text: "Change" })),
+          el("p", {}, el("b", { text: `Rated ${RATING_WORD[rating]}.` }), ` ${backNote(v.item, today(), v.lesson)} `, el("button", { type: "button", class: "link-btn", onclick: act.change, text: "Change" })),
         )
-      : ratings(v, got, rating, act),
+      : ratings(v, got, picks.length, rating, act),
   );
 };
 
@@ -167,7 +167,7 @@ const drill = (v, picks, mutate, redraw) => {
       changing.delete(lesson);
       focusNext = `rated-${lesson}`;
       mutate((s) => (rating ? rerateLesson : rateLesson)(s, lesson, r, today(), now()));
-      say(`Rated ${RATING_WORD[r]}. ${backNote(getState().items[`l:${lesson}`], today())}`);
+      say(`Rated ${RATING_WORD[r]}. ${backNote(getState().items[`l:${lesson}`], today(), lesson)}`);
     },
     change: () => {
       changing.add(lesson);
