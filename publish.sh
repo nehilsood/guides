@@ -118,4 +118,6 @@ git commit -q -m "Publish $(date +%F)"
 git push -q origin main
 
 owner="$(git remote get-url origin | sed -E 's#.*github\.com[:/]([^/]+)/.*#\1#')"
-echo "Pushed. Live in about a minute at https://$owner.github.io/guides/"
+repo="$(basename "$(git remote get-url origin)" .git)"
+echo "Pushed. Waiting for GitHub Pages to deploy it (up to 10 minutes)..."
+"$SITE/tools/wait_for_pages.sh" "$owner" "$repo" "$(git rev-parse HEAD)"
