@@ -1,0 +1,82 @@
+{
+ "lesson": "aq-0031",
+ "label": "AQ 0031",
+ "track": "ai",
+ "title": "The cache that ate the batch",
+ "url": "https://nehilsood.github.io/guides/agent-questions/guides/0031-the-cache-that-ate-the-batch.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "fu-1",
+   "kind": "follow-up",
+   "q": "Does prefix caching make tokens stream faster?",
+   "a": "No. It skips <b>prefill</b> work (the pass over the prompt), so the first token comes sooner. Later decode steps still read the whole cache.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "fu-2",
+   "kind": "follow-up",
+   "q": "Why not use MQA everywhere?",
+   "a": "Quality can drop. And split across 8 GPUs, one KV head can't be divided: the Llama 2 paper says you copy the cache to every GPU or split by batch.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: the bill, then the levers",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0031-the-cache-that-ate-the-batch.html#how-it-works"
+   }
+  },
+  {
+   "id": "fu-3",
+   "kind": "follow-up",
+   "q": "What happens when the cache fills mid-answer?",
+   "a": "vLLM pauses the newest requests. It moves their blocks to CPU memory, or drops them and rebuilds them later.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: the bill, then the levers",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0031-the-cache-that-ate-the-batch.html#how-it-works"
+   }
+  },
+  {
+   "id": "cy-1",
+   "kind": "check",
+   "q": "Why are keys and values cached but not queries?",
+   "a": "A token's query only matters while that token is being made. Its key and value are read by every later token.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": null
+  },
+  {
+   "id": "cy-2",
+   "kind": "check",
+   "q": "Llama 3.1 8B, 2-byte cache: how much does a 16k-token request take?",
+   "a": "128 KiB × 16,384 = 2 GiB. Half the 32k figure, because the cache grows with length.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: the bill, then the levers",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0031-the-cache-that-ate-the-batch.html#how-it-works"
+   }
+  },
+  {
+   "id": "cy-3",
+   "kind": "check",
+   "q": "Why don't more FLOPs fix slow long-context decode?",
+   "a": "Each step waits on loading the weights and the whole cache.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Your 30-second answer",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0031-the-cache-that-ate-the-batch.html#your-30-second-answer"
+   }
+  }
+ ]
+}

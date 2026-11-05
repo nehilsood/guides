@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Cache That Ate the Batch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 31 · extra · Day 74 · about 10 minutes</div>
+    <h1>The cache that ate the batch</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-33">AI Agent Engineering Interview #33 · The KV Cache Memory Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “Caching keys and values means each step only handles the newest token. So is the cache pure gain, or does it cost you something? What, exactly?”
+      <small>Senior ML Engineer interview, Google</small>
+    </div>
+    <p>This builds on yesterday's lesson, <a href="https://nehilsood.github.io/guides/system-design-school/lessons/0008-kv-cache-and-prefix-caching.html">KV Cache and Prefix Caching</a>. A <b>KV cache</b> stores each earlier token's <b>keys</b> and <b>values</b> (vectors that attention reads), per layer, so they aren't worked out again. <b>Decode</b> writes the answer one token per step.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Yes, it's free. The cache remembers old keys and values, so each new token is cheap.”</p>
+      <p><strong>Trap B:</strong> “It costs a bit of memory, but memory is cheap.”</p>
+      <p>Trap A skips the bill. Trap B skips its size. The interviewer wants the trade, with a number.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“Not free: I pay in memory to save arithmetic. Without the cache, every step redoes all earlier tokens' keys and values, at every layer. Queries aren't stored: a token's question only matters while that token is being written, so keeping it gains nothing.</p>
+      <p>What I pay: every layer keeps keys and values for every token of every request. On Llama 3.1 8B that's 128 KiB a token, so one 32k-token request holds 4 GiB. That memory could have held more requests side by side. Each step also reads all the model's weights plus the whole cache. So at long context, the limit is how much memory I have and how fast it can be read, not how fast the chip does arithmetic. The levers: share keys and values across heads, store fewer bits, allocate in small pages, share prompt starts, look back a fixed window. Each costs something.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>You're replying to a long email thread, one word at a time. Without notes, you reread the whole thread before each word. With notes, you keep one index card per message, a label and its content, and glance over the cards instead. Much faster, but the cards fill a desk you share with colleagues, so fewer of them fit. And every word still means scanning every card.</p>
+    <p>The label is the <b>key</b>, the content the <b>value</b>. Your question for this word is the <b>query</b>: you need it for this word only. Every later word reads the cards, so they are kept; the question is not.</p>
+    <div class="flows" aria-label="One decode step with a KV cache">
+      <div class="flow">
+        <div class="flow-label">One decode step: only the new token is worked out</div>
+        <div class="strip"><span class="box">New token → its Q, K, V</span><span class="arrow">→</span><span class="box">Add K, V to the cache</span><span class="arrow">→</span><span class="box">Q reads every cached K, V</span><span class="back">↺ next token</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> The cache grows with request length and with the number of requests run together (the <b>batch</b>). Double either and it doubles. The weights don't grow.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: the bill, then the levers</h2>
+    <p><b>The bill.</b> Per token: 2 (key and value) × layers × <b>KV heads</b> × <b>head size</b> × bytes per number. A KV head is one set of keys and values in a layer. Head size is how many numbers one head holds per token. For OPT-13B, which has a KV head per query head, the PagedAttention paper gets 2 × 5,120 (its full width) × 40 layers × 2 bytes, about 800 KB a token. It finds cache memory caps the batch: for a 13B model on a 40 GB A100, weights take about 65% of memory and the cache close to 30%.</p>
+    <p><b>Why decode is bandwidth-bound.</b> <b>Memory bandwidth</b> is how fast data moves from GPU memory to the compute cores. A decode step does little maths but loads every weight and every cached key and value. Pope et al. find the weights dominate that load at small batches, and the cache at long contexts and big batches. <b>FLOPs</b> are the chip's arithmetic operations. More per second can't speed up a step that is waiting on memory.</p>
+    <p><b>Worked number, Llama 3.1 8B</b> (the Llama 3 paper's 8B; its shape matches the Llama-3-8B in lesson 0008). Table 3 of the paper gives 32 layers, width 4,096, 32 query heads and 8 KV heads. A <a href="https://huggingface.co/unsloth/Meta-Llama-3.1-8B/blob/main/config.json">public copy of its config</a> gives head size 128 (4,096 ÷ 32). At 2 bytes a number: 2 × 32 × 8 × 128 × 2 = <span class="num">131,072 bytes</span> (128 KiB) a token.</p>
+    <p>Llama 3.1 reads up to 128K tokens. A 32,768-token request needs <span class="num">4 GiB</span>. The lesson's 80 GiB card loses 16 GiB to the weights and 4 GiB to overhead. That leaves 60 GiB, so <span class="num">15</span> such requests fit. All three rows below are my own arithmetic from Table 3 and that 60 GiB.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Llama 3.1 8B shape</th><th>Per token</th><th>Per 32k request</th><th>Fit in 60 GiB</th></tr></thead>
+        <tbody>
+          <tr><td>8 KV heads, 2 bytes (as shipped)</td><td>128 KiB</td><td>4 GiB</td><td>15</td></tr>
+          <tr><td>32 KV heads, 2 bytes (one per query head)</td><td>512 KiB</td><td>16 GiB</td><td>3</td></tr>
+          <tr><td>8 KV heads, 1 byte (FP8 cache)</td><td>64 KiB</td><td>2 GiB</td><td>30</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>If all 15 are at a full 32k tokens, each step reads about 16 GiB of weights and 60 GiB of cache (my estimate): the cache is most of the traffic.</p>
+    <p><b>The levers, and their costs.</b></p>
+    <ol>
+      <li><b>Fewer KV heads.</b> Multi-query attention (MQA) keeps one KV head for all query heads: much faster decoding, “minor” quality loss. Grouped-query attention (GQA) keeps a few, with quality close to full heads. Cost: the model must be trained that way, or uptrained (an existing model trained a little more; 5% of the original compute in the GQA paper).</li>
+      <li><b>Smaller cache format.</b> vLLM can store the cache in FP8 (8-bit numbers): 1 byte instead of 2, so half the size (my arithmetic). Cost: vLLM recommends calibrating on a dataset for best accuracy; some layer types are more sensitive.</li>
+      <li><b>Paging.</b> Older systems reserved space for each request's longest possible output, and only 20.4–38.2% held real tokens. vLLM's PagedAttention hands out small blocks on demand: near-zero waste, 2–4× the throughput (requests served per second). Cost: a 20–26% slower attention kernel (the GPU code that runs attention).</li>
+      <li><b>Prefix sharing.</b> Requests with the same system prompt point at the same cached blocks. Cost: only an exact match from the first token counts.</li>
+      <li><b>Sliding window.</b> Mistral 7B attends to the last 4,096 tokens per layer with a fixed rolling cache: 8× smaller at 32k, with no quality loss in their tests. Cost: older tokens are reached only indirectly, through the layers.</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Does prefix caching make tokens stream faster?</p><p>No. It skips <b>prefill</b> work (the pass over the prompt), so the first token comes sooner. Later decode steps still read the whole cache.</p></div>
+      <div class="fu" id="fu-2"><p class="q">Why not use MQA everywhere?</p><p>Quality can drop. And split across 8 GPUs, one KV head can't be divided: the Llama 2 paper says you copy the cache to every GPU or split by batch.</p></div>
+      <div class="fu" id="fu-3"><p class="q">What happens when the cache fills mid-answer?</p><p>vLLM pauses the newest requests. It moves their blocks to CPU memory, or drops them and rebuilds them later.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>Why are keys and values cached but not queries?</summary><p>A token's query only matters while that token is being made. Its key and value are read by every later token.</p></details>
+      <details class="cy" id="cy-2"><summary>Llama 3.1 8B, 2-byte cache: how much does a 16k-token request take?</summary><p>128 KiB × 16,384 = 2 GiB. Half the 32k figure, because the cache grows with length.</p></details>
+      <details class="cy" id="cy-3"><summary>Why don't more FLOPs fix slow long-context decode?</summary><p>Each step waits on loading the weights and the whole cache.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>Query, key, value</dt><dd>Attention's three vectors per token: the query asks, keys are matched to it, values are read.</dd>
+      <dt>Prefill / decode</dt><dd>Prefill reads the prompt in one pass. Decode writes one token per step.</dd>
+      <dt>Bandwidth-bound</dt><dd>Limited by how fast data moves from memory, not by the maths.</dd>
+      <dt>FLOPs</dt><dd>Arithmetic operations. A chip's speed at maths is how many it does per second.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2309.06180">PagedAttention</a> (Kwon et al., 2023): the 800 KB sum, waste, paging, preemption.</li>
+      <li><a href="https://arxiv.org/abs/2211.05102">Efficiently Scaling Transformer Inference</a> (Pope et al., 2022): memory time.</li>
+      <li><a href="https://arxiv.org/abs/1911.02150">Multi-query attention</a> (Shazeer, 2019).</li>
+      <li><a href="https://arxiv.org/abs/2305.13245">GQA</a> (Ainslie et al., 2023).</li>
+      <li><a href="https://arxiv.org/abs/2407.21783">The Llama 3 Herd of Models</a> (2024): Table 3.</li>
+      <li><a href="https://huggingface.co/unsloth/Meta-Llama-3.1-8B/blob/main/config.json">Llama 3.1 8B config</a> (public copy): head size 128.</li>
+      <li><a href="https://arxiv.org/abs/2307.09288">Llama 2</a> (2023): appendix A.2.1, KV heads across GPUs.</li>
+      <li><a href="https://arxiv.org/abs/2310.06825">Mistral 7B</a> (2023): the rolling cache.</li>
+      <li><a href="https://docs.vllm.ai/en/stable/features/quantization/quantized_kvcache/">Quantized KV Cache</a> (vLLM docs).</li>
+      <li>The day before in your plan: <a href="https://nehilsood.github.io/guides/system-design-school/lessons/0008-kv-cache-and-prefix-caching.html">KV Cache and Prefix Caching</a>.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-33">AI Interview Prep #33</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>
