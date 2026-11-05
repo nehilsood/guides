@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Sync the four guide workspaces into this repo and push it to GitHub Pages.
+# Sync the five guide workspaces into this repo and push it to GitHub Pages.
 #
 #   ./publish.sh                  sync, check, show the diff, ask, commit, push
 #   ./publish.sh --dry-run        sync and check into a temporary copy, show the diff; this repo is left as it is
