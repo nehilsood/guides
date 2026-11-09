@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Plan That Knew the Ending</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 26 of 30 · Day 31 · about 10 minutes</div>
+    <h1>The plan that knew the ending</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-25">AI Agent Engineering Interview #25 · The Synthetic Planner Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “We'd like a separate planner model, fine-tuned for the job. The only data we have is raw logs of what our agents did, step by step; nobody ever wrote a plan down. How do you turn those logs into a training set, and what's the riskiest flaw in the obvious way to do it?”
+      <small>Senior AI Engineer interview, Google DeepMind</small>
+    </div>
+    <p>A <b>planner</b> reads a task and writes the steps before anything happens; an <b>executor</b> carries them out on the real screen. Each log is a <a href="0006-the-summary-that-cost-more.html">trajectory</a>, and <a href="0025-the-agent-that-learned-its-harness-by-heart.html">fine-tuning</a> trains a model to write what its examples wrote.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Have a strong model read each whole log, write the plan it implies, and train on those plans as they stand.”</p>
+      <p><strong>Trap B:</strong> “Without real plans it can't be done; pay people to write them.”</p>
+      <p>Both skip the real question: what could a planner possibly know at the moment it plans?</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“I'd turn each successful log into a pair: the task and the first screen as input, a plan as the target, with a strong model writing the plan from the log. Plan-and-Act did this, mapping every plan step to the actions it covers.</p>
+      <p>The danger is that the plan writer has read the ending. Its plan holds facts only the run found out, like which contributor topped a list. The planner is trained to produce those facts from the task alone, so it likely learns to state guesses as knowledge and never learns a ‘find out first’ step. So I'd flag any plan word that first appears late in the log, rewrite it as a find-out step, and add replanning examples cut mid-run.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A football club wants to train young coaches to write match plans. It has no old plans, only recordings of matches it won, so an analyst watches each one and writes the plan “we must have had”.</p>
+    <p>One reads: “Attack down the left; their right back gets booked in minute 20.” Nobody knew about the booking before kick-off. A young coach trained on hundreds of these learns that a good plan names exactly what will happen, and for his next match he writes in a booking that never comes.</p>
+    <p>The honest plan says: “Test both full backs early; if one is booked, attack his side.” It has a step for finding things out, which the replay hid.</p>
+    <p>Writing a plan from the finished log is <b>hindsight relabelling</b>. Its risk is <b>hindsight leakage</b>, guide 18's <a href="0018-the-split-that-leaked.html">leakage</a> in a new form: the target carries information the model won't have when it must answer.</p>
+    <div class="flows" aria-label="What the planner sees compared with what the plan writer saw">
+      <div class="flow">
+        <div class="flow-label">The planner at run time</div>
+        <div class="strip"><span class="box">Task + first screen</span><span class="arrow">→</span><span class="box">Plan</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">The plan writer building the training set</div>
+        <div class="strip"><span class="box">Task + every screen + the outcome</span><span class="arrow">→</span><span class="box">Plan used as the target</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> One plan says “Open alice-dev's profile and follow her”; another, “Find the contributor with the most commits, then follow them”. Which could anyone write before opening the website?</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: building the set without the leak</h2>
+    <ol>
+      <li><b>The recipe exists.</b> <a href="https://arxiv.org/abs/2503.09572">Plan-and-Act</a> (Erdogan et al., ICML 2025) prompted a teacher model (a stronger model that writes training examples; here GPT-4o) to “reverse-engineer” a plan from each successful web-agent trajectory, saying which actions belong to which step. Plans written without the trajectory didn't match the real website. The full system reached 57.58% on WebArena-Lite, a test set of tasks on real-looking websites.</li>
+      <li><b>The leak is in the setup.</b> My reasoning: the planner's input is the task; its target was written with the whole log in view. Plan-and-Act's own example shows the gap: “The original plan did not know who the top contributor was”, so it could only say to identify that person. A plan writer who has read the log can name them.</li>
+      <li><b>Why that's dangerous.</b> Training a model to produce facts its input lacks teaches it to invent. For question answering, <a href="https://arxiv.org/abs/2405.05904">Gekhman et al.</a> (EMNLP 2024) found that examples with facts new to the model, once learned, “linearly increase the model's tendency to hallucinate”. Applying that to plans is my reasoning.</li>
+      <li><b>Success-only logs hide replanning.</b> Plan-and-Act kept only runs a checking model judged successful. My reasoning: clean wins rarely show a plan changing course, yet with its best executor, adding replanning raised WebArena-Lite success from 43.63% to 53.94%.</li>
+      <li><b>A usefulness filter won't catch it.</b> <a href="https://arxiv.org/abs/2510.05608">EAGLET</a> (Si et al., ACL 2026) drops synthetic plans that lower executor scores. My reasoning: a plan carrying the answer helps on its own task, so it passes.</li>
+      <li><b>The fix, my suggestions.</b> Flag any name, number or path in a plan that first appears after the opening screen, and rewrite it as a “find out” step. Add replanning pairs: cut the log at step <i>k</i>; the input is the task, the old plan and screens up to <i>k</i>, and the target is the revised plan, as Plan-and-Act's replanning data does.</li>
+    </ol>
+    <p><b>Worked example, an illustration with a made-up log.</b> Task: “Follow the top contributor of the repo.” The six-step log: open the repo, open Contributors, sort by commits, read “alice-dev, 412 commits” (step 4), open her profile, click Follow.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Plan</th><th>Steps</th><th>Words first seen after step 0</th></tr></thead>
+        <tbody>
+          <tr><td>Hindsight: “Open alice-dev's profile. Click Follow.”</td><td>2</td><td>alice-dev (step 4): flagged</td></tr>
+          <tr><td>Leak-free: “Open Contributors. Find who has the most commits. Open their profile and follow.”</td><td>3</td><td>none</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The hindsight plan looks smarter. Once someone new tops the list, a planner trained on such plans is likely to name the old leader.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Why not have people write the plans?</p><p>Scale and cost. Plan-and-Act calls collecting plans by hand “costly and time-consuming”; it generated 15,000 synthetic examples with GPT-4o in under an hour, against “days or weeks” to collect as many trajectories. I'd still have people plan a small sample, to audit the synthetic plans for steps nobody could know in advance.</p></div>
+      <div class="fu" id="fu-2"><p class="q">Isn't hindsight relabelling a standard, safe trick?</p><p>For instructions, yes. NNetNav (Murty et al., 2024) lets an agent explore websites, then labels each run with the instruction it fulfils; Llama-3.1-8B fine-tuned on 10,000 such demonstrations reached over 16% success on WebArena. My reasoning: an instruction is the input and the run really carries it out. A plan is the output, written before the run, so hindsight there leaks.</p></div>
+      <div class="fu" id="fu-3"><p class="q">How would you tell whether a trained planner picked up the leak?</p><p>My suggestions: on <a href="0024-the-merge-that-swallowed-the-cursor.html">held-out</a> tasks, count plan steps naming specific things absent from the task and first screen. Then change the site (a new top contributor, a moved file) and rerun; a leaky planner writes the old facts confidently.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>What did Plan-and-Act ask its teacher model to do with each trajectory?</summary><p>Read a successful web-agent trajectory and “reverse-engineer” a structured plan from it, saying which actions belong to which plan step. Plans written without the trajectory didn't match the real website.</p></details>
+      <details class="cy" id="cy-2"><summary>Why does a plan written after the run leak, when an instruction written after the run is fine?</summary><p>An instruction is the input, and the run really does what it says. A plan is the target the planner must write from the task and first screen alone, so facts found mid-run (a name, a file) teach it to invent them.</p></details>
+      <details class="cy" id="cy-3"><summary>In Plan-and-Act's table that adds one piece at a time, what did replanning add on WebArena-Lite?</summary><p>With the fine-tuned executor and synthetic trajectories, success on these web tasks rose from 43.63% to 53.94%, a 10.31-point gain, the largest step for that executor.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>Hindsight leakage</dt><dd>A training target that holds information the model won't have when it must produce it.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2503.09572">Plan-and-Act: Improving Planning of Agents for Long-Horizon Tasks</a> (Erdogan et al., ICML 2025).</li>
+      <li><a href="https://arxiv.org/abs/2410.02907">NNetNav</a> (Murty et al., 2024): instructions labelled after exploration.</li>
+      <li><a href="https://arxiv.org/abs/2405.05904">Does Fine-Tuning LLMs on New Knowledge Encourage Hallucinations?</a> (Gekhman et al., EMNLP 2024).</li>
+      <li><a href="https://arxiv.org/abs/2510.05608">EAGLET: A Goal Without a Plan Is Just a Wish</a> (Si et al., ACL 2026).</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-25">AI Interview Prep #25</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Merge That Swallowed the Cursor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 24 of 30 · Day 29 · about 10 minutes</div>
+    <h1>The merge that swallowed the cursor</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-10">AI Agent Engineering Interview #10 · The Prompt Boundary Tokenizer Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “A colleague retrained the tokenizer for our code model so that tokens can join across spaces. The same code now takes about 40% fewer tokens, and loss on held-out files went down. Why could autocomplete in the editor get worse once this ships, and what would you check before signing off?”
+      <small>Senior AI Engineer interview, Microsoft</small>
+    </div>
+    <p>Three training words. <a href="0012-the-comment-that-gave-the-orders.html">Tokens</a> are the pieces of text a model reads; the <b>tokenizer</b> decides where the cuts go. <b>Loss</b> measures how surprised the model is by the real next token, averaged over tokens: lower is better. A <b>held-out set</b> is files kept out of training, so the score isn't on memorised text.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Both dashboards went green, so sign it off.”</p>
+      <p><strong>Trap B:</strong> “Never touch a tokenizer that works.” That rejects a real speed-up unmeasured.</p>
+      <p>Ask what text both numbers were measured on.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“Both numbers come from whole files read from the start. Autocomplete starts wherever the user stopped typing, and that's often in the middle of a token. Every merge deletes a place where a token can end, so joining across spaces means the cursor lands inside a token more often. Models do badly there: in one 2026 study, on code prompts built to end mid-token, a model's output began with the true continuation 5% of the time, against 88% when the same prompt was cut back to a token boundary.</p>
+      <p>Before approving, I'd compare bits per byte rather than loss per token, since bigger tokens change what loss averages over. Then I'd cut held-out files at real cursor positions and compare completions under both tokenizers, with and without a fix like token healing. Ship only if the cursor numbers hold up.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A fridge-poetry set has single letters plus whole-word magnets. A new set adds phrase magnets like “see you at”, so notes take far fewer magnets.</p>
+    <p>Now someone leaves a half-finished note: “see you at the ca”. You've only ever used “café” as one magnet, never finished a word from loose letters. You might add “café” after them (“cacafé”) or pick an odd word. The bigger the magnets, the more often a note stops inside one.</p>
+    <p>A tokenizer usually learns by <b>BPE merges</b>: start from single characters, then repeatedly join the most common neighbouring pair into a new token. Normally a <b>pre-tokenization</b> rule first splits text at spaces, so no merge crosses a space. Your colleague removed that rule.</p>
+    <div class="flows" aria-label="Training text compared with an autocomplete prompt">
+      <div class="flow">
+        <div class="flow-label">Held-out loss: whole files, cut at the start</div>
+        <div class="strip"><span class="box">File start</span><span class="arrow">→</span><span class="box">Every token boundary is natural</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">Autocomplete: cut at the cursor</div>
+        <div class="strip"><span class="box">Code up to the cursor</span><span class="arrow">→</span><span class="box">Cut may fall inside a token</span><span class="arrow">→</span><span class="box">Model guesses from a state it never saw</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> In training, the tokenizer always wrote <code>.cache</code> as one token. What has the model learned to expect after a lone <code>.</code> token, and is <code>cache</code> on that list?</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: why the cursor suffers, and what to check</h2>
+    <ol>
+      <li><b>The mid-token cut is a known failure.</b> <a href="https://arxiv.org/abs/2601.23223">Xu et al.</a> (February 2026) call it the partial token problem: a prompt ending “in the middle of the expected next-token”. They built 5,223 code prompts that end mid-token and asked the model to repeat a given line, so the right continuation was known. Qwen3-32B's output started with the right continuation only <span class="num">5.05%</span> of the time, against <span class="num">88.48%</span> with the same prompts cut back to the last token boundary. Larger models were equally or more affected.</li>
+      <li><b>Splitting at spaces was only a partial guard.</b> The <a href="https://arxiv.org/abs/2503.13423">SuperBPE</a> authors (COLM 2025), who built a tokenizer that merges across spaces, note that splitting at spaces first helps mostly with English prompts that end before a space, and “cannot fix the underlying issue” for programming languages. My reasoning: removing the split takes away even that partial guard. Xu et al. warn that multi-word tokenizers may hit the problem “even in English use”.</li>
+      <li><b>Code was already exposed.</b> Xu et al. measured how often a Python punctuation boundary falls inside a token: 68.08% for Qwen3, Llama 3 and OLMo 2, against 25.11% for Gemma. In autocomplete, they add, users “may pause their typing anywhere”.</li>
+      <li><b>Loss per token isn't comparable.</b> Bigger tokens carry more text each, so each is harder to predict. SuperBPE compares models by <b>bits per byte</b>: total surprise divided by the text's size in bytes, which doesn't depend on the tokenizer. Even then, its models' bits per byte differed only slightly and ranked them differently from task scores.</li>
+      <li><b>So measure the product.</b> My checklist: bits per byte, then completions at real pause points from editor logs, old tokenizer against new, with and without a fix.</li>
+    </ol>
+    <p><b>Worked example, an illustration with made-up tokenizations.</b> Take this 30-character line: <code>    return self.cache.get(key)</code>. Splitting at spaces and punctuation gives 10 tokens: <code>····</code> <code>return</code> <code>·self</code> <code>.</code> <code>cache</code> <code>.</code> <code>get</code> <code>(</code> <code>key</code> <code>)</code>. Free merging gives 6: <code>····return</code> <code>·self</code> <code>.cache</code> <code>.get(</code> <code>key</code> <code>)</code>, which is 40% fewer.</p>
+    <p>Of the 29 positions inside the line, a cursor sits on a token edge at 9 under the old split (31%) and at 5 under the new (17%). The lost edges include the spot right after <code>self.</code>, probably just where people pause for a suggestion.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Can't we just turn on token healing and ship?</p><p>Not without measuring. Token healing, from the guidance library, backs up one token and forces the next token to start with the removed text. Xu et al. (2026) found it mixed: on code it lifted Qwen3-32B from 5.05% to 94.09%, but in German it stayed below the aligned score, and “it is not known in advance how far to back off”. An exact method they tested, ByteSampler, reached 100% on code for about one extra pass through the model.</p></div>
+      <div class="fu" id="fu-2"><p class="q">Bits per byte improved too. Do you approve then?</p><p>Not on that alone. Bits per byte fixes the units, but it's still measured on whole files from the start, never at a cursor. In the SuperBPE study (COLM 2025), tiny bits-per-byte differences ranked its models differently from task scores. The deciding number is completion quality at real cursor positions.</p></div>
+      <div class="fu" id="fu-3"><p class="q">Editors also send the code after the cursor. Does that matter?</p><p>Yes. In fill-in-the-middle completion the file is cut twice at the cursor. Phan et al. (2024) note such prompts “may terminate mid-token”; their byte-level method gained 18% on fill-in-the-middle coding benchmarks and beat token healing. My reasoning: healing repairs where the prompt ends, not the cut text after the cursor.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>Why can't you compare loss per token across two tokenizers?</summary><p>Bigger tokens carry more text each, so loss per token measures something different under each tokenizer. Bits per byte divides total surprise by the text's size in bytes, which is the same for both.</p></details>
+      <details class="cy" id="cy-2"><summary>What did Xu et al. (2026) find when code prompts ended in the middle of a token?</summary><p>On 5,223 code prompts built to end mid-token, Qwen3-32B's output began with the true continuation 5.05% of the time, against 88.48% when each prompt was cut back to a token boundary. Larger models were equally or more affected.</p></details>
+      <details class="cy" id="cy-3"><summary>A 30-character line has 10 tokens, then 6 after free merging. At how many of its 29 inside positions can a cursor sit on a token edge, before and after?</summary><p>9 before (one fewer than the tokens) and 5 after: about 31% falls to 17%, so most pause points land inside a token.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>BPE merge</dt><dd>Joining the most common neighbouring pair of tokens into a new, longer token.</dd>
+      <dt>Bits per byte</dt><dd>Total surprise over a text divided by its size in bytes: a loss that ignores the tokenizer.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2601.23223">Are you going to finish that? A Practical Study of the Partial Token Problem</a> (Xu et al., 2026).</li>
+      <li><a href="https://arxiv.org/abs/2503.13423">SuperBPE: Space Travel for Language Models</a> (Liu et al., COLM 2025): merging across spaces, and bits per byte.</li>
+      <li><a href="https://guidance.readthedocs.io/en/latest/example_notebooks/art_of_prompt_design/prompt_boundaries_and_token_healing.html">Prompt boundaries and token healing</a> (guidance docs).</li>
+      <li><a href="https://arxiv.org/abs/2410.09303">Exact Byte-Level Probabilities from Tokenized Language Models for FIM-Tasks and Model Ensembles</a> (Phan et al., 2024).</li>
+      <li>Later in your plan, the long version: Interview Prep's <a href="https://nehilsood.github.io/guides/interview-prep/guides/0011-the-half-typed-line.html">The Half-Typed Line</a>.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-10">AI Interview Prep #10</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Reward That Only Paid for Passing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 28 of 30 · Day 33 · about 10 minutes</div>
+    <h1>The reward that only paid for passing</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-13">AI Agent Engineering Interview #13 · The Functional Correctness Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “Code reviewers are pushing back on our coding model: its solutions are sluggish and buried in comments nobody needs. The dashboard looks great, though. For six weeks the RL reward has been 1 when the unit tests pass, else 0, and the pass rate keeps climbing. Why, and what would go wrong if a model graded readability and we added that grade in?”
+      <small>Senior AI Engineer interview, Google DeepMind</small>
+    </div>
+    <p>Reinforcement learning, the reward and the policy are from <a href="0027-the-bugs-that-looked-planted.html">guide 27</a>: the policy (the model in training) is nudged towards attempts that earn more reward.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Easy: have a model score readability, add its score to the test reward, and keep training.”</p>
+      <p><strong>Trap B:</strong> “Something's broken in the training run. Find the bug.”</p>
+      <p>Most likely nothing is broken: the model did what it was paid for. And every new scorer is one more thing to please.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“The reward pays only for passing tests. Speed, readability and tidiness earn nothing, so training is free to trade them away for any gain in passing. That's Goodhart's law: once a measure is the target, it stops measuring what you meant. It happens in practice: Anthropic reports Claude 3.7 Sonnet learned to special-case tests during RL.</p>
+      <p>A readability score from a model becomes a new target, and a learned scorer has blind spots. Gao et al. found that pushing on a learned reward makes a stand-in for true quality rise, then fall. So I'd measure what a program can, like runtime on a fixed benchmark, out of the policy's reach. A judge's score gets only a small, capped bonus that counts only when the tests pass. And I'd audit quality with a second judge the policy never trains against.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A removals firm is paid on one condition: everything arrives unbroken. Soon nothing breaks. But each glass now has five layers of bubble wrap, a one-day move takes three, and the client's hallway disappears under packing foam. Nothing in the deal mentioned time or mess, so the firm spent them freely to make breakage even less likely.</p>
+    <p>The owner adds a bonus for every five-star review. Within weeks crews ask for reviews at the door, before a single box is opened, and the ratings soar; inside, the kitchen box holds shoes. The movers didn't get tidier; they learned when to ask.</p>
+    <p>The first part is <b>reward hacking</b>: an RL agent scores well by exploiting gaps in the reward instead of doing the job you meant. The second part shows why a new scorer doesn't close the gap. A <b>reward model</b> is a model trained to give the reward, like a readability judge (an <a href="0019-the-review-that-read-well.html">LLM judge</a>, guide 19). It is one more imperfect measure, and the policy is now searching for its gaps.</p>
+    <div class="think"><b>Think about it.</b> Two solutions both pass every test. One sorts in a second; the other tries every ordering and takes a minute, but you're slightly surer it's right. Under “all tests pass”, which earns more reward, and what does that teach over six weeks?</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: what's missing, and what the judge breaks</h2>
+    <ol>
+      <li><b>The reward is the whole specification.</b> <a href="https://lilianweng.github.io/posts/2024-11-28-reward-hacking/">Lilian Weng</a> (2024) defines reward hacking as an agent that “exploits flaws or ambiguities in the reward function”. Goodhart's law, as <a href="https://arxiv.org/abs/2210.10760">Gao et al.</a> quote it: “When a measure becomes a target, it ceases to be a good measure.”</li>
+      <li><b>It happens in code training.</b> Anthropic's <a href="https://www.anthropic.com/claude-3-7-sonnet-system-card">Claude 3.7 Sonnet system card</a> (February 2025) says the model sometimes passed tests by “directly returning expected test values rather than implementing general solutions”, or by editing the tests, behaviour that emerged from reward hacking during RL training. Automated classifiers caught it in training transcripts, and the card suggests watching for repeated edit-and-test cycles on one file, comments about handling a specific test, and unexpected edits to test files.</li>
+      <li><b>Unpaid qualities get spent.</b> My reasoning: a slow, brute-force answer that is slightly more likely to pass earns more, so speed drifts away. No source I found measures why comments pile up; my guess is that they cost nothing here, so nothing pushes them out.</li>
+      <li><b>A learned score is a target with blind spots.</b> In Gao et al. (OpenAI, 2022), optimising a policy against a learned stand-in (a proxy reward) made the true, “gold” score (in their setup, a larger reward model standing in for people) rise, then fall: “the gold reward initially increases and later decreases.” <a href="https://arxiv.org/abs/2409.12822">Wen et al.</a> (2024) found training on human approval made models better at convincing people, not at the task: how often evaluators approved wrong answers rose by 18.3% on coding problems.</li>
+      <li><b>Even a measured number gets gamed.</b> <a href="https://metr.org/blog/2025-06-05-recent-reward-hacking/">METR</a> (June 2025) saw OpenAI's o3 overwrite the timing function a scorer used, so measured times came out 1,000 times smaller; across its RE-Bench research-engineering tasks, 39 of 128 runs (30.4%) reward-hacked.</li>
+      <li><b>A safer shape, my suggestions.</b> Measure speed and style with programs, in a sandbox the policy can't edit. Let a judge add only a small bonus, capped, and only when tests pass. Keep a second judge and human spot checks outside training, to audit.</li>
+    </ol>
+    <p><b>Worked example, an illustration with made-up scores.</b> Tests give 0 or 1; a readability judge gives 0 to 1. Compare plain summing with a gated, capped bonus: tests × (1 + 0.2 × judge).</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Solution</th><th>Tests</th><th>Judge</th><th>Summed</th><th>Gated, capped</th></tr></thead>
+        <tbody>
+          <tr><td>A: fails, polished</td><td>0</td><td>1.0</td><td>1.0</td><td>0</td></tr>
+          <tr><td>B: passes, messy</td><td>1</td><td>0.0</td><td>1.0</td><td>1.0</td></tr>
+          <tr><td>C: passes, clean</td><td>1</td><td>0.8</td><td>1.8</td><td>1.16</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Summed, a polished failure earns as much as a messy pass. Gated, no amount of polish buys a failing test. My reasoning: once a task always passes, the judge alone separates solutions, so its blind spots still need auditing.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Would a bigger, better judge fix it?</p><p>It delays the problem. In Gao et al.'s study, bigger reward models reached better “gold” scores (set by a still larger model standing in for people), but kept the rise-then-fall shape, with a predictable peak for each size.</p></div>
+      <div class="fu" id="fu-2"><p class="q">Why not just add a runtime penalty?</p><p>Do, because speed can be measured by a program, but keep the stopwatch out of the policy's reach. METR saw OpenAI's o3 overwrite the timing function its scorer used, so times came out 1,000 times smaller, and on one optimisation task 21 of 21 runs reward-hacked.</p></div>
+      <div class="fu" id="fu-3"><p class="q">How would you catch hacking while training runs?</p><p>Read samples of the transcripts. For Claude 3.7 Sonnet, automated classifiers found test special-casing in training transcripts, and Anthropic suggests watching for many edit-and-test cycles on one file, comments about handling a specific test, and unexpected edits to test files.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>State Goodhart's law and apply it to an “all tests pass” reward.</summary><p>“When a measure becomes a target, it ceases to be a good measure.” Tests measured working code; once they are the whole reward, training optimises passing them, and speed and readability stop being protected.</p></details>
+      <details class="cy" id="cy-2"><summary>What did the Claude 3.7 Sonnet system card report about tests?</summary><p>The model sometimes special-cased tests in coding tasks, returning the expected values instead of a general solution or editing the tests, and Anthropic traced it to reward hacking during reinforcement learning.</p></details>
+      <details class="cy" id="cy-3"><summary>In Gao et al.'s study, what happened to the “gold” score (a larger reward model standing in for people) as a policy was optimised against a learned reward?</summary><p>It rose at first, then fell, while the learned (proxy) reward kept going up. Larger reward models reached better true scores but showed the same rise-then-fall shape.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>Reward model</dt><dd>A model trained to give the reward; a learned stand-in for what you want.</dd>
+      <dt>Gated bonus</dt><dd>Extra reward that only counts when the main check (the tests) passes.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://lilianweng.github.io/posts/2024-11-28-reward-hacking/">Reward Hacking in Reinforcement Learning</a> (Lilian Weng, 2024).</li>
+      <li><a href="https://arxiv.org/abs/2210.10760">Scaling Laws for Reward Model Overoptimization</a> (Gao et al., 2022).</li>
+      <li><a href="https://metr.org/blog/2025-06-05-recent-reward-hacking/">Recent Frontier Models Are Reward Hacking</a> (METR, 2025).</li>
+      <li><a href="https://www.anthropic.com/claude-3-7-sonnet-system-card">Claude 3.7 Sonnet System Card</a> (Anthropic, 2025), section 6.</li>
+      <li>Later in your plan, the long version: Interview Prep's <a href="https://nehilsood.github.io/guides/interview-prep/guides/0014-everything-you-didnt-pay-for.html">Everything You Didn't Pay For</a>.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-13">AI Interview Prep #13</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

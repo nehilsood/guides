@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Agent That Learned Its Harness by Heart</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 25 of 30 · Day 30 · about 10 minutes</div>
+    <h1>The agent that learned its harness by heart</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-18">AI Agent Engineering Interview #18 · The Harness Overfitting Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “We fine-tuned an agent on 50,000 recorded runs, every one collected in a single harness. A customer runs that model inside another harness, on tasks of the same type, and its scores fall off a cliff. Nothing about the weights or the task changed. So what did the model really learn?”
+      <small>Senior AI Engineer interview, Google DeepMind</small>
+    </div>
+    <p>The <b>harness</b> (also called a scaffold) is the code around the model: tools, prompts, and how results come back (<a href="0001-the-pipeline-that-beat-the-agent.html">guide 1</a>). A recorded run is a <a href="0006-the-summary-that-cost-more.html">trajectory</a>. <b>Fine-tuning</b> takes a trained model and trains it further on examples; here, <b>supervised fine-tuning (SFT)</b> lowers the model's <a href="0024-the-merge-that-swallowed-the-cursor.html">loss</a> on every token the recorded agent wrote, so it learns to write the same. A model's <b>weights</b> are the numbers it learned in training; the <b>base model</b> is the model before this extra training. “32B” means 32 billion weights.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “The customer's harness has a different prompt. Tweak it and the model will be fine.”</p>
+      <p><strong>Trap B:</strong> “Collect more trajectories.” From the same harness, that teaches the same habits harder.</p>
+      <p>Both treat it as a setup slip. The cause went in during training.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“It learned the task wrapped in that harness's habits, and it can't tell them apart. Fine-tuning makes the model copy every token in the recorded runs: the tool-call format, the tool names, how results look, the rhythm of planning. Nothing marks which tokens are the task. In a new harness its first call may not even parse, and each mistake leads somewhere stranger.</p>
+      <p>That's been measured: a model trained only in OpenHands scored 52.6% on SWE-bench Verified there, as its developers reported, and 8.4% in OpenCode, which couldn't parse its tool calls. Its base model varied far less. I'd check the base model in both harnesses and read where failed runs first go wrong. The fix is in the data: varied tool formats and harnesses, and a held-out harness in every evaluation.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A new cashier trains for three months on one supermarket's till. She learns the job: scan, weigh, take payment. She also learns that till: where the buttons are, the code for bananas, which screen comes next.</p>
+    <p>She moves to a shop with a different till. The job hasn't changed, but her hands go to buttons that aren't there and she types the old banana code. An error screen she's never seen appears, she presses what usually fixes things, and the next screen is stranger still. She doesn't get a bit slower; the queue reaches the door.</p>
+    <p>Fine-tuning on one harness is those three months: the model learns the task and the harness's dialect together, because every example had both.</p>
+    <div class="flows" aria-label="Training harness compared with a new harness">
+      <div class="flow">
+        <div class="flow-label">Training harness: every step looks familiar</div>
+        <div class="strip"><span class="box">Task</span><span class="arrow">→</span><span class="box">Call in the trained format</span><span class="arrow">→</span><span class="box">Familiar result</span><span class="back">↺</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">New harness: off the map from step one</div>
+        <div class="strip"><span class="box">Task</span><span class="arrow">→</span><span class="box">Call the parser can't read</span><span class="arrow">→</span><span class="box">Unfamiliar error</span><span class="arrow">→</span><span class="box">Stranger next step</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> In every training example, the line that fixed the bug sat inside the same brackets and tool name. During training, what told the model that the brackets didn't matter?</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: what it learned, and how to tell</h2>
+    <ol>
+      <li><b>Format is learned first.</b> In <a href="https://arxiv.org/abs/2403.12881">Agent-FLAN</a> (Chen et al., 2024), training on agent data in fixed formats (ReAct, which writes a thought, then an action, then reads the result; and JSON), loss on the formatted data fell fast, to 0.04, while what they call content loss stayed at 0.54, and the authors write that “the model quickly gets overfitted to the format itself”.</li>
+      <li><b>The collapse has been measured.</b> <a href="https://arxiv.org/abs/2608.06113">DCAS</a> (Thangarajah et al., ASE 2026) ran open coding models in four harnesses. SWE-Lego-Qwen3-32B, trained in OpenHands, fell to 8.4% in OpenCode because “its tool-call output format is incompatible with OpenCode’s parser” (the <a href="0002-the-tool-call-nobody-read.html">parser</a> from guide 2), leaving most runs with no readable actions.</li>
+      <li><b>Training put it there.</b> The untrained base models varied less across harnesses than any fine-tuned one, so the authors conclude the gap is “something installed by training”. The Qwen3-Coder-Next report (March 2026) agrees: “Models trained on trajectories from one scaffold do not transfer strongly to others.”</li>
+      <li><b>Why a cliff, not a slope.</b> My reasoning: it trained only on good histories from one harness. One unfamiliar step puts it somewhere new, its next step is worse, and errors compound as in <a href="0001-the-pipeline-that-beat-the-agent.html">guide 1</a>.</li>
+      <li><b>Diagnose before fixing.</b> My suggestions: run the base model in both harnesses to see how much of the gap the fine-tune added, and read the first wrong step in 50 failed runs. Rejected calls or missing tool names in the first few steps point to dialect; a wrong plan later points to the task.</li>
+      <li><b>Then fix the data.</b> Qwen found that training with more tool-call templates raised its SWE-bench Verified score with data volume kept the same. <a href="https://arxiv.org/abs/2310.12823">AgentTuning</a> (Zeng et al., 2023) found that its 7B model trained on agent data alone scored 0.09 on unseen tasks, against 0.67 when that data was mixed with general data.</li>
+    </ol>
+    <p><b>Worked example, with real numbers.</b> DCAS's SWE-bench Verified pass rates, same tasks, four harnesses (the 52.6 is the developers' own reported score):</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Model</th><th>OpenHands</th><th>Claude Code</th><th>OpenCode</th><th>mini-swe-agent</th></tr></thead>
+        <tbody>
+          <tr><td>Qwen3-32B, untrained base</td><td>29.0</td><td>23.2</td><td>18.4</td><td>8.0</td></tr>
+          <tr><td>SWE-Lego-Qwen3-32B, trained in OpenHands</td><td>52.6</td><td>44.2</td><td>8.4</td><td>37.6</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The base model's spread is <span class="num">21.0</span> points; the fine-tuned model's is <span class="num">44.2</span>. Fine-tuning helped a lot at home and in two harnesses, and wrecked one whose parser it couldn't satisfy.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Can't a better system prompt in the new harness fix it?</p><p>Not reliably. My reasoning: a prompt changes what the model reads, not the habits training put into its weights; in the DCAS study, SWE-Lego-Qwen3-32B kept writing tool calls OpenCode's parser couldn't read. A quick stopgap is an adapter that translates between the two formats; the real fix is training data in many formats.</p></div>
+      <div class="fu" id="fu-2"><p class="q">Won't training on many harnesses solve it?</p><p>It helps, but the DCAS study says it isn't enough alone. Qwen3-32B-Nex-N1, trained on varied multi-format runs, still scored 26.2% in OpenCode and 15.6% in mini-swe-agent, against 50.5% reported in OpenHands. The authors argue models also learn each harness's planning conventions, and planning-aware training helped on harnesses the model never saw.</p></div>
+      <div class="fu" id="fu-3"><p class="q">How would you report the model's score honestly?</p><p>Name the harness, and add at least one harness the model never trained in, plus the base model's spread. The DCAS authors call a SWE-bench score “methodologically incomplete without specifying the scaffold”.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>What does supervised fine-tuning on agent trajectories actually train the model to do?</summary><p>Write every token the recorded agent wrote, given what came before: the reasoning and the fix, but equally the tool-call format, tool names and other harness habits. Nothing in the training marks which tokens are the task.</p></details>
+      <details class="cy" id="cy-2"><summary>Why did the DCAS study conclude that the cross-harness gap was installed by training?</summary><p>Untrained base models varied less across the four harnesses than any fine-tuned model. Qwen3-32B base spanned 29.0 to 8.0 (21 points); SWE-Lego-Qwen3-32B, fine-tuned in OpenHands, spanned 52.6 (its developers' reported score) to 8.4 (44.2 points).</p></details>
+      <details class="cy" id="cy-3"><summary>What did Agent-FLAN observe about format and content during agent fine-tuning?</summary><p>Loss on the formatted data fell fast, to 0.04, while what they call content loss stayed at 0.54 (their Figure 2), so the model learned the fixed format (ReAct, JSON) first; the authors say it “quickly gets overfitted to the format itself”.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>Supervised fine-tuning (SFT)</dt><dd>Further training on examples so the model writes what the examples wrote.</dd>
+      <dt>Scaffold</dt><dd>Another word for the harness around the model.</dd>
+      <dt>Format overfitting</dt><dd>Learning the training data's surface format so well that other formats fail.</dd>
+      <dt>Held-out harness</dt><dd>A harness kept out of training and used only to test.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2608.06113">DCAS: Decoupling CLI Agent Scaffolding to Internalize Planning across Scaffolds</a> (Thangarajah et al., ASE 2026).</li>
+      <li><a href="https://arxiv.org/abs/2603.00729">Qwen3-Coder-Next Technical Report</a> (Qwen Team, 2026): tool-call templates and cross-scaffold transfer.</li>
+      <li><a href="https://arxiv.org/abs/2403.12881">Agent-FLAN</a> (Chen et al., 2024): format learned before content.</li>
+      <li><a href="https://arxiv.org/abs/2310.12823">AgentTuning</a> (Zeng et al., 2023): agent data mixed with general data.</li>
+      <li>Later in your plan, the long version: Interview Prep's <a href="https://nehilsood.github.io/guides/interview-prep/guides/0018-the-only-cockpit-it-knew.html">The Only Cockpit It Knew</a>.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-18">AI Interview Prep #18</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

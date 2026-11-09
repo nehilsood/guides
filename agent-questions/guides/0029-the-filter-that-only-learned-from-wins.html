@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Filter That Only Learned From Wins</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 29 of 30 · Day 34 · about 10 minutes</div>
+    <h1>The filter that only learned from wins</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-19">AI Agent Engineering Interview #19 · The Rejection Sampling Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “Your lead wants to drop reinforcement learning altogether. Instead: sample many answers from the model, keep the ones whose tests pass, fine-tune on those, and go round again. When would that be enough to ship, and at what point does it stall in a way that policy-gradient RL doesn't?”
+      <small>Senior ML Engineer interview, Google DeepMind</small>
+    </div>
+    <p>RL, reward, policy and rollout are from <a href="0027-the-bugs-that-looked-planted.html">guide 27</a>; fine-tuning is from <a href="0025-the-agent-that-learned-its-harness-by-heart.html">guide 25</a>.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Keeping the passes is RL in all but name, so it's just as good.”</p>
+      <p><strong>Trap B:</strong> “Without real RL the model can't improve; insist on it.”</p>
+      <p>Both skip the detail that matters: how each method weighs an attempt, and what it does with failures.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“That loop is rejection-sampling fine-tuning, and it's often enough. ReST-EM used it to beat fine-tuning on human data for maths and code. I'd ship it when the tests are a reliable reward and the model already passes a fair share of tasks, so training mostly sharpens what it can do.</p>
+      <p>The stall: it learns only from wins, each counted the same. Tasks that pass eight times in eight flood the data, a rare pass on a hard task counts once, and failures teach nothing. GRPO, a policy-gradient method, scores each attempt against its group's average, so the rare pass counts most, failures are pushed down, and solved tasks drop out. DeepSeekMath found that beat the filter. But neither learns where the model never passes: Yue et al. found RL mostly sharpens what the base model could already produce.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>Two stand-up comics record every show. The first keeps only the jokes that got a laugh and rehearses those. His notebook fills with the safe joke that always works; the new joke that killed once, on a tough night, is one line among many.</p>
+    <p>The second also notes how each joke did against that night's crowd. A laugh from a crowd that rarely laughs counts for a lot. The safe joke teaches him nothing new. A joke that died gets marked down, so he stops reaching for it.</p>
+    <p>Neither comic learns anything from a joke he has never landed.</p>
+    <p>The first comic is <b>rejection sampling</b>: draw many attempts, reject the failures, fine-tune on the rest. The second is <b>policy gradient</b>, the RL family that raises or lowers each attempt's probability by its <b>advantage</b>: how much better or worse it scored than expected. The expected score is the <b>baseline</b>.</p>
+    <div class="flows" aria-label="Rejection sampling compared with policy gradient">
+      <div class="flow">
+        <div class="flow-label">Rejection sampling: pass counts 1, fail counts 0</div>
+        <div class="strip"><span class="box">Sample 8 attempts</span><span class="arrow">→</span><span class="box">Keep the passes</span><span class="arrow">→</span><span class="box">Fine-tune on them</span><span class="back">↺</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">Policy gradient: each attempt weighed against the group</div>
+        <div class="strip"><span class="box">Sample 8 attempts</span><span class="arrow">→</span><span class="box">Score minus group average</span><span class="arrow">→</span><span class="box">Push up above, down below</span><span class="back">↺</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> One task passes 8 times out of 8, another 1 time out of 8. Under rejection sampling, which task supplies more training examples, and which one did the model most need to learn from?</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: when the filter is enough, and where it stalls</h2>
+    <ol>
+      <li><b>The filter works.</b> <a href="https://arxiv.org/abs/2203.14465">STaR</a> (Zelikman et al., 2022) fine-tuned on reasoning that reached correct answers, round after round. <a href="https://arxiv.org/abs/2312.06585">ReST-EM</a> (Singh et al., TMLR 2024) ran the same loop with right-or-wrong checks on the MATH and APPS benchmarks (maths and code) and significantly outperformed fine-tuning on human data alone.</li>
+      <li><b>Both are one formula with different weights.</b> <a href="https://arxiv.org/abs/2402.03300">DeepSeekMath</a> (Shao et al., 2024) writes both methods as one training update. Rejection-sampling fine-tuning gives each answer weight 1 if correct, 0 if not. Its GRPO, a policy-gradient method, uses the reward minus the group's mean, divided by the spread. The filter “does not penalize incorrect responses and uniformly reinforces all responses with correct answers”.</li>
+      <li><b>Fresh samples and graded weights each helped.</b> On a small model with 1.3 billion weights, sampling from the current model each step “significantly outperforms” sampling once from the starting model, and GRPO beat that fresh-sample filter: “GRPO surpasses online RFT”. The test isn't perfectly clean: GRPO there scored with a trained reward model, online RFT with a rule. My reading: your lead's loop sits between the two, since it resamples once per round.</li>
+      <li><b>Easy tasks flood the filter.</b> ReST-EM capped kept solutions at 10 per problem because otherwise “we will have a lot more correct solutions for the easier problems.” Its gains also faded after a couple of rounds.</li>
+      <li><b>The shared ceiling.</b> My reasoning from the formula: if all eight attempts fail, every advantage is zero, so policy gradient learns nothing there either. <a href="https://arxiv.org/abs/2504.13837">Yue et al.</a> (NeurIPS 2025) found RL-trained models beat their <a href="0025-the-agent-that-learned-its-harness-by-heart.html">base model</a> at one attempt, but base models score higher when allowed many attempts; the abilities are “bounded by the base model”. DeepSeekMath saw something similar: RL didn't raise the chance that at least one of many tries is right. So the question's premise, that policy gradient has no such ceiling, outruns the evidence: its edge is weighting, not reach.</li>
+    </ol>
+    <p><b>Worked example, an illustration with made-up pass counts and GRPO's formula from DeepSeekMath</b> (population spread). Eight attempts per task:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Task</th><th>Passes</th><th>Filter: examples kept</th><th>GRPO weight on a pass</th><th>GRPO weight on a fail</th></tr></thead>
+        <tbody>
+          <tr><td>Easy</td><td>8 of 8</td><td>8</td><td>0</td><td>none</td></tr>
+          <tr><td>Medium</td><td>4 of 8</td><td>4</td><td>+1.00</td><td>−1.00</td></tr>
+          <tr><td>Hard</td><td>1 of 8</td><td>1</td><td>+2.65</td><td>−0.38</td></tr>
+          <tr><td>Out of reach</td><td>0 of 8</td><td>0</td><td>none</td><td>0</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Hard task: mean 0.125, spread 0.331, so a pass gets (1 − 0.125) ÷ 0.331 ≈ 2.65. The filter spends most of its data on the easy task; GRPO ignores it and leans on the rare pass. Neither touches the last row.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Isn't filtering by reward just RL anyway?</p><p>Half true. DeepSeekMath writes both as the same gradient: the filter weights each answer 1 if correct and 0 if wrong, while GRPO subtracts the group's average score (a baseline), so failures get pushed down and solved tasks stop counting. So the filter is policy gradient with the crudest weights and no baseline.</p></div>
+      <div class="fu" id="fu-2"><p class="q">How would you get signal on tasks the model never passes?</p><p>Neither method can alone: a task that always fails gives zero weight. STaR showed the model the correct answer and had it write the reasoning (“rationalization”). Other options: easier stepping-stone tasks, more attempts on hard ones, or distillation (training on a stronger model's answers), which Yue et al. say “can introduce new reasoning patterns”.</p></div>
+      <div class="fu" id="fu-3"><p class="q">How many rounds of the loop would you run?</p><p>Until a <a href="0024-the-merge-that-swallowed-the-cursor.html">held-out</a> set stops improving, which may be soon. ReST-EM found that more than a couple of rounds gave diminishing gains, and on the APPS coding benchmark the second round got worse, which the authors suspect was overfitting to the small set of training problems.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>In DeepSeekMath's unified view, how do rejection-sampling fine-tuning and GRPO weight each sampled answer?</summary><p>Rejection-sampling fine-tuning gives weight 1 to correct answers and 0 to wrong ones. GRPO uses the answer's reward minus the group's mean, divided by the group's spread, so wrong answers get pushed down and rare successes count more.</p></details>
+      <details class="cy" id="cy-2"><summary>Why does plain rejection sampling over-weight easy problems, and how did ReST-EM guard against it?</summary><p>An easy problem yields many passing samples, a hard one few, so easy problems fill the training set. ReST-EM capped the kept solutions at 10 per problem.</p></details>
+      <details class="cy" id="cy-3"><summary>What did Yue et al. (NeurIPS 2025) find when comparing RL-trained models with their base models?</summary><p>RL-trained models did better with one attempt, but base models scored higher when allowed many attempts, so the authors conclude the reasoning abilities are “bounded by the base model”.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>Policy gradient</dt><dd>RL that raises or lowers each attempt's probability by its advantage.</dd>
+      <dt>GRPO</dt><dd>A policy-gradient method that uses the group's average score as the baseline.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2402.03300">DeepSeekMath</a> (Shao et al., 2024), section 5.2: the unified view.</li>
+      <li><a href="https://arxiv.org/abs/2312.06585">Beyond Human Data: Scaling Self-Training for Problem-Solving with Language Models</a> (ReST-EM; Singh et al., TMLR 2024).</li>
+      <li><a href="https://arxiv.org/abs/2504.13837">Does Reinforcement Learning Really Incentivize Reasoning Capacity in LLMs Beyond the Base Model?</a> (Yue et al., NeurIPS 2025).</li>
+      <li><a href="https://arxiv.org/abs/2203.14465">STaR: Bootstrapping Reasoning With Reasoning</a> (Zelikman et al., 2022).</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-19">AI Interview Prep #19</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

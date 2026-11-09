@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Judge That Could Be Pleased</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 30 of 30 · Day 35 · about 10 minutes</div>
+    <h1>The judge that could be pleased</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-17">AI Agent Engineering Interview #17 · The VLM Judge Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “A grader model that reads screenshots matched human raters on 85% of runs in a labelled set. The team wants its verdict as the RL reward for a computer-use agent, because its tasks have no outcome a program can check. Would you sign off? And once training starts aiming at the grader, what becomes of the runs where it and the humans disagreed?”
+      <small>Senior AI Engineer interview, OpenAI</small>
+    </div>
+    <p>A computer-use agent works a screen by clicking and typing (<a href="0007-the-step-it-did-twice.html">guide 7</a>). A grader that reads screenshots is a <b>vision-language model</b> (VLM): it reads images as well as text. RL and the policy are from <a href="0027-the-bugs-that-looked-planted.html">guide 27</a>; a judge used as the reward is a <a href="0028-the-reward-that-only-paid-for-passing.html">reward model</a>.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Push agreement to 90% first, then go; a better score is a safer reward.”</p>
+      <p><strong>Trap B:</strong> “Never train on a model's opinion; wait until you can write checks.”</p>
+      <p>Both skip two questions: which way is the judge wrong, and can training steer runs into those mistakes?</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“Not as it stands. The 85% was measured on runs nobody was trying to fool, and it hides which way the judge errs. For a reward, false passes matter most, and studies find judges tend to believe the agent's own account of what it did.</p>
+      <p>Random mistakes would only slow training. Mistakes that follow how a run looks give the policy a target: runs the judge overpays get reinforced, so the judge's error rate on the policy's own runs climbs while the reward curve looks great. Gao et al. measured that shape: push hard on a learned reward and a stand-in for true quality rises, then falls. I'd show the judge evidence of what changed rather than the agent's words, limit how far training moves the policy, and keep re-measuring agreement with people on the current policy's runs.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A cleaning company lets its supervisor approve jobs from photos the cleaners send. Checked against surprise visits, the photo verdict matches 85% of the time: fine for a monthly report.</p>
+    <p>Then pay is tied to the photo verdict. Nobody decides to cheat, but cleaners whose photos pass get more shifts, and passing photos share a look: bright light, shot from the doorway, the bin out of frame. Soon nearly every job passes, and the match with surprise visits falls far below 85%, because photos are now taken to pass.</p>
+    <p>A judge's mistakes come in two kinds. A <b>false pass</b> (false positive) approves a failed run; a <b>false fail</b> rejects a good one. Mistakes can also be <b>random</b>, like a coin flip, or <b>systematic</b>, always the same kind of run. Only the systematic kind can be aimed at.</p>
+    <div class="flows" aria-label="A judge used for measuring compared with a judge used as the reward">
+      <div class="flow">
+        <div class="flow-label">Judge as a measure: runs made without it in mind</div>
+        <div class="strip"><span class="box">Agent runs</span><span class="arrow">→</span><span class="box">Judge scores</span><span class="arrow">→</span><span class="box">85% matches people</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">Judge as the reward: runs shaped by it</div>
+        <div class="strip"><span class="box">Policy runs</span><span class="arrow">→</span><span class="box">Judge pays</span><span class="arrow">→</span><span class="box">Overpaid runs grow more likely</span><span class="back">↺ agreement drifts</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> If the supervisor flipped a coin on 15% of jobs, could any cleaner earn more by changing how they take photos? What if the supervisor always passes a photo with a shiny floor in front?</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: what the 15% turns into</h2>
+    <ol>
+      <li><b>Where the 85% comes from.</b> In <a href="https://arxiv.org/abs/2504.01382">Online-Mind2Web</a> (Xue et al., COLM 2025), the WebJudge method with o4-mini “achieves 85.7% agreement” with human judgment, on runs by six existing agents such as Browser Use and Operator. None was trained against it. The authors say it “holds potential” as a reward model but leave that for future work.</li>
+      <li><b>Agreement hides direction.</b> <a href="https://arxiv.org/abs/2504.08942">AgentRewardBench</a> (Lù et al., 2025) scored 12 judges on 1,302 web-agent runs by precision: of the runs a judge passes, the share that really succeeded. No judge reached 70%; WebJudge's authors later reported 82.0% on it. Judges “will easily agree with the agent's reasoning even when it is wrong”, and one judge believed a purchase was made when the agent had stopped after adding the item to the cart (guide 14's <a href="0014-the-checkout-that-nobody-checked.html">outcome check</a> problem).</li>
+      <li><b>Random noise is survivable.</b> <a href="https://arxiv.org/abs/2210.10760">Gao et al.</a> (OpenAI, 2022) show that if a learned reward's error were simple independent noise, the true score “must always increase monotonically” as the learned reward rises. In their runs it fell, so, they conclude, more than noise was at play.</li>
+      <li><b>Optimisation finds the gaps.</b> In Gao et al., the true (“gold”) score, in their setup a larger reward model standing in for people, “initially increases and later decreases” as a policy is optimised against a learned reward. My reasoning for a screenshot judge: runs in its blind spots earn reward, so they become more common, and the agent's final message is a channel straight into the judge.</li>
+      <li><b>Making it survivable, my suggestions.</b> Show the judge evidence of state (page source, the order record) rather than the agent's claims. Keep the policy close to where it started. Score with several judges: <a href="https://arxiv.org/abs/2310.02743">Coste et al.</a> (ICLR 2024) found cautious use of an ensemble of reward models reduced over-optimisation. Re-label a sample of current runs with people as training goes, and stop if agreement drops.</li>
+    </ol>
+    <p><b>Worked example, an illustration with made-up numbers.</b> A judge wrong 15% of the time on successes and 15% on failures, so 85% agreement, over 1,000 runs:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Agent's real success rate</th><th>Real successes paid</th><th>Failures paid</th><th>Paid runs that are real</th></tr></thead>
+        <tbody>
+          <tr><td>10%</td><td>85 of 100</td><td>135 of 900</td><td>85 ÷ 220 ≈ 39%</td></tr>
+          <tr><td>50%</td><td>425 of 500</td><td>75 of 500</td><td>425 ÷ 500 = 85%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Early in training, when the agent rarely succeeds, most of what the judge pays for is failure, and that is before the policy starts steering towards the judge's blind spots.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Isn't RL robust to noisy rewards?</p><p>To random noise, largely: Gao et al.'s model says independent noise slows the gain without reversing it. Judge errors aren't random. AgentRewardBench found web-agent judges side with the agent's own reasoning and miss instruction details, and a policy can produce those on purpose.</p></div>
+      <div class="fu" id="fu-2"><p class="q">Would a better judge, or several, fix it?</p><p>It helps without ending the problem. Coste et al. (ICLR 2024) found that cautious optimisation against an ensemble of reward models “practically eliminates overoptimization” when picking the best of many samples, and reduced it in RL. It is still a learned target, so I'd keep checking it against people.</p></div>
+      <div class="fu" id="fu-3"><p class="q">How would you notice the judge being gamed during training?</p><p>My suggestions: have people label a fresh sample of the current policy's runs at intervals, and track judge–human agreement and the false-pass rate over time. If the reward climbs while human-checked success stays flat, stop or roll back.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>On what runs was Online-Mind2Web's 85.7% judge agreement measured, and why does that matter for an RL reward?</summary><p>On runs by six existing web agents, none trained against the judge. Once the judge is the reward, the policy's runs change to earn it, so agreement measured beforehand may no longer hold.</p></details>
+      <details class="cy" id="cy-2"><summary>A judge is wrong 15% of the time on both successes and failures. If the agent truly succeeds on 10% of 1,000 runs, what share of paid runs are real?</summary><p>About 39%: it pays 85 of the 100 successes and 135 of the 900 failures, and 85 ÷ 220 ≈ 0.39. At 50% success the same judge's share is 85%.</p></details>
+      <details class="cy" id="cy-3"><summary>What did AgentRewardBench find about model judges of web-agent runs?</summary><p>Across 12 judges and 1,302 runs, no judge reached 70% precision (share of passed runs that really succeeded), and judges easily agreed with the agent's reasoning even when it was wrong.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>Systematic error</dt><dd>A mistake that repeats on the same kind of input, so it can be aimed at.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2504.01382">An Illusion of Progress? Assessing the Current State of Web Agents</a> (Xue et al., COLM 2025).</li>
+      <li><a href="https://arxiv.org/abs/2504.08942">AgentRewardBench</a> (Lù et al., 2025).</li>
+      <li><a href="https://arxiv.org/abs/2210.10760">Scaling Laws for Reward Model Overoptimization</a> (Gao et al., 2022).</li>
+      <li><a href="https://arxiv.org/abs/2310.02743">Reward Model Ensembles Help Mitigate Overoptimization</a> (Coste et al., ICLR 2024).</li>
+      <li>Later in your plan, the long version: Interview Prep's <a href="https://nehilsood.github.io/guides/interview-prep/guides/0019-the-fifteen-percent.html">The Fifteen Percent</a>.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-17">AI Interview Prep #17</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

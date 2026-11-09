@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Bugs That Looked Planted</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 27 of 30 · Day 32 · about 10 minutes</div>
+    <h1>The bugs that looked planted</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-22">AI Agent Engineering Interview #22 · The Synthetic Bug Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “To train an agent that fixes bugs across whole repositories with reinforcement learning, you need about 50,000 environments it can run. Real pull requests give you 3,000. Planting bugs in working repos gives you as many as you like. What's the catch, and how would you mix the two?”
+      <small>Senior AI Engineer interview, Google DeepMind</small>
+    </div>
+    <p>A <b>pull request</b> is a proposed code change that teammates review; a real one that fixed a bug gives you the broken code, the issue and the tests that prove the fix. <b>Reinforcement learning</b> is training by trial and score: the agent attempts a fix and is rewarded when the tests pass. An <b>environment</b> is the runnable copy of the repo, issue and tests it practises on.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Made-up data is worse. Train only on the 3,000 real ones.”</p>
+      <p><strong>Trap B:</strong> “Volume wins. Plant 50,000 bugs and train on those.”</p>
+      <p>Both treat the source as a quality label. The question is whether planted bugs train the skills real bugs need.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“The catch is that planted bugs don't look like real ones. In SWE-Lego's data, synthetic bugs touched 1 file on average against 3.7 for real ones, and half were logic slips, against 30% of real bugs. Those studies fine-tuned on a stronger agent's successful runs rather than running reinforcement learning, so the next step is my reasoning: RL rewards whatever passes the tests, so an agent trained mostly on planted bugs can learn habits that only work on them.</p>
+      <p>They're still valuable: cheap, endless, and far more often solved. So I'd use planted bugs for breadth, made realistically, for example by undoing real pull requests. I'd use real pull requests for depth: sample them more often and keep a held-out slice. That slice decides the mix: when adding planted bugs stops lifting the score on held-out real bugs, stop.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A proofreading course has few real manuscripts with real mistakes, so its software makes more by swapping letters in clean articles (“teh”, “recieve”). Trainees practise without limit and ace the course.</p>
+    <p>Then they meet a real manuscript. Its mistakes are a missing word, a wrong date, a sentence that contradicts page three. The trainees scan for swapped letters, find none, and pass it. They learned to spot the software's kind of mistake, not a writer's.</p>
+    <p>The course still helps, if its planted mistakes look like a writer's and a few real manuscripts are kept back for the final exam.</p>
+    <p>In <b>reinforcement learning (RL)</b>, the score is the <b>reward</b>; here, 1 if the tests pass, else 0. The model being trained is the <b>policy</b>, and one full attempt is a <b>rollout</b>.</p>
+    <div class="flows" aria-label="The reinforcement learning loop for a bug-fixing agent">
+      <div class="flow">
+        <div class="flow-label">One training step</div>
+        <div class="strip"><span class="box">Environment: repo + issue + tests</span><span class="arrow">→</span><span class="box">Policy attempts a fix (a rollout)</span><span class="arrow">→</span><span class="box">Tests give the reward</span><span class="back">↺ nudge the policy</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> Planted bugs average one file, 19 changed lines; say the failing test names the function. What's the quickest way to earn the reward, and would it help on a real bug across four files?</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: the catch, then the mix</h2>
+    <ol>
+      <li><b>Real environments are scarce.</b> <a href="https://arxiv.org/abs/2412.21139">SWE-Gym</a> (Pan et al., ICML 2025) has 2,438 real Python tasks, each runnable, with unit tests. SWE-smith's authors estimate that 50,000 tasks built that way would need 50 to 150 TB of storage.</li>
+      <li><b>Planted bugs scale.</b> <a href="https://arxiv.org/abs/2504.21798">SWE-smith</a> (Yang et al., 2025) made 50,000 tasks from 128 repos for about $1,360 (with issue text written for 10,000 of them) and 295 GB. Its methods include model-modified and model-rewritten functions, random code edits and “PR mirror”, which undoes a real pull request. A model <a href="0025-the-agent-that-learned-its-harness-by-heart.html">fine-tuned</a> on runs from these tasks, SWE-agent-LM-32B, scored 40.2% on SWE-bench Verified.</li>
+      <li><b>The catch is the kind of bug.</b> <a href="https://arxiv.org/abs/2601.01426">SWE-Lego</a> (Tao et al., 2026) found real tasks touched 3.7 files and 138.0 lines on average, synthetic ones 1.0 and 18.8. Logic slips were 29.9% of real bugs and 49.4% of synthetic; interface mismatches (calling code the wrong way) 26.6% against 12.8%. <a href="https://arxiv.org/abs/2510.19898">BugPilot</a> (Sonwane et al., 2025) says deliberately written bugs “induce an out-of-distribution effect”: training data unlike what the model will meet. None of these studies ran RL: they fine-tuned on a stronger agent's successful runs, so carrying their results over to RL is my reasoning.</li>
+      <li><b>Environments can teach shortcuts.</b> In SWE-smith, an agent trained on issue texts that showed the failing test later tried to reproduce the bug in only 127 of 500 SWE-bench Verified runs, against 379 for one trained on model-written issues. The authors: “leaking the evaluation criteria causes the model to skip over writing a reproduction script”. My reasoning: RL pays for passing, not for how, so any habit that passes planted bugs grows stronger.</li>
+      <li><b>How you plant matters.</b> SWE-smith trained on 1,000 tasks of each kind: model-modified bugs gave 5.7% on SWE-bench Verified, PR mirrors 9.2%, with the other two close to PR mirrors. BugPilot keeps bugs an agent causes by accident while adding a feature; they beat other bug sets by 2% with half the data.</li>
+      <li><b>The mix, my suggestions.</b> <a href="0024-the-merge-that-swallowed-the-cursor.html">Hold out</a> real tasks from repos not used in training as the yardstick. Plant bugs realistically, reweight their kinds towards the real mix, and sample real tasks more often. Never show the test in issue text. Grow the planted share only while the held-out real score rises.</li>
+    </ol>
+    <p><b>Worked example, with real numbers.</b> SWE-Lego ran a <a href="0026-the-plan-that-knew-the-ending.html">teacher agent</a> (Qwen3-Coder-480B) on every task and kept runs that passed all tests:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th></th><th>Tasks</th><th>Successful runs</th><th>Share</th><th>Files / lines changed</th></tr></thead>
+        <tbody>
+          <tr><td>Real</td><td>18,409</td><td>5,010</td><td>27%</td><td>3.7 / 138.0</td></tr>
+          <tr><td>Synthetic</td><td>13,710</td><td>9,100</td><td>66%</td><td>1.0 / 18.8</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Synthetic tasks yielded more than twice the share of usable runs (66% against 27%), but on bugs about a seventh the size by lines changed. SWE-Lego's words: real data gives “depth”, synthetic gives “breadth”.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Aren't planted bugs simply easier?</p><p>It depends on how they are planted. SWE-smith's difficulty model (1 easy, 5 medium, 9 hard) rated model-modified bugs 3.3 and random-edit bugs 3.6 on average, against 5.01 for full SWE-bench and 3.96 for SWE-bench Verified; rewritten functions (5.27) and combined bugs (5.72) rated harder. In the BugPilot study Claude Sonnet 4 solved 65.9% of SWE-smith tasks against 70.8% of SWE-bench Verified.</p></div>
+      <div class="fu" id="fu-2"><p class="q">What ratio of real to planted would you start with?</p><p>No study I found gives one that transfers; SWE-Lego used about 18,000 real and 14,000 synthetic tasks. I'd train small runs at a few ratios and keep the best on held-out real bugs from unseen repos.</p></div>
+      <div class="fu" id="fu-3"><p class="q">How do you stop the agent learning a planted-bug shortcut?</p><p>Remove the clue. In SWE-smith, issue texts that showed the failing test cut later reproduction attempts from 379 to 127 of 500 runs. My suggestions: write issues the way users do, add multi-file bugs such as BugPilot's feature-add bugs, and read rollouts that pass suspiciously fast.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>In reinforcement learning for a bug-fixing agent, what are the environment and the reward?</summary><p>The environment is a runnable copy of a repo with a bug, the issue text and the tests. The reward is the score for one attempt: 1 if the tests pass after the agent's fix, otherwise 0.</p></details>
+      <details class="cy" id="cy-2"><summary>How did real and synthetic bugs differ in the SWE-Lego dataset?</summary><p>Real tasks touched 3.7 files and 138.0 lines on average, synthetic ones 1.0 file and 18.8 lines. Logic slips were 29.9% of real bugs but 49.4% of synthetic ones.</p></details>
+      <details class="cy" id="cy-3"><summary>Which SWE-smith finding shows an environment teaching a shortcut?</summary><p>An agent trained on issue texts that showed the failing test later tried to reproduce the bug in only 127 of 500 SWE-bench Verified runs, against 379 for one trained on model-written issue texts.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>Reward / policy / rollout</dt><dd>The score for an attempt; the model being trained; one full attempt.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2504.21798">SWE-smith: Scaling Data for Software Engineering Agents</a> (Yang et al., 2025).</li>
+      <li><a href="https://arxiv.org/abs/2601.01426">SWE-Lego</a> (Tao et al., 2026): real and synthetic tasks compared.</li>
+      <li><a href="https://arxiv.org/abs/2510.19898">BugPilot: Complex Bug Generation for Efficient Learning of SWE Skills</a> (Sonwane et al., 2025).</li>
+      <li><a href="https://arxiv.org/abs/2412.21139">SWE-Gym</a> (Pan et al., ICML 2025).</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-22">AI Interview Prep #22</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

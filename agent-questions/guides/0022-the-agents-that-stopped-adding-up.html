@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Agents That Stopped Adding Up</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 22 of 30 · Day 27 · about 10 minutes</div>
+    <h1>The agents that stopped adding up</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-28">AI Agent Engineering Interview #28 · The Multi-Agent Scaling Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “One agent had stopped improving. Moving to 16 agents working together lifted quality a lot, and now leadership is asking for 64. As you keep adding agents, what shape does the quality curve take, and how do you decide when to stop?”
+      <small>Senior AI Engineer interview, Google DeepMind</small>
+    </div>
+    <p>This builds on <a href="0020-the-team-built-for-one-shape.html">guide 20</a> (what a <b>multi-agent system</b> is) and <a href="0021-the-refiners-that-ran-out-of-ideas.html">guide 21</a> (the <b>topology</b>: who passes work to whom). A <b>node</b> is one point in that shape. In the MacNet study below, agents also sit on the links between nodes, so a 16-node chain holds 31 agents and a 64-node chain 127 (our arithmetic).</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Every agent brings another viewpoint, so 64 must beat 16.”</p>
+      <p><strong>Trap B:</strong> “The jump from 1 to 16 was big. Draw the line onward and promise leadership the same again.”</p>
+      <p>Both ignore the bill. The interviewer wants the shape, the cost and a stopping rule.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“The curve bends. Gains come fast early, then flatten, and in some studies they turn down. MacNet grew networks from 1 to 64 nodes, with agents on the links too, and found an S-shaped curve: most shapes levelled off around a hundred agents, roughly 32 to 64 nodes in a sparse shape. It suggested 16 nodes as a balance of quality and cost. Plain voting flattened at about eight. A Google study saw one model peak at seven agents, another earlier.</p>
+      <p>Cost doesn't flatten. In voting setups tokens grow with every agent, and coordination messages grow faster. So 64 is roughly four times the bill for maybe a few points. I'd measure 16, 32 and 64 on a few hundred of our own tasks, plot quality against cost per solved task, and stop where the next step buys less than it costs.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>You're doing a 1,000-piece jigsaw. A friend joins: one does the edges, the other sorts colours, and it goes twice as fast.</p>
+    <p>Invite twenty. Now people reach for the same piece, ask each other “is this sky or sea?”, and wait for space at the table. The last stretch is all blue sky, and twenty people staring at blue sky don't find the next piece any sooner.</p>
+    <p>Agents are the same: the first few find different things, and later ones mostly repeat them and add messages to read. The score levels off (<b>saturation</b>) while the cost keeps climbing.</p>
+    <div class="flows" aria-label="Quality and cost as agents are added">
+      <div class="flow">
+        <div class="flow-label">Quality: an S-curve on a doubling scale</div>
+        <div class="strip"><span class="box">Slow start</span><span class="arrow">→</span><span class="box">Steep climb</span><span class="arrow">→</span><span class="box">Levels off near 100 agents; some studies see a drop</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">Cost: keeps climbing</div>
+        <div class="strip"><span class="box">tokens grow with agents</span><span class="arrow">→</span><span class="box">messages grow faster</span><span class="arrow">→</span><span class="box">64 ≈ 4× the bill of 16</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> On a doubling scale, 1 to 16 is four doublings and 16 to 64 is only two more. If most of the curve's climb happened in the first four, how much is left for the next two, at four times the agents?</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: the shape, the cost and the stopping rule</h2>
+    <ol>
+      <li><b>Why quality rises at first.</b> My reasoning: separate attempts can catch different mistakes. In <a href="https://arxiv.org/abs/2402.05120">More Agents Is All You Need</a> (Li et al., TMLR 2024), voting over many sampled answers (an <b>ensemble</b>) improved with the count: with 40 votes, Llama2-13B reached 59% on GSM8K school maths, above a single Llama2-70B's 54%.</li>
+      <li><b>Why it flattens.</b> <a href="https://arxiv.org/abs/2406.07155">MacNet</a> (Qian et al., ICLR 2025) grew networks from 1 to 64 nodes and fitted an S-shaped curve against size on a doubling scale. It found “most topologies reaching performance saturation with approximately a hundred agents”: 32 to 64 nodes in a sparse shape. Its 16-node suggestion was a rough balance, as it advises “balancing shape and scale”. Majority voting gained just 0.9%, “plateauing at approximately eight agents”.</li>
+      <li><b>Why it can turn down.</b> <a href="https://arxiv.org/abs/2403.02419">Chen et al.</a> found voting “can first increase but then decrease” as calls are added: more calls help easy questions and hurt hard ones. <a href="https://arxiv.org/abs/2512.08296">Kim et al.</a> (Google and MIT, v3 April 2026) gave every setup the same token budget. Their fitted curve has turns growing as 2.72 × (n + 0.5)<sup>1.724</sup>, faster than the agent count. Gemini 2.0 Flash “exhibits a clear optimum at 7 agents before degradation”; Gemini 2.5 Pro peaked earlier, and the curve changed with how the agents were organised.</li>
+      <li><b>Why the bill keeps climbing.</b> In Li et al.'s voting, token use “increases proportionally with the number of agents”. Kim et al. held tokens fixed, and turns grew instead. In Anthropic's own data, multi-agent systems used about 15× the tokens of a chat: costly, though not a scaling curve.</li>
+    </ol>
+    <p><b>Worked example, an illustration with made-up numbers.</b> My rule: stop where the next step costs more than its extra solves are worth. Suppose your measurements come back like this:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Agents</th><th>Solved</th><th>Cost per task</th><th>Cost per solved task</th></tr></thead>
+        <tbody>
+          <tr><td>16</td><td>72%</td><td>$0.80</td><td>$1.11</td></tr>
+          <tr><td>32</td><td>75%</td><td>$1.60</td><td>$2.13</td></tr>
+          <tr><td>64</td><td>76%</td><td>$3.20</td><td>$4.21</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Going from 16 to 64 adds $2.40 per task for 4 more solves per hundred tasks: <span class="num">$60</span> for each extra solved task, on average. Step by step, as the rule says: 16 → 32 costs $27 per extra solve ($0.80 ÷ 0.03), and 32 → 64 costs $160 ($1.60 ÷ 0.01). If a solved task is worth $10 to you, stop at 16. At $100, go to 32 but not to 64.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">MacNet says many systems run below their potential and should add agents. Doesn't that back leadership?</p><p>Only partly. MacNet (Qian et al., ICLR 2025) measured GPT-3.5 on four benchmarks, and 64 nodes was the end of its range. Its hundred-agent saturation counts agents on the links too, so a sparse shape gets there between 32 and 64 nodes; it called 16 nodes a reasonable choice, balancing quality against cost. Test on our own tasks before believing the next two steps.</p></div>
+      <div class="fu" id="fu-2"><p class="q">Does it matter if all 64 agents run the same model?</p><p>Yes. My reasoning: copies of one model tend to make the same mistakes. In <a href="https://arxiv.org/abs/2406.04692">Mixture-of-Agents</a> (Wang et al., 2024), six different models as proposers reached a 61.3% win rate on AlpacaEval 2.0 (a judge compares each answer with a reference model's, adjusted for length), against 56.7% for six answers sampled from one model. Variety can buy more than headcount.</p></div>
+      <div class="fu" id="fu-3"><p class="q">How would you find the knee without running 64 agents on everything?</p><p>Run 16, 32 and 64 on a few hundred tasks and split the results by difficulty. Chen et al. showed voting can help easy questions and hurt hard ones, so the overall curve can peak and fall; they estimate the best number of calls from a small sample.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>What shape did the MacNet study find as networks of agents grew?</summary><p>An S-shaped (logistic) curve against network size on a doubling scale: slow, then steep, then flat. Most of its topologies saturated at about a hundred agents, counting agents on the links too: between 32 and 64 nodes in a chain, star or tree.</p></details>
+      <details class="cy" id="cy-2"><summary>In Kim et al.'s Google study, how did coordination turns grow with the number of agents?</summary><p>Faster than the agent count: their fitted curve is turns ≈ 2.72 × (n + 0.5) to the power 1.724. Extrapolated, it gives about 69 turns at six agents, against 7.2 for a single agent, all from the same token budget.</p></details>
+      <details class="cy" id="cy-3"><summary>16 agents cost $0.80 a task and solve 72%; 64 agents cost $3.20 and solve 76%. What does each extra solved task cost?</summary><p>$60: the extra $2.40 per task, spread over 0.04 extra solves per task (2.40 ÷ 0.04).</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>Coordination overhead</dt><dd>The messages, waiting and reading that agents spend on each other rather than on the task.</dd>
+      <dt>Cost per solved task</dt><dd>Total spend divided by tasks actually solved: the number to compare sizes on.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2406.07155">Scaling LLM-based Multi-Agent Collaboration</a> (Qian et al., ICLR 2025): the S-curve.</li>
+      <li><a href="https://arxiv.org/abs/2512.08296">Towards a Science of Scaling Agent Systems</a> (Kim et al., 2025): matched budgets, and when more agents hurt.</li>
+      <li><a href="https://arxiv.org/abs/2403.02419">Are More LM Calls All You Need?</a> (Chen et al., 2024): why voting can peak and fall.</li>
+      <li><a href="https://www.anthropic.com/engineering/multi-agent-research-system">How we built our multi-agent research system</a> (Anthropic, 2025): the token bill.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-28">AI Interview Prep #28</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>
