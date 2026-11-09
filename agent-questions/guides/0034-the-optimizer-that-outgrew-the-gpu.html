@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Optimizer That Outgrew the GPU</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 34 · extra · Day 44 · about 10 minutes</div>
+    <h1>The optimizer that outgrew the GPU</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/advanced-nlp-interview-questions-936">Advanced NLP Interview Questions #12 · The Optimizer State Memory Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “A 7-billion-parameter training run worked fine with plain SGD. You swap in Adam so it converges faster, change nothing else, and every GPU runs out of memory at once. It's the same model, so where did the memory go?”
+      <small>Senior Machine Learning Engineer interview, Google DeepMind</small>
+    </div>
+    <p>This builds on Day 42's Adam and on yesterday's <a href="0033-the-feature-that-barely-moved.html">guide 33</a>, which showed what Adam's two running averages, m and v, buy: a step size per weight. Today is what they cost. A <b>parameter</b> is one weight. Plain SGD (Day 42's update without momentum) keeps nothing between steps.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Adam does more maths per step, so it needs more memory.”</p>
+      <p><strong>Trap B:</strong> “Halve the batch size and it'll fit.”</p>
+      <p>The extra maths is a handful of operations per weight. The cost is what Adam stores between steps, and the batch size doesn't touch that.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“The model didn't grow; what training stores per weight did. Plain SGD keeps nothing between steps. Adam keeps two numbers per weight, its momentum and its average squared gradient, and in mixed-precision training both sit in 4-byte numbers beside a 4-byte master copy of the weights.</p>
+      <p>The ZeRO paper counts 16 bytes per parameter: 2 for the working weights, 2 for gradients, 12 for that master copy and Adam's state. For 7 billion parameters that's 112 GB before activations (the layer outputs kept for backprop), eight times the 14 GB of weights, and if each GPU holds the whole model, as in plain data parallelism, all of it sits on every GPU. Fixes: split Adam's state across GPUs, as ZeRO does; store it in 8 bits; or use Adafactor, which keeps far less. A smaller batch only trims activations.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A school office keeps a quick index card per pupil, with rounded marks, small enough to flip through fast. The full file sits in a cabinet with every mark to the decimal, so small changes add up instead of being rounded away.</p>
+    <p>A new progress policy arrives: for every pupil, keep two more full-size sheets, a running average of recent marks and one of how much they swing. Not one new pupil, yet the office needs several more cabinets. And every branch office keeps its own copy of everything.</p>
+    <p>The cards are the working weights in 2-byte numbers (<b>fp16</b>); the cabinet file is a 4-byte (<b>fp32</b>) master copy. Using both is <b>mixed precision</b>: the forward and backward passes run in fp16 for speed, and the update is applied to the fp32 copy. The two sheets are Adam's m and v, its <b>optimizer state</b>. The branch offices are <b>data parallelism</b>: every GPU holds the whole model and trains on its own slice of each batch.</p>
+    <div class="think"><b>Think about it.</b> If every number took 2 bytes, Adam would store weights, gradients, m and v: four times the weights. The post counts every number at 2 bytes, which gives the common “3–4× the weights” rule. With the 4-byte master copy, m and v of mixed precision, what multiple is it? Count it in the table below before you read on.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: count the bytes, then cut them</h2>
+    <p><b>Count.</b> <a href="https://arxiv.org/abs/1910.02054">ZeRO</a> (Rajbhandari et al., 2019) lists what mixed-precision Adam holds per parameter. The 7B column and the SGD row, which uses the same accounting without m and v, are our arithmetic.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Stored per parameter</th><th>Bytes</th><th>7B model</th></tr></thead>
+        <tbody>
+          <tr><td>fp16 weights</td><td>2</td><td>14 GB</td></tr>
+          <tr><td>fp16 gradients</td><td>2</td><td>14 GB</td></tr>
+          <tr><td>fp32 master weights</td><td>4</td><td>28 GB</td></tr>
+          <tr><td>fp32 momentum (m)</td><td>4</td><td>28 GB</td></tr>
+          <tr><td>fp32 squared-gradient average (v)</td><td>4</td><td>28 GB</td></tr>
+          <tr><td><b>Adam total</b></td><td>16</td><td>112 GB</td></tr>
+          <tr><td>Plain SGD (first three rows)</td><td>8</td><td>56 GB</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>So the switch doubles model-state memory, 56 GB to 112 GB, and Adam's 16 bytes are eight times the 2-byte weights. On a GPU with 80 GB (our example size), the SGD run's model states fit and the Adam run's cannot.</p>
+    <p><b>Where the premise outruns the evidence.</b> The “3–4×” rule holds when weights and state share one precision (all fp32: 16 bytes, 4× the 4-byte weights), but undercounts mixed precision by about half. It also leaves out <b>activations</b>, the layer outputs saved in the forward pass for backprop (Day 38). ZeRO puts them at about 60 GB for a 1.5B GPT-2 (OpenAI's language model) at sequence length 1K and batch 32.</p>
+    <p><b>Cut.</b></p>
+    <ol>
+      <li><b>Split the state across GPUs.</b> Plain data parallelism, ZeRO says, “replicates the entire model states” on every GPU. ZeRO's first stage gives each GPU only its share of the fp32 master copy and Adam's state, so each keeps 4 bytes per parameter plus 12 ÷ N on N GPUs. For a 7.5B model on 64 GPUs, per-GPU model state falls from <span class="num">120 GB</span> to <span class="num">31.4 GB</span>; splitting the gradients too gives 16.6 GB.</li>
+      <li><b>Store the state in 8 bits.</b> <a href="https://arxiv.org/abs/2110.02861">Dettmers et al.</a> (ICLR 2022): 32-bit Adam state takes 8 bytes per parameter, and their 8-bit version takes 2, matching 32-bit results on their tasks, up to a 1.5B language model. For 7B, that is 56 GB of state down to 14 GB (our arithmetic).</li>
+      <li><b>Keep less state.</b> <a href="https://arxiv.org/abs/1804.04235">Adafactor</a> (Shazeer and Stern, 2018) stores only row and column sums of v for each weight matrix and drops momentum, with results comparable to Adam on WMT 2014 English–German translation.</li>
+      <li><b>Recompute activations.</b> Activation checkpointing saves only some layer outputs and recomputes the rest during backprop. ZeRO cites it cutting that 60 GB to about 8 GB, at 33% extra computation.</li>
+    </ol>
+    <p><b>Worked example, with real numbers.</b> ZeRO's own case: GPT-2 with 1.5 billion parameters needs 3 GB for its fp16 weights, yet “cannot be trained on a single GPU with 32GB memory”. At 16 bytes per parameter, its model states alone take at least <span class="num">24 GB</span>, before any activations.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Would SGD with momentum have crashed too?</p><p>It stores one extra number per weight, not two. Dettmers et al. put 32-bit momentum at 4 bytes per parameter and 32-bit Adam at 8. With ZeRO's mixed-precision accounting that's 12 bytes per parameter, 84 GB for 7 billion (our arithmetic), so on an 80 GB GPU (our example size) it would fail too, though by less.</p></div>
+      <div class="fu" id="fu-2"><p class="q">Why not keep everything in 2-byte numbers and drop the master copy?</p><p>ZeRO says the mixed-precision optimizer keeps fp32 copies “to effectively compute and apply the updates”. Our reasoning: an update is usually tiny next to the weight, and fp16 would round much of it away.</p></div>
+      <div class="fu" id="fu-3"><p class="q">How would you size memory before launching?</p><p>Model states: 16 bytes × parameters for mixed-precision Adam. If ZeRO splits the 12 bytes of fp32 master copy and Adam state across N GPUs, each GPU holds 4 + 12 ÷ N bytes per parameter. Then activations, which for a transformer, ZeRO says, grow with layers × hidden size × sequence length × batch size. Compare the sum with one GPU's memory.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>By ZeRO's count, what does mixed-precision Adam store per parameter?</summary><p>2 bytes of fp16 weights, 2 of fp16 gradients, and 12 for the fp32 master weights, momentum and squared-gradient average: 16 bytes.</p></details>
+      <details class="cy" id="cy-2"><summary>How much model-state memory does a 7B model need under mixed-precision Adam?</summary><p>16 bytes × 7 billion = 112 GB, before activations. Plain SGD under the same accounting needs 56 GB.</p></details>
+      <details class="cy" id="cy-3"><summary>Why doesn't halving the batch size fix an out-of-memory error caused by switching to Adam?</summary><p>Batch size changes only the activations. Adam's extra state is a fixed amount per weight, the same at any batch size.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">8</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/1910.02054">ZeRO</a> (Rajbhandari et al., 2019): section 3, “Where Did All the Memory Go?”</li>
+      <li><a href="https://arxiv.org/abs/2110.02861">8-bit Optimizers via Block-wise Quantization</a> (Dettmers et al., 2022).</li>
+      <li><a href="https://arxiv.org/abs/1804.04235">Adafactor</a> (Shazeer and Stern, 2018).</li>
+      <li>The day before on this shelf: <a href="0033-the-feature-that-barely-moved.html">The feature that barely moved</a>, on what m and v buy.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/advanced-nlp-interview-questions-936">AI Interview Prep, Advanced NLP Interview Questions #12</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Feature That Barely Moved</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 33 · extra · Day 43 · about 10 minutes</div>
+    <h1>The feature that barely moved</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/advanced-deep-learning-interview-8d0">Advanced Deep Learning Interview Questions #13 · The Per-Feature Learning Rate Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “In your recommender, one input feature's gradient lurches wildly from step to step. Another is zero for nearly every example, so its weight hardly ever moves. How do you get both to train well?”
+      <small>Senior ML Engineer interview, DeepMind</small>
+    </div>
+    <p>This builds on yesterday's lesson (Day 42): Adam keeps <b>m</b>, a running average of each weight's gradients, and <b>v</b>, a running average of their squares, and steps by lr × m ÷ (√v + ε). Today: why that per-weight step matters, where it came from, and where it falls short. A <b>sparse</b> feature is zero for most examples, like one rarely bought product.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Give the wild feature a small learning rate and the quiet one a big one, by hand.”</p>
+      <p><strong>Trap B:</strong> “Lower the learning rate until the wild one settles.”</p>
+      <p>Trap B freezes the quiet weight further. Trap A fixes today's sizes, but gradient sizes change as training goes on, and a real model has millions of weights, not two.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“One learning rate can't suit both: set it for the wild weight and the quiet one barely moves. Hand-set rates per feature go stale, because gradient sizes change during training. So I let the optimizer size each weight's step from that weight's own history.</p>
+      <p>AdaGrad divides by the root of the summed squared gradients, so rarely seen features keep big steps; Google's ad-click team cut their ranking error 11.2% with per-feature rates. But that sum only grows, so steps shrink towards zero. RMSProp uses a running average instead, and Adam adds momentum and a start-up correction. In Adam a step is about lr whatever the gradient's size, and smaller when its sign keeps flipping. I'd start with Adam, standardise the inputs, and watch each feature's gradients.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A sound engineer mixes a live band through one master volume knob. The drummer is loud and erratic; the flute plays a soft note now and then. Turn the master down until the drums stop distorting and the flute vanishes. Give each player a fader set at sound check, and it's wrong by the third song, when the drummer picks up brushes.</p>
+    <p>What works is an automatic gain on every channel that listens to that channel's recent loudness and adjusts itself.</p>
+    <p>The master knob is one learning rate. The sound-check faders are fixed per-feature rates. The automatic gain is an <b>adaptive optimizer</b>: it sizes each weight's step from that weight's own recent gradients. Hinton's lecture notes give the reason: gradient size “can be very different for different weights and can change during learning. This makes it hard to choose a single global learning rate.”</p>
+    <div class="flows" aria-label="From AdaGrad to RMSProp to Adam">
+      <div class="flow">
+        <div class="flow-label">What each optimizer divides the gradient by</div>
+        <div class="strip"><span class="box">AdaGrad: root of all past squares</span><span class="arrow">→</span><span class="box">RMSProp: root of a running average</span><span class="arrow">→</span><span class="box">Adam: same, plus momentum and correction</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> In Adam, a weight's gradient goes +40, −40, +40 for thousands of steps. Its v is large and its m nearly cancels. Big step or small? Small: m settles near ±2.1 against √v of 40, so the step is about lr ÷ 20 (our arithmetic). Kingma and Ba call m ÷ √v a signal-to-noise ratio: a flipping sign reads as noise.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: three generations of per-weight steps</h2>
+    <ol>
+      <li><b>AdaGrad</b> (<a href="https://jmlr.org/papers/v12/duchi11a.html">Duchi et al., 2011</a>) steps by lr × g ÷ √(sum of every past g² for that weight). In the authors' words, it gives “frequently occurring features very low learning rates and infrequent features high learning rates”. The catch, from the <a href="https://arxiv.org/abs/1212.5701">ADADELTA paper</a>: the sum only grows, so the rate keeps falling, “eventually decreasing to zero”, and large early gradients keep it low for the rest of training.</li>
+      <li><b>RMSProp</b> (<a href="https://www.cs.toronto.edu/~tijmen/csc321/slides/lecture_slides_lec6.pdf">Hinton's lecture 6</a>) keeps a running average instead: MeanSquare = 0.9 × old + 0.1 × g², then divides by its root. Old gradients fade, so a weight that calms down gets bigger steps again.</li>
+      <li><b>Adam</b> (<a href="https://arxiv.org/abs/1412.6980">Kingma and Ba</a>) is that running average plus Day 42's momentum and bias correction. The paper says its steps are “approximately bounded by” lr, and that multiplying every gradient by a constant changes nothing, because it cancels between m and √v. The one exception is heavy sparsity: a weight whose gradient was zero at every earlier step can move up to lr × 0.1 ÷ √0.001, about 3.16 × lr at the defaults. The reverse holds too: a weight whose gradient is zero this step still moves, because m still carries its earlier gradients (our reading of the update rule). The paper adds that RMSProp's missing correction matters most when β₂ is close to 1, which sparse gradients need, giving “very large stepsizes and often divergence”.</li>
+    </ol>
+    <p><b>An illustration, with our own numbers</b>, at step 10,000 with lr = 0.001. The busy weight's gradient flips between +40 and −40; the rare weight's is 0 until step 10,000, then 0.02.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Optimizer</th><th>Busy weight's step</th><th>Rare weight's step</th></tr></thead>
+        <tbody>
+          <tr><td>One rate of 0.000025, chosen so the busy step is 0.001</td><td>0.001</td><td>0.0000005</td></tr>
+          <tr><td>AdaGrad</td><td>0.00001</td><td>0.001</td></tr>
+          <tr><td>Adam, default settings</td><td>about 0.00005</td><td>about 0.0032</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>With one rate, the rare weight moves 2,000 times less (40 ÷ 0.02). AdaGrad gives it a full step, but the busy weight's step keeps shrinking. Adam gives the rare weight its largest allowed step (0.0032: Day 42's uncorrected first step, reached by a different route) and the flipping one a small step.</p>
+    <p><b>Worked example, with real numbers.</b> In <a href="https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/41159.pdf">Ad Click Prediction: a View from the Trenches</a> (2013), Google tested two identical click models, one with a global learning rate and one with per-coordinate rates (one per weight; close to AdaGrad, our description). Per-coordinate rates cut AucLoss (1 − AUC, Day 21) by <span class="num">11.2%</span>; the paper notes that 1% counts as large there.</p>
+    <p><b>Where the premise outruns the evidence.</b> “Stabilise” may need more than an optimizer. Our reasoning: if the wild gradient comes from an unscaled input, like raw view counts, standardise it first (Day 10).</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">AdaGrad was built for rare features. Why not use it?</p><p>Its denominator sums every past squared gradient, so each weight's rate only falls; the ADADELTA paper notes it heads to zero, and large early gradients keep it low for good. Google's click model used its own per-coordinate rate, close to AdaGrad's (our description), on a simpler, linear model.</p></div>
+      <div class="fu" id="fu-2"><p class="q">An embedding row gets no gradient this step. Does plain Adam leave it alone?</p><p>An embedding is one learned vector per ID. In standard Adam a zero gradient still updates m and v, so the row keeps drifting on old momentum (our reading of the update rule). PyTorch 2.15's SparseAdam “only updates the moments and parameters corresponding to the non-zero values of the gradients”.</p></div>
+      <div class="fu" id="fu-3"><p class="q">Adam ignores gradient scale. So input scaling no longer matters?</p><p>Kingma and Ba show that multiplying every gradient by a constant cancels out of Adam's step. Our reasoning: badly scaled inputs still make a lopsided loss surface, so standardising them is still cheap insurance.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>One weight's gradients are 2,000 times bigger than another's. Why does a single learning rate fail?</summary><p>Set it safe for the big one and the small one moves 2,000 times less; set it for the small one and the big one overshoots.</p></details>
+      <details class="cy" id="cy-2"><summary>What is AdaGrad's weakness, and how does RMSProp fix it?</summary><p>AdaGrad divides by the root of the sum of all past squared gradients, which only grows, so steps shrink towards zero. RMSProp uses a running average, which forgets old gradients.</p></details>
+      <details class="cy" id="cy-3"><summary>In Adam, a weight's gradient keeps flipping between +40 and −40. Big step or small?</summary><p>Small. Momentum cancels to about ±2.1 while √v is about 40, so the step is roughly the learning rate ÷ 20. Adam treats a flipping sign as noise.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">8</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://jmlr.org/papers/v12/duchi11a.html">Adaptive Subgradient Methods</a> (Duchi, Hazan and Singer, JMLR 2011): AdaGrad.</li>
+      <li><a href="https://www.cs.toronto.edu/~tijmen/csc321/slides/lecture_slides_lec6.pdf">Neural Networks for Machine Learning, lecture 6</a> (Hinton, 2012): RMSProp.</li>
+      <li><a href="https://arxiv.org/abs/1412.6980">Adam</a> (Kingma and Ba, 2015): section 2.1 on step sizes.</li>
+      <li><a href="https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/41159.pdf">Ad Click Prediction</a> (McMahan et al., 2013): section 3.1, per-coordinate rates.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/advanced-deep-learning-interview-8d0">AI Interview Prep, Advanced Deep Learning Interview Questions #13</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

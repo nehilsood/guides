@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Loss That Never Moved</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 35 · extra · Day 45 · about 10 minutes</div>
+    <h1>The loss that never moved</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/machine-learning-system-design-interview-928">Machine Learning System Design Interview #13 · The Flat Loss Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “You've coded up a Transformer from a fresh paper. Nothing crashes and the training loop turns over, but the loss is a flat line. What do you do first?”
+      <small>Senior ML interview, OpenAI</small>
+    </div>
+    <p>This builds on Day 43's lesson: gradients multiply layer by layer, so bad starting weights make them vanish or explode; dropout and batch norm behave differently in training and prediction; and a training loss flat from the start points to vanishing gradients or dead ReLU units. Today: telling those apart from a plain bug, fast. <a href="0024-the-merge-that-swallowed-the-cursor.html">Guide 24</a> explains the loss itself.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Lower the learning rate, and if that fails, try another optimizer.”</p>
+      <p><strong>Trap B:</strong> “Give it longer. Big models start slowly.”</p>
+      <p>Both assume the code is right. A flat line can be a bug that stops learning altogether, and no setting fixes code that can't learn.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“Before touching any setting, I prove the code can learn at all. First, the loss at step zero: with a 32,000-<a href="0024-the-merge-that-swallowed-the-cursor.html">token</a> vocabulary and a near-uniform start it should be about ln 32,000, roughly 10.4. Far off means the loss or output layer is wrong.</p>
+      <p>Then I take one small batch, switch off dropout, and train on it alone. A working model drives that loss towards zero; Karpathy's recipe says that if it can't, there's a bug and you don't move on. If it fails, I check that every layer gets a nonzero gradient and that the optimizer really steps. Only once it can memorise one batch do I tune the learning rate. Tuning a model that can't learn just moves a flat line around.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>You build an espresso machine from a kit. It powers on, the pump hums, and nothing comes out. You could try a finer grind, other beans, a hotter setting. Or you run plain water through it, no coffee at all.</p>
+    <p>Water is the easiest job the machine has. If water won't flow, it's the plumbing, and no bean will fix it. If it flows, now you tune the coffee.</p>
+    <p>Training on one tiny batch until the model memorises it is running water through. Overfitting (Day 14) is normally the enemy; here it is the test. A model with millions of weights should memorise a few examples easily. Goodfellow, Bengio and Courville put it this way: if you can't train a classifier to label a single example correctly, “there is a software defect preventing successful optimization on the training set.”</p>
+    <div class="flows" aria-label="Debugging order for a flat loss">
+      <div class="flow">
+        <div class="flow-label">Prove it can learn, then tune</div>
+        <div class="strip"><span class="box">Loss at step 0</span><span class="arrow">→</span><span class="box">Overfit one tiny batch</span><span class="arrow">→</span><span class="box">Gradient in every layer?</span><span class="arrow">→</span><span class="box">Then tune</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> The flat line sits at 10.37 with a 32,000-token vocabulary. What is the model predicting? ln 32,000 ≈ 10.37 is the loss of an even guess over every token (our arithmetic). It hasn't learned even which tokens are common, so nothing is learning at all.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: four steps, in order</h2>
+    <ol>
+      <li><b>Check the loss at step 0.</b> <a href="https://karpathy.github.io/2019/04/25/recipe/">Karpathy's recipe</a> (2019): “Verify that your loss starts at the correct loss value”, for example −log(1/n_classes) on a softmax, the layer that turns scores into probabilities (Day 36). For a language model the classes are the tokens, so that's ln of the vocabulary size.</li>
+      <li><b>Overfit one batch.</b> The recipe: train on “a single batch of only a few examples (e.g. as little as two)”, growing the model if needed, until the loss reaches its lowest possible value. If it doesn't, “there is a bug somewhere and we cannot continue to the next stage.” The recipe also turns off data augmentation (random changes to training examples, such as flips or crops) at this stage; we'd switch off dropout too, so a failure can't be noise. In PyTorch Lightning 2.6.6, <code>Trainer(overfit_batches=10)</code> trains on 10 fixed batches and also turns off shuffling.</li>
+      <li><b>If it fails, follow the gradient.</b> Log each layer's gradient size; a layer stuck at exactly zero never hears from the loss. Common culprits (our list): <code>optimizer.step()</code> never called, a learning-rate schedule that starts at 0, a <code>.detach()</code> that cuts the chain, labels not shifted by one token, an attention mask (later in the plan) that hides every token. Then Day 43's suspects: dead ReLUs, vanishing gradients from badly scaled starting weights. If you wrote a gradient by hand, the book's chapter 11 suggests comparing it with a numerical estimate.</li>
+      <li><b>Only now tune.</b> Learning rate first (Day 42), then the rest.</li>
+    </ol>
+    <p><b>An illustration, with our own numbers.</b> Same Transformer, vocabulary 32,000, three outcomes of the one-batch test:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>One-batch result</th><th>What it says</th><th>Next move</th></tr></thead>
+        <tbody>
+          <tr><td>Starts at 10.4, still 10.4 after 500 steps</td><td>Nothing learns: a bug</td><td>Gradients per layer; is the step taken?</td></tr>
+          <tr><td>Starts at 10.4, falls to 0.02</td><td>The code can learn</td><td>Back to the full run: learning rate, data</td></tr>
+          <tr><td>Starts at 45</td><td>Loss or output layer wrong</td><td>Fix the step-0 value first</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p><b>Where the premise outruns the evidence.</b> Passing the test proves the model can learn something, not the right thing. Karpathy's example of a silent bug (our link to the one-batch test): an off-by-one bug lets an autoregressive model (one that predicts each next token from the ones before) see the token it should predict; the loss would then fall too well (our inference). His warning about misconfigured networks is that “Most of the time it will train but silently work a bit worse.”</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">It memorises one batch, but the full run is still flat. Now what?</p><p>The code can learn, so check the usual causes: the learning rate (try 0.1, 0.01, 0.001), starting weights, and the data. Karpathy's recipe says to look at exactly what enters the network, “immediately before your y_hat = model(x)”.</p></div>
+      <div class="fu" id="fu-2"><p class="q">Can passing the one-batch test still hide a bug?</p><p>Yes: it only shows the model can learn something. Karpathy's example of a silent bug (our link to the one-batch test) is an off-by-one bug that lets an autoregressive model, which predicts each next token from earlier ones, see the token it should predict, so (our inference) the loss falls too well. Check the inputs and labels too.</p></div>
+      <div class="fu" id="fu-3"><p class="q">Why switch off dropout for the test?</p><p>Dropout randomly zeroes units on every training pass, which fights memorising. Karpathy's recipe turns off data augmentation (random changes to training examples, such as flips or crops) at this stage for the same kind of reason; dropout is our addition. A failure then points at the code, not at noise.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>A language model has a 32,000-token vocabulary. What should its loss be at step zero?</summary><p>About ln 32,000 ≈ 10.4, the loss of an even guess over every token. That is Karpathy's −log(1/n_classes) check.</p></details>
+      <details class="cy" id="cy-2"><summary>Why overfit a single small batch before tuning anything?</summary><p>A working model can memorise a few examples. If it can't drive that loss near zero, the code has a bug, and no learning rate or optimizer will fix it.</p></details>
+      <details class="cy" id="cy-3"><summary>One layer's gradient is exactly zero at every step. What does that tell you?</summary><p>The loss never reaches that layer, so its weights never change: something cuts the chain (a detach, an unused output) or its ReLU units are dead.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">8</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://karpathy.github.io/2019/04/25/recipe/">A Recipe for Training Neural Networks</a> (Karpathy, 2019): step 2, the skeleton and dumb baselines.</li>
+      <li><a href="https://www.deeplearningbook.org/contents/guidelines.html">Practical Methodology</a> (Goodfellow, Bengio and Courville, <i>Deep Learning</i>, ch. 11): debugging strategies.</li>
+      <li><a href="https://lightning.ai/docs/pytorch/stable/debug/debugging_intermediate.html">Debug your model (intermediate)</a> (PyTorch Lightning docs): overfit_batches and gradient norms.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/machine-learning-system-design-interview-928">AI Interview Prep, Machine Learning System Design Interview #13</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

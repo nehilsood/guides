@@ -1,0 +1,88 @@
+{
+ "lesson": "aq-0033",
+ "label": "AQ 0033",
+ "track": "ai",
+ "title": "The feature that barely moved",
+ "url": "https://nehilsood.github.io/guides/agent-questions/guides/0033-the-feature-that-barely-moved.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "fu-1",
+   "kind": "follow-up",
+   "q": "AdaGrad was built for rare features. Why not use it?",
+   "a": "Its denominator sums every past squared gradient, so each weight's rate only falls; the ADADELTA paper notes it heads to zero, and large early gradients keep it low for good. Google's click model used its own per-coordinate rate, close to AdaGrad's (our description), on a simpler, linear model.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: three generations of per-weight steps",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0033-the-feature-that-barely-moved.html#how-it-works"
+   }
+  },
+  {
+   "id": "fu-2",
+   "kind": "follow-up",
+   "q": "An embedding row gets no gradient this step. Does plain Adam leave it alone?",
+   "a": "An embedding is one learned vector per ID. In standard Adam a zero gradient still updates m and v, so the row keeps drifting on old momentum (our reading of the update rule). PyTorch 2.15's SparseAdam “only updates the moments and parameters corresponding to the non-zero values of the gradients”.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: three generations of per-weight steps",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0033-the-feature-that-barely-moved.html#how-it-works"
+   }
+  },
+  {
+   "id": "fu-3",
+   "kind": "follow-up",
+   "q": "Adam ignores gradient scale. So input scaling no longer matters?",
+   "a": "Kingma and Ba show that multiplying every gradient by a constant cancels out of Adam's step. Our reasoning: badly scaled inputs still make a lopsided loss surface, so standardising them is still cheap insurance.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: three generations of per-weight steps",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0033-the-feature-that-barely-moved.html#how-it-works"
+   }
+  },
+  {
+   "id": "cy-1",
+   "kind": "check",
+   "q": "One weight's gradients are 2,000 times bigger than another's. Why does a single learning rate fail?",
+   "a": "Set it safe for the big one and the small one moves 2,000 times less; set it for the small one and the big one overshoots.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: three generations of per-weight steps",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0033-the-feature-that-barely-moved.html#how-it-works"
+   }
+  },
+  {
+   "id": "cy-2",
+   "kind": "check",
+   "q": "What is AdaGrad's weakness, and how does RMSProp fix it?",
+   "a": "AdaGrad divides by the root of the sum of all past squared gradients, which only grows, so steps shrink towards zero. RMSProp uses a running average, which forgets old gradients.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Your 30-second answer",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0033-the-feature-that-barely-moved.html#your-30-second-answer"
+   }
+  },
+  {
+   "id": "cy-3",
+   "kind": "check",
+   "q": "In Adam, a weight's gradient keeps flipping between +40 and −40. Big step or small?",
+   "a": "Small. Momentum cancels to about ±2.1 while √v is about 40, so the step is roughly the learning rate ÷ 20. Adam treats a flipping sign as noise.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The idea in plain words",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0033-the-feature-that-barely-moved.html#the-idea-in-plain-words"
+   }
+  }
+ ]
+}

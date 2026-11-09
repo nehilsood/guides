@@ -1,0 +1,88 @@
+{
+ "lesson": "aq-0034",
+ "label": "AQ 0034",
+ "track": "ai",
+ "title": "The optimizer that outgrew the GPU",
+ "url": "https://nehilsood.github.io/guides/agent-questions/guides/0034-the-optimizer-that-outgrew-the-gpu.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "fu-1",
+   "kind": "follow-up",
+   "q": "Would SGD with momentum have crashed too?",
+   "a": "It stores one extra number per weight, not two. Dettmers et al. put 32-bit momentum at 4 bytes per parameter and 32-bit Adam at 8. With ZeRO's mixed-precision accounting that's 12 bytes per parameter, 84 GB for 7 billion (our arithmetic), so on an 80 GB GPU (our example size) it would fail too, though by less.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: count the bytes, then cut them",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0034-the-optimizer-that-outgrew-the-gpu.html#how-it-works"
+   }
+  },
+  {
+   "id": "fu-2",
+   "kind": "follow-up",
+   "q": "Why not keep everything in 2-byte numbers and drop the master copy?",
+   "a": "ZeRO says the mixed-precision optimizer keeps fp32 copies “to effectively compute and apply the updates”. Our reasoning: an update is usually tiny next to the weight, and fp16 would round much of it away.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The idea in plain words",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0034-the-optimizer-that-outgrew-the-gpu.html#the-idea-in-plain-words"
+   }
+  },
+  {
+   "id": "fu-3",
+   "kind": "follow-up",
+   "q": "How would you size memory before launching?",
+   "a": "Model states: 16 bytes × parameters for mixed-precision Adam. If ZeRO splits the 12 bytes of fp32 master copy and Adam state across N GPUs, each GPU holds 4 + 12 ÷ N bytes per parameter. Then activations, which for a transformer, ZeRO says, grow with layers × hidden size × sequence length × batch size. Compare the sum with one GPU's memory.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: count the bytes, then cut them",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0034-the-optimizer-that-outgrew-the-gpu.html#how-it-works"
+   }
+  },
+  {
+   "id": "cy-1",
+   "kind": "check",
+   "q": "By ZeRO's count, what does mixed-precision Adam store per parameter?",
+   "a": "2 bytes of fp16 weights, 2 of fp16 gradients, and 12 for the fp32 master weights, momentum and squared-gradient average: 16 bytes.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: count the bytes, then cut them",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0034-the-optimizer-that-outgrew-the-gpu.html#how-it-works"
+   }
+  },
+  {
+   "id": "cy-2",
+   "kind": "check",
+   "q": "How much model-state memory does a 7B model need under mixed-precision Adam?",
+   "a": "16 bytes × 7 billion = 112 GB, before activations. Plain SGD under the same accounting needs 56 GB.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: count the bytes, then cut them",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0034-the-optimizer-that-outgrew-the-gpu.html#how-it-works"
+   }
+  },
+  {
+   "id": "cy-3",
+   "kind": "check",
+   "q": "Why doesn't halving the batch size fix an out-of-memory error caused by switching to Adam?",
+   "a": "Batch size changes only the activations. Adam's extra state is a fixed amount per weight, the same at any batch size.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Your 30-second answer",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0034-the-optimizer-that-outgrew-the-gpu.html#your-30-second-answer"
+   }
+  }
+ ]
+}
