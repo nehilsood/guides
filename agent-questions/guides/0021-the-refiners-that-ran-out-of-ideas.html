@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Refiners That Ran Out of Ideas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 21 of 30 · Day 26 · about 10 minutes</div>
+    <h1>The refiners that ran out of ideas</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-29">AI Agent Engineering Interview #29 · The Sequential Refinement Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “You chained ten agents: the first writes a draft and each of the others improves the one before. After the fourth, quality stops rising; agents 5 to 10 change nothing that matters. Why is a chain such a poor shape for getting many agents to work together, and which change to its structure would you try first?”
+      <small>Senior AI Engineer interview, Google</small>
+    </div>
+    <p>In <a href="0020-the-team-built-for-one-shape.html">guide 20</a> the agents had different jobs; here they all do the same one. The shape of who passes work to whom is the system's <b>topology</b>: a chain, a tree, or a mesh where many agents feed many others.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Agents 5 to 10 are playing it safe. Tell them to be bolder and rewrite more.”</p>
+      <p><strong>Trap B:</strong> “Ten wasn't enough. Keep adding refiners until the score moves again.”</p>
+      <p>Both keep the chain and change the agents or their number. What limits each agent is what it gets to see: one draft, and nothing new.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“Every refiner after the first sees only the last draft. It inherits that draft's idea and can only polish it, and with nothing new coming in, there's less to fix each round. Self-Refine shows the same curve: most of the gain comes in the first round or two. Models also tend to lock in once confident, and without an outside check they can't tell the draft is wrong.</p>
+      <p>So the first change is to fan out: several agents write independent drafts in parallel, with different approaches. Then I pick one with an outside check, like tests, or a judge comparing drafts side by side. After that, at most a round or two of refining, driven by real feedback such as failing tests.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>You're looking for the highest point in foggy hill country, seeing only a few metres.</p>
+    <p>A hiker always steps uphill. Soon she's on top of a hill: not the tallest, just the one she started on. Send ten hikers who each start where the last stopped. The first few find small gains near the top. Hikers 5 to 10 look around and report, truthfully: nothing higher nearby. They never saw the other hills.</p>
+    <p>Drop ten hikers at ten different spots instead, let each climb, then compare heights. One is far more likely to be on a taller hill.</p>
+    <p>A refining chain is the first group. The first draft chooses the hill: its approach, its structure, its mistakes. Every later agent can only climb from there. Spreading the hikers out is a <b>fan-out</b>: independent attempts in parallel, then a choice between them.</p>
+    <div class="flows" aria-label="Chain compared with fan-out">
+      <div class="flow">
+        <div class="flow-label">Chain: every agent starts from the last draft</div>
+        <div class="strip"><span class="box">Draft</span><span class="arrow">→</span><span class="box">Refine</span><span class="arrow">→</span><span class="box">Refine</span><span class="arrow">→</span><span class="box">… ×7 more</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">Fan-out: independent drafts, then pick</div>
+        <div class="strip"><span class="box">5 drafts, different approaches</span><span class="arrow">→</span><span class="box">Tests or a judge pick one</span><span class="arrow">→</span><span class="box">Refine with feedback</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> Hiker 7 is told: “Find a higher point.” What would she need before she could: better legs, or a different starting spot? Ask the same of refiner 7. And with ten hikers spread out, what do you need at the end that the chain never needed?</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: why the chain stalls, and what to change</h2>
+    <ol>
+      <li><b>Returns shrink with each pass.</b> In <a href="https://arxiv.org/abs/2303.17651">Self-Refine</a>, one model drafts, critiques its own output and rewrites. The authors report “diminishing returns in the improvement as the number of iterations increases.” My reading, not tested by the paper: a chain of same-model refiners seeing only the draft is close to that loop.</li>
+      <li><b>Nothing new comes in.</b> Self-Refine barely moved maths answers (GPT-4: 92.9 to 93.1), and the authors trace this to “the inability to accurately identify whether there is any error”. With an outside signal that an answer was wrong, gains were over 5%. <a href="https://arxiv.org/abs/2310.01798">Huang et al. (ICLR 2024)</a> found that on reasoning tasks, models “struggle to self-correct their responses without external feedback”, and sometimes get worse.</li>
+      <li><b>Confidence locks the idea in.</b> <a href="https://arxiv.org/abs/2305.19118">Liang et al.</a> name this Degeneration-of-Thought: “once the LLM has established confidence in its solutions, it is unable to generate novel thoughts later through reflection”.</li>
+      <li><b>A sparse shape changes less.</b> The <a href="https://arxiv.org/abs/2406.07155">MacNet</a> study (Qian et al., ICLR 2025) tested chain, tree and graph shapes. Averaging its main table by type (my arithmetic), chains came last, but only just: 0.608, against 0.614 for tree shapes and 0.616 for graph shapes; a plain tree, at 0.602, scored below the chain. In open-domain tasks, layered shapes, where agents merge several inputs, modified the work 92.16% of the time, against 68.48% for chains, though the layer shape itself had the lowest average in the main table (0.563). So a chain is a weak default for repeated refining, not the worst shape everywhere.</li>
+      <li><b>So fan out, pick, then refine with feedback.</b> Give drafters different approaches. Pick with tests where you have them, or an <a href="0019-the-review-that-read-well.html">LLM judge</a> comparing drafts. Then refine only with new information, such as a failing test.</li>
+    </ol>
+    <p><b>Worked example, with real numbers.</b> Self-Refine's scores, averaged over ChatGPT, GPT-3.5 and GPT-4, for the first draft (y0) and three refinements:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Task</th><th>y0</th><th>y1</th><th>y2</th><th>y3</th></tr></thead>
+        <tbody>
+          <tr><td>Code optimisation</td><td>22.0</td><td>27.0</td><td>27.9</td><td>28.8</td></tr>
+          <tr><td>Constrained generation</td><td>29.0</td><td>40.3</td><td>46.7</td><td>49.7</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Now the fan-out. In <a href="https://arxiv.org/abs/2407.21787">Large Language Monkeys</a> (Brown et al., 2024), DeepSeek-Coder-V2-Instruct solved <span class="num">15.9%</span> of SWE-bench Lite with one try. With 250 independent tries, at least one solved <span class="num">56%</span>, above the then single-try best of 43%. That share, called <b>coverage</b>, only pays off if you can find the right try: the authors found majority voting and reward models “plateau beyond several hundred samples”.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Is a chain ever the right shape?</p><p>Yes. In the MacNet study (Qian et al., ICLR 2025), no topology won every task: a chain suited software development and step-by-step logic problems, while denser meshes did better on average. Keep a chain when each step is a different job, like draft then format, not for the same job repeated.</p></div>
+      <div class="fu" id="fu-2"><p class="q">What if you can't test the output?</p><p>Then picking becomes the weak spot. Large Language Monkeys found majority voting and reward models used to pick among samples plateau beyond several hundred samples. Use a judge comparing drafts side by side, swap their order since judges can favour one position, and add a human check where it matters.</p></div>
+      <div class="fu" id="fu-3"><p class="q">Why not just make the refiners argue?</p><p>It helps. <a href="https://arxiv.org/abs/2305.14325">Du et al. (2023)</a> had several agents debate and beat both a single agent and self-reflection on arithmetic and GSM8K. But on arithmetic, rounds past four added little, and agents that converged were not always right. Argument works best from different starting drafts or with real feedback.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>What does Self-Refine's code-optimisation curve look like across a first draft and three refinements?</summary><p>22.0, 27.0, 27.9, 28.8: five points from the first refinement, then under one point each. The authors call it diminishing returns.</p></details>
+      <details class="cy" id="cy-2"><summary>What is Degeneration-of-Thought?</summary><p>Liang et al.'s name for what happens when a model, once confident in its answer, can no longer produce new ideas by reflecting on it, even if the answer is wrong.</p></details>
+      <details class="cy" id="cy-3"><summary>Each independent draft has a 20% chance of the right approach. Roughly how likely is at least one of five to have it?</summary><p>About 67%: all five miss with chance 0.8 to the power 5, about 0.33. That assumes the drafts really are independent, and you still need tests or a judge to find the good one.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>Topology</dt><dd>The shape of who passes work to whom: chain, tree or mesh.</dd>
+      <dt>Fan-out</dt><dd>Several independent attempts in parallel, then a choice between them.</dd>
+      <dt>Coverage</dt><dd>The share of problems where at least one of many attempts is right.</dd>
+      <dt>Degeneration-of-Thought</dt><dd>A confident model failing to find new ideas by reflecting on its own answer.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2303.17651">Self-Refine</a> (Madaan et al., 2023): refining your own output.</li>
+      <li><a href="https://arxiv.org/abs/2305.19118">Encouraging Divergent Thinking through Multi-Agent Debate</a> (Liang et al., EMNLP 2024).</li>
+      <li><a href="https://arxiv.org/abs/2406.07155">Scaling LLM-based Multi-Agent Collaboration</a> (Qian et al., ICLR 2025).</li>
+      <li><a href="https://arxiv.org/abs/2407.21787">Large Language Monkeys</a> (Brown et al., 2024).</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-29">AI Interview Prep #29</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

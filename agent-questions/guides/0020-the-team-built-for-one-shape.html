@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Team Built for One Shape</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 20 of 30 · Day 25 · about 10 minutes</div>
+    <h1>The team built for one shape</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-9">AI Agent Engineering Interview #9 · The Role-Based Multi-Agent Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “You built an ‘AI software team’: a product-manager agent passes work to a coding agent, which passes it to a testing agent. On ordinary GitHub issues it does better than one agent alone. Give it a task with a different shape and it collapses. Why? And when is one well-run agent the better choice?”
+      <small>Senior AI Engineer interview, Google DeepMind</small>
+    </div>
+    <p>A <b>multi-agent system</b> splits one job across several model instances, each with its own prompt and its own <a href="0007-the-step-it-did-twice.html">context window</a>. What one agent passes to the next is a <b>handoff</b>.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Specialists do their jobs better. For the odd tasks, add another specialist.”</p>
+      <p><strong>Trap B:</strong> “Multi-agent is hype. One agent always wins.”</p>
+      <p>Trap A credits the split for what it didn't buy, and adds a handoff. Trap B can't explain why the team won.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“Ordinary issues have the shape the team was built for: understand, write, test. So it's a good fixed pipeline. My reading: the win comes from that order of steps more than from the split, since the roles are often the same model with different prompts.</p>
+      <p>It breaks for two reasons. The shape is fixed, so when the tester finds the plan was wrong, there's no way back to the planner. And every handoff is a summary the sender chose: the receiver can't see what was dropped or ask, so it guesses. One agent wins when the subtasks share state, like edits to one repository, or when the plan may change mid-task. A team pays off when the work splits into independent parts, like parallel research.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A house extension goes down a line: the architect meets the owner and draws the plan, the builder builds from the drawing, the inspector checks the work against it. For a standard back room this is fast and reliable.</p>
+    <p>Then an owner says: “My mother uses a wheelchair and is moving in. Any ground-floor room will do, as long as she can get in.” The architect draws “ground-floor bedroom”. The builder adds the usual two steps at the door. The inspector can only send work back to the builder, who followed the drawing; nobody on the line can ask the owner. The wheelchair never made it onto the drawing.</p>
+    <div class="flows" aria-label="Role team compared with one agent">
+      <div class="flow">
+        <div class="flow-label">Role team: shape fixed in advance</div>
+        <div class="strip"><span class="box">PM agent writes a spec</span><span class="arrow">→</span><span class="box">Coder sees only the spec</span><span class="arrow">→</span><span class="box">Tester sees only the code</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">One agent: one context, plan can change</div>
+        <div class="strip"><span class="box">Plan</span><span class="arrow">→</span><span class="box">Edit</span><span class="arrow">→</span><span class="box">Test</span><span class="back">↺ a failing test can change the plan</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> The tester finds that the bug isn't where the spec said: the issue was misread. In the role team, which agent can fix the spec, and does it know? In one agent, what changes?</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: why the team breaks, and when it doesn't</h2>
+    <ol>
+      <li><b>The shape is a guess made before any task arrived.</b> MetaGPT, a well-known role team, has product manager, architect, project manager, engineer and QA engineer agents “work in a sequential manner”, passing documents along. Its engineer can rerun its own code, but the role order is fixed: nearly a <a href="0001-the-pipeline-that-beat-the-agent.html">pipeline</a> with job titles.</li>
+      <li><b>Each handoff loses detail, silently.</b> Cognition's first rule is “Share context, and share full agent traces, not just individual messages” (a trace is the <a href="0006-the-summary-that-cost-more.html">log of every step</a>). Its second: “Actions carry implicit decisions, and conflicting decisions carry bad results.” In its example, two subagents (helpers a main agent starts) building parts of a Flappy Bird game couldn't see each other's work: one misread its piece and built a Super Mario style background, the other built a bird that didn't look like a game asset.</li>
+      <li><b>The roles weren't the expensive part.</b> My reasoning: a role is a prompt one agent can take too; the separate context window is the cost.</li>
+      <li><b>One agent wins on shared state.</b> Anthropic says domains that “require all agents to share the same context or involve many dependencies between agents” are “not a good fit for multi-agent systems today”, and that “most coding tasks involve fewer truly parallelizable tasks than research.”</li>
+      <li><b>A team wins on independent breadth.</b> If you split, plan per task, not per job title, and brief each subagent fully: without detailed task descriptions, Anthropic found, agents “duplicate work, leave gaps, or fail to find necessary information”. My addition: let the planner change the plan as results come back.</li>
+    </ol>
+    <p><b>Worked example, with real numbers.</b> <a href="https://arxiv.org/abs/2403.17927">MAGIS</a> (2024), a team of manager, repository custodian, developer and QA engineer agents, resolved <span class="num">13.94%</span> of a 25% subset of SWE-bench issues, an eight-fold increase over “the direct application of GPT-4”. Note the baseline: GPT-4 applied directly, by my reading one call with no loop. “Beats a single agent” depends on which agent.</p>
+    <p><a href="https://arxiv.org/abs/2503.13657">MAST</a> (Cemri et al., latest version October 2025) annotated over 1,600 traces from 7 multi-agent frameworks, including MetaGPT and ChatDev: 14 failure modes in three groups, system design, misalignment between agents, and checking the work. The most common, at <span class="num">15.7%</span>, was step repetition: redoing finished steps. In its ChatDev case study, with the same GPT-4o model, clearer role rules lifted success on its ProgramDev tasks from 25.0% to 34.4%, and a final check against the overall goal reached 40.6%: 9.4 and 15.6 points from design alone.</p>
+    <p>And the other side: Anthropic's research system, a Claude Opus 4 lead with Claude Sonnet 4 subagents searching in parallel, beat single-agent Opus 4 by <span class="num">90.2%</span> on its internal research eval; multi-agent systems like it use about 15× the tokens of a chat. Research splits into independent threads; a repository rarely does.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Anthropic's multi-agent system beat a single agent by 90.2%. Doesn't that contradict you?</p><p>No. That was research: broad searching that splits into independent threads, at about 15 times the tokens of a chat. Anthropic itself says work needing shared context or many dependencies between agents isn't a good fit, and most coding tasks have fewer parallel parts.</p></div>
+      <div class="fu" id="fu-2"><p class="q">Can't better handoff summaries fix it?</p><p>Partly. Cognition's rule is to share “full agent traces, not just individual messages”, because actions carry hidden decisions. But even perfect notes don't give a fixed PM → coder → tester line a way back from the tester to the planner. That needs replanning.</p></div>
+      <div class="fu" id="fu-3"><p class="q">How do you keep the tester's viewpoint with one agent?</p><p>Ask the same agent to review its own diff as a strict tester, then run the real tests. The role costs a prompt; a separate agent costs a context boundary, and the tests are the outside check either way.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>What are MAST's three groups of multi-agent failures?</summary><p>System design issues, misalignment between agents, and task verification. The MAST study found 14 failure modes in over 1,600 traces from 7 frameworks; the most common was step repetition at 15.7%.</p></details>
+      <details class="cy" id="cy-2"><summary>Why doesn't MAGIS's eight-fold gain prove that role teams beat one agent?</summary><p>Its baseline was GPT-4 applied directly to SWE-bench issues, which I read as one model call with no loop or tools, not a well-run single agent.</p></details>
+      <details class="cy" id="cy-3"><summary>Give two signs that a coding task should stay with one agent.</summary><p>The subtasks share state, such as edits to the same files, and the plan may need to change mid-task when tests reveal something. Anthropic names many dependencies between agents as a poor fit for multi-agent systems.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>Multi-agent system</dt><dd>One job split across several model instances, each with its own prompt and context window.</dd>
+      <dt>Handoff</dt><dd>What one agent passes to the next: a summary the sender chose.</dd>
+      <dt>Subagent</dt><dd>An agent started by another agent to do one piece of the work and report back.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2503.13657">Why Do Multi-Agent LLM Systems Fail?</a> (Cemri et al., 2025): the MAST failure modes.</li>
+      <li><a href="https://cognition.com/blog/dont-build-multi-agents">Don't Build Multi-Agents</a> (Cognition, June 2025).</li>
+      <li><a href="https://www.anthropic.com/engineering/multi-agent-research-system">How we built our multi-agent research system</a> (Anthropic, June 2025).</li>
+      <li><a href="https://arxiv.org/abs/2308.00352">MetaGPT</a> (Hong et al., 2023): a role team.</li>
+      <li>Later in your plan, the long version: Interview Prep's <a href="https://nehilsood.github.io/guides/interview-prep/guides/0010-the-frozen-org-chart.html">The Frozen Org Chart</a>.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-9">AI Interview Prep #9</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

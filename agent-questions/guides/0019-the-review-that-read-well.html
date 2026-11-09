@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Review That Read Well</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 19 of 30 · Day 24 · about 10 minutes</div>
+    <h1>The review that read well</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-8">AI Agent Engineering Interview #8 · The Skill Evaluation Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “Half a year ago your team gave its coding agent a skill for reviewing code. No one has checked whether it makes reviews better. Using real pull requests, how would you keep measuring how good it is, and turn what you learn into specific changes to the skill?”
+      <small>Senior AI Engineer interview, Google</small>
+    </div>
+    <p>A <b>pull request</b> is a proposed code change that teammates review, line by line, before it is merged. A <b>skill</b>, from <a href="0009-the-line-that-picks-the-skill.html">guide 9</a>, is a folder of instructions the agent opens when a task needs it.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Have a model grade every review comment out of ten, then ask it to rewrite the skill until the grades go up.”</p>
+      <p><strong>Trap B:</strong> “Track the share of its comments that authors acted on. Higher is better.”</p>
+      <p>A grade shows how a comment reads, not what it changed. And the skill picks how many comments to post, so saying less raises the share.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“I'd measure what authors did with each comment, not how it reads. Six months of pull requests already hold the outcome: after each comment, a later commit either changed the lines it pointed at or didn't. So I label every comment acted on, pushed back or ignored.</p>
+      <p>I count acted-on comments per pull request, not as a share of comments posted, so the skill can't score by staying quiet, and I keep a no-skill slice to see what authors fix anyway. Then I group the ignored comments by the rule behind them, and reword or delete those rules. Each new version must beat the current one and no skill on live pull requests. A model judge only helps label diffs.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A teacher writes comments in the margins of a student's essay. Do they help?</p>
+    <p>You could ask another teacher to rate them as clear and well argued. That tells you how they <em>read</em>. Or you could open the next draft and check whether each sentence a comment pointed at changed. That tells you what they <em>did</em>. Ignored comments teach you something too: if half are about commas, stop writing about commas.</p>
+    <p>Asking a model to score a skill's comments is an <b>LLM judge</b>: one model grading another's output. It shows how a comment reads; later commits show what the author did.</p>
+    <div class="flows" aria-label="What a review skill produces, and which part is evidence">
+      <div class="flow">
+        <div class="flow-label">Words a model wrote</div>
+        <div class="strip"><span class="box">The skill file</span><span class="arrow">→</span><span class="box">The comment it posts</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">Things a person did: the evidence</div>
+        <div class="strip"><span class="box">The author changes the line, or doesn't</span><span class="arrow">→</span><span class="box">The merged code holds up, or breaks</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> My own numbers: the skill posts 10 comments per pull request and authors act on 5, a 50% share. Someone adds “only comment when you are certain”. Now it posts 3 and authors act on all 3: 100%. The share doubled, but authors fix 3 things per pull request instead of 5. Which version helps more?</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: a feedback loop from real pull requests</h2>
+    <ol>
+      <li><b>Label every past comment from what happened next.</b> Microsoft researchers call a comment a <b>change trigger</b> when a later version of the pull request changes code near where it pointed; of distances up to ten lines, one worked best. Check the change came <em>after</em> the comment; mark “pushed back” if the author argued.</li>
+      <li><b>Pick a count the skill can't game.</b> Acted-on comments per pull request. My own addition: report bugs later fixed on lines the skill reviewed but never flagged, a number that only worsens when it says less.</li>
+      <li><b>Keep a no-skill slice.</b> Authors fix some things anyway, and an always-on skill has no baseline. Start an <a href="0011-the-skill-that-was-never-tried.html">A/B test</a> on a random share of pull requests; Anthropic's skill guide puts “Establish baseline” before writing instructions.</li>
+      <li><b>Turn ignored comments into edits.</b> Group them by the rule behind them. Reword a rule that's right but unclear, delete one that's mostly ignored.</li>
+      <li><b>Gate every edit.</b> Replay it on past pull requests, then run it live against the current version and no skill. If no skill does as well, delete the skill: once loaded, its tokens compete with everything else in the context.</li>
+    </ol>
+    <p>Google runs a similar loop on clicks for automated code checks. Its <a href="https://research.google/pubs/tricorder-building-a-program-analysis-ecosystem/">Tricorder</a> platform posts analyzer findings into code review, with Not useful and Please fix buttons. It defines an <b>effective false positive</b> as “any report from the tool where a user chooses not to take action to resolve the report”. An analyzer with a not-useful rate of 10% or more goes on probation; above 25% it may be turned off. The fix “may be as simple as updating the wording of results”.</p>
+    <p><b>Worked example, with real numbers.</b> In <a href="https://www.microsoft.com/en-us/research/publication/characteristics-of-useful-code-reviews-an-empirical-study-at-microsoft/">Bosu, Greiler and Bird (2015)</a>, a change within one line marked a comment its author rated useful with <span class="num">88%</span> precision and <span class="num">78%</span> recall (<a href="0009-the-line-that-picks-the-skill.html">guide 9</a>'s two measures). Of about 1.5 million human comments in five Microsoft projects, <span class="num">64–68%</span> were classed useful; first-time reviewers of a file managed 32–37%.</p>
+    <p>A <a href="https://arxiv.org/abs/2412.18531">2024 industry study</a> of an LLM reviewer built on Qodo PR Agent covered 4,335 pull requests, 1,568 reviewed by the tool. Developers marked <span class="num">73.8%</span> of its comments Resolved, a label the authors note some may have used loosely, while average closure time rose from 5 hours 52 minutes to 8 hours 20 minutes.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Isn't an LLM judge faster than all this?</p><p>Use it for one narrow job: saying whether the diff that followed a comment addressed it. Grading quality rewards how a comment reads, and judges have known biases. In Zheng et al. (2023), padding an answer with a repeated list fooled Claude-v1 and GPT-3.5 in 91.3% of tries (GPT-4 in 8.7%), and GPT-4 gave the same verdict with the answers swapped only 65% of the time. Spot-check its labels against people.</p></div>
+      <div class="fu" id="fu-2"><p class="q">The author changed the line. Did the comment cause it?</p><p>Not necessarily: a test may have failed, or a colleague said the same. Compare with pull requests where the skill was off, or wrote comments without posting them, and credit it only with the difference.</p></div>
+      <div class="fu" id="fu-3"><p class="q">When would you delete the skill?</p><p>When it doesn't beat no skill on acted-on comments per pull request in a fair live test. Anthropic's skill guide says to measure the agent without the skill first, and a loaded skill's tokens compete with the rest of the context, so a useless skill still costs every review.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>What is a change trigger in the Bosu et al. Microsoft study?</summary><p>A review comment followed, in a later version of the same pull request, by a code change within one line of the lines it pointed at. As a sign that the author found the comment useful, it had 88% precision and 78% recall.</p></details>
+      <details class="cy" id="cy-2"><summary>Why is “share of a review skill's comments acted on” easy to game?</summary><p>The skill decides how many comments to post. Posting fewer, safer comments raises the share while catching fewer problems. Count acted-on comments per pull request instead, and track missed bugs beside it.</p></details>
+      <details class="cy" id="cy-3"><summary>What does Google's Tricorder do with an analyzer that developers find noisy?</summary><p>It tracks the analyzer's not-useful rate from developers' clicks in code review. At 10% or more the analyzer goes on probation and its writer must show progress; above 25% it may be turned off. The fix can be as simple as rewording its messages.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>LLM judge</dt><dd>One model asked to grade or compare another model's output.</dd>
+      <dt>Change trigger</dt><dd>A review comment followed by a code change right next to the lines it pointed at.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://www.microsoft.com/en-us/research/publication/characteristics-of-useful-code-reviews-an-empirical-study-at-microsoft/">Characteristics of Useful Code Reviews</a> (Bosu, Greiler and Bird, MSR 2015): change triggers.</li>
+      <li><a href="https://research.google/pubs/tricorder-building-a-program-analysis-ecosystem/">Tricorder</a> (Sadowski et al., ICSE 2015): the not-useful rate.</li>
+      <li><a href="https://arxiv.org/abs/2306.05685">Judging LLM-as-a-Judge</a> (Zheng et al., 2023): judge biases.</li>
+      <li><a href="https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices">Skill authoring best practices</a> (Anthropic docs): baseline first, then iterate.</li>
+      <li>Later in your plan, the long version: Interview Prep's <a href="https://nehilsood.github.io/guides/interview-prep/guides/0009-what-the-author-did-next.html">What the Author Did Next</a>.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-8">AI Interview Prep #8</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

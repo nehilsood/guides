@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Split That Leaked</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 18 of 30 · Day 23 · about 10 minutes</div>
+    <h1>The split that leaked</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-11">AI Agent Engineering Interview #11 · The Near-Duplicate Leakage Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “You collected code from GitHub, set aside a random 5% of the files for testing, and trained a new code model on the rest. On those test files it shows a big jump. Before telling anyone, what would you suspect first about the way the split was made?”
+      <small>Senior ML Engineer interview, Google DeepMind</small>
+    </div>
+    <p>The files kept back are the <b>test set</b>; the rest is the <b>training set</b>. The test set only means something if the model has never seen it, the same idea as the held-back prompts in <a href="0009-the-line-that-picks-the-skill.html">guide 9</a>.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Overfitting. Look at the training curves.”</p>
+      <p><strong>Trap B:</strong> “The new model is just better. Announce it.”</p>
+      <p>Overfitting means fitting the training set so closely that new data goes worse, and a fair test set is what catches it. The worry here is that the test set itself holds copies of training files, so memorising scores well. That's a fault in the split, and no training curve will show it.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“I'd suspect the test files aren't new. GitHub is full of copies: forks, libraries pasted into many repos, files copied between projects. One study found 70% of GitHub's code was copies of files that already existed. A random split by file puts one copy in training and its twin in the test set, so the jump may be memory, not skill. Bigger models tend to gain most from that.</p>
+      <p>So first I'd measure how many test files have an exact or near copy in training. Then I'd re-split by group, keeping whole repos, forks and clusters of near-copies on one side, or by date, testing only on code written after the training data. Then I'd re-run both models. If the jump shrinks, it was leakage.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A teacher builds an exam by picking 5% of the questions in the textbook at random. The other 95% become homework, with answers.</p>
+    <p>But the book reprints many questions, sometimes with different numbers. A student who memorised the homework answers aces the exam without understanding anything.</p>
+    <p>The fix: keep each question and its reprints on the same side, or write the exam from questions published after the homework.</p>
+    <p>When test data has already been seen in training, that's <b>leakage</b>. A reprint with small changes is a <b>near-duplicate</b>. Keeping related files together is a <b>group split</b>; using only newer files for testing is a <b>time-based split</b>.</p>
+    <div class="flows" aria-label="Random file split compared with a group split">
+      <div class="flow">
+        <div class="flow-label">Random split by file</div>
+        <div class="strip"><span class="box">Shuffle all files</span><span class="arrow">→</span><span class="box">95% train, 5% test</span><span class="arrow">→</span><span class="box">Twins on both sides</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">Group split</div>
+        <div class="strip"><span class="box">Group copies together</span><span class="arrow">→</span><span class="box">Whole groups to one side</span><span class="arrow">→</span><span class="box">No twin crosses</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> A file has exactly one twin somewhere in your corpus, and you split at random, 95% training and 5% test. If the file lands in the test set, how likely is its twin to be in training? About 95%. A random split sends almost every copied test file's twin into training.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: checking a code split</h2>
+    <ol>
+      <li><b>Expect copies.</b> <a href="https://janvitek.org/pubs/oopsla17b.pdf">DéjàVu</a> (Lopes et al., 2017) looked at 4.5 million GitHub projects in Java, C++, Python and JavaScript, leaving out forks. Its headline: “70% of the code on GitHub consists of clones of previously created files.” In JavaScript only 6% of files were distinct, and in a sample of its copied files, 78 of 80 came from npm packages committed along with the project. A library copied into a repo like that is <b>vendored</b> code.</li>
+      <li><b>Measure the overlap.</b> Count test files with an exact or near twin in training. <a href="https://arxiv.org/abs/2211.15533">The Stack</a> found near-duplicates with <b>MinHash</b>, a quick fingerprint that estimates how many words two files share, and counted two files as similar when that overlap (their Jaccard similarity) exceeded 0.85.</li>
+      <li><b>Re-split by group.</b> Keep each repo whole. Then join its <b>fork network</b>, which <a href="https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/working-with-forks/about-forks">GitHub's docs</a> describe as “the upstream repository, its forks, and forks of those forks.” Then join clusters of near-duplicates, so a library pasted into many repos lands on one side.</li>
+      <li><b>Or split by time.</b> Test only on code written after the training data was collected. <a href="https://arxiv.org/abs/2403.07974">LiveCodeBench</a> tags each problem with its release date; the DeepSeek model's score “starkly drops” on problems released after August 2023, a sign the older ones had leaked into training.</li>
+      <li><b>Re-run and report the gap.</b> Score both models on the clean split. The drop from the random split is your leakage estimate.</li>
+    </ol>
+    <p><b>Worked example, with real numbers.</b> How much does the split matter? Allamanis (2019) measured duplicates across popular code datasets. In the Java-Large dataset, a random 60/40 split by file left an expected <span class="num">24.1%</span> of the test set as duplicates of training files. Splitting by project cut that to <span class="num">8.9%</span>: much better, not zero, because copies cross projects. His conclusion: reported scores are “sometimes inflated by up to 100% when testing on duplicated code corpora.” He also found: “Powerful models that have larger capacity are impacted more by code duplication.” That's why a new, bigger model's jump deserves suspicion first.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Why not just hash every file and drop exact copies?</p><p>A hash only matches byte-identical files. A copy with a renamed variable or a changed licence header slips through. In The Stack, after exact copies were already removed, near-duplicate detection still found 38.6% of the files in its permissive-licence set.</p></div>
+      <div class="fu" id="fu-2"><p class="q">Is splitting by repository enough?</p><p>It's the minimum. In Allamanis's 2019 study, the Java-Large dataset split by project still had 8.9% of its test set duplicated in training, against an expected 24.1% with a random 60/40 split by file. Forks and pasted-in libraries cross repositories, so group by fork network and by near-duplicate cluster too.</p></div>
+      <div class="fu" id="fu-3"><p class="q">A time-based split makes the test harder. How do you tell that apart from leakage?</p><p>Our reasoning: re-run the previous model on the same new split. A harder test lowers both models' scores. Leakage mostly shows up as the new model's lead shrinking, because the copies it had memorised are no longer in the test.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>Why does a random split by file leak on GitHub data?</summary><p>GitHub is full of copies; the DéjàVu study found 70% of files in 4.5 million non-fork projects were clones. A random split by file puts copies on both sides, so many test files have a twin in training.</p></details>
+      <details class="cy" id="cy-2"><summary>Name three kinds of group to keep on one side of a code split.</summary><p>Whole repositories, fork networks (a repo, its forks and their forks), and clusters of near-duplicate files found with a method such as MinHash. Or split by date instead.</p></details>
+      <details class="cy" id="cy-3"><summary>How do you find out whether a big jump came from leakage?</summary><p>Count test files with an exact or near copy in training. Re-split by group or by date, re-run both models, and compare. If the new model's lead shrinks on the clean split, leakage explains that part of the jump.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>Leakage</dt><dd>Test data the model has already seen in training, so the score measures memory.</dd>
+      <dt>Near-duplicate</dt><dd>A copy with small changes: renamed variables, a different header.</dd>
+      <dt>Fork network</dt><dd>A repository, its forks, and forks of those forks.</dd>
+      <dt>Vendored code</dt><dd>A library's files copied into a project's own repository.</dd>
+      <dt>Time-based split</dt><dd>Testing only on data created after the training data was collected.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/1812.06469">The adverse effects of code duplication in machine learning models of code</a> (Allamanis, 2019).</li>
+      <li><a href="https://janvitek.org/pubs/oopsla17b.pdf">DéjàVu: A Map of Code Duplicates on GitHub</a> (Lopes et al., 2017): how much of GitHub is copies.</li>
+      <li><a href="https://arxiv.org/abs/2211.15533">The Stack</a> (Kocetkov et al., 2022): near-duplicate removal with MinHash.</li>
+      <li><a href="https://arxiv.org/abs/2403.07974">LiveCodeBench</a> (Jain et al., 2024): testing only on problems released after a model's training data.</li>
+      <li>Later in your plan, the long version: Interview Prep's <a href="https://nehilsood.github.io/guides/interview-prep/guides/0012-the-twin-in-the-test-set.html">The Twin in the Test Set</a>.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-11">AI Interview Prep #11</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

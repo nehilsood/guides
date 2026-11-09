@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Fixes That Piled Up</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 16 of 30 · Day 21 · about 10 minutes</div>
+    <h1>The fixes that piled up</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-24">AI Agent Engineering Interview #24 · The Stateless Benchmark Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “On your internal benchmark, your coding agent solves most issues it's handed one at a time. But once it has merged 20 tasks one after another in the same repo, the team asks you to switch it off. What did your evaluation not see, and how would you measure it?”
+      <small>Senior AI Engineer interview, Microsoft</small>
+    </div>
+    <p>A benchmark like <a href="0001-the-pipeline-that-beat-the-agent.html">guide 1</a>'s SWE-bench scores each issue on its own: does the project's test suite pass after the agent's change?</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Make the benchmark harder: tougher issues, better tests.”</p>
+      <p><strong>Trap B:</strong> “Give it a bigger context window so it remembers the earlier tasks.”</p>
+      <p>Trap A still scores one task at a time from a fresh repo; Trap B guesses at memory without looking at the code. The problem shows only when task 21 starts from what tasks 1 to 20 left behind.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“Our benchmark scored each task alone, starting from a clean repo that people wrote. In real use, every task starts from the code the agent left last time. So a shortcut that passes today becomes the base for tomorrow, and a pass or fail per task can't see that.</p>
+      <p>I'd measure it as a chain: run tasks in a row on one repo with no reset, keep every earlier task's tests running, and track the repo's health after each step, such as tangled functions and copied code. Then I'd compare with the same tasks scored one at a time. In a 2026 study, running the tasks as a chain dropped Claude Sonnet 4.5 from about 66% to 44%. That gap, and the slope of the health curve, are what we missed.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>You hire a handyman and test him on twenty jobs. Each job is in an identical, freshly built show house, and every repair works.</p>
+    <p>Then he does twenty jobs in a row in your own house. Each repair works, but each leaves some tape, a spare wire, a second bracket. By job twenty he's working around his own leftovers.</p>
+    <p>The show-house test is a <b>stateless</b> evaluation: every task starts from the same clean code, reset after each one. Your house is a <b>stateful</b> one: each task starts from what the last one left. Earlier, messier changes making later tasks harder is <b>spillover</b>. The leftovers themselves are <b>technical debt</b>: messy code that makes every later change slower and riskier.</p>
+    <div class="flows" aria-label="Stateless evaluation compared with a chained, stateful evaluation">
+      <div class="flow">
+        <div class="flow-label">Stateless: reset after every task</div>
+        <div class="strip"><span class="box">Clean repo</span><span class="arrow">→</span><span class="box">One task</span><span class="arrow">→</span><span class="box">Score</span><span class="back">↺ reset to clean</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">Stateful: each task builds on the last</div>
+        <div class="strip"><span class="box">Task 1</span><span class="arrow">→</span><span class="box">Task 2 on task 1's code</span><span class="arrow">→</span><span class="box">… task 20</span><span class="arrow">→</span><span class="box">Score and health at each step</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> Two agents each pass 19 of 20 tasks. Agent A writes a fresh copy of a helper function every time it needs one. Agent B reuses the one already there. A per-task score calls it a tie. Now a bug turns up in that helper. How many places does someone have to fix in each repo? In A's, up to twenty. In B's, one.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: measuring a run of tasks</h2>
+    <ol>
+      <li><b>Find the reset.</b> The <a href="https://arxiv.org/abs/2604.03035">SWE-STEPS</a> authors point out that SWE-bench-style setups reset “to a clean, human-validated codebase” before each task. So the agent never has to live with its own changes.</li>
+      <li><b>Run tasks as a chain.</b> Take a run of pull requests from one repo's history and let the agent do them in order, carrying the repo forward.</li>
+      <li><b>Keep every earlier test in scope.</b> Last task's fail-to-pass tests, from <a href="0015-the-screen-the-tests-never-saw.html">guide 15</a>, become this task's pass-to-pass tests. SWE-STEPS does this: obligations from earlier pull requests “remain in scope for later PRs”.</li>
+      <li><b>Measure the repo, not just the tests.</b> A function's <b>cyclomatic complexity</b> counts the separate paths through it; more branches, higher number. <a href="https://arxiv.org/abs/2603.24755">SlopCodeBench</a> measures <b>erosion</b>, how much of the code's complexity sits in a few highly complex functions, and <b>verbosity</b>, the share of lines that are copies or known wasteful patterns. Plot them against the task number and look at the slope.</li>
+      <li><b>Report the gap.</b> Score the same tasks both ways; isolated minus chained is the cost of spillover. Add a small human review, because tests don't check whether code is fit to merge.</li>
+    </ol>
+    <p><b>Worked example, with real numbers.</b> SWE-STEPS (April 2026) built 168 tasks out of 963 pull requests from 6 popular Python projects, in chains of 3 to 11. In its smaller “Mini” set, Claude Sonnet 4.5 solved <span class="num">53</span> of 80 pull requests when the repo was reset after each one (66.25%). Run as a chain, with the code, earlier tests and conversation all carried forward, it solved <span class="num">35</span> of 80 (43.75%). On the larger “Lite” set, Gemini 3 Flash fell from <span class="num">56.52%</span> to <span class="num">36.59%</span>. And passing wasn't everything: on one project Gemini 3.0 Pro solved all 7 pull requests, yet its technical-debt score ended “significantly higher than human reference, which maintains near-zero debt.”</p>
+    <p>In SlopCodeBench (latest version May 2026), erosion rose in <span class="num">77%</span> of runs and verbosity in <span class="num">75.5%</span>. On average, functions with a complexity of 10 or more went from <span class="num">3.6</span> to <span class="num">23.7</span>. Neither study runs exactly 20 tasks in a row; the 20 is the question's.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Can't we just tell it to write clean code?</p><p>It helps the start, not the trend. In SlopCodeBench, explicit quality guidance cut the starting verbosity and erosion “by up to a third, without affecting degradation rates.” The code began cleaner and got worse just as fast, so measure the slope, not one snapshot.</p></div>
+      <div class="fu" id="fu-2"><p class="q">Isn't this just the context window filling up over 20 tasks?</p><p>Not mainly. SlopCodeBench gives the agent no record of its earlier conversation at each step, only the code (“we do not provide the prior conversation's context”), and quality still fell in most runs. The damage lives in the repo, so a bigger memory won't remove it.</p></div>
+      <div class="fu" id="fu-3"><p class="q">If the tests pass, why would the team care?</p><p>Because reviewers pay for what tests don't check. In METR's August 2025 study, Claude 3.7 Sonnet had an average success rate of 38% on 18 open-source issues, by the maintainers' tests, but none of the 15 changes reviewed by hand could be merged as-is. Even the ones that passed needed about 26 minutes of human fixing each: missing tests, documentation, lint and style problems.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>What does “stateless” mean for a coding benchmark?</summary><p>Every task starts from the same clean, human-written version of the repo, which is reset after each task. The agent never has to build on its own earlier changes.</p></details>
+      <details class="cy" id="cy-2"><summary>Name three things to track across a long chain of tasks in one repo.</summary><p>Success at each step with no reset; whether earlier tasks' tests still pass; and the repo's health, such as complexity and copied code. Then compare with the same tasks scored one at a time.</p></details>
+      <details class="cy" id="cy-3"><summary>What did the SWE-STEPS study find when it ran the tasks as a chain, with no reset between them?</summary><p>Scores fell. On its Mini set, Claude Sonnet 4.5 went from 66.25% of pull requests solved with a reset after each one to 43.75% without. On its Lite set, Gemini 3 Flash went from 56.52% to 36.59%.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>Stateless / stateful evaluation</dt><dd>Each task starts from clean code / from what the previous task left.</dd>
+      <dt>Spillover</dt><dd>Earlier flawed or messy changes making later tasks harder.</dd>
+      <dt>Technical debt</dt><dd>Messy code that makes every later change slower and riskier.</dd>
+      <dt>Cyclomatic complexity</dt><dd>The number of separate paths through a function. More branches, higher number.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2604.03035">Beyond Isolated Tasks</a> (Shastry et al., 2026): SWE-STEPS, with and without resets.</li>
+      <li><a href="https://arxiv.org/abs/2603.24755">SlopCodeBench</a> (Orlanski et al., 2026): how agent code erodes as it extends itself.</li>
+      <li><a href="https://arxiv.org/abs/2603.03823">SWE-CI</a> (Chen et al., 2026): correctness tracked over many commits.</li>
+      <li><a href="https://metr.org/blog/2025-08-12-research-update-towards-reconciling-slowdown-with-time-horizons/">Algorithmic vs. Holistic Evaluation</a> (METR, 2025): passing tests is not the same as mergeable.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-24">AI Interview Prep #24</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

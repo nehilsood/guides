@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Benchmark That Moved</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 17 of 30 · Day 22 · about 10 minutes</div>
+    <h1>The benchmark that moved</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-12">AI Agent Engineering Interview #12 · The Execution Benchmark Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “Your team stopped scoring code by how closely it matches a reference answer and started actually running tests. This quarter, a model that everybody agrees is stronger gets a lower score than last quarter's model did, on the same Docker benchmark. What would you check before calling it a regression?”
+      <small>Senior AI Engineer interview, Meta</small>
+    </div>
+    <p>An <b>execution-based</b> eval runs the model's code against tests, like <a href="0001-the-pipeline-that-beat-the-agent.html">guide 1</a>'s SWE-bench. <b>Docker</b> packages each task's environment (operating system, Python, libraries) into an <b>image</b>; each run starts a fresh copy, a <b>container</b>. A <b>regression</b> means the new model really got worse. The <b>harness</b>, from guide 1, is the code and settings that run the model: its tools, prompts and limits.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “The numbers don't lie. The new model regressed; dig into its failures.”</p>
+      <p><strong>Trap B:</strong> “Execution tests are flaky. Ignore the result.”</p>
+      <p>Trap A assumes only the model changed. Trap B throws away a real signal unexamined. List what else changed between the two runs, and test each one.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“A score belongs to three things: the model, the harness and the environment. Only the model has its name on it. Between quarters, images get rebuilt with newer libraries, and the harness gets new limits and tools.</p>
+      <p>So first I'd run each task's real fix, the gold patch, in today's containers. If a real fix fails, the task broke, not the model. Then I'd re-run last quarter's model on today's setup and compare the two side by side. I'd sort every failure: setup errors say nothing about the model, patches that didn't apply and timeouts need a look, and tests that ran and failed are the clearest signal. And I'd check the gap against noise, because a couple of points on 500 tasks can be chance.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>After a month of eating well, the gym scale says you've gained two kilos.</p>
+    <p>Before blaming your diet, you'd ask: is it the same scale? Did someone move it onto the carpet? The easy test is to weigh a 5 kg dumbbell. If the scale reads 7, it's the scale.</p>
+    <p>A second test: ask a friend whose weight hasn't changed to step on. If they've “gained” two kilos as well, it's not you.</p>
+    <p>In a coding benchmark, the dumbbell is the <b>gold patch</b>: the fix the project's developers actually made, which should pass every time. The friend is last quarter's model, run again today. The scale is the harness plus the environment: the Docker image and every library inside it.</p>
+    <div class="flows" aria-label="Two checks before calling a regression">
+      <div class="flow">
+        <div class="flow-label">Check the benchmark</div>
+        <div class="strip"><span class="box">Gold patches in today's image</span><span class="arrow">→</span><span class="box">Any real fix failing?</span><span class="arrow">→</span><span class="box">Broken task: set aside</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">Check the comparison</div>
+        <div class="strip"><span class="box">Old and new model, same setup today</span><span class="arrow">→</span><span class="box">Compare task by task</span><span class="arrow">→</span><span class="box">Gap bigger than noise?</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it</b>, with our own numbers. Last quarter's model scored 41% then. Today, on the rebuilt image, it scores 38%. The new model scores 39%. Which model got worse? Neither. The setup took three points off the same old model. On today's setup the two are level, within noise.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: before you call it a regression</h2>
+    <ol>
+      <li><b>List what changed besides the model.</b> “Same benchmark” usually means the same task list; the image under it may have been rebuilt. Harness version, limits, tools, prompt: each is a suspect.</li>
+      <li><b>Run the gold patches in today's containers.</b> The <a href="https://www.swebench.com/SWE-bench/reference/harness/">SWE-bench harness</a> has a built-in mode “to verify the gold patches”. Any task whose real fix fails is broken. Images drift because, as the <a href="https://arxiv.org/abs/2505.23419">SWE-bench-Live</a> authors put it, “When dependencies are not pinned to specific versions, tools like pip by default will resolve to the latest package versions”.</li>
+      <li><b>Re-run last quarter's model on today's setup.</b> Now both face the same benchmark, task by task.</li>
+      <li><b>Sort every failure.</b> Our rule of thumb: a setup error (failed build, out of memory) says nothing about the model. A patch that didn't apply, or a timeout, needs a look: it may be the model's broken diff or a loop, or the harness. Tests that ran and failed are the clearest model signal.</li>
+      <li><b>Size the gap against noise.</b> Anthropic's <a href="https://www.anthropic.com/research/statistical-approach-to-model-evals">eval statistics</a> post (November 2024) recommends reporting the <b>standard error</b>, how much a score would wobble by chance, and comparing two models question by question: “conducting a paired-differences test lets us eliminate the variance in question difficulty.”</li>
+    </ol>
+    <p><b>Worked example, with real numbers.</b> A broken task can look exactly like a model failure. In SWE-bench <a href="https://github.com/SWE-bench/SWE-bench/issues/681">issue #681</a> (October 2026), the gold patch for a task from pvlib, a Python library, is scored unresolved. Its environment has NumPy 2.0.2, but that version of pvlib still uses <code>np.Inf</code>, which <a href="https://numpy.org/devdocs/numpy_2_0_migration_guide.html">NumPy 2.0 removed</a>, so the tests can't even load. The scorer still reported it as an ordinary failure, not a setup error, so any model's fix there is marked wrong.</p>
+    <p>The machine matters too. In <a href="https://www.anthropic.com/engineering/infrastructure-noise">Anthropic's infrastructure-noise study</a> (February 2026), changing only the containers' resource limits moved Terminal-Bench 2.0, a benchmark of command-line tasks, by <span class="num">6</span> points. Their advice: “leaderboard differences below 3 percentage points deserve skepticism” until the setups are documented and matched.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">All the gold patches pass. Is the setup cleared?</p><p>Only the tasks are. A gold patch is applied directly, so it never touches the agent's side: tools, prompts, time limits, memory. To check that side, re-run a model whose ability can't have changed, such as last quarter's, on today's setup.</p></div>
+      <div class="fu" id="fu-2"><p class="q">How could a stronger model lose points to the setup?</p><p>Our guess: by doing more. Anthropic's 2026 infrastructure-noise study shows how that can cost points: some models start a Terminal-Bench task by installing a whole data-science stack, and under tight limits the container runs out of memory during that install, before the agent writes a line of solution code.</p></div>
+      <div class="fu" id="fu-3"><p class="q">Why did moving to execution tests make this more likely?</p><p>Comparing text with a reference needs no environment. Running tests needs a working one, with the right library versions. Because pip installs the newest version of any unpinned library, an image rebuilt later can contain different code. The SWE-bench-Live team fixed this by only allowing versions released before each task's code.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>What three things does a coding-benchmark score depend on?</summary><p>The model, the harness (tools, prompts, limits) and the environment (the Docker image and its library versions). Only the model's name goes on the score.</p></details>
+      <details class="cy" id="cy-2"><summary>What does running the gold patches tell you?</summary><p>Whether each task can still be solved in today's container. If the real fix fails, as with the pvlib task under NumPy 2.0.2 in SWE-bench issue #681, the task is broken and its failures say nothing about any model.</p></details>
+      <details class="cy" id="cy-3"><summary>On the same 500 tasks, a new model scores 39% and the old one 38%. Is the new one clearly better?</summary><p>No. At about 39% on 500 tasks, the standard error is about 2.2 points, bigger than the gap. Compare task by task and run more than once before claiming either way.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>Gold patch</dt><dd>The fix the project's developers actually made for a task. It should always pass.</dd>
+      <dt>Docker image</dt><dd>A packaged environment (system, language, libraries) that each run starts from.</dd>
+      <dt>Environment drift</dt><dd>The setup changing over time, for example a rebuilt image pulling newer libraries.</dd>
+      <dt>Standard error</dt><dd>How much a score would wobble by chance if you re-ran it on a fresh set of similar tasks.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://www.swebench.com/SWE-bench/reference/harness/">Harness reference</a> (SWE-bench docs): the layered Docker images and the gold-patch check.</li>
+      <li><a href="https://www.anthropic.com/engineering/infrastructure-noise">Quantifying infrastructure noise in agentic coding evals</a> (Anthropic, 2026): the machine moves the score.</li>
+      <li><a href="https://www.anthropic.com/research/statistical-approach-to-model-evals">A statistical approach to model evaluations</a> (Anthropic, 2024): standard errors and paired comparisons.</li>
+      <li><a href="https://arxiv.org/abs/2505.23419">SWE-bench Goes Live!</a> (Zhang et al., 2025): pinning library versions by date.</li>
+      <li>Later in your plan, the long version: Interview Prep's <a href="https://nehilsood.github.io/guides/interview-prep/guides/0013-the-score-with-three-authors.html">The Score With Three Authors</a>.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-12">AI Interview Prep #12</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

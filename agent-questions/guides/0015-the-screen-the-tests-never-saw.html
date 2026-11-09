@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Screen the Tests Never Saw</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 15 of 30 · Day 20 · about 10 minutes</div>
+    <h1>The screen the tests never saw</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-23">AI Agent Engineering Interview #23 · The Front-End Verification Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “Your coding agent fixes a bug in a web page. All the unit tests go green, yet anyone who opens the page can see it's still broken. How should the agent check its own work, and does that check need a model that can see images?”
+      <small>AI Engineer interview, Google</small>
+    </div>
+    <p>A <b>unit test</b> checks one small piece of code on its own. A model that can see takes images as input as well as text; people call it <b>multimodal</b>.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Hand it a vision model and have it look at a screenshot.”</p>
+      <p><strong>Trap B:</strong> “Write more unit tests.”</p>
+      <p>Neither asks why the tests passed. More unit tests are blind in the same place, and a vision model puts an opinion where a yes-or-no script would often do.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“Most likely the unit tests ran in a stand-in for the browser that never lays out or draws the page. Then they proved the button exists, not that a person can see or press it.</p>
+      <p>I'd make the agent check where the user is: in a real browser. First it writes a browser test that fails on the current code, for the reason in the bug report. Then it fixes the code until that test passes, and the old tests still pass. That's fail-to-pass: a test that fails before the fix and passes after, the way SWE-bench scores a fix.</p>
+      <p>For most bugs a text-only model reading the page's structure is enough. For bugs you can only see, I'd compare screenshots with a known-good one first, and bring in a vision model only where no reference exists.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A tailor checks a finished suit against the order form: navy wool, three buttons, two pockets. Every line ticks.</p>
+    <p>The customer puts it on, and the sleeves cover his hands. The form never had a line for “fits a real person”.</p>
+    <p>A good tailor fits twice: before the alteration and after.</p>
+    <p>A web page starts as the <b>DOM</b>, the tree of elements (buttons, text, boxes) it's built from. Front-end unit tests often run in <a href="https://github.com/jsdom/jsdom/blob/main/README.md">jsdom</a>, a copy of the DOM written in JavaScript that never works out where anything sits on screen. That's the order form. A real browser, driven by a script, is the fitting. A test that fails before the fix and passes after it is <b>fail-to-pass</b>.</p>
+    <div class="flows" aria-label="Unit test in jsdom compared with a test in a real browser">
+      <div class="flow">
+        <div class="flow-label">Unit test in jsdom: reads the tree</div>
+        <div class="strip"><span class="box">Build the DOM</span><span class="arrow">→</span><span class="box">Is the button there?</span><span class="arrow">→</span><span class="box">Yes: pass</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">Real browser: builds the screen</div>
+        <div class="strip"><span class="box">Build, lay out, draw</span><span class="arrow">→</span><span class="box">Click where a person would</span><span class="arrow">→</span><span class="box">Covered: fail</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> A Submit button sits under a cookie banner. Your unit test finds the button by its label and fires a click at it. Does it pass in jsdom? Yes: by our reasoning, nothing has a position there, so nothing can be on top. The test asked “is it there?” The user asks “can I press it?”</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: checking a front-end fix</h2>
+    <ol>
+      <li><b>Name what the old tests could see.</b> jsdom's README lists layout, “the ability to calculate where elements will be visually laid out as a result of CSS”, as not implemented, and says it returns “zeros for many layout-related properties”. So overlap and clipping bugs can't show up there.</li>
+      <li><b>Reproduce in a real browser first.</b> The agent writes a test with a browser tool such as Playwright and checks it fails on the unchanged code, for the reported reason. Only then does it edit.</li>
+      <li><b>Fix until it passes, and keep the old tests green.</b> This is how <a href="https://arxiv.org/abs/2310.06770">SWE-bench</a>, from <a href="0001-the-pipeline-that-beat-the-agent.html">guide 1</a>, scores a fix: fail-to-pass tests must now pass, and pass-to-pass tests “are included to ensure that the revision does not break or violate any existing expected behavior.”</li>
+      <li><b>Make the test act like a user.</b> Playwright counts an element as visible when it “has non-empty bounding box and does not have visibility:hidden computed style”: it has a size on screen, and its own style doesn't hide it. A covered button meets that. A real click also checks that the element “is the hit target of the pointer event at the action point”, the thing on top where the click lands. A covered button fails.</li>
+      <li><b>Bring in pixels only for bugs you can only see.</b> For behaviour, a text-only model can read the <a href="https://developer.mozilla.org/en-US/docs/Glossary/Accessibility_tree"><b>accessibility tree</b></a>, the browser's own list of each control's role, name and state. Microsoft's <a href="https://github.com/microsoft/playwright-mcp">Playwright MCP</a>, a browser tool for agents, does: “No vision models needed”. For looks, Playwright's screenshot test stores a reference on the first run and compares later runs against it. A vision model comes last, for bugs with no known-good picture.</li>
+    </ol>
+    <p><b>Worked example, with real numbers.</b> <a href="https://arxiv.org/abs/2410.03859">SWE-bench Multimodal</a> (Yang et al., October 2024) collected 617 tasks from 17 JavaScript libraries, each with an image in the bug report or tests. Of the <span class="num">557</span> whose bug report had an image, annotators judged it necessary for <span class="num">465</span> (83.5%). So the bug often needs seeing; the check mostly doesn't: tasks are scored with fail-to-pass tests, and only <span class="num">69</span> compare rendered screenshots “pixel-by-pixel”. The best system then, SWE-agent, solved <span class="num">12%</span>.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">The agent wrote the test itself. Couldn't it write one that always passes?</p><p>That's why the test must fail first, on the unchanged code, for the reported reason. A test that passes before and after measured nothing, which is why SWE-bench only keeps tasks with at least one test that goes from fail to pass. Undoing the fix and seeing the test fail again is a cheap extra proof.</p></div>
+      <div class="fu" id="fu-2"><p class="q">So when is a model that can see worth it?</p><p>Our view: for bugs that live only in the pixels with no known-good screenshot to compare against, such as a page that doesn't match its design, or to read a screenshot in the bug report. The model writing the code can stay text-only; the seeing one is a checker at the end.</p></div>
+      <div class="fu" id="fu-3"><p class="q">Does giving the model the image always help?</p><p>Not reliably. SWE-bench Multimodal tried its one-shot baseline (no agent loop) at three context sizes on its development set. Adding the bug report's images raised Claude 3.5 Sonnet from 7.6% to 13.7% solved with a 100K-token context, but lowered it from 9.4% to 7.8% with 32K. Measure it on your own tasks.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>Why can a jsdom unit test pass while a cookie banner covers the button?</summary><p>jsdom builds the page's tree but doesn't do layout, returning zeros for many position and size values. So it can't know what sits on top; it only checks the button exists.</p></details>
+      <details class="cy" id="cy-2"><summary>What do fail-to-pass and pass-to-pass tests each prove?</summary><p>Fail-to-pass: the test can see the bug, and the fix removed it. Pass-to-pass: the fix didn't break what already worked. SWE-bench counts a fix only when both sets pass.</p></details>
+      <details class="cy" id="cy-3"><summary>In Playwright, which catches a covered button: the visible check or a real click?</summary><p>The click. Visible only means a non-empty box and no visibility:hidden, which a covered button has. A click first checks the button is the element on top where the click lands, so it fails.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>jsdom</dt><dd>A copy of the browser's DOM in JavaScript, used for fast tests. No layout, no drawing.</dd>
+      <dt>Fail-to-pass / pass-to-pass</dt><dd>Tests that fail before the fix and pass after / passed before and must still pass.</dd>
+      <dt>Accessibility tree</dt><dd>The browser's text summary of the page: each control's role, name and state.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2410.03859">SWE-bench Multimodal</a> (Yang et al., 2024): front-end bugs where the report needs an image.</li>
+      <li><a href="https://playwright.dev/docs/actionability">Auto-waiting</a> (Playwright docs): what visible means, and the hit-target check before a click.</li>
+      <li><a href="https://playwright.dev/docs/test-snapshots">Visual comparisons</a> (Playwright docs): screenshot tests against a stored reference.</li>
+      <li>Later in your plan, the long version: Interview Prep's <a href="https://nehilsood.github.io/guides/interview-prep/guides/0021-the-button-behind-the-modal.html">The Button Behind the Modal</a>.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-23">AI Interview Prep #23</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>
