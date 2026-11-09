@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Zero That Still Changed Its Mind</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 40 · extra · Day 73 · about 10 minutes</div>
+    <h1>The zero that still changed its mind</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/advanced-nlp-interview-26-the-temperature">Advanced NLP Interview #7 · The Temperature 0 Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “Set the temperature to zero, says a teammate, when the agent picks different tools on repeated runs of one input. What does that leave unsolved?”
+      <small>Senior AI Engineer interview, Google</small>
+    </div>
+    <p>This builds on Day 71: temperature divides the logits before the softmax, and near zero it becomes greedy, always the top token. <a href="0039-the-search-that-found-nothing.html">Guide 39</a> showed that greedy's pick at each step isn't the best whole sequence.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Temperature 0 is greedy, greedy is deterministic, done.”</p>
+      <p><strong>Trap B:</strong> “GPUs are random; nothing can be done.”</p>
+      <p>A misses two things: servers don't compute the same numbers every time, and a consistent answer can be consistently wrong. B gives up on a cause that has been found and fixed.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“Two halves. First, temperature 0 makes the choice deterministic only if the logits are identical every run, and on a shared server they aren't. Thinking Machines sampled one prompt 1,000 times at temperature 0 and got 80 different completions. Their analysis: a request's numbers depend on how many other requests run alongside it, because that changes the order in which the GPU adds numbers up, and floating-point addition rounds differently in different orders. I'd expect a near-tie between two tokens to flip. GPU routines that add in a fixed order, however many requests share the run, made all 1,000 identical, at some cost in speed.</p>
+      <p>Second, determinism isn't correctness. Greedy picks the top token, so a wrong tool call the model slightly prefers now happens every time. I'd also validate calls and test the agent's behaviour.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>Volunteers count an election by hand. To keep the arithmetic easy, each volunteer rounds their pile's total to the nearest ten before it's added in. How the ballots are split into piles depends on how many volunteers turned up that night. Most nights that changes nothing. In a near-tie, it decides who wins.</p>
+    <p>A GPU adds long lists of numbers the same way: in chunks, rounding at every step, because a floating-point number keeps only so many digits. The chunking a GPU routine (a <b>kernel</b>) picks can depend on how many requests run together in one <b>batch</b>, and the batch depends on how busy the server is. So the same prompt can get slightly different logits from one minute to the next.</p>
+    <p>Usually the top token still wins by a mile. But when two tokens are nearly tied, say <code>search_orders</code> and <code>search_invoices</code> as the next tool name (our example), a difference in the fifth decimal place can pick the other one. That is our reasoning: the top choice changes only if two logits sit within the rounding error. Everything after it then differs.</p>
+    <div class="think"><b>Think about it.</b> The rounding is unavoidable; what fixes the count? Always split the ballots into the same piles, however many volunteers come. That is the idea Thinking Machines calls batch invariance: each kernel adds in the same order whatever the batch size. The price is a slower count on busy nights.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: the two halves</h2>
+    <ol>
+      <li><b>Order changes the sum.</b> <a href="https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/">“Defeating Nondeterminism in LLM Inference”</a> (Horace He with others at Thinking Machines, Sept 2025) starts here: (0.1 + 1e20) − 1e20 gives 0, while 0.1 + (1e20 − 1e20) gives 0.1.</li>
+      <li><b>The usual story is incomplete.</b> The common explanation is parallel threads finishing in random order. The post says this “is not entirely wrong” but misses the picture: “running the same matrix multiplication on the same data repeatedly will always provide bitwise equal results” (identical to the last bit), and an LLM's forward pass is “run-to-run deterministic”.</li>
+      <li><b>The batch is the hidden input.</b> Their finding: “the primary reason nearly all LLM inference endpoints are nondeterministic is that the load (and thus batch-size) nondeterministically varies”. Three operations add across many numbers and need fixing: RMSNorm (a layer norm variant), matrix multiplication and attention.</li>
+      <li><b>Fixing it is possible and costs speed.</b> With their batch-invariant kernels, 1,000 runs gave one completion. Serving 1,000 short replies (90 to 110 tokens) from Qwen3-8B on one GPU took 26 s with the defaults of vLLM, an open-source serving engine, 55 s with their unoptimised deterministic version, 42 s with a better attention kernel. PyTorch's reproducibility notes (2.15) agree on the trade: “Deterministic operations are often slower”, and results aren't guaranteed to match across releases or platforms.</li>
+      <li><b>The other half: consistent isn't right.</b> Temperature 0 turns the model's preference into a fixed habit. If it slightly prefers the wrong tool for an input, it now picks it every time (guide 39's model error: the model's top choice can be the wrong one). So check tool calls against their schema and the task, test behaviour over varied inputs, and confirm “identical inputs” really are, down to timestamps in the prompt (our advice).</li>
+    </ol>
+    <p><b>Worked example, with the post's numbers.</b> Qwen3-235B-A22B-Instruct-2507, prompt “Tell me about Richard Feynman”, 1,000 completions of 1,000 tokens at temperature 0:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Kernels</th><th>Distinct completions</th><th>Where they split</th></tr></thead>
+        <tbody>
+          <tr><td>Standard</td><td><span class="num">80</span> (most common: 78 times)</td><td>Token 103: 992 say “Queens, New York”, 8 say “New York City”</td></tr>
+          <tr><td>Batch-invariant</td><td>1</td><td>Never</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p><b>An illustration, with our own numbers.</b> We added the same 4,096 float32 products (one logit's dot product) two ways in numpy: left to right gave −18.137648, sixteen partial sums gave −18.137726, a gap of about 0.00008. Two tool names whose logits sit closer than that can swap places.</p>
+    <p><b>Where the premise outruns the evidence.</b> The post's experiments ran on its own setup. It argues the batch effect holds for nearly all endpoints, but a hosted API's internals aren't public, so other causes can't be ruled out there (our caution). And the question's “identical inputs” is worth checking first.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">If the forward pass is deterministic, why does the server look random to me?</p><p>The Thinking Machines post explains that the server is deterministic given all its requests, but other users' requests aren't your input: they set the batch size, which changes how the kernels add up your numbers, so your logits can differ run to run.</p></div>
+      <div class="fu" id="fu-2"><p class="q">Should every agent run on batch-invariant kernels?</p><p>Only where bit-identical output is worth the cost: replaying a bug or research comparisons, say (our advice). In the Thinking Machines test, 1,000 short replies from Qwen3-8B took 42 s with their still unoptimised batch-invariant kernels against 26 s by default.</p></div>
+      <div class="fu" id="fu-3"><p class="q">How would you make the tool choice reliable rather than just repeatable?</p><p>Check each call against the tool's schema and the user's request before running it, log the full input of every run, and measure how often the agent picks the right tool across varied inputs. A deterministic wrong answer is still wrong.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>Why can greedy decoding give different outputs for the same prompt on a busy server?</summary><p>The batch size changes how the GPU kernels split their sums, and floating-point addition rounds differently in different orders. The logits shift slightly, enough to flip a near-tie between two tokens.</p></details>
+      <details class="cy" id="cy-2"><summary>What is batch invariance?</summary><p>A kernel property: it adds numbers in the same order whatever the batch size, so one request's result doesn't depend on what else runs with it. Thinking Machines needed it for RMSNorm, matrix multiplication and attention.</p></details>
+      <details class="cy" id="cy-3"><summary>Why is temperature 0 only half a fix even on a perfectly deterministic server?</summary><p>It makes the choice repeatable, not correct: if the model slightly prefers the wrong tool, greedy decoding picks that wrong tool every time.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">8</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://thinkingmachines.ai/blog/defeating-nondeterminism-in-llm-inference/">Defeating Nondeterminism in LLM Inference</a> (He et al., Thinking Machines, Sept 2025).</li>
+      <li><a href="https://docs.pytorch.org/docs/2.15/notes/randomness.html">Reproducibility</a> (PyTorch 2.15 notes): what PyTorch can and can't make deterministic.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/advanced-nlp-interview-26-the-temperature">AI Interview Prep, Advanced NLP Interview #7</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

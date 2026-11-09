@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Search That Found Nothing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 39 · extra · Day 72 · about 10 minutes</div>
+    <h1>The search that found nothing</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/llm-inference-interview-questions-342">LLM Inference Interview Questions #21 · The Search Error Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “A teammate says that taking the top token at every step, greedy decoding, gets you close to the model's most probable full output. Where does that reasoning fail, and does beam search fix it?”
+      <small>Senior ML Engineer interview, Google DeepMind</small>
+    </div>
+    <p>This builds on Day 71: greedy takes the top token every step, and beam search keeps the B best partial sequences by total probability (the sum of log-probabilities). Day 71's toy already showed greedy settling for 0.20 where a beam found 0.36. Today: how often that happens in a real model, and what happens if you search perfectly.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Greedy is fine: if every step is the best, the whole is the best.”</p>
+      <p><strong>Trap B:</strong> “Greedy is approximate, so a wider beam, ideally an exact search, gives the best output.”</p>
+      <p>A is wrong about the maths. B is right about the maths and wrong about the model: the sequence a model scores highest is often not the one you want.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“It breaks because a sequence's probability is a product. A likely first word can lead only to weak continuations, so the best token at each step isn't the best sentence. Beam search finds higher-scoring sequences, but not reliably: in Stahlberg and Byrne's translation study, greedy missed the model's top-scoring output for 74% of sentences, and a beam of 10 still missed it for 58%.</p>
+      <p>The bigger surprise is what perfect search finds. Their exact search showed the top-scoring output was the empty translation for 52% of sentences, and translation quality collapsed. Every token multiplies in a number below one, so short outputs win. Wider beams drift the same way, which is why quality drops past a moderate width. So rather than search harder, I'd change what's scored: length normalisation for translation, which the authors call rather heuristic, or sampling for open-ended text.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A choose-your-own-adventure book ends every page with two or three choices, each with a chance printed beside it. You want the most likely complete story. A greedy reader takes the likeliest choice on every page. But a likely page can lead into a part of the book where every later choice is a coin toss, while a less likely start leads somewhere every later choice is near certain.</p>
+    <p>There's a stranger catch. One choice on page 1 says “Close the book.” A story's chance is the product of every choice made, and each choice is below 1, so long stories shrink fast. A single 1-in-50 choice to stop beats a 20-page story at 0.8 a page.</p>
+    <div class="think"><b>Think about it.</b> Work out 0.8 multiplied by itself 20 times. It's about 0.0115, below the 0.02 of stopping at once, so if every long story runs at about 0.8 a page, a perfect search for the single most likely story picks the empty one (our arithmetic). Our reasoning: the model isn't saying the empty story is good; it's spreading its probability over many good long stories, none of which alone beats the short one.</div>
+    <div class="flows" aria-label="Search error and model error">
+      <div class="flow">
+        <div class="flow-label">Two different failures</div>
+        <div class="strip"><span class="box">Search error: the decoder misses the model's top sequence</span><span class="arrow">→</span><span class="box">Model error: the model's top sequence is bad</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: what perfect search revealed</h2>
+    <ol>
+      <li><b>Greedy maximises steps, not sequences.</b> Choosing the top token commits to it; a beam keeps alternatives alive.</li>
+      <li><b>Beams reduce search errors only partly.</b> <a href="https://arxiv.org/abs/1908.10090">Stahlberg and Byrne</a> (2019) built an exact search for a Transformer translation model on the WMT15 English–German test set. A sentence counts as a search error if the decoder doesn't find the model's top score. Greedy: 73.6% errors. Beam 10: 57.7%. Beam 100: 53.62%, while being “10 times slower than beam-10”.</li>
+      <li><b>Exact search exposes a model error.</b> With no search errors at all, the top-scoring output for 51.8% of sentences was the empty translation, “a single &lt;/s&gt; token” (the end-of-text token), and BLEU fell to 2.1. BLEU scores word overlap with human translations, 0 to 100, higher is better. The authors trace it to “an inherent bias towards shorter translations” and conclude that the model “requires just the right amount of beam search errors”.</li>
+      <li><b>So wider beams get worse.</b> <a href="https://arxiv.org/abs/1706.03872">Koehn and Knowles</a> (2017) found that “in almost all cases, worse translations are found beyond an optimal beam size”, with “shorter translations under wider beams” the main cause. Dividing scores by output length “alleviates the problem somewhat”.</li>
+      <li><b>For open-ended text, maximising is the wrong goal.</b> <a href="https://arxiv.org/abs/1904.09751">Holtzman et al.</a> (2020) found beam search produces text that is “bland, incoherent, or gets stuck in repetitive loops”, and that a repeated phrase becomes more probable with each repetition. That is why Day 71 keeps beam search for tasks with one right answer. For very short ones, such as a tool name or a field to extract, greedy is the cheap choice: no beams to keep, and little room for a better sequence (our judgement).</li>
+    </ol>
+    <p><b>Worked example, with the paper's numbers.</b> Stahlberg and Byrne's Table 1, Transformer-Base, WMT15 English–German:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Search</th><th>BLEU</th><th>Search errors</th><th>Empty output</th></tr></thead>
+        <tbody>
+          <tr><td>Greedy</td><td>29.3</td><td>73.6%</td><td>0.0%</td></tr>
+          <tr><td>Beam 10</td><td>30.3</td><td>57.7%</td><td>0.0%</td></tr>
+          <tr><td>Exact</td><td><span class="num">2.1</span></td><td>0.0%</td><td>51.8%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Fewer search errors helped up to beam 10; perfect search wrecked it. The beam's errors were doing useful work.</p>
+    <p><b>Why beams work at all.</b> <a href="https://arxiv.org/abs/2010.02650">Meister et al.</a> (2020) argue that beam search is the exact answer to a different objective, and that it “enforces uniform information density”: it favours text that spreads information evenly, a property they say is motivated by cognitive science. That is their explanation, not a settled fact.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Is the empty-output problem only in old translation models?</p><p>Stahlberg and Byrne found it across all four systems they tested, an older recurrent model (an LSTM), a convolutional network and two Transformers: exact search gave empty output for 25.8% to 51.8% of sentences. The bigger Transformer had the lowest rate, so stronger models reduce it but didn't remove it there.</p></div>
+      <div class="fu" id="fu-2"><p class="q">How would you stop beam search favouring short outputs?</p><p>Divide each candidate's log-probability by its length, or set a minimum length. Koehn and Knowles found length normalisation helped “somewhat”, with the best beam size then in the range 30–50 in almost all cases, though quality still fell for larger beams. Stahlberg and Byrne call such fixes “rather heuristic”.</p></div>
+      <div class="fu" id="fu-3"><p class="q">Then why does anyone use greedy in production?</p><p>For short outputs with one right answer, such as a tool name or a field to extract, greedy is cheap, with no beams to keep. Given exactly the same logits it picks the same token, though a shared server's numbers can shift slightly between runs. For such outputs the gap to the best sequence is usually small (our judgement).</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>What's the difference between a search error and a model error?</summary><p>A search error is the decoder missing the sequence the model scores highest. A model error is the model scoring a bad sequence highest, like the empty translation that topped 51.8% of sentences in Stahlberg and Byrne's exact search.</p></details>
+      <details class="cy" id="cy-2"><summary>Why does maximising sequence probability favour short outputs?</summary><p>A sequence's probability is the product of its token probabilities, each below 1, so every extra token shrinks it. Twenty tokens at 0.8 each multiply to about 0.0115, less than a single 0.02 chance of ending at once.</p></details>
+      <details class="cy" id="cy-3"><summary>In Koehn and Knowles's translation study, what happened as the beam got very wide, and why?</summary><p>Translation quality fell past an optimal width, mainly because wider beams found shorter translations that the model scored higher.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">8</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/1908.10090">On NMT Search Errors and Model Errors: Cat Got Your Tongue?</a> (Stahlberg and Byrne, EMNLP 2019): exact search and the empty translation.</li>
+      <li><a href="https://arxiv.org/abs/1706.03872">Six Challenges for Neural Machine Translation</a> (Koehn and Knowles, 2017): section 3.6, beam search.</li>
+      <li><a href="https://arxiv.org/abs/1904.09751">The Curious Case of Neural Text Degeneration</a> (Holtzman et al., ICLR 2020): why maximising fails for open-ended text.</li>
+      <li><a href="https://arxiv.org/abs/2010.02650">If beam search is the answer, what was the question?</a> (Meister et al., EMNLP 2020).</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/llm-inference-interview-questions-342">AI Interview Prep, LLM Inference Interview Questions #21</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

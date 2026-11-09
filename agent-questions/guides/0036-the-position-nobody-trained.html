@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Position Nobody Trained</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 36 · extra · Day 64 · about 10 minutes</div>
+    <h1>The position nobody trained</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/advanced-nlp-interview-10-the-absolute">Advanced NLP Interview #10 · The Absolute Position Cliff</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “To serve 16K-token agent traces, a teammate wants to grow the model's learnt position table past its 4,096 rows and ship. What happens at token 4,097? And why won't fine-tuning on longer texts be enough on its own?”
+      <small>Senior ML Engineer interview, Google DeepMind</small>
+    </div>
+    <p>This builds on Day 63: a learnt position table (GPT-2's has 1,024 rows) gives each slot its own trained vector and knows nothing past the last one, while sines and cosines, or RoPE, work a position out from a formula. <a href="0025-the-agent-that-learned-its-harness-by-heart.html">Guide 25</a> explains fine-tuning and weights.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Add 12,288 rows, fine-tune on long documents, and the new rows will learn.”</p>
+      <p><strong>Trap B:</strong> “Switch to RoPE. A formula works at any length.”</p>
+      <p>A forgets that new rows start as noise. B forgets that formula positions also degrade past their training length.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“At 4,097 there's nothing trained to look up. A learnt table has one row per position, and the rows you add start as random numbers. From token 4,097 on, each token gets noise added where the model expects its position, and every layer above reads that noise.</p>
+      <p>Fine-tuning helps, but it starts from zero: each new row learns only from texts that reach its position, and attention has never seen a gap longer than 4K. When Longformer stretched RoBERTa's 512 learnt positions to 4,096, its loss with random new rows was about five times worse than with copies of the old rows, before any training. So I'd fill the new rows from the old ones, by copying or interpolating, then fine-tune on long traces, and test retrieval at 16K, not only the loss.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A hotel's staff know rooms 1 to 4,096 by heart: which floor, which lift, which corridor. Over a weekend the owner builds a new wing with rooms 4,097 to 16,384 and hangs door numbers, but gives the staff no map. A guest asks for room 5,000. The number exists; nobody knows what it means, so the porter guesses.</p>
+    <p>A learnt position table is the staff's memory: training shaped row 37 into “this is slot 37”, and the layers learned to read it. Added rows are new door numbers. Training never touched them, so they hold their random starting values.</p>
+    <p>A formula is a numbering rule that covers any room. The <a href="https://arxiv.org/abs/1706.03762">original Transformer paper</a> chose sines and cosines because they “may allow the model to extrapolate to sequence lengths longer than the ones encountered during training”. <a href="https://arxiv.org/abs/2108.12409">Press et al.</a> later found, training language models on WikiText-103 (a Wikipedia text benchmark), that such a model “cannot extrapolate to more than a few dozen tokens beyond” its training length.</p>
+    <div class="flows" aria-label="Three ways to fill the new rows">
+      <div class="flow">
+        <div class="flow-label">Filling rows 4,097 to 16,384</div>
+        <div class="strip"><span class="box">Random: noise from 4,097 on</span><span class="arrow">→</span><span class="box">Copy rows 1 to 4,096 again</span><span class="arrow">→</span><span class="box">Interpolate: stretch 4,096 rows over 16,384</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> nanoGPT's <code>generate</code>, its text-writing loop, crops its input to <code>block_size</code>. What happens to a 5,000-token trace there? It doesn't crash: <a href="https://github.com/karpathy/nanoGPT/blob/master/model.py">nanoGPT</a> keeps only the last <code>block_size</code> tokens (<code>idx[:, -self.config.block_size:]</code>), so with a <code>block_size</code> of 4,096 the first 904 tokens, where the trace begins, are dropped silently.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: why the new rows hurt, and what to do</h2>
+    <ol>
+      <li><b>A row learns only from texts that reach it.</b> Position 9,000's row gets a gradient only when a training text is at least 9,000 tokens long. Google's 2018 <a href="https://arxiv.org/abs/1810.04805">BERT</a> model trained 90% of its steps on 128-token sequences, to save cost, and the last 10% on 512 tokens “to learn the positional embeddings”: the same dependence from the other side (our reading).</li>
+      <li><b>Random rows are noise.</b> The position vector is added to the token vector (Day 63), so a random row shifts each token's input by a vector the layers have never seen.</li>
+      <li><b>Attention has never seen long gaps.</b> Every layer learned on gaps up to 4,095 tokens; only long training data fixes that (our reasoning).</li>
+      <li><b>So fill the rows from what you have.</b> Copy the old rows over and over, or stretch them, so position 8,000 reads a blend of the rows near 2,000 (our description of a 4× stretch). The <a href="https://arxiv.org/abs/2010.11929">Vision Transformer</a> interpolates its table at higher image resolutions, where “the pre-trained position embeddings may no longer be meaningful”. <a href="https://arxiv.org/abs/2306.15595">Position Interpolation</a> (Chen et al., 2023) squeezes RoPE's position numbers into the trained window the same way.</li>
+      <li><b>Then fine-tune and test the long part:</b> recall of a fact placed at token 12,000, since average loss is mostly short-range predictions (our reasoning).</li>
+    </ol>
+    <p><b>Worked example, with real numbers.</b> <a href="https://arxiv.org/abs/2004.05150">Longformer</a> (Beltagy et al., 2020) started from RoBERTa, whose learnt table stops at position 512, and added rows up to 4,096, eight times longer. Its Table 5 reports bits per character on held-out text (the loss in bits, counted per character, like <a href="0024-the-merge-that-swallowed-the-cursor.html">guide 24's</a> bits per byte; lower is better), for the base model:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Model</th><th>Bits per character</th></tr></thead>
+        <tbody>
+          <tr><td>RoBERTa at 512 tokens</td><td>1.846</td></tr>
+          <tr><td>Longformer at 4,096, new rows random</td><td>10.299</td></tr>
+          <tr><td>New rows copied from the 512, no training yet</td><td>1.957</td></tr>
+          <tr><td>Copied, then 2K training steps</td><td>1.753</td></tr>
+          <tr><td>Copied, then 65K training steps</td><td>1.705</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Random rows are 10.299 ÷ 1.957 ≈ 5.3 times worse than copies (our arithmetic). Both Longformer rows use its new attention, so that gap is the position rows alone; RoBERTa's 1.846 against the copied 1.957 shows the new attention and the copies cost little. Copies work, the paper says, because BERT's attention leans on nearby tokens, and copying keeps that local structure “everywhere except at the partition boundaries”.</p>
+    <p><b>Where the premise outruns the evidence.</b> Fine-tuning is part of the answer. The evidence that plain fine-tuning is slow comes from RoPE, not a learnt table: Chen et al. fine-tuned LLaMA 7B from 2,048 to 8,192 tokens directly, and after more than 10,000 steps the window it could use grew only to 2,560. With Position Interpolation it reached 8,192 within 200 steps.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Copying or interpolating: which would you pick?</p><p>For text, copying has published evidence: Longformer copied RoBERTa's 512 learnt position rows eight times to reach 4,096 and, after training, reached a lower loss at the longer context than RoBERTa's at 512 (1.705 against 1.846 bits per character). Interpolation, which the Vision Transformer uses for images, squeezes neighbouring positions closer. I'd try both on a long-retrieval test.</p></div>
+      <div class="fu" id="fu-2"><p class="q">Doesn't RoPE avoid all of this?</p><p>It avoids the missing rows, since positions come from a formula, but not the length limit. Press et al., training on WikiText-103, a Wikipedia text benchmark, found RoPE models kept improving up to about 200 tokens beyond a 512-token training length, and Chen et al. extended LLaMA's RoPE window by scaling positions down (Position Interpolation) rather than running past it.</p></div>
+      <div class="fu" id="fu-3"><p class="q">What would you train on?</p><p>Traces that really run past 4K, since a position row learns only from texts that reach it, mixed with short ones so short-context quality holds. Then test recall of a fact planted deep in a 16K trace.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>Why does a learnt position table fail at token 4,097 but a sine-and-cosine table doesn't crash there?</summary><p>A learnt table has no trained row for 4,097; any row you add starts random. Sines and cosines are a formula, so any position has a value, though Press et al. found such models stop improving a few dozen tokens past their training length.</p></details>
+      <details class="cy" id="cy-2"><summary>In Longformer's test, how much worse were random new position rows than copied ones?</summary><p>About 5.3 times: 10.299 bits per character with random rows against 1.957 with rows copied from RoBERTa's 512, before any training.</p></details>
+      <details class="cy" id="cy-3"><summary>Name two reasons fine-tuning alone is slow to extend a learnt table.</summary><p>Each new row learns only from training texts long enough to reach it, and (our reasoning) the layers have never seen attention gaps that long. Starting new rows from copies of old ones gives them a sensible start, but training on long texts is still needed.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">8</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2004.05150">Longformer</a> (Beltagy et al., 2020): section 5, position embeddings, and Table 5.</li>
+      <li><a href="https://arxiv.org/abs/2108.12409">Train Short, Test Long</a> (Press et al., ICLR 2022): section 2, how far each position method extrapolates.</li>
+      <li><a href="https://arxiv.org/abs/2306.15595">Extending Context Window via Position Interpolation</a> (Chen et al., 2023): direct fine-tuning against interpolation, for RoPE.</li>
+      <li><a href="https://arxiv.org/abs/1706.03762">Attention Is All You Need</a> (Vaswani et al., 2017): section 3.5, why sines and cosines.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/advanced-nlp-interview-10-the-absolute">AI Interview Prep, Advanced NLP Interview #10</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

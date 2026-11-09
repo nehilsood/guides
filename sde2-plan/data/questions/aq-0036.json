@@ -1,0 +1,88 @@
+{
+ "lesson": "aq-0036",
+ "label": "AQ 0036",
+ "track": "ai",
+ "title": "The position nobody trained",
+ "url": "https://nehilsood.github.io/guides/agent-questions/guides/0036-the-position-nobody-trained.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "fu-1",
+   "kind": "follow-up",
+   "q": "Copying or interpolating: which would you pick?",
+   "a": "For text, copying has published evidence: Longformer copied RoBERTa's 512 learnt position rows eight times to reach 4,096 and, after training, reached a lower loss at the longer context than RoBERTa's at 512 (1.705 against 1.846 bits per character). Interpolation, which the Vision Transformer uses for images, squeezes neighbouring positions closer. I'd try both on a long-retrieval test.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: why the new rows hurt, and what to do",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0036-the-position-nobody-trained.html#how-it-works"
+   }
+  },
+  {
+   "id": "fu-2",
+   "kind": "follow-up",
+   "q": "Doesn't RoPE avoid all of this?",
+   "a": "It avoids the missing rows, since positions come from a formula, but not the length limit. Press et al., training on WikiText-103, a Wikipedia text benchmark, found RoPE models kept improving up to about 200 tokens beyond a 512-token training length, and Chen et al. extended LLaMA's RoPE window by scaling positions down (Position Interpolation) rather than running past it.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The trap",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0036-the-position-nobody-trained.html#the-trap"
+   }
+  },
+  {
+   "id": "fu-3",
+   "kind": "follow-up",
+   "q": "What would you train on?",
+   "a": "Traces that really run past 4K, since a position row learns only from texts that reach it, mixed with short ones so short-context quality holds. Then test recall of a fact planted deep in a 16K trace.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: why the new rows hurt, and what to do",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0036-the-position-nobody-trained.html#how-it-works"
+   }
+  },
+  {
+   "id": "cy-1",
+   "kind": "check",
+   "q": "Why does a learnt position table fail at token 4,097 but a sine-and-cosine table doesn't crash there?",
+   "a": "A learnt table has no trained row for 4,097; any row you add starts random. Sines and cosines are a formula, so any position has a value, though Press et al. found such models stop improving a few dozen tokens past their training length.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The idea in plain words",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0036-the-position-nobody-trained.html#the-idea-in-plain-words"
+   }
+  },
+  {
+   "id": "cy-2",
+   "kind": "check",
+   "q": "In Longformer's test, how much worse were random new position rows than copied ones?",
+   "a": "About 5.3 times: 10.299 bits per character with random rows against 1.957 with rows copied from RoBERTa's 512, before any training.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: why the new rows hurt, and what to do",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0036-the-position-nobody-trained.html#how-it-works"
+   }
+  },
+  {
+   "id": "cy-3",
+   "kind": "check",
+   "q": "Name two reasons fine-tuning alone is slow to extend a learnt table.",
+   "a": "Each new row learns only from training texts long enough to reach it, and (our reasoning) the layers have never seen attention gaps that long. Starting new rows from copies of old ones gives them a sensible start, but training on long texts is still needed.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: why the new rows hurt, and what to do",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0036-the-position-nobody-trained.html#how-it-works"
+   }
+  }
+ ]
+}

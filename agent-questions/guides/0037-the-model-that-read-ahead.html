@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Model That Read Ahead</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 37 · extra · Day 65 · about 10 minutes</div>
+    <h1>The model that read ahead</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/advanced-nlp-interview-11-the-causal">Advanced NLP Interview #11 · The Causal Mask Leak</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “Training loss on a next-token model has dropped far below anything plausible, and everything it generates is nonsense. What in attention do you suspect first? Then: how can masking with −inf, or with a large negative number instead, still break in 16-bit arithmetic?”
+      <small>Senior ML Engineer interview, Google</small>
+    </div>
+    <p>This builds on Day 64's nanoGPT: <code>CausalSelfAttention</code> scores every token against every other, and a causal mask (Day 57: −∞ above the diagonal before the softmax) stops a token seeing the ones after it. <a href="0024-the-merge-that-swallowed-the-cursor.html">Guide 24</a> explains loss and held-out sets.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Low loss is good news. Generation must be a sampling problem: lower the temperature.”</p>
+      <p><strong>Trap B:</strong> “Validation loss is just as low, so it isn't overfitting. The model is simply good.”</p>
+      <p>A trusts a number that is too good. B trusts a check that runs through the same broken forward pass.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“Loss that low with garbage output means the model saw its targets in training. Every position trains at once, and only the causal mask stops position t reading token t+1. I trained a tiny character model twice, changing only that flag: masked, validation loss about 2; unmasked, 0.04, and it wrote one letter over and over. The tell is per position: near zero everywhere except the last position of each block, the only one with nothing to its right to copy.</p>
+      <p>Then I'd find where the mask is built, including boolean masks moved between PyTorch functions that read True oppositely. The second trap is a row with no allowed key, such as a filler position padding a short text: −inf makes its softmax NaN, a big finite number spreads its weight over hidden tokens, and in fp16 −1e9 becomes −inf anyway (bf16 keeps float32's range).”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A trainee weather forecaster practises on old records: for each past day, predict the next day's weather. Her scores are perfect. Then you notice each archive box also holds the next day's newspaper, weather page on top. On her first real Monday there is no Tuesday paper, and she guesses wildly.</p>
+    <p>Training a next-token model is that practice. Day 64's <code>forward</code> with targets predicts every position in one pass, so token t+1 sits right beside the position that must predict it. The causal mask takes the newspaper out of the box: scores for later tokens become −∞, so after the softmax their weight is exactly zero.</p>
+    <p>Without the mask, the model learns the easiest job there is: copy the next token. Day 64's <code>generate</code> has no next token to copy, so it falls apart.</p>
+    <div class="think"><b>Think about it.</b> In our leaky run (below) the validation loss was low too. Why didn't the held-out text catch the leak? It's scored by the same forward pass, so each validation position could read its own target just as training positions did (our reasoning).</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: read the losses, find the mask, check the empty rows</h2>
+    <p><b>An illustration, from our own run.</b> The same tiny transformer twice on Karpathy's tiny-Shakespeare text (65 characters): 3 layers, 4 heads, width 128, blocks of 64 characters, 600 steps of AdamW (a variant of <a href="0033-the-feature-that-barely-moved.html">Adam</a>) at learning rate 0.001, PyTorch 2.15 on a laptop CPU. The only difference is <code>is_causal</code>.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Run</th><th>Validation loss</th><th>Last position</th><th>Text it writes</th></tr></thead>
+        <tbody>
+          <tr><td>Mask on</td><td>1.97</td><td>1.93</td><td>“How yether youst is mave to be tosan…”</td></tr>
+          <tr><td>Mask off</td><td><span class="num">0.042</span></td><td>2.56</td><td>“LLLLLLLLLLLLLLLLLLLL…”</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ol>
+      <li><b>Read the loss position by position.</b> With the mask off, every position scored about 0.003 except the last in each block, at 2.56: its target lies outside the block, so it must really predict. The average is close to 2.56 ÷ 64 = 0.04 (our arithmetic). For scale, <a href="https://github.com/karpathy/nanoGPT">nanoGPT's README</a> reports a best validation loss of 1.4697 for its larger character model. A loss of 0.04 on this data says each position can see its own answer.</li>
+      <li><b>Find where the mask is built.</b> nanoGPT has two paths: <code>scaled_dot_product_attention(..., is_causal=True)</code> with <code>attn_mask=None</code>, and a manual one that builds a lower triangle with <code>torch.tril</code> and fills the zeros with <code>float('-inf')</code>. A wrong triangle or a dropped flag leaks. So can moving a boolean mask between PyTorch functions: for <code>scaled_dot_product_attention</code>, “a value of True indicates that the element should take part in attention”, while for <code>nn.MultiheadAttention</code> “a True value indicates that the corresponding position is not allowed to attend”. When we passed the same lower-triangle mask to the second, position 0 attended only to positions 1 and 2, the future.</li>
+      <li><b>Confirm the fix with one edit.</b> Change only the last input token, rerun the forward pass, and compare the outputs at every earlier position. A correct mask leaves them identical. In our run the biggest change was 0 with the mask and 0.0136 without it.</li>
+      <li><b>Check rows with no allowed key.</b> Batched texts of different lengths are padded with filler tokens, and the filler is masked out. With the filler on the left, a filler position's causal row may see only filler: in our six-position example with two filler tokens, rows 0 and 1 had no allowed key. Our runs in PyTorch 2.15 on CPU:
+        <ul>
+          <li>scores 1, 2 and two hidden at −1e9: weights 0.27, 0.73, 0, 0, so any large negative works while one key is allowed;</li>
+          <li>an empty row through a hand-written softmax with −inf: NaN (“not a number”) in every entry, which then spreads through the backward pass;</li>
+          <li>the same row with −1e9: weight 1/6 on each of the six positions, four of them real tokens that come later, with no error;</li>
+          <li>the same boolean mask passed to <code>scaled_dot_product_attention</code>: zeros for the empty rows. That's this version on this backend; test yours (our caution).</li>
+        </ul>
+        In fp16, the 16-bit half-precision format, the largest magnitude is 65,504, so −1e9 is stored as −inf and the quiet leak becomes the NaN. bf16, the other 16-bit format, keeps float32's range, so there −1e9 stays finite and the leak stays quiet (our run: 1/6 each). No mask value rescues an empty row; it needs a defined output (our reading).</li>
+    </ol>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Couldn't the low loss be validation text that also appears in training?</p><p>Overlap would lower the loss at every position alike. A mask leak leaves the last position of each block at a normal loss, because its target is outside the block: in our tiny-Shakespeare run, 2.56 there against 0.003 elsewhere. So the per-position losses tell the two apart (our reasoning).</p></div>
+      <div class="fu" id="fu-2"><p class="q">Why does a NaN in one row matter so much?</p><p>Anything multiplied or added with NaN is NaN, so one fully masked row with −inf scores makes that row's softmax output NaN, and the backward pass carries it into the gradients of shared weights. In our PyTorch 2.15 run, softmax over a row of −inf scores returned NaN in every entry.</p></div>
+      <div class="fu" id="fu-3"><p class="q">Isn't −1e9 the safe choice, then?</p><p>Only where the format can hold it, and only for rows that keep at least one allowed key: in our PyTorch 2.15 run, scores of 1, 2, −1e9, −1e9 gave weights 0.27, 0.73, 0, 0. A row with no allowed key spreads its weight evenly over keys meant to be hidden. fp16 can't hold −1e9 at all (its largest magnitude is 65,504), so it is stored as −inf; bf16, with float32's range, can.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>Why does a model with a leaking causal mask write nonsense even though its loss is tiny?</summary><p>In training it learned to copy the next token, which it could see. When generating, the next token doesn't exist yet, so the skill it learned has nothing to work on.</p></details>
+      <details class="cy" id="cy-2"><summary>Describe the one-edit test for a causal mask.</summary><p>Change only the last input token, rerun the forward pass, and check the outputs at every earlier position are unchanged. Any change means some position can see a later token.</p></details>
+      <details class="cy" id="cy-3"><summary>A boolean causal mask works with <code>scaled_dot_product_attention</code> but leaks in <code>nn.MultiheadAttention</code>. Why?</summary><p>The two read True oppositely: in <code>scaled_dot_product_attention</code> True means “may attend”, in <code>nn.MultiheadAttention</code> True means “blocked”. The same mask hides the past and shows the future.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">8</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://github.com/karpathy/nanoGPT/blob/master/model.py">nanoGPT model.py</a> (Karpathy): <code>CausalSelfAttention</code>, both mask paths.</li>
+      <li><a href="https://docs.pytorch.org/docs/2.15/generated/torch.nn.functional.scaled_dot_product_attention.html">scaled_dot_product_attention</a> (PyTorch 2.15 docs): <code>attn_mask</code> and <code>is_causal</code>.</li>
+      <li><a href="https://docs.pytorch.org/docs/2.15/generated/torch.nn.MultiheadAttention.html">nn.MultiheadAttention</a> (PyTorch 2.15 docs): the opposite boolean meaning.</li>
+      <li><a href="https://arxiv.org/abs/1706.03762">Attention Is All You Need</a> (Vaswani et al., 2017): section 3.2.3, masking “illegal connections” with −∞.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/advanced-nlp-interview-11-the-causal">AI Interview Prep, Advanced NLP Interview #11</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

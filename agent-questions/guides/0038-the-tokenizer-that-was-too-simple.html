@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Tokenizer That Was Too Simple</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 38 · extra · Day 67 · about 10 minutes</div>
+    <h1>The tokenizer that was too simple</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/llm-system-design-interview-5-the">LLM System Design Interview #5 · The FLOPs Compression Hack</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “Raw bytes instead of BPE: 256 symbols, next to no tokenizer code, and no string the model can't take in. A colleague wants to switch. What's the catch?”
+      <small>AI Engineer interview, OpenAI</small>
+    </div>
+    <p>This builds on Day 66: BPE starts from bytes and merges frequent pairs into tokens, and tokens are the unit of price and of context (“Your order will arrive in 20 minutes.” is 9 tokens; the Hindi version 37 in cl100k_base, 12 in o200k_base).</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Subword tokens mean something and bytes don't, so the model learns better from tokens.”</p>
+      <p><strong>Trap B:</strong> “Bytes are fine. A 256-row embedding table even saves memory.”</p>
+      <p>Both miss the bill. The catch is length: every byte is a position the model must process, and attention's work grows with the square of the number of positions.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“The catch is sequence length. Studies put BPE tokens at about four bytes, so the same text becomes about four times as many positions. Attention scores every position against every earlier one, so that part of the work grows about sixteen-fold; every other layer, and the number of generation steps, grows about four-fold; and a fixed context window holds a quarter of the text. Hindi, in a script of three bytes a letter, gets longer still: 89 bytes against 37 for the same sentence in English.</p>
+      <p>And the benefit isn't unique: byte-level BPE, as in GPT-2, starts from the same 256 bytes, so it encodes any string too, then merges bytes into shorter sequences. ByT5 showed raw bytes can compete, but cost a third more pre-training time and up to ten times slower inference. Byte models that close the gap, like Meta's BLT, group bytes back into longer units.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>At a networking evening the host insists every guest shakes hands with every other guest. With 12 guests that's 66 handshakes. Now each guest brings three friends: 48 guests, four times as many, but 1,128 handshakes, about seventeen times as many. The coat check, the name badges and the drinks only quadruple; the handshakes explode.</p>
+    <p>Positions in a transformer are the guests. Attention is the handshakes: each position scores itself and every earlier position (Day 57), so <i>n</i> positions make <i>n</i>(<i>n</i>+1)/2 scores. The MLP layers (Day 59) are the coat check: their work grows in step with <i>n</i>. A tokenizer decides how many guests arrive for the same text.</p>
+    <div class="flows" aria-label="Same text, two tokenizers">
+      <div class="flow">
+        <div class="flow-label">“Your order will arrive in 20 minutes.”</div>
+        <div class="strip"><span class="box">BPE: 9 positions, 45 scores</span><span class="arrow">→</span><span class="box">Bytes: 37 positions, 703 scores</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> That sentence is 37 bytes and 9 tokens, 4.1 bytes a token. Why are the scores 15.6 times more, not 4.1? Because both sides of each score multiply: 37 × 38 ÷ 2 = 703 against 9 × 10 ÷ 2 = 45 (our arithmetic). For long texts the ratio approaches 4.1² ≈ 17.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: where the extra length costs</h2>
+    <ol>
+      <li><b>How much longer is bytes?</b> The <a href="https://arxiv.org/abs/2105.13626">ByT5 paper</a> measured mT5's subword tokenizer over its multilingual training data at 4.1 bytes per token overall, from 2.5 for Maltese to 9.0 for Khmer. The <a href="https://arxiv.org/abs/2412.09871">BLT paper</a> gives 3.7 bytes per token for Llama 2's BPE and 4.4 for Llama 3's. Longer tokens have a price: Llama 3 got there “at the cost of increasing the size of its embedding table 4x”, and every token also needs its own output score (our reading).</li>
+      <li><b>Attention grows with the square.</b> The Transformer paper lists self-attention's cost per layer as O(<i>n</i>² · <i>d</i>) for <i>n</i> positions of width <i>d</i>; ByT5 notes this “quadratic time and space complexity in the sequence length”. At 4× the length, that part costs about 16×.</li>
+      <li><b>Everything else grows in step.</b> The matrix multiplies outside attention, Day 59's MLP among them, do the same work per position, so 4× the positions is 4× the work, and Day 64's <code>generate</code> runs one pass per position it writes.</li>
+      <li><b>Context shrinks.</b> A window counted in positions holds a quarter of the text at 4 bytes a token (our arithmetic).</li>
+      <li><b>“Never unknown” is already solved.</b> <a href="https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf">GPT-2</a> runs BPE over bytes: it “only requires a base vocabulary of size 256”, so any string can be encoded, and merges make it short. <a href="https://arxiv.org/abs/1508.07909">Sennrich et al.</a> introduced subword BPE in 2015 exactly to encode “rare and unknown words as sequences of subword units”.</li>
+    </ol>
+    <p><b>An illustration, with our own counts.</b> Day 66's two sentences, counted with tiktoken (bytes are UTF-8, where each Devanagari character takes 3 bytes). “Scores” is <i>n</i>(<i>n</i>+1)/2 for one attention layer.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Sentence</th><th>Bytes</th><th>Tokens</th><th>Bytes per token</th><th>Scores, bytes vs tokens</th></tr></thead>
+        <tbody>
+          <tr><td>English, cl100k_base</td><td>37</td><td>9</td><td>4.1</td><td>703 vs 45 (15.6×)</td></tr>
+          <tr><td>Hindi, cl100k_base</td><td>89</td><td>37</td><td>2.4</td><td>4,005 vs 703 (5.7×)</td></tr>
+          <tr><td>Hindi, o200k_base</td><td>89</td><td>12</td><td>7.4</td><td>4,005 vs 78 (<span class="num">51×</span>)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>A good tokenizer for a language is the one that makes raw bytes look worst. The byte model pays the same 89 positions for Hindi whichever BPE you compare it with.</p>
+    <p><b>What the byte models found.</b> ByT5 used a standard Transformer on raw bytes and was competitive on quality and “significantly more robust to noise” such as typos, but its authors report “+33% pre-training time” and inference “up to 10× slower in the worst case”. GPT-2's authors note, citing earlier work, that byte-level language models were “not competitive with word-level LMs” at the time. <a href="https://arxiv.org/abs/2305.07185">MEGABYTE</a> and BLT keep bytes as input but group them into patches, so the big model sees a shorter sequence; BLT reports matching Llama 3 at equal training compute while using up to 50% fewer FLOPs (arithmetic operations) when generating, with average patches of 6 to 8 bytes.</p>
+    <p><b>Where the premise outruns the evidence.</b> “Sixteen times the cost” is the attention part only. <a href="https://arxiv.org/abs/2403.02310">Sarathi-Serve</a> measured Mistral-7B and found linear layers “still contribute more than 80% to the total time even at high sequence lengths”, so for a model like that the whole bill sits nearer 4× than 16× (our inference).</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Then why not a far bigger vocabulary, with whole sentences as tokens?</p><p>Each token needs an embedding row and an output score, and rare tokens get few training examples. The BLT paper notes Llama 3 raised its average token from 3.7 to 4.4 bytes “at the cost of increasing the size of its embedding table 4x” over Llama 2.</p></div>
+      <div class="fu" id="fu-2"><p class="q">Are there real advantages to bytes?</p><p>Yes. The ByT5 paper found byte models “significantly more robust to noise” such as typos and better on spelling-sensitive tasks, the same weakness Day 66 shows with counting the r's in “strawberry”.</p></div>
+      <div class="fu" id="fu-3"><p class="q">How do byte models fix the length problem?</p><p>They shorten the sequence the big model sees. MEGABYTE cuts bytes into fixed patches with a small model inside each patch; Meta's BLT sizes patches by how predictable the next byte is, averaging 6 to 8 bytes, longer than Llama 3's 4.4-byte tokens.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>A text is 4 times longer in bytes than in tokens. Roughly how much more attention work is it as bytes, and why?</summary><p>About 16 times, because each position scores every earlier one, so the number of scores grows with the square of the length. The rest of the model grows about 4 times.</p></details>
+      <details class="cy" id="cy-2"><summary>Why isn't “bytes never hit an unknown token” a reason to drop BPE?</summary><p>Byte-level BPE, as in GPT-2, also starts from all 256 bytes, so it can encode any string; its merges just make common text shorter.</p></details>
+      <details class="cy" id="cy-3"><summary>Why does a byte model make a Hindi sentence so much longer than its English version?</summary><p>Each Devanagari character takes 3 bytes in UTF-8, so Day 66's Hindi sentence is 89 bytes against 37 for the English. How much worse than BPE that is depends on the BPE: 5.7 times the attention scores in cl100k_base (English: 15.6 times), but 51 times in o200k_base.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">8</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2105.13626">ByT5</a> (Xue et al., 2021): bytes per token by language, and the speed cost.</li>
+      <li><a href="https://cdn.openai.com/better-language-models/language_models_are_unsupervised_multitask_learners.pdf">Language Models are Unsupervised Multitask Learners</a> (Radford et al., 2019): section 2.2, byte-level BPE.</li>
+      <li><a href="https://arxiv.org/abs/2412.09871">Byte Latent Transformer</a> (Pagnoni et al., 2024): patches instead of tokens.</li>
+      <li><a href="https://arxiv.org/abs/1508.07909">Neural Machine Translation of Rare Words with Subword Units</a> (Sennrich et al., 2015): where BPE for text began.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/llm-system-design-interview-5-the">AI Interview Prep, LLM System Design Interview #5</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

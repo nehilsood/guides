@@ -1,0 +1,88 @@
+{
+ "lesson": "aq-0037",
+ "label": "AQ 0037",
+ "track": "ai",
+ "title": "The model that read ahead",
+ "url": "https://nehilsood.github.io/guides/agent-questions/guides/0037-the-model-that-read-ahead.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "fu-1",
+   "kind": "follow-up",
+   "q": "Couldn't the low loss be validation text that also appears in training?",
+   "a": "Overlap would lower the loss at every position alike. A mask leak leaves the last position of each block at a normal loss, because its target is outside the block: in our tiny-Shakespeare run, 2.56 there against 0.003 elsewhere. So the per-position losses tell the two apart (our reasoning).",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: read the losses, find the mask, check the empty rows",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0037-the-model-that-read-ahead.html#how-it-works"
+   }
+  },
+  {
+   "id": "fu-2",
+   "kind": "follow-up",
+   "q": "Why does a NaN in one row matter so much?",
+   "a": "Anything multiplied or added with NaN is NaN, so one fully masked row with −inf scores makes that row's softmax output NaN, and the backward pass carries it into the gradients of shared weights. In our PyTorch 2.15 run, softmax over a row of −inf scores returned NaN in every entry.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: read the losses, find the mask, check the empty rows",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0037-the-model-that-read-ahead.html#how-it-works"
+   }
+  },
+  {
+   "id": "fu-3",
+   "kind": "follow-up",
+   "q": "Isn't −1e9 the safe choice, then?",
+   "a": "Only where the format can hold it, and only for rows that keep at least one allowed key: in our PyTorch 2.15 run, scores of 1, 2, −1e9, −1e9 gave weights 0.27, 0.73, 0, 0. A row with no allowed key spreads its weight evenly over keys meant to be hidden. fp16 can't hold −1e9 at all (its largest magnitude is 65,504), so it is stored as −inf; bf16, with float32's range, can.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: read the losses, find the mask, check the empty rows",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0037-the-model-that-read-ahead.html#how-it-works"
+   }
+  },
+  {
+   "id": "cy-1",
+   "kind": "check",
+   "q": "Why does a model with a leaking causal mask write nonsense even though its loss is tiny?",
+   "a": "In training it learned to copy the next token, which it could see. When generating, the next token doesn't exist yet, so the skill it learned has nothing to work on.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The idea in plain words",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0037-the-model-that-read-ahead.html#the-idea-in-plain-words"
+   }
+  },
+  {
+   "id": "cy-2",
+   "kind": "check",
+   "q": "Describe the one-edit test for a causal mask.",
+   "a": "Change only the last input token, rerun the forward pass, and check the outputs at every earlier position are unchanged. Any change means some position can see a later token.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: read the losses, find the mask, check the empty rows",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0037-the-model-that-read-ahead.html#how-it-works"
+   }
+  },
+  {
+   "id": "cy-3",
+   "kind": "check",
+   "q": "A boolean causal mask works with <code>scaled_dot_product_attention</code> but leaks in <code>nn.MultiheadAttention</code>. Why?",
+   "a": "The two read True oppositely: in <code>scaled_dot_product_attention</code> True means “may attend”, in <code>nn.MultiheadAttention</code> True means “blocked”. The same mask hides the past and shows the future.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: read the losses, find the mask, check the empty rows",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0037-the-model-that-read-ahead.html#how-it-works"
+   }
+  }
+ ]
+}

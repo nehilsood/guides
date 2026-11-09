@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Samples That Stopped Paying</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 42 · extra · Day 76 · about 10 minutes</div>
+    <h1>The samples that stopped paying</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/llm-inference-interview-questions-629">LLM Inference Interview Questions #19 · The 10x Sampling Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “On a hard reasoning benchmark you drew ten times as many answers per problem, and the share of problems solved hardly moved, though a published scaling curve said it would climb. What do you measure first?”
+      <small>Senior AI Engineer interview, DeepMind</small>
+    </div>
+    <p>This builds on Day 73: every extra answer is another run of decode steps. <a href="0041-the-step-that-waited-for-memory.html">Guide 41</a> showed why answers decoded together in one batch cost far less than one run each. Day 71's temperature is what makes the answers differ at all.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “The curve doesn't hold for our task; repeated sampling just doesn't work here.”</p>
+      <p><strong>Trap B:</strong> “Raise the budget another tenfold until the curve shows up.”</p>
+      <p>Both treat the solve rate as one number. It is two: whether a right answer was drawn at all, and whether you handed that one in.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“I'd split the solve rate in two. Coverage: on what share of problems is at least one of the answers right, checked against the answer key? Selection: how often is the answer we submit a right one? I'd assume the curve is the Large Language Monkeys one, and that's coverage, which assumes a perfect checker.</p>
+      <p>If coverage rose and the solve rate didn't, the picker is the bottleneck: majority voting keeps choosing a common wrong answer that a rare right one never outvotes. In that paper's runs on MATH (competition maths problems), coverage went from 83% to 98% between 100 and 10,000 samples, while the best gain from majority voting or reward models was 40.5% to 41.4%. If coverage didn't rise either, the samples are too alike, so I'd check the temperature and count distinct answers. Then the fix is a better verifier, or more varied samples.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A pub quiz team writes answers on slips, and the captain hands in whichever answer appears most. The hard question is the capital of Australia. Most slips say Sydney; one says Canberra. Recruit ten more teammates and the chance that somebody writes Canberra goes up. The captain still hands in Sydney.</p>
+    <p>The slips are samples. “Somebody wrote the right answer” is <b>coverage</b>. The captain's rule is the <b>selector</b>, here a majority vote. A bigger team improves the first and does nothing for the second. And if every teammate copies their neighbour's slip, a bigger team improves nothing at all: sampling at too low a temperature.</p>
+    <div class="think"><b>Think about it.</b> One problem: the right answer turns up in 2% of samples, one particular wrong answer in 30%. With 100 samples, the chance at least one is right is 1 − 0.98<sup>100</sup> ≈ 87%. How often does the majority vote pick it? The wrong answer expects about 30 votes against 2. In our simulation (20,000 trials, every other answer different from the rest) the vote was right 0.9% of the time at 10 samples and never at 100 or 1,000.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: measure two numbers, then fix the weak one</h2>
+    <ol>
+      <li><b>Measure coverage properly.</b> The usual number is pass@k: the chance that at least one of <i>k</i> samples is right. The <a href="https://arxiv.org/abs/2107.03374">Codex paper</a> (Chen et al., 2021) estimates it by drawing <i>n</i> ≥ <i>k</i> samples, counting the <i>c</i> correct ones, and computing 1 − C(<i>n</i>−<i>c</i>, <i>k</i>) ÷ C(<i>n</i>, <i>k</i>), where C counts the ways to choose: one minus the chance that a random <i>k</i> of them are all wrong. It warns that the shortcut 1 − (1 − <i>p̂</i>)<sup><i>k</i></sup>, with <i>p̂</i> the share correct, is biased: off on average across problems.</li>
+      <li><b>Coverage really does keep climbing.</b> <a href="https://arxiv.org/abs/2407.21787">Large Language Monkeys</a> (Brown et al., 2024) found coverage, “the fraction of problems that are solved by any generated sample”, grew over four orders of magnitude of samples. On SWE-bench Lite (real GitHub issues, checked by unit tests), DeepSeek-Coder-V2-Instruct went from 15.9% with one sample to 56% with 250, above the single-sample best of 43%.</li>
+      <li><b>Selection without a checker stalls.</b> In the same paper, majority voting and reward models (models trained to score answers) “plateau around 100 samples”. Some right answers appear in “1% or lower” of samples, and for voting, “the occurrence of rare, correct solutions does not affect the most common answer that majority voting chooses”.</li>
+      <li><b>A better selector moves the number.</b> On GSM8K (grade-school maths), Cobbe et al. found a trained <a href="https://arxiv.org/abs/2110.14168">verifier</a> picking among sampled answers gave about the boost of a 30× bigger fine-tuned model: “6B verification slightly outperforms a finetuned 175B model”. <a href="https://arxiv.org/abs/2305.20050">Lightman et al.</a> picked the best of 1,860 answers on a subset of MATH: majority voting 69.6%, a reward model trained only on whether the final answer was right 72.4%, one trained on feedback for every step 78.2%.</li>
+      <li><b>If coverage is flat too, check variety.</b> Large Language Monkeys relies on “a positive sampling temperature as the sole mechanism for creating diversity”. Codex found the best temperature rises with <i>k</i>: 0.2 for pass@1, 0.8 for pass@100, for a 679M model. At temperature 0 the samples should be near-copies, differing only by the rounding drift of <a href="0040-the-zero-that-still-changed-its-mind.html">guide 40</a> (our inference). Count distinct final answers per problem (our advice).</li>
+    </ol>
+    <p><b>Worked example, with Large Language Monkeys' numbers.</b> Llama-3-8B-Instruct on MATH:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Samples per problem</th><th>Coverage</th><th>Best selector's solve rate (endpoints our reading)</th></tr></thead>
+        <tbody>
+          <tr><td>100</td><td>82.9%</td><td>40.50%</td></tr>
+          <tr><td>10,000</td><td>98.44%</td><td><span class="num">41.41%</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>A hundred times the samples bought 15.5 points of coverage and under one of solve rate.</p>
+    <p><b>An illustration, with our own numbers.</b> Say a problem got <i>n</i> = 200 samples with <i>c</i> = 4 right. Codex's estimator gives pass@1 = 2%, pass@10 = 18.7%, pass@100 = 93.9%. The shortcut gives 86.7% for pass@100; its bias is an average over problems, which one problem can't show.</p>
+    <p><b>Where the premise outruns the evidence.</b> If the curve the question cites is Large Language Monkeys' (our assumption), it is coverage, scored with an answer key, and “often” log-linear (up a fixed step per tenfold more samples). It never promised a vote or reward model would follow. And even checkers err: Large Language Monkeys found 11.3% of SWE-bench Lite problems had flaky tests. As for cost, <a href="https://arxiv.org/abs/2309.06180">PagedAttention</a>, in the open-source vLLM serving engine, lets samples of one prompt “partially share their KV cache”, so ten times the samples need not mean ten times the bill (our inference).</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Coverage rose, but there's no automatic checker for this task. What now?</p><p>Train a verifier to score answers and pick the top one. Lightman et al. found a reward model trained on feedback for every step picked better than one trained only on final answers, and both beat majority voting, when choosing among 1,860 answers per MATH problem.</p></div>
+      <div class="fu" id="fu-2"><p class="q">Why not report pass@k as the result?</p><p>pass@k assumes a perfect checker picks the right sample for you. In deployment you submit one answer, so pass@k is a ceiling on what any selector can reach, not the score you'll get.</p></div>
+      <div class="fu" id="fu-3"><p class="q">Why draw 200 samples to estimate pass@10?</p><p>With many more samples than <i>k</i>, the estimate averages over many possible sets of 10, so it's less noisy. The Codex paper used <i>n</i> = 200 for <i>k</i> up to 100, with a formula that stays unbiased.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>What's the difference between coverage and the solve rate you actually get?</summary><p>Coverage is the share of problems where at least one sample is right. The solve rate is the share where the answer you hand in is right, which depends on how you pick among the samples.</p></details>
+      <details class="cy" id="cy-2"><summary>Why can't majority voting take advantage of a rare right answer?</summary><p>The vote hands in the most common answer. If the right answer turns up in 2% of samples and a wrong one in 30%, more samples make the right one appear but never make it the most common.</p></details>
+      <details class="cy" id="cy-3"><summary>Coverage and solve rate are both flat as samples grow. What do you suspect?</summary><p>The samples are too alike to add new answers, for example because the temperature is at or near 0. Counting distinct final answers per problem shows it.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">8</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2407.21787">Large Language Monkeys</a> (Brown et al., 2024): where coverage climbs and selection stalls.</li>
+      <li><a href="https://arxiv.org/abs/2107.03374">Evaluating Large Language Models Trained on Code</a> (Chen et al., 2021): the pass@k estimator, section 2.1.</li>
+      <li><a href="https://arxiv.org/abs/2305.20050">Let's Verify Step by Step</a> (Lightman et al., 2023): step-level reward models.</li>
+      <li><a href="https://arxiv.org/abs/2110.14168">Training Verifiers to Solve Math Word Problems</a> (Cobbe et al., 2021).</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/llm-inference-interview-questions-629">AI Interview Prep, LLM Inference Interview Questions #19</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

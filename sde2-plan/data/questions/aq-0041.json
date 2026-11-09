@@ -1,0 +1,88 @@
+{
+ "lesson": "aq-0041",
+ "label": "AQ 0041",
+ "track": "ai",
+ "title": "The step that waited for memory",
+ "url": "https://nehilsood.github.io/guides/agent-questions/guides/0041-the-step-that-waited-for-memory.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "fu-1",
+   "kind": "follow-up",
+   "q": "Would a GPU with more FLOPs help the chatbot or the batch job?",
+   "a": "Mostly prefill: the chatbot's time to first token and the long summaries, both compute-bound. Decode waits on memory, so more bandwidth helps it more. Splitwise argues decode “does not need the compute capability of the latest GPUs”.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: two phases, two limits",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0041-the-step-that-waited-for-memory.html#how-it-works"
+   }
+  },
+  {
+   "id": "fu-2",
+   "kind": "follow-up",
+   "q": "Why not batch decode to 1,000 requests and ignore latency?",
+   "a": "Memory stops you first: every request keeps its own KV cache, so memory caps the batch. In Splitwise's tests of 176B and 70B models on H100 machines it ran out at 64, and time between tokens had already doubled, since each request's cache is read every step. On weights alone, a batch of n requests does about n operations per byte, so past about 153 requests (an A100's ridge, on paper) arithmetic becomes the limit too.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: two phases, two limits",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0041-the-step-that-waited-for-memory.html#how-it-works"
+   }
+  },
+  {
+   "id": "fu-3",
+   "kind": "follow-up",
+   "q": "How does chunked prefill help the chatbot?",
+   "a": "Sarathi-Serve splits a long prompt into near-equal chunks and adds one or more chunks to each decode batch, using arithmetic that decode leaves idle. Other users' next tokens no longer pause behind a whole prompt; the chunked prompt's own first token arrives a little later.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: two phases, two limits",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0041-the-step-that-waited-for-memory.html#how-it-works"
+   }
+  },
+  {
+   "id": "cy-1",
+   "kind": "check",
+   "q": "What is arithmetic intensity, and roughly what is it for a decode step with one request?",
+   "a": "Operations done per byte read from memory. An fp16 weight is 2 bytes and does 2 operations per token, so one request's decode step is about 1 operation per byte, far below the roughly 153 at which an A100's arithmetic becomes the limit on paper.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The idea in plain words",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0041-the-step-that-waited-for-memory.html#the-idea-in-plain-words"
+   }
+  },
+  {
+   "id": "cy-2",
+   "kind": "check",
+   "q": "Why does a long prefill hurt other users' streaming?",
+   "a": "While a long prompt's prefill runs, other users' decode steps wait for it, whether the server runs it before their steps or in the same batch. Sarathi-Serve measured such generation stalls in vLLM lasting over several seconds.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: two phases, two limits",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0041-the-step-that-waited-for-memory.html#how-it-works"
+   }
+  },
+  {
+   "id": "cy-3",
+   "kind": "check",
+   "q": "In Splitwise's tests, what happened as the decode batch grew to 64?",
+   "a": "For BLOOM-176B and Llama-70B on DGX-H100 machines, decode throughput kept rising until memory ran out at a batch of 64, while time between tokens only doubled.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: two phases, two limits",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0041-the-step-that-waited-for-memory.html#how-it-works"
+   }
+  }
+ ]
+}

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Step That Waited for Memory</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 41 · extra · Day 75 · about 10 minutes</div>
+    <h1>The step that waited for memory</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/llm-system-design-interview-14-the">LLM System Design Interview #14 · The Two Faces of Inference</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “One model must serve two jobs: a chatbot whose first token has to appear fast, and an overnight run of document summaries where only total output per hour matters. How does each one load the GPU, and what trade-off sits underneath?”
+      <small>ML Engineer interview, Google</small>
+    </div>
+    <p>This builds on Day 73: prefill runs the whole prompt in one parallel pass and sets time to first token (TTFT); decode writes one token per pass and sets time per output token (TPOT), limited by reading weights and cache from memory. <a href="0031-the-cache-that-ate-the-batch.html">Guide 31</a> covered what the cache costs in memory, and defined FLOPs and memory bandwidth.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Both need a faster GPU; buy more FLOPs.”</p>
+      <p><strong>Trap B:</strong> “Batch everything as large as possible; throughput is what GPUs are for.”</p>
+      <p>A ignores that decode leaves most FLOPs idle. B ignores that a big batch makes the chatbot's users wait behind other people's prompts.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“It comes down to how much arithmetic each byte of weights buys. Every pass reads all the weights from GPU memory. Prefill uses each weight for every prompt token, so a 1,000-token prompt does about a thousand operations per byte loaded and is limited by arithmetic. Decode uses each weight once per request per step, so it mostly waits on memory.</p>
+      <p>I'd treat the summaries as mostly prefill: long documents in, short summaries out. That job runs near the chip's arithmetic limit and wants steady, full batches; no single summary is in a hurry. The chatbot's first token is a prefill too, and it, along with every streaming reply, waits whenever a long document's prefill holds the GPU. So the trade-off is throughput against latency. Chunked prefill, or separate GPUs for prefill and decode, eases it.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A translator's dictionary is so big it lives in the basement, and every pass she must carry all of it upstairs and back. Bring her a 1,000-word document and she looks up every word on one trip: the stairs are a small part of the job, and her reading speed sets the pace. Give her one word per trip and she spends nearly all her time on the stairs.</p>
+    <p>The basement is GPU memory, the stairs are memory bandwidth, the dictionary is the weights, and her reading speed is the chip's arithmetic. Prefill is the whole document. Decode is one word per trip, unless several clients' words share it: batching.</p>
+    <p>The useful number is <b>arithmetic intensity</b>: operations done per byte brought from memory (the <a href="https://www2.eecs.berkeley.edu/Pubs/TechRpts/2008/EECS-2008-134.pdf">roofline report</a> by Williams, Waterman and Patterson calls it operational intensity). Its rule: speed is the lower of peak arithmetic and bandwidth times intensity. Below the “ridge point” where the two meet, you are memory-bound; above it, compute-bound.</p>
+    <div class="think"><b>Think about it.</b> An fp16 weight is 2 bytes. In a matrix multiply each weight does one multiply and one add per token. How many operations per byte for a batch of <i>n</i> tokens? About <i>n</i> × 2 ÷ 2 = <i>n</i>. Decode with one request is about 1; a 1,000-token prefill about 1,000 (our arithmetic, ignoring the activations' own traffic).</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: two phases, two limits</h2>
+    <ol>
+      <li><b>Find the ridge, on paper.</b> <a href="https://www.nvidia.com/content/dam/en-zz/Solutions/Data-Center/a100/pdf/nvidia-a100-datasheet-us-nvidia-1758950-r4-web.pdf">NVIDIA's A100 datasheet</a> lists 312 TFLOPS (trillion operations a second) of 16-bit tensor-core arithmetic, without sparsity, and 2,039 GB/s of memory bandwidth for the 80 GB server-board (SXM) card. 312 ÷ 2.039 ≈ 153 operations per byte (our arithmetic).</li>
+      <li><b>Prefill sits above it.</b> A long prompt has intensity in the hundreds or thousands. <a href="https://arxiv.org/abs/2311.18677">Splitwise</a> (Patel et al.) measured TTFT growing “almost linearly” with prompt length, “due to the prompt phase having high GPU utilization and being computationally bound”.</li>
+      <li><b>Decode sits far below it.</b> <a href="https://arxiv.org/abs/2403.02310">Sarathi-Serve</a> (Agrawal et al.) found for Mistral-7B on one A100 that “the cost of linear operation for 1 decode token is nearly same as 128 prefill tokens”.</li>
+      <li><b>Batching decode is cheap at first, until memory runs out.</b> In Splitwise's tests of BLOOM-176B and Llama-70B on DGX-H100 machines (NVIDIA servers of eight H100 GPUs), decode throughput rose with batch size until memory ran out at a batch of 64, while time between tokens only doubled. The batch shares the weight reads, but each request's KV cache is its own and is read every step (guide 31).</li>
+      <li><b>Long prefills stall everyone.</b> While a new prompt's prefill runs, other users' decode steps wait. Sarathi-Serve calls these “generation stalls”: vLLM, an open-source serving engine, schedules “as many prefills as possible before resuming ongoing decodes” and showed one lasting “over several seconds” (Yi-34B on two A100s); Orca, which mixes both in one batch, still stalls because batches holding long prompts stay slow.</li>
+    </ol>
+    <p><b>An illustration, with our own numbers.</b> Llama 2 7B (Day 73: about 13.5 GB of fp16 weights, so about 6.75 billion weights and 13.5 billion operations per token) on that A100 at peak speeds. Weights only: each request's cache read adds to the memory time.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Pass</th><th>Time to read the weights</th><th>Time for the arithmetic</th><th>Limit</th></tr></thead>
+        <tbody>
+          <tr><td>Prefill, 1,000 tokens</td><td>6.6 ms</td><td>43 ms</td><td>Arithmetic</td></tr>
+          <tr><td>Decode, 1 request</td><td>6.6 ms</td><td>0.04 ms</td><td>Memory</td></tr>
+          <tr><td>Decode, 64 requests</td><td>6.6 ms</td><td>2.8 ms</td><td>Memory, still</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The two times match at about 153 tokens per pass, the ridge again, on paper. Sarathi-Serve's footnote expects compute-bound “at ∼200 tokens on A100 GPUs” in theory, but observed “∼500-600 tokens for higher tensor parallel dimensions” (a model split across GPUs).</p>
+    <p><b>Applied to the question (our reasoning).</b> Splitwise lists summarisation as a batch task where “TTFT or TBT latency metrics are less important than throughput” (TBT: time between tokens, Day 73's TPOT). Long prompts and short outputs make it mostly prefill, already compute-bound. Sarathi-Serve slots prompt chunks into decode batches so new requests join “without pausing ongoing decodes”, with up to 2.6× more serving capacity than vLLM for Mistral-7B under tail-latency targets (limits on the slowest responses). Splitwise and <a href="https://arxiv.org/abs/2401.09670">DistServe</a> put prefill and decode on separate GPUs.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Would a GPU with more FLOPs help the chatbot or the batch job?</p><p>Mostly prefill: the chatbot's time to first token and the long summaries, both compute-bound. Decode waits on memory, so more bandwidth helps it more. Splitwise argues decode “does not need the compute capability of the latest GPUs”.</p></div>
+      <div class="fu" id="fu-2"><p class="q">Why not batch decode to 1,000 requests and ignore latency?</p><p>Memory stops you first: every request keeps its own KV cache, so memory caps the batch. In Splitwise's tests of 176B and 70B models on H100 machines it ran out at 64, and time between tokens had already doubled, since each request's cache is read every step. On weights alone, a batch of n requests does about n operations per byte, so past about 153 requests (an A100's ridge, on paper) arithmetic becomes the limit too.</p></div>
+      <div class="fu" id="fu-3"><p class="q">How does chunked prefill help the chatbot?</p><p>Sarathi-Serve splits a long prompt into near-equal chunks and adds one or more chunks to each decode batch, using arithmetic that decode leaves idle. Other users' next tokens no longer pause behind a whole prompt; the chunked prompt's own first token arrives a little later.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>What is arithmetic intensity, and roughly what is it for a decode step with one request?</summary><p>Operations done per byte read from memory. An fp16 weight is 2 bytes and does 2 operations per token, so one request's decode step is about 1 operation per byte, far below the roughly 153 at which an A100's arithmetic becomes the limit on paper.</p></details>
+      <details class="cy" id="cy-2"><summary>Why does a long prefill hurt other users' streaming?</summary><p>While a long prompt's prefill runs, other users' decode steps wait for it, whether the server runs it before their steps or in the same batch. Sarathi-Serve measured such generation stalls in vLLM lasting over several seconds.</p></details>
+      <details class="cy" id="cy-3"><summary>In Splitwise's tests, what happened as the decode batch grew to 64?</summary><p>For BLOOM-176B and Llama-70B on DGX-H100 machines, decode throughput kept rising until memory ran out at a batch of 64, while time between tokens only doubled.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">8</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2311.18677">Splitwise</a> (Patel et al., 2023): section III, measuring the two phases.</li>
+      <li><a href="https://arxiv.org/abs/2403.02310">Sarathi-Serve</a> (Agrawal et al., 2024): arithmetic intensity, stalls, chunked prefill.</li>
+      <li><a href="https://arxiv.org/abs/2401.09670">DistServe</a> (Zhong et al., 2024): prefill and decode on separate GPUs.</li>
+      <li><a href="https://www2.eecs.berkeley.edu/Pubs/TechRpts/2008/EECS-2008-134.pdf">Roofline</a> (Williams, Waterman and Patterson, Berkeley tech report, 2008).</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/llm-system-design-interview-14-the">AI Interview Prep, LLM System Design Interview #14</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>
