@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Call That Failed One Token at a Time</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 49 · extra · Day 102 · about 10 minutes</div>
+    <h1>The call that failed one token at a time</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/advanced-nlp-interview-6-the-99-accuracy">Advanced NLP Interview #6 · The 99% Accuracy Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “Each token your model writes in a tool call is right 99% of the time, yet its JSON calls, about 300 tokens long, fail more often than they succeed. Why? What would you fix in the surrounding system, leaving the model alone?”
+      <small>Senior AI Engineer interview, Meta</small>
+    </div>
+    <p>This builds on Day 101, “Prompt engineering: instructions, examples, structured output”. <a href="0001-the-pipeline-that-beat-the-agent.html">Guide 1</a> introduced the tool call: the model asks your code to do something, here by writing a JSON object naming the tool and its arguments. <b>Structured output</b> means making the model's answer follow a fixed format, such as JSON that matches a <b>schema</b>: a description of which fields are allowed and what type each one holds.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “99% is excellent. The failures must come from a handful of bad prompts.”</p>
+      <p><strong>Trap B:</strong> “Add ‘respond ONLY with valid JSON’ to the prompt, in capitals.”</p>
+      <p>Both judge the call by its per-token score. A call needs every token right, and small chances of a slip add up.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“Errors compound. If each token is right with probability 0.99, and we assume the slips are independent, a 300-token call is entirely right with probability 0.99 to the 300th, about 4.9%. So I'd make fewer tokens depend on the model.</p>
+      <p>Constrained decoding blocks, at every step, any token that would break the schema, so braces, quotes, key names and commas can't go wrong, and only the values are left to the model. A leaner schema shortens what's left. Then I'd validate every call and retry with the error message. How much this helps depends on where the slips were: if nearly all were in the structure, constraint fixes most failures; with a quarter in the values, over half the calls still fail first time; if most were in the values, it fixes few. So I'd sort a sample of failures by kind first.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>You're typing a 300-character licence key from a printed card, in groups between dashes, and you slip about once every hundred characters. Three slips in a typical attempt: the key nearly always fails.</p>
+    <p>A better installer fills in the dashes, refuses characters that can't appear in a key, and checks the key's checksum, asking again when it fails.</p>
+    <p>One slip it can't stop: reading a B as an 8 when both are allowed. Constraining the format can't fix a mistake in the content.</p>
+    <div class="think"><b>Think about it.</b> If per-token accuracy rose from 99% to 99.9%, how likely would a 300-token call be to come out entirely right? 0.999 to the 300th is about 74.1%. A tenfold cut in the error rate turns mostly failing into mostly working.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: the arithmetic, then the fixes</h2>
+    <ol>
+      <li><b>Compounding (our arithmetic).</b> Under independence, all-right probability is p to the n: 0.99<sup>300</sup> ≈ 4.9%, 0.99<sup>80</sup> ≈ 44.8%, 0.999<sup>300</sup> ≈ 74.1%. Independence is our simplification: real slips can cluster after a first mistake or pile up on hard tokens, so treat this as direction, not forecast.</li>
+      <li><b>Mask what can't be valid.</b> <a href="https://arxiv.org/abs/2307.09702">Willard and Louf</a> (2023) set the probability of every token that would break a regular expression (a pattern describing allowed text) or grammar to zero before sampling, using “a boolean mask” over the vocabulary, every token the model can pick. A precomputed index makes the check cost “O(1) on average” per token, “guaranteeing the structure of the generated text”. Their library is Outlines.</li>
+      <li><b>Know your tool's limits.</b> The <a href="https://github.com/ggml-org/llama.cpp/blob/master/grammars/README.md">grammars guide</a> for llama.cpp, an open-source program for running models locally, says a grammar can “force the model to generate valid JSON”, and it converts “a subset” of JSON Schema, where “Unsupported features are skipped silently”. It also says the schema “is only used to constrain the model output and is not injected into the prompt”, adding: “This does not apply to tool calling, where schemas are injected into the prompt.” So outside tool calling, describe the fields in the prompt yourself.</li>
+      <li><b>Validate, then retry.</b> Our suggestion: check each call against the schema and the tool's own rules, such as whether that ID exists, and on failure retry with the error in the prompt.</li>
+      <li><b>Watch the cost to reasoning.</b> <a href="https://arxiv.org/abs/2408.02442">Tam et al.</a> (2024) compared free-text answers with JSON mode (in the OpenAI and Gemini APIs, and on Llama-3-8B and Gemma-2-9B through Text-Generation-Inference; they assume it works like Willard and Louf's masking) and with looser format instructions. JSON mode lowered accuracy on reasoning tasks but matched or beat free text on classification. One cause: on one task GPT-3.5 Turbo's JSON-mode answers always put the “answer” key before the “reason” key, answering before reasoning. Our suggestion: put any reasoning field first, or reason in plain text and constrain only the call.</li>
+    </ol>
+    <p><b>An illustration, with our own numbers.</b> Take a 300-token call where 220 tokens are structure the schema fixes and 80 are values. Each call averages three slips either way. In case A slips fall evenly across all 300 tokens; in case B every slip is in a value, so each value token is right 96.25% of the time. Retries assume independent attempts.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Set-up</th><th>Right first time</th><th>Right within 3 tries</th></tr></thead>
+        <tbody>
+          <tr><td>Case A, no constraint</td><td class="num">4.9%</td><td class="num">14.0%</td></tr>
+          <tr><td>Case A, constrained</td><td class="num">44.8%</td><td class="num">83.1%</td></tr>
+          <tr><td>Case B, with or without constraint</td><td class="num">4.7%</td><td class="num">13.4%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Both cases average 99% per token; the constraint helps only where the slips were in the structure. Which case you're in is a measurement, not a guess.</p>
+    <p><b>Where the premise outruns the evidence.</b> The question's “fail more often than they succeed” follows from 99% only if slips are independent and spread evenly, which no source here measured. A 99% average can hide 100% on 220 punctuation tokens and 96.25% on 80 values.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Why not just retry until it parses?</p><p>At 99% per token over 300 tokens, a call is right 4.9% of the time, assuming independent slips; three independent tries lift that only to 14.0%, at up to triple the cost. Retrying works best after constraint has removed most of the ways to fail.</p></div>
+      <div class="fu" id="fu-2"><p class="q">Can format restrictions cost anything?</p><p>In Tam et al.'s tests, JSON mode (on OpenAI and Gemini models, Llama-3-8B and Gemma-2-9B) lowered accuracy on reasoning tasks while matching or beating free text on classification, and looser formats generally did better on reasoning. llama.cpp's grammar guide also warns that unsupported schema features are skipped silently. Keep reasoning outside the JSON, or before the answer field, and test the grammar you actually get.</p></div>
+      <div class="fu" id="fu-3"><p class="q">The JSON is now always valid. Is the call right?</p><p>Not necessarily. A grammar guarantees the shape, not the content: a valid call can name the wrong customer or the wrong unit. Check the values against the tool's rules, and where a field has few options, list them in the schema so the choice itself is constrained (our suggestion).</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>If each token is right with probability 0.99, independently, how likely is a 300-token output to be entirely right? And at 0.999?</summary><p>0.99<sup>300</sup> ≈ 4.9%; 0.999<sup>300</sup> ≈ 74.1%.</p></details>
+      <details class="cy" id="cy-2"><summary>What does constrained decoding do at each generation step?</summary><p>It sets the probability of every token that would break the required format to zero, so the model can only pick tokens that keep the output valid. This guarantees the structure, not the content.</p></details>
+      <details class="cy" id="cy-3"><summary>When would constraining a tool call's JSON structure barely raise its success rate?</summary><p>When the slips were in the values, not the structure. Masking braces and key names then removes almost no errors, and every wrong value still fails the call.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">8</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2307.09702">Efficient Guided Generation for Large Language Models</a> (Willard and Louf, 2023): sections 1 and 2.</li>
+      <li><a href="https://github.com/ggml-org/llama.cpp/blob/master/grammars/README.md">GBNF guide</a> (llama.cpp): “JSON Schemas → GBNF”.</li>
+      <li><a href="https://arxiv.org/abs/2408.02442">Let Me Speak Freely? A Study on the Impact of Format Restrictions on Performance of Large Language Models</a> (Tam et al., 2024): sections 2, 4.1 and 5.1.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/advanced-nlp-interview-6-the-99-accuracy">AI Interview Prep, Advanced NLP Interview #6</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

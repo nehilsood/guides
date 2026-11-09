@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Citations It Learned to Invent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 44 · extra · Day 79 · about 10 minutes</div>
+    <h1>The citations it learned to invent</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/llm-system-design-interview-70-the">LLM System Design Interview #70 · The SFT Quality Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “After fine-tuning on answers written by paid domain experts, every claim checked and backed by a named source, your model invents facts more often than the base model did. What went wrong?”
+      <small>Staff AI Engineer interview, OpenAI</small>
+    </div>
+    <p>This builds on Day 78: supervised fine-tuning (SFT) trains a pre-trained model on instruction and response pairs with the same next-token loss, and LIMA's result suggests SFT mostly teaches format and style, while the knowledge came from pre-training. <a href="0026-the-plan-that-knew-the-ending.html">Guide 26</a> met Gekhman et al.'s finding: fine-tuning examples holding facts new to the model, once learned, make it hallucinate more. Today: what to do with training answers the model can't know.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Some of the experts' references must be wrong. Audit them.”</p>
+      <p><strong>Trap B:</strong> “More hallucination means too little data. Buy more expert answers.”</p>
+      <p>Both look for a fault in the data's truth or its size. The trouble is what the model couldn't know, not what the experts got wrong.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“The answers were right, but the model couldn't know many of the facts in them, like an exact author, year and page. SFT never checks what the model knows; it rewards writing the expert's citation word for word. Where the model has never seen that source, the only lesson it can take is: produce a specific, confident citation anyway.</p>
+      <p>Gekhman et al. measured that shape for short factual answers: examples with unknown facts are learned slowly, and as they are learned, hallucination rises. So before training I'd probe the base model on each example, sampling its answer several times. Facts it can produce stay. For the rest, I drop the example, put the source into the prompt so the citation is copied rather than recalled, or relabel it with an honest ‘I'm not sure’. And I'd stop training early, checked on held-out questions.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A city trains new tour guides on scripts written by a historian. Every line is accurate and precise: “this bridge was finished in 1847 by the engineer who also built the station”, with a name and a year every time. Some details the trainees half knew already, and the scripts sharpen them. Others they've never heard of, and can only parrot.</p>
+    <p>On the first tour without a script, a tourist asks about a building no script covered. The trainee answers the way every script did: confidently, with a name and a year. Both invented. Alongside the facts, the scripts modelled a manner: always be specific. Where a fact was missing, the manner was all that stuck.</p>
+    <p>Facts versus manner is the original post's framing; the picture is ours. Gekhman et al. studied short question-and-answer pairs, so applying their finding to citations is our reasoning.</p>
+    <div class="think"><b>Think about it.</b> A training answer cites a 2019 industry report by name. How could you tell, before training, whether the model already knows that report? Ask it. Give the base model the question several times and see whether it ever produces that citation. If it never does, training on that answer teaches a guess.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: probe, sort, then train</h2>
+    <ol>
+      <li><b>Probe what the model knows.</b> <a href="https://arxiv.org/abs/2405.05904">Gekhman et al.</a> (EMNLP 2024) asked the base model (PaLM 2-S) each training question with 10 different random 4-shot prompts (four worked examples first), taking one greedy answer per prompt and 16 sampled at temperature 0.5 (Day 71). Never right in any of them: <b>Unknown</b>. Right at least sometimes: <b>Known</b>, split into HighlyKnown (greedy always right), MaybeKnown (greedy sometimes right) and WeaklyKnown (only samples ever right).</li>
+      <li><b>See what Unknown examples do.</b> The model learned to reproduce them more slowly (they were “fitted substantially slower” than Known ones), and as it did they “linearly increase the model's tendency to hallucinate”. The best held-out score came when the model had learned most Known examples but few Unknown ones, so stopping training early helped. Removing the Unknown examples “substantially reduces the risk of overfitting, without sacrificing performance”.</li>
+      <li><b>Or relabel them.</b> Gekhman et al. also swapped every Unknown answer for “I don't know”. <a href="https://arxiv.org/abs/2311.09677">R-Tuning</a> (Zhang et al., NAACL 2024) splits training questions by whether the model's own answer matches the label, keeps the answer, and appends “I am sure” or “I am unsure”, so the model learns to say when it's guessing.</li>
+      <li><b>For citations, hand over the source.</b> Our suggestion: where the expert's source is available, put the passage in the training prompt. Copying a citation from text in front of you is a skill the model has; recalling one it never read is not. Serve it the same way: fetch the source at answer time.</li>
+    </ol>
+    <p><b>Worked example, with real numbers:</b> Gekhman et al.'s Table 3 (PaLM 2-S, short questions from the EntityQuestions set), a training set half Known and half Unknown. Accuracy counts only the test questions the model chose to answer.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Training set</th><th>Stopped early</th><th>Trained to convergence</th></tr></thead>
+        <tbody>
+          <tr><td>Unknown answers kept as written</td><td class="num">43.0% right, answers all</td><td class="num">38.8% right, answers all</td></tr>
+          <tr><td>Unknown answers replaced by “I don't know”</td><td class="num">61.8% right, answers 58.7%</td><td class="num">61.8% right, answers 55.6%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Kept as written, longer training made it worse; relabelled, it didn't. The rows aren't like for like: relabelled, it answered only about 56 to 59% of questions, and was right on 61.8% of those.</p>
+    <p><b>An illustration, with our own numbers.</b> Probe 1,000 expert answers, each with one citation: 550 come back Known and 450 Unknown. Keep the 550. Of the 450, give the 300 whose source you hold that source in the prompt; for the other 150, cut the citation and hedge the claim, or drop the example. Train, stop early, and measure hallucination on held-out questions.</p>
+    <p><b>Where the premise outruns the evidence.</b> Gekhman et al. tested closed-book question answering (no documents given) with short entity answers on one model, not long expert responses.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Why not train longer so the model learns the new facts?</p><p>In Gekhman et al.'s study (PaLM 2-S, short factual questions) the new facts were learned slowly, and learning them made held-out accuracy fall: a set half made of Unknown examples dropped from 43.0% stopped early to 38.8% at convergence. They conclude models “mostly acquire factual knowledge through pre-training”, while fine-tuning teaches them to use it.</p></div>
+      <div class="fu" id="fu-2"><p class="q">Doesn't dropping the unknown examples throw away the experts' best work?</p><p>You can keep their shape. Gekhman et al. note that filtering loses the chance to teach uncertainty, and in their tests on PaLM 2-S, with half the training set unknown, “I don't know” relabelling held 61.8% accuracy on answered questions even at convergence. Or keep the citation and supply its source passage in the prompt (our suggestion).</p></div>
+      <div class="fu" id="fu-3"><p class="q">How does LIMA fit this?</p><p>LIMA's Superficial Alignment Hypothesis says knowledge comes from pre-training, and alignment teaches “which subdistribution of formats should be used”. If SFT mainly teaches format, a format of confident, specific citations is what it teaches, whether or not the facts are there (our reasoning).</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>In Gekhman et al.'s study, when was a training example labelled Unknown?</summary><p>When the base model never gave the correct answer across 10 random 4-shot prompts, neither greedily nor in 16 samples at temperature 0.5 for each prompt.</p></details>
+      <details class="cy" id="cy-2"><summary>What fixes did Gekhman et al. show for fine-tuning examples the model doesn't know?</summary><p>Stop training early, before the model learns to reproduce those examples; filter them out; or replace their answers with “I don't know”, which on PaLM 2-S, with half the training set unknown, kept accuracy on answered questions at 61.8% even at convergence.</p></details>
+      <details class="cy" id="cy-3"><summary>Why can correct, well-sourced fine-tuning answers raise hallucination?</summary><p>Fine-tuning rewards reproducing the exact facts. Where the model can't know them, it learns to produce specific-sounding facts anyway, which is confident invention.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">8</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2405.05904">Does Fine-Tuning LLMs on New Knowledge Encourage Hallucinations?</a> (Gekhman et al., EMNLP 2024): sections 3, 4 and 7.</li>
+      <li><a href="https://arxiv.org/abs/2311.09677">R-Tuning: Instructing Large Language Models to Say ‘I Don't Know’</a> (Zhang et al., NAACL 2024).</li>
+      <li><a href="https://arxiv.org/abs/2305.11206">LIMA: Less Is More for Alignment</a> (Zhou et al., 2023): section 2, the Superficial Alignment Hypothesis.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/llm-system-design-interview-70-the">AI Interview Prep, LLM System Design Interview #70</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

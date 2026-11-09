@@ -1,0 +1,88 @@
+{
+ "lesson": "aq-0048",
+ "label": "AQ 0048",
+ "track": "ai",
+ "title": "The extra maths that saved time",
+ "url": "https://nehilsood.github.io/guides/agent-questions/guides/0048-the-extra-maths-that-saved-time.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "fu-1",
+   "kind": "follow-up",
+   "q": "Is FlashAttention an approximation?",
+   "a": "No. Its Theorem 1 says it returns exactly softmax(Q Kᵀ)V, using O(N²d) FLOPs and only O(N) extra memory beyond the inputs and output. The running softmax gives the same result as softmaxing a whole row at once.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The trap",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0048-the-extra-maths-that-saved-time.html#the-trap"
+   }
+  },
+  {
+   "id": "fu-2",
+   "kind": "follow-up",
+   "q": "Why recompute the scores in the backward pass instead of storing them?",
+   "a": "Storing the N × N table means a slow round trip through HBM. Keeping only the output and per-row softmax statistics and recomputing the scores in SRAM costs extra FLOPs, but the FlashAttention paper found it made the backward pass faster.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: the hardware, the tile, the recompute, the cost",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0048-the-extra-maths-that-saved-time.html#how-it-works"
+   }
+  },
+  {
+   "id": "fu-3",
+   "kind": "follow-up",
+   "q": "What did FlashAttention-2 improve?",
+   "a": "It cut the work other than matrix multiplies, like rescaling, which on an A100 runs up to 16 times slower per FLOP, and spread the work better across the GPU. On an A100 that took it from 25–40% of the chip's maximum rate to 50–73%, about twice as fast.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: the hardware, the tile, the recompute, the cost",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0048-the-extra-maths-that-saved-time.html#how-it-works"
+   }
+  },
+  {
+   "id": "cy-1",
+   "kind": "check",
+   "q": "In the FlashAttention paper's test of GPT-2 medium attention on an A100 (1,024 tokens, head size 64, 16 heads, batch 64, forward plus backward), how did FLOPs, HBM traffic and runtime compare with standard attention?",
+   "a": "75.2 vs 66.6 GFLOPs (13% more), 4.4 vs 40.3 GB of HBM traffic (9.2 times less), and 7.3 vs 41.7 ms (5.7 times faster).",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: the hardware, the tile, the recompute, the cost",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0048-the-extra-maths-that-saved-time.html#how-it-works"
+   }
+  },
+  {
+   "id": "cy-2",
+   "kind": "check",
+   "q": "Why can attention with more FLOPs run faster?",
+   "a": "Standard attention is memory-bound: its time goes on writing and reading the N × N score table in HBM, the GPU's large but slower main memory. FlashAttention keeps that table in SRAM, the small, fast memory on the chip, block by block, so it moves far fewer bytes, and the extra arithmetic is cheap by comparison.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Your 30-second answer",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0048-the-extra-maths-that-saved-time.html#your-30-second-answer"
+   }
+  },
+  {
+   "id": "cy-3",
+   "kind": "check",
+   "q": "Why does FlashAttention's rescaling cost more per FLOP than its matrix multiplies on an A100?",
+   "a": "Rescaling is non-matmul maths: the A100 does 19.5 TFLOPs/s of it against 312 TFLOPs/s of 16-bit matrix multiplies, up to 16 times slower.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: the hardware, the tile, the recompute, the cost",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0048-the-extra-maths-that-saved-time.html#how-it-works"
+   }
+  }
+ ]
+}

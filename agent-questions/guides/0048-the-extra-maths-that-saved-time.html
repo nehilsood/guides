@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Extra Maths That Saved Time</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 48 · extra · Day 94 · about 10 minutes</div>
+    <h1>The extra maths that saved time</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-39">AI Agent Engineering Interview #37 · The FLOP Count Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “FlashAttention performs more floating-point operations than ordinary attention, and it's said to run up to nine times faster. More arithmetic, less time: what is it cutting instead?”
+      <small>Senior ML Engineer interview, NVIDIA</small>
+    </div>
+    <p>This builds on Day 92, “Serving fast: continuous batching, paged attention, speculative decoding”, and on Day 52's attention: score every query against every key (Q Kᵀ), scale by √d, softmax each row into weights, and mix the values with them. <a href="0041-the-step-that-waited-for-memory.html">Guide 41</a> explained memory-bound and compute-bound: on paper, an 80 GB A100 doing dense 16-bit tensor-core maths waits on memory, not arithmetic, below about 153 operations per byte read. A <b>FLOP</b> is one floating-point operation, like a multiply.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “It must skip some of the work, perhaps by approximating attention.”</p>
+      <p><strong>Trap B:</strong> “Faster with more FLOPs means better use of the tensor cores.”</p>
+      <p>Both look for the saving in the arithmetic. The output is exact; the saving is in reading and writing.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“It saves trips to GPU main memory. Standard attention writes the full sequence-by-sequence table of scores to HBM, the large but slower memory, then reads it back to softmax it and again to mix the values. Those steps do very little maths per byte, so they're memory-bound and the time goes on traffic.</p>
+      <p>FlashAttention loads blocks of Q, K and V into the small, fast on-chip SRAM, finishes attention for that block there, and never writes the full table out. The cost is extra maths: a running softmax that rescales earlier partial results as new blocks arrive, and recomputing the scores in the backward pass instead of storing them. In the paper's GPT-2 medium attention test on an A100, at 1,024 tokens, that meant 13% more FLOPs, 9.2 times less HBM traffic, and 5.7 times less time.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A cook makes a sauce in three stages: reduce, season, finish. The hob holds one pan, so the old method runs each stage on the whole batch, jarring and fridging it between stages and unjarring it for the next. The cooking takes minutes; the jarring takes the afternoon.</p>
+    <p>The new method takes one pan's worth through all three stages on the hob and plates it. Seasoning is judged against the whole batch, so the cook keeps a running note and corrects it as each pan comes through: a little extra work. The jars disappear.</p>
+    <p>The jars in the fridge are HBM, the hob is SRAM, jarring and unjarring is memory traffic, and the running correction is the extra arithmetic.</p>
+    <div class="flows" aria-label="Where the score table lives in each version">
+      <div class="flow">
+        <div class="flow-label">Standard attention</div>
+        <div class="strip"><span class="box">Q Kᵀ → HBM</span><span class="arrow">→</span><span class="box">read, softmax → HBM</span><span class="arrow">→</span><span class="box">read, × V → HBM</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">FlashAttention, one block at a time</div>
+        <div class="strip"><span class="box">Load Q, K, V blocks</span><span class="arrow">→</span><span class="box">Scores, softmax, × V in SRAM</span><span class="arrow">→</span><span class="box">Output → HBM</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> At 1,024 tokens and a head size of 64, which is bigger: one head's score table, or its Q, K, V and output together? The table is 1,024 × 1,024, about a million numbers; the other four are 4 × 1,024 × 64, about a quarter-million. At 8,192 tokens the table is 32 times their size.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: the hardware, the tile, the recompute, the cost</h2>
+    <ol>
+      <li><b>The hardware.</b> <a href="https://arxiv.org/abs/2205.14135">Dao et al.</a> (NeurIPS 2022) describe the A100: 40–80 GB of HBM at 1.5–2.0 TB/s, and 192 KB of on-chip SRAM in each of its 108 streaming multiprocessors (the GPU's processor blocks), at about 19 TB/s. So SRAM is about ten times faster and, at about 20 MB in all, 2,000 to 4,000 times smaller.</li>
+      <li><b>Tiling with a running softmax.</b> A softmax row normally needs every score in the row first. FlashAttention keeps a running maximum and running sum per row; when a new block of keys changes them, it rescales the partial output computed so far. All the steps run in one fused GPU program (kernel), so the table never leaves SRAM. The paper's Theorem 2 counts HBM accesses: Θ(Nd + N²) for standard attention against Θ(N²d²/M) for FlashAttention, where M is the SRAM size, and for typical d (64–128) and M (around 100 KB), “d² is many times smaller than M”.</li>
+      <li><b>Recompute instead of store.</b> Training's backward pass needs the score table. FlashAttention saves only the output and each row's softmax statistics and rebuilds the table block by block: “even with more FLOPs, our recomputation speeds up the backward pass due to reduced HBM accesses”.</li>
+      <li><b>The extra maths isn't free.</b> <a href="https://arxiv.org/abs/2307.08691">FlashAttention-2</a> (Dao, 2023) notes the rescaling is non-matmul work (anything other than a matrix multiply): an A100 does 312 TFLOPs/s (trillion FLOPs a second) of 16-bit matrix multiplies but 19.5 TFLOPs/s of other 32-bit maths, so each such FLOP costs up to 16 times more. On an A100, FlashAttention reached 25–40% of peak, the chip's maximum rate; trimming those FLOPs and splitting the work better made FlashAttention-2 about twice as fast, at 50–73%.</li>
+    </ol>
+    <p><b>Worked example, with real numbers</b> from the FlashAttention paper's Figure 2: GPT-2 medium attention, forward and backward, sequence 1,024, head size 64, 16 heads, batch 64, on an A100.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th></th><th>Standard</th><th>FlashAttention</th><th>Change</th></tr></thead>
+        <tbody>
+          <tr><td>GFLOPs</td><td class="num">66.6</td><td class="num">75.2</td><td class="num">13% more</td></tr>
+          <tr><td>HBM reads and writes</td><td class="num">40.3 GB</td><td class="num">4.4 GB</td><td class="num">9.2× less</td></tr>
+          <tr><td>Runtime</td><td class="num">41.7 ms</td><td class="num">7.3 ms</td><td class="num">5.7× faster</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Our ratios: time tracks traffic, not FLOPs.</p>
+    <p><b>Where the premise outruns the evidence.</b> In the paper, “up to 9×” is the cut in HBM accesses. The speed-ups it reports are up to 7.6 times on GPT-2's attention step against PyTorch's version, and for whole GPT-2 training on 8 A100s against Hugging Face's version, 3.0 times for GPT-2 medium (3.5 times for GPT-2 small).</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Is FlashAttention an approximation?</p><p>No. Its Theorem 1 says it returns exactly softmax(Q Kᵀ)V, using O(N²d) FLOPs and only O(N) extra memory beyond the inputs and output. The running softmax gives the same result as softmaxing a whole row at once.</p></div>
+      <div class="fu" id="fu-2"><p class="q">Why recompute the scores in the backward pass instead of storing them?</p><p>Storing the N × N table means a slow round trip through HBM. Keeping only the output and per-row softmax statistics and recomputing the scores in SRAM costs extra FLOPs, but the FlashAttention paper found it made the backward pass faster.</p></div>
+      <div class="fu" id="fu-3"><p class="q">What did FlashAttention-2 improve?</p><p>It cut the work other than matrix multiplies, like rescaling, which on an A100 runs up to 16 times slower per FLOP, and spread the work better across the GPU. On an A100 that took it from 25–40% of the chip's maximum rate to 50–73%, about twice as fast.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>In the FlashAttention paper's test of GPT-2 medium attention on an A100 (1,024 tokens, head size 64, 16 heads, batch 64, forward plus backward), how did FLOPs, HBM traffic and runtime compare with standard attention?</summary><p>75.2 vs 66.6 GFLOPs (13% more), 4.4 vs 40.3 GB of HBM traffic (9.2 times less), and 7.3 vs 41.7 ms (5.7 times faster).</p></details>
+      <details class="cy" id="cy-2"><summary>Why can attention with more FLOPs run faster?</summary><p>Standard attention is memory-bound: its time goes on writing and reading the N × N score table in HBM, the GPU's large but slower main memory. FlashAttention keeps that table in SRAM, the small, fast memory on the chip, block by block, so it moves far fewer bytes, and the extra arithmetic is cheap by comparison.</p></details>
+      <details class="cy" id="cy-3"><summary>Why does FlashAttention's rescaling cost more per FLOP than its matrix multiplies on an A100?</summary><p>Rescaling is non-matmul maths: the A100 does 19.5 TFLOPs/s of it against 312 TFLOPs/s of 16-bit matrix multiplies, up to 16 times slower.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">8</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2205.14135">FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness</a> (Dao et al., NeurIPS 2022): sections 2.1, 3.1 and 3.2.</li>
+      <li><a href="https://arxiv.org/abs/2307.08691">FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning</a> (Dao, 2023): the introduction and section 3.1.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-39">AI Interview Prep, AI Agent Engineering Interview #37</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

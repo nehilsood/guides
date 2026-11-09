@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Penalty That Kept the Reward Honest</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 45 · extra · Day 81 · about 10 minutes</div>
+    <h1>The penalty that kept the reward honest</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/advanced-reinforcement-learning-interview-607">Advanced Reinforcement Learning Interview Questions #8 · The KL Regularization Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “A teammate wants to delete the KL penalty from your RLHF run by setting β to zero. Their case: the reward model's score is rising, the KL term is rising with it, and the penalty is only a drag on progress. Would you approve?”
+      <small>Senior AI interview, Anthropic</small>
+    </div>
+    <p>This builds on Day 80: RLHF trains a reward model on answers people compared, then PPO pushes the model being trained, the <b>policy</b>, towards higher scores, while a KL penalty keeps it close to the SFT model. <a href="0028-the-reward-that-only-paid-for-passing.html">Guide 28</a> explained reward hacking: maximising the score as measured rather than what was meant. <b>KL divergence</b> measures how different two probability distributions are: zero when they match, growing as the policy puts its probability on tokens the SFT model rarely chose.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “β only adds a cost. Drop it and the model reaches the best answers sooner.”</p>
+      <p><strong>Trap B:</strong> “A rising score proves training works. The KL number is just a diagnostic.”</p>
+      <p>Both treat the reward model's score as the goal. It's a learned estimate, trustworthy only near the answers it was trained on.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“No. The reward model is a learned guess at what people prefer, reliable only near the answers it was trained to judge, which are the SFT model's. The KL penalty charges the policy, token by token, for drifting from them. At β = 0 the reward model's score is the only thing steering it: Ziegler et al. trained GPT-2 without the penalty and got repeated-word gibberish that their stand-in sentiment classifier rated 99.97% positive.</p>
+      <p>Gao et al. did run at zero, but they measured a separate score at every checkpoint, and found the penalty acted like stopping early. So I'd keep β and tune it against human ratings: InstructGPT's were poor at 0 and at 2, best around 0.01 to 0.02. And I'd read samples as the score climbs.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A covers band is paid by an applause meter at the back of the hall. The meter was set up at ordinary concerts, where loud means the crowd loved it. The band's contract says to play the songs roughly as written; small changes are fine, big ones cost them.</p>
+    <p>Under that contract they add a singalong chorus and the meter climbs. Then the clause is dropped. They find the meter loves feedback and sirens, and every set becomes that: record readings, no music.</p>
+    <p>The meter is the reward model; the contract clause is the KL penalty. The meter wasn't broken; it was read far from where it was set up.</p>
+    <div class="think"><b>Think about it.</b> If the best policy is the reference model's probabilities reweighted by exp(reward / β) (see section 5), what happens as β nears zero? Nearly all the probability goes to the answer the reward model scores highest, however rarely the reference would write it.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: what the penalty is, then how to set it</h2>
+    <ol>
+      <li><b>The penalty.</b> <a href="https://arxiv.org/abs/2203.02155">InstructGPT</a> (Ouyang et al., 2022) trains on the reward model's score minus β log(π<sub>RL</sub>(y | x) / π<sub>SFT</sub>(y | x)): the log of how much more likely the policy makes the answer than the SFT model did. They describe it as “a per-token KL penalty from the SFT model at each token to mitigate over-optimization of the reward model”, with β = 0.02. Averaged over the policy's samples, that log ratio is the KL divergence.</li>
+      <li><b>What it's for.</b> <a href="https://arxiv.org/abs/1909.08593">Ziegler et al.</a> (2019) say the term “plays the role of an entropy bonus, it prevents the policy from moving too far from the range where r is valid”, r being the reward model (an entropy bonus rewards staying varied). Table 10 shows GPT-2 tuned with no penalty against a sentiment classifier standing in for human judges: with nothing else, every continuation reads “! These These These sound flowed instantly easily easily easily easily!”; with an entropy bonus instead, still gibberish. Both scored about +8.0 on that classifier, which is 99.97% positive.</li>
+      <li><b>Setting β.</b> InstructGPT's Appendix E.7 plots human ratings of its PPO models trained with pretraining data mixed in against β: “Both 0 and 2 for KL reward coefficient result in poor performance. The optimal value is around 0.01 and 0.02.” Ziegler et al. also offer a controller that nudges β up when KL is above a chosen target and down when below.</li>
+      <li><b>A twist from Gao et al.</b> In <a href="https://arxiv.org/abs/2210.10760">Gao et al.</a> (2022), the penalty made the true score level off earlier but didn't change the best score reachable at a given KL, so its effect was “akin to early stopping”. They set it to 0 for their other runs. <a href="0030-the-judge-that-could-be-pleased.html">Guide 30</a> covers their rise-then-fall curve. Our reading: β = 0 is only defensible with something else that stops the run, judged by a score the policy isn't trained on.</li>
+    </ol>
+    <p><b>An illustration, with our own numbers.</b> <a href="https://arxiv.org/abs/2305.18290">DPO</a> (Rafailov et al., 2023) writes the best policy under a KL penalty in closed form: π*(y) = π<sub>ref</sub>(y) exp(r(y) / β) / Z, where Z rescales the result to sum to 1. Take three answers: a short helpful one the reference writes 60% of the time (reward 1.0), a longer helpful one at 39% (1.2), and repeated praise words at 1%, which the reward model overrates (3.0).</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>β</th><th>Short helpful</th><th>Longer helpful</th><th>Repeated praise</th></tr></thead>
+        <tbody>
+          <tr><td>1.0</td><td class="num">52.2%</td><td class="num">41.4%</td><td class="num">6.4%</td></tr>
+          <tr><td>0.5</td><td class="num">34.7%</td><td class="num">33.7%</td><td class="num">31.6%</td></tr>
+          <tr><td>0.1</td><td class="num">0.0%</td><td class="num">0.0%</td><td class="num">100.0%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>As β falls, the reference model's view stops counting, and one overrated answer takes everything. DPO's authors note the constraint prevents “mode-collapse to single high-reward answers”: every answer collapsing to one.</p>
+    <p><b>Where the premise outruns the evidence.</b> A rising KL alone doesn't prove hacking; some drift is the point of training. Read samples and check an independent score first. And Gao et al.'s “true score” was a 6B reward model standing in for people; they warn the early-stopping result “could be particularly sensitive to hyperparameters”.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">If the penalty protects us, why not make β large?</p><p>InstructGPT's human ratings (PPO with pretraining data mixed in) were poor at β = 2 as at β = 0, with the best around 0.01 to 0.02. Our reasoning for why: too large a β holds the policy near the SFT model, leaving RL little room to improve it.</p></div>
+      <div class="fu" id="fu-2"><p class="q">How does DPO deal with the same issue?</p><p>DPO solves the same KL-constrained objective directly from preference pairs, so β sits inside its loss rather than in a separate penalty. A larger β keeps the model closer to the reference; a smaller one lets it drift further.</p></div>
+      <div class="fu" id="fu-3"><p class="q">The score keeps climbing. How do you spot reward hacking?</p><p>Track a second score the policy isn't trained on, such as human ratings or a held-out judge. Gao et al. found such a score (a 6B reward model standing in for people) rises and then falls as KL grows, while the trained-on score keeps rising. Keeping the checkpoint where the second score peaks is our suggestion.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>In InstructGPT's RLHF, what is subtracted from the reward model's score, and with what β?</summary><p>β times the log of the policy's probability over the SFT model's, a per-token KL penalty, with β = 0.02.</p></details>
+      <details class="cy" id="cy-2"><summary>What did Ziegler et al. get when they tuned GPT-2 against a stand-in sentiment classifier with no KL penalty?</summary><p>Gibberish of repeated words (“These These These… easily easily easily”), which the classifier still scored at about +8.0, 99.97% positive.</p></details>
+      <details class="cy" id="cy-3"><summary>Why isn't the safest choice for β simply a very large value?</summary><p>InstructGPT's human ratings (PPO with pretraining data mixed in) were poor at β = 2 as well as at β = 0, best around 0.01 to 0.02. Our reasoning: a large β holds the policy near the SFT model, leaving training little room to improve it.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">8</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2203.02155">Training language models to follow instructions with human feedback</a> (Ouyang et al., 2022): section 3.5 and Appendix E.7.</li>
+      <li><a href="https://arxiv.org/abs/1909.08593">Fine-Tuning Language Models from Human Preferences</a> (Ziegler et al., 2019): section 2.2 and Table 10.</li>
+      <li><a href="https://arxiv.org/abs/2210.10760">Scaling Laws for Reward Model Overoptimization</a> (Gao et al., 2022): section 3.6.</li>
+      <li><a href="https://arxiv.org/abs/2305.18290">Direct Preference Optimization</a> (Rafailov et al., 2023): section 4, the closed form.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/advanced-reinforcement-learning-interview-607">AI Interview Prep, Advanced Reinforcement Learning Interview Questions #8</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

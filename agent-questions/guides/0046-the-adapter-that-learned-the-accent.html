@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Adapter That Learned the Accent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 46 · extra · Day 86 · about 10 minutes</div>
+    <h1>The adapter that learned the accent</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/machine-learning-system-design-interview-3dc">Machine Learning System Design Interview #12 · The LoRA Knowledge Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “There's no GPU budget for full fine-tuning, but the product team wants Llama 3 70B to handle clinical notes, drug questions and treatment guidelines well. How do you get there?”
+      <small>Senior ML systems interview, Meta</small>
+    </div>
+    <p>This builds on Day 85: LoRA freezes each weight matrix W and trains a small low-rank change B A beside it, QLoRA keeps the frozen base in 4 bits, and LoRA can trail full fine-tuning on big shifts. Two terms first. <b>Continued pre-training</b> runs the same next-token training as pre-training on a large pile of raw domain text. <b>Retrieval</b> searches a document store at answer time and puts the best passages into the prompt (<a href="0043-the-answer-buried-in-the-middle.html">guide 43</a> has the details).</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “QLoRA. It fits on one GPU, so the problem's solved.”</p>
+      <p><strong>Trap B:</strong> “If LoRA misses some medicine, raise the rank and feed it more textbooks.”</p>
+      <p>Both answer the memory question and skip the real one: is the model short of manner or short of facts? That LoRA suits the first and not the second is the original post's claim; the evidence points the same way (our reading).</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“First I'd split ‘adapt’ in two: how the model writes, and what it knows. Biderman et al. compared LoRA with full fine-tuning on Llama-2-7B for code and maths. At rank 256, LoRA matched full fine-tuning on code instruction tuning, but in continued pre-training, which pours in large amounts of new text, their best LoRA after 20 billion tokens only matched full fine-tuning after 4 billion. I read that as: LoRA shapes behaviour well but loads a large body of new knowledge poorly.</p>
+      <p>So the facts go into retrieval: a search over vetted medical sources, with passages placed in the prompt and cited. QLoRA, about 35 GB for the 70B base in 4 bits, then trains adapters on every layer to use those passages and write like a clinician. I'd measure on held-out medical questions, with and without retrieval.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>An actor gets a part as a Glaswegian fisherman. After two weeks with a dialect coach, the accent is convincing: the vowels, the rhythm, the phrases. Nobody expects those weeks to teach them to read the weather and mend nets. That takes years on boats.</p>
+    <p>So when a scene needs a real knot, the steps are on a card just off camera. The accent came from coaching; the facts come from a card when needed.</p>
+    <p>Our mapping: the coaching is a LoRA adapter, years on boats is continued pre-training with full fine-tuning, and the card off camera is retrieval.</p>
+    <div class="think"><b>Think about it.</b> A rank-16 LoRA trained on two gigabytes of medical textbooks shows a smoothly falling training loss. Has it learned medicine? Not necessarily. Loss also falls as the model fits textbook phrasing (our reasoning). Only held-out questions on facts it couldn't answer before tell you whether knowledge went in.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: what the evidence says, then the plan</h2>
+    <ol>
+      <li><b>Two kinds of training.</b> <a href="https://arxiv.org/abs/2405.09673">Biderman et al.</a> (TMLR 2024) compared LoRA with full fine-tuning on Llama-2-7B for code and maths, in two settings: instruction fine-tuning on about 100,000 prompt and response pairs, and continued pre-training on up to 20 billion tokens.</li>
+      <li><b>Instruction tuning: LoRA can keep up.</b> On code (HumanEval, a set of coding problems), ranks 16 and 64 scored 0.358 and 0.417 at epoch 4; rank 256 scored 0.498 at epoch 4, against 0.497 for full fine-tuning at epoch 8.</li>
+      <li><b>Continued pre-training: LoRA lags.</b> On code, the best LoRA (rank 256) peaked at 0.224 after 20 billion tokens, about what full fine-tuning scored after 4 billion (0.218). Full fine-tuning went on to 0.263. Maths showed the same pattern. They found full fine-tuning's weight changes have a rank “10-100× greater than typical LoRA configurations, possibly explaining some of the reported gaps”. The upside: LoRA forgets less of what the base model could already do.</li>
+      <li><b>A second source points the same way on capacity.</b> In <a href="https://thinkingmachines.ai/blog/lora/">LoRA Without Regret</a> (John Schulman with Thinking Machines, September 2025), LoRA matched full fine-tuning on small-to-medium instruction and reasoning sets, but “For datasets that exceed LoRA capacity, LoRA underperforms FullFT”. It works best on all weight matrices, especially the MLP layers.</li>
+      <li><b>The plan (ours).</b> Facts that must be right and current go in retrieval, where they can be cited and updated without retraining. LoRA teaches behaviour, our reading of the evidence: Biderman et al. recommend it “for instruction finetuning and not continued pretraining”, on all modules, rank 256 if memory allows, and α = 2r. Continued pre-training with full fine-tuning earns its memory only when there's a large body of domain text the base never saw and retrieval can't stand in for, such as an in-house notation it must read fluently (our judgement); it learns more, and forgets more. <a href="0026-the-plan-that-knew-the-ending.html">Guide 26</a> adds a reason not to pack new facts into SFT answers: it raised hallucination in Gekhman et al.'s tests.</li>
+    </ol>
+    <p><b>Worked example, our arithmetic:</b> memory for training a 70B model.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Method</th><th>Rule</th><th>Memory before activations</th></tr></thead>
+        <tbody>
+          <tr><td>Full fine-tuning, mixed precision with Adam</td><td>16 bytes per parameter (<a href="0034-the-optimizer-that-outgrew-the-gpu.html">guide 34</a>)</td><td class="num">1,120 GB</td></tr>
+          <tr><td>QLoRA: frozen base in 4 bits</td><td>0.5 bytes per parameter</td><td class="num">About 35 GB, plus small adapters</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Day 85's card counts 12 bytes a parameter, leaving out the fp32 master copy of the weights that guide 34 counts: 840 GB for 70B. The same 12 bytes comes out, on our arithmetic, from the QLoRA paper's “more than 780 GB” for 65B, which QLoRA cut to under 48 GB. Either count is far beyond one GPU.</p>
+    <p><b>Where the premise outruns the evidence.</b> Biderman et al. studied code and maths on a 7B model, not medicine on 70B; carrying the result over is our reasoning. And a 70B base already knows much medicine; probe what it gets wrong before deciding what's missing.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Why not just raise the rank?</p><p>It helps but doesn't close the gap. In Biderman et al.'s continued pre-training of Llama-2-7B on code, scores rose with rank, yet the best, rank 256, peaked at 0.224 against 0.263 for full fine-tuning. LoRA Without Regret frames it as capacity: once the data outgrows what the adapter can hold, LoRA falls behind.</p></div>
+      <div class="fu" id="fu-2"><p class="q">When would you do continued pre-training anyway?</p><p>When there's a large body of domain text the base never saw and retrieval can't stand in, such as an in-house notation the model must read fluently. Full fine-tuning then learns more, at the cost of memory and more forgetting; check both.</p></div>
+      <div class="fu" id="fu-3"><p class="q">Which matrices would you put adapters on?</p><p>All of them, with the MLP matrices mattering most. Biderman et al. target all transformer modules. LoRA Without Regret found attention-only LoRA underperformed even with more rank to match the parameter count, and adding attention to MLP-only LoRA gave no extra benefit.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>In Biderman et al.'s continued pre-training of Llama-2-7B on code, how did the best LoRA compare with full fine-tuning?</summary><p>Rank 256 peaked at 0.224 on HumanEval after 20 billion tokens, about what full fine-tuning reached after 4 billion (0.218). Full fine-tuning peaked at 0.263.</p></details>
+      <details class="cy" id="cy-2"><summary>For which kind of training did Biderman et al. recommend LoRA, and with what settings?</summary><p>Instruction fine-tuning, not continued pre-training; on all transformer modules, rank 256 if memory allows, and α = 2r.</p></details>
+      <details class="cy" id="cy-3"><summary>How much memory do a 70B model's weights take in 4 bits, against full fine-tuning at 16 bytes per parameter?</summary><p>About 35 GB (half a byte each, plus a few scale numbers that 4-bit storage keeps for each small group of weights) against 1,120 GB, before activations.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">8</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2405.09673">LoRA Learns Less and Forgets Less</a> (Biderman et al., TMLR 2024): sections 4.1, 4.2 and the recommendations.</li>
+      <li><a href="https://thinkingmachines.ai/blog/lora/">LoRA Without Regret</a> (Schulman and Thinking Machines, 2025): the findings list and “Where LoRA Is Applied”.</li>
+      <li><a href="https://arxiv.org/abs/2305.14314">QLoRA: Efficient Finetuning of Quantized LLMs</a> (Dettmers et al., 2023): the introduction.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/machine-learning-system-design-interview-3dc">AI Interview Prep, Machine Learning System Design Interview #12</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

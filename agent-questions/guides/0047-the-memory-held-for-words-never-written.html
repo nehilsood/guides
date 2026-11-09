@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Memory Held for Words Never Written</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 47 · extra · Day 93 · about 10 minutes</div>
+    <h1>The memory held for words never written</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/llm-system-design-interview-6-when">LLM System Design Interview #6 · When Memory Becomes the Enemy</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “Caching each token's keys and values makes the next token cheap to generate. On a server running many requests at once, what problem does that cache create, and what's the fix in principle?”
+      <small>AI Engineer interview, Meta</small>
+    </div>
+    <p>This builds on Day 92, “Serving fast: continuous batching, paged attention, speculative decoding”. <a href="0031-the-cache-that-ate-the-batch.html">Guide 31</a> sized the cache: 128 KiB a token for Llama 3.1 8B. <a href="0041-the-step-that-waited-for-memory.html">Guide 41</a> showed why generating tokens one at a time is memory-bound, so a server earns its throughput by batching many requests into each step. <b>Continuous batching</b> means a finished request leaves the batch at once and a waiting one takes its place, rather than the whole batch finishing together.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “The cache is big. Buy GPUs with more memory.”</p>
+      <p><strong>Trap B:</strong> “Cap the context length so each request's cache stays small.”</p>
+      <p>Both treat the problem as the cache's size. In older servers, most of the memory set aside for caches held no tokens at all.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“The cache grows by one entry per token, and nobody knows in advance how long an answer will run. Older servers reserved one unbroken slab per request, so much of it sat empty: in Kwon et al.'s tests only 20.4% of cache memory held real token states when the server reserved the maximum length, and 38.2% even when it knew each answer's length. Decode is memory-bound, so throughput comes from batch size, and batch size is capped by how many caches fit.</p>
+      <p>PagedAttention stores each request's cache in fixed blocks, 16 tokens by default, placed anywhere in memory, with a table mapping positions to blocks, handed out as tokens arrive. Waste falls to under one block per request, and in their tests vLLM served 2 to 4 times the throughput of earlier serving systems.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A small cinema gives every booking a whole row of twenty seats, in case friends turn up. Most bookings are three people. Seventeen seats per row sit empty, and latecomers are turned away from a hall that's mostly air.</p>
+    <p>The new manager seats people in blocks of four, any free block anywhere, and keeps a list of which blocks belong to which party. A party that grows gets another block. No party wastes more than three seats, and the hall fills.</p>
+    <p>The rows are slabs reserved per request; the blocks are PagedAttention's blocks; the manager's list is the block table.</p>
+    <div class="think"><b>Think about it.</b> Why can't the server reserve exactly what each request needs? It doesn't know: the answer could stop after ten tokens or run to the limit. Any guess either wastes memory or runs out mid-answer, so blocks are handed out as tokens arrive.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: where the memory went, then paging</h2>
+    <ol>
+      <li><b>Three wastes.</b> <a href="https://arxiv.org/abs/2309.06180">Kwon et al.</a> (SOSP 2023) list them for a slab sized to the maximum length: “reserved slots for future tokens, internal fragmentation due to over-provisioning for potential maximum sequence lengths, and external fragmentation from the memory allocator”. The first is used eventually but blocks other requests meanwhile; the other two are never used. They tested three versions of an earlier server: token states filled 20.4% of cache memory when it reserved the maximum length, and 38.2% even when it was told each answer's true length.</li>
+      <li><b>Blocks and a table.</b> Borrowing paging from operating systems, PagedAttention splits a request's cache into fixed-size blocks anywhere in memory, tracked by a block table, and allocates a new block only when the last one fills. Blocks hold 16 tokens by default: much smaller and reading the cache uses the GPU's parallelism poorly; much larger and the last block wastes more and less can be shared. Waste happens only in each request's last block. In the paper's profiling, 96.3% of vLLM's cache held token states; the vLLM launch post puts waste under 4%, against 60% to 80% in existing systems. When free blocks run out, vLLM evicts whole requests and later either swaps their blocks back from CPU memory or rebuilds their cache by running the prompt and the tokens so far through the model in one pass.</li>
+      <li><b>Sharing.</b> When one prompt yields several answers, the prompt's blocks are stored once. A shared block is copied only when one answer needs to write into it (copy-on-write). Serving OPT-13B on the Alpaca trace (short instruction requests), this saved 6.1% to 9.8% of memory for parallel sampling and 37.6% to 55.2% for beam search, which keeps several candidate answers alive at once; on ShareGPT conversations, more: 16.2% to 30.5% and 44.3% to 66.3%.</li>
+      <li><b>The costs.</b> Looking up the table made the attention kernel (the GPU program that computes attention) 20% to 26% slower than that of FasterTransformer, NVIDIA's inference library. Yet throughput rose 2 to 4 times against FasterTransformer and the authors' versions of Orca, an earlier continuous-batching server, because far more requests fit in each batch.</li>
+    </ol>
+    <p><b>An illustration, with our own numbers:</b> Llama 3.1 8B at 128 KiB a token (guide 31), 60 GiB free for caches, a 2,048-token limit, and requests that end at 300 tokens.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Scheme</th><th>Memory per request</th><th>Share holding tokens</th><th>Requests that fit</th></tr></thead>
+        <tbody>
+          <tr><td>Slab for 2,048 tokens</td><td class="num">256 MiB</td><td class="num">14.6%</td><td class="num">240</td></tr>
+          <tr><td>Blocks of 16: 19 blocks, 304 slots</td><td class="num">38 MiB</td><td class="num">98.7%</td><td class="num">1,616</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Same GPU, same model, nearly seven times the batch. Real requests vary in length, so treat 1,616 as a ceiling.</p>
+    <p><b>Where the premise outruns the evidence.</b> The 2 to 4 times is a headline across the paper's models and traces. On ShareGPT, vLLM sustained 1.7 to 2.7 times the request rate of the Orca version told each answer's true length. And for OPT-175B on Alpaca's short requests the gain over the better Orca versions was “less pronounced”: with plenty of memory, the systems became “compute-bound rather than memory-bound”.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Why not blocks of one token, for zero waste?</p><p>Kwon et al. found tiny blocks don't use the GPU's parallelism well when reading the cache, and big blocks waste more in the last one and share less. Block size 16 balanced the two, so vLLM uses it by default.</p></div>
+      <div class="fu" id="fu-2"><p class="q">What happens when memory runs out mid-answer?</p><p>vLLM picks requests to evict and frees their blocks. Later it either copies the blocks back from CPU memory, where they were swapped, or rebuilds the cache by running the prompt and the tokens so far through the model again in one pass.</p></div>
+      <div class="fu" id="fu-3"><p class="q">Does paging help when you sample several answers per prompt?</p><p>Yes: the prompt's cache blocks are stored once and shared, and a block is copied only when one answer writes to it. Serving OPT-13B on the Alpaca trace, Kwon et al. saved 6.1% to 9.8% of memory for parallel sampling and 37.6% to 55.2% for beam search (which keeps several candidate answers alive); longer ShareGPT conversations saved more.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>What are the three wastes of reserving one maximum-length slab of KV cache per request?</summary><p>Slots reserved for tokens not yet generated, internal fragmentation (room for a maximum length the request never reaches), and external fragmentation (gaps the allocator leaves between slabs).</p></details>
+      <details class="cy" id="cy-2"><summary>At 128 KiB a token, how much cache does a 300-token request take in blocks of 16 tokens, and how much is wasted?</summary><p>It needs 19 blocks, 304 token slots, so 38 MiB. Four slots are empty, 512 KiB.</p></details>
+      <details class="cy" id="cy-3"><summary>Why does wasted KV cache memory cut a server's throughput?</summary><p>Generating tokens is memory-bound: each step's time goes on reading weights and caches from memory, not on arithmetic. So throughput comes from batching many requests into each step. Every wasted megabyte is room another request's cache could have used.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">8</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2309.06180">Efficient Memory Management for Large Language Model Serving with PagedAttention</a> (Kwon et al., SOSP 2023): sections 3, 4 and 7.2.</li>
+      <li><a href="https://vllm.ai/blog/2023-06-20-vllm">vLLM: Easy, Fast, and Cheap LLM Serving with PagedAttention</a> (vLLM team, June 2023).</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/llm-system-design-interview-6-when">AI Interview Prep, LLM System Design Interview #6</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

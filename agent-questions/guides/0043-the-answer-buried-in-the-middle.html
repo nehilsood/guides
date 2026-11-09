@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Answer Buried in the Middle</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 43 · extra · Day 78 · about 10 minutes</div>
+    <h1>The answer buried in the middle</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/rag-interview-questions-25-the-lost">RAG Interview Questions #25 · The “Lost in the Middle” Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “When would you choose to give the model fewer passages than your search turned up? Right now every question gets ten in its prompt, ordered by a second scoring model, on the theory that one of them might matter. What does that cost you?”
+      <small>Senior ML Engineer interview, Anthropic</small>
+    </div>
+    <p>This builds on Day 77: a long context window isn't the same as a well-used one, and in “Lost in the Middle” (2023) models did best when the needed fact sat at the start or the end of the prompt. Today: what that means for a search-then-answer pipeline. A <b>retriever</b> searches a document store and returns the <b>chunks</b> (short passages) that look most like the question. A <b>reranker</b> is a second, slower model that re-scores those chunks and sorts them. Putting the winners in the prompt is retrieval-augmented generation (RAG), which month 4 builds.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Ten chunks beat three. Every extra chunk is another chance the answer is in there.”</p>
+      <p><strong>Trap B:</strong> “The window holds 128,000 tokens and ten chunks fill a few thousand, so there's room to spare.”</p>
+      <p>Both treat “in the prompt” as “used”. Present isn't the same as read.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“Three things go wrong. Position: in Liu et al.'s tests, models used a passage best at the start or end of the prompt. With ten passages, GPT-3.5-Turbo answered 76.8% right when the useful one came first and about 61 to 62% when it sat fifth or last. Distractors: the other nine are close matches without the answer, and they compete with the one that has it. Fading returns: for GPT-3.5-Turbo, going from 20 to 50 passages added only about 1.5%, while cost and latency grew.</p>
+      <p>So I put the reranker's best chunk first as a default to test on my model, cut the list where its scores drop, and measure whether the answer is right, not only whether the right chunk was fetched. I'd send fewer when the top chunk clearly outscores the rest, or when my model handles long inputs badly.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A detective is handed ten witness statements, sorted by the desk sergeant from most to least promising. Only one witness actually saw the car. The detective reads the first closely, skims the middle, and reads the last closely too, since it's still on the desk when the report gets written.</p>
+    <p>If the useful statement is first or last, it gets found. If it's sixth, it competes with five that sound just as sure, and sometimes loses. Twenty more statements change little: attention was the limit, not the pile.</p>
+    <p>Liu et al. call the two ends' advantage <b>primacy bias</b> (the start) and <b>recency bias</b> (the end). The statements that sound right but lack the answer are <b>distractors</b>.</p>
+    <div class="flows" aria-label="A retrieve, rerank and answer pipeline">
+      <div class="flow">
+        <div class="flow-label">Where the chunks come from</div>
+        <div class="strip"><span class="box">Question</span><span class="arrow">→</span><span class="box">Retriever: top 50</span><span class="arrow">→</span><span class="box">Reranker sorts</span><span class="arrow">→</span><span class="box">Keep the top k</span><span class="arrow">→</span><span class="box">Model answers</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> Your retriever has the right chunk somewhere in its top 10 for 95% of questions. Will 95% of answers be right? No. That 95% only says the chunk was in the pile. In Liu et al.'s test the right passage was always in the pile, and with ten passages GPT-3.5-Turbo still answered only 61–77% correctly, depending on where it sat.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: what was measured, then what to change</h2>
+    <ol>
+      <li><b>The test.</b> <a href="https://arxiv.org/abs/2307.03172">Liu et al.</a> (TACL 2024; arXiv 2023) took 2,655 NaturalQuestions-Open questions (real Google searches with answers found in Wikipedia). Each prompt held k Wikipedia passages of at most 100 tokens: exactly one contained the answer, and the other k − 1 were the passages a retriever ranked most relevant that did not. Then they moved the answer passage from first to last.</li>
+      <li><b>The U.</b> Accuracy was usually highest at the ends and lowest in the middle, a shape the authors saw “even for explicitly long-context models”. When the input fit in both a model and its long-context version, the two scored “nearly identical”: the bigger window didn't buy better reading.</li>
+      <li><b>Fetched isn't used.</b> In their open-domain test a real retriever (Contriever) supplied the passages. Its recall (how often the right passage is anywhere in the retrieved set) kept rising with k, but “model performance saturates long before retriever recall saturates”: 50 passages instead of 20 added about 1.5% for GPT-3.5-Turbo and 1% for Claude-1.3. Anthropic's <a href="https://www.anthropic.com/news/contextual-retrieval">Contextual Retrieval</a> post (September 2024) found passing the top 20 chunks “more effective than just the top-10 or top-5”, but it measured retrieval: the share of relevant chunks missing from the top 20. Our reading: both hold. More chunks catch more answers; the model uses each less well.</li>
+      <li><b>What I'd change.</b> Keep the most relevant chunk first; Liu et al. suggest “pushing relevant information closer to the start”. Retrieve fewer documents when appropriate, which they call ranked list truncation; cutting where the reranker's scores drop is our way of doing it. Then (our suggestion) measure answer accuracy at k = 3, 5, 10 and 20 on your own questions.</li>
+    </ol>
+    <p><b>Worked example, with real numbers</b> from Liu et al.'s appendix tables, GPT-3.5-Turbo (the 0613 version):</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Passages in the prompt</th><th>Answer passage first</th><th>In the middle</th><th>Last</th></tr></thead>
+        <tbody>
+          <tr><td>10</td><td class="num">76.8%</td><td class="num">61.2% (5th)</td><td class="num">62.4%</td></tr>
+          <tr><td>20</td><td class="num">75.8%</td><td class="num">53.8% (10th)</td><td class="num">63.2%</td></tr>
+          <tr><td>No passages at all</td><td colspan="3">56.1%, from what the model already knew</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>With 20 passages and the answer in the middle, the model did worse than with none.</p>
+    <p><b>Where the premise outruns the evidence.</b> Liu et al. tested 2023 models: GPT-3.5-Turbo, Claude-1.3, MPT-30B-Instruct and LongChat-13B. Newer long-context models may show a flatter curve, and this paper can't say. Run the position test on your own model before deciding k.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Should the best chunk go last instead of first?</p><p>It depends on the model. In Liu et al.'s 20-passage test, GPT-3.5-Turbo did better with the answer first (75.8%) than last (63.2%), but Claude-1.3 was level (59.9% and 60.1%) and MPT-30B-Instruct did better last (56.3% against 53.7%). So “best first” is a default to test on your own model, not a measured rule.</p></div>
+      <div class="fu" id="fu-2"><p class="q">The model takes 128,000 tokens. Why not send 50 chunks?</p><p>In Liu et al.'s open-domain test, 50 passages instead of 20 raised GPT-3.5-Turbo's accuracy by about 1.5% and Claude-1.3's by about 1%, for a prompt 2.5 times longer. And a model's long-context version scored nearly the same as the standard one whenever the input fit both. You pay for tokens the model barely uses.</p></div>
+      <div class="fu" id="fu-3"><p class="q">How would you pick k?</p><p>Our approach: on held-out questions, sweep k, track answer accuracy, tokens and latency, and pick where accuracy stops climbing. Better, cut per question where the reranker's scores drop (also our suggestion); Liu et al. call retrieving fewer when appropriate ranked list truncation.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>In Liu et al.'s 20-passage test, how did GPT-3.5-Turbo do with the answer passage in the middle, compared with no passages at all?</summary><p>53.8% with the answer passage 10th of 20, against 56.1% with no passages. With the answer passage first it scored 75.8%.</p></details>
+      <details class="cy" id="cy-2"><summary>Why can retrieval recall keep rising while answer accuracy stays flat?</summary><p>Recall only counts whether the right chunk is somewhere in the set. Accuracy needs the model to find and use it. In Liu et al.'s test, going from 20 to 50 passages added only about 1.5% accuracy for GPT-3.5-Turbo.</p></details>
+      <details class="cy" id="cy-3"><summary>Name two changes to a top-10 RAG prompt that follow from the U-shaped curve.</summary><p>Put the most relevant chunk at the start (rerank), and send fewer chunks when the rest score low (truncate the list). Then check both by measuring answer accuracy, not retrieval alone.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="words-to-know"><span class="n">8</span>Words to know</h2>
+    <dl>
+      <dt>Retriever</dt><dd>The search step: returns the stored chunks most similar to the question.</dd>
+      <dt>Reranker</dt><dd>A second model that re-scores the retriever's chunks and sorts them.</dd>
+      <dt>Distractor</dt><dd>A chunk that matches the question's topic but doesn't hold the answer.</dd>
+      <dt>Recall at k</dt><dd>How often the right chunk is anywhere in the top k results.</dd>
+    </dl>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">9</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2307.03172">Lost in the Middle: How Language Models Use Long Contexts</a> (Liu et al., TACL 2024; arXiv 2023): section 2 for the U, section 5 for more passages.</li>
+      <li><a href="https://www.anthropic.com/news/contextual-retrieval">Introducing Contextual Retrieval</a> (Anthropic, 2024): reranking and top-20 retrieval, measured as recall.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/rag-interview-questions-25-the-lost">AI Interview Prep, RAG Interview Questions #25</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

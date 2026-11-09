@@ -1,0 +1,88 @@
+{
+ "lesson": "aq-0047",
+ "label": "AQ 0047",
+ "track": "ai",
+ "title": "The memory held for words never written",
+ "url": "https://nehilsood.github.io/guides/agent-questions/guides/0047-the-memory-held-for-words-never-written.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "fu-1",
+   "kind": "follow-up",
+   "q": "Why not blocks of one token, for zero waste?",
+   "a": "Kwon et al. found tiny blocks don't use the GPU's parallelism well when reading the cache, and big blocks waste more in the last one and share less. Block size 16 balanced the two, so vLLM uses it by default.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: where the memory went, then paging",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0047-the-memory-held-for-words-never-written.html#how-it-works"
+   }
+  },
+  {
+   "id": "fu-2",
+   "kind": "follow-up",
+   "q": "What happens when memory runs out mid-answer?",
+   "a": "vLLM picks requests to evict and frees their blocks. Later it either copies the blocks back from CPU memory, where they were swapped, or rebuilds the cache by running the prompt and the tokens so far through the model again in one pass.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: where the memory went, then paging",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0047-the-memory-held-for-words-never-written.html#how-it-works"
+   }
+  },
+  {
+   "id": "fu-3",
+   "kind": "follow-up",
+   "q": "Does paging help when you sample several answers per prompt?",
+   "a": "Yes: the prompt's cache blocks are stored once and shared, and a block is copied only when one answer writes to it. Serving OPT-13B on the Alpaca trace, Kwon et al. saved 6.1% to 9.8% of memory for parallel sampling and 37.6% to 55.2% for beam search (which keeps several candidate answers alive); longer ShareGPT conversations saved more.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: where the memory went, then paging",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0047-the-memory-held-for-words-never-written.html#how-it-works"
+   }
+  },
+  {
+   "id": "cy-1",
+   "kind": "check",
+   "q": "What are the three wastes of reserving one maximum-length slab of KV cache per request?",
+   "a": "Slots reserved for tokens not yet generated, internal fragmentation (room for a maximum length the request never reaches), and external fragmentation (gaps the allocator leaves between slabs).",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: where the memory went, then paging",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0047-the-memory-held-for-words-never-written.html#how-it-works"
+   }
+  },
+  {
+   "id": "cy-2",
+   "kind": "check",
+   "q": "At 128 KiB a token, how much cache does a 300-token request take in blocks of 16 tokens, and how much is wasted?",
+   "a": "It needs 19 blocks, 304 token slots, so 38 MiB. Four slots are empty, 512 KiB.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: where the memory went, then paging",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0047-the-memory-held-for-words-never-written.html#how-it-works"
+   }
+  },
+  {
+   "id": "cy-3",
+   "kind": "check",
+   "q": "Why does wasted KV cache memory cut a server's throughput?",
+   "a": "Generating tokens is memory-bound: each step's time goes on reading weights and caches from memory, not on arithmetic. So throughput comes from batching many requests into each step. Every wasted megabyte is room another request's cache could have used.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Your 30-second answer",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0047-the-memory-held-for-words-never-written.html#your-30-second-answer"
+   }
+  }
+ ]
+}

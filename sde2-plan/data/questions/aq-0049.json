@@ -1,0 +1,88 @@
+{
+ "lesson": "aq-0049",
+ "label": "AQ 0049",
+ "track": "ai",
+ "title": "The call that failed one token at a time",
+ "url": "https://nehilsood.github.io/guides/agent-questions/guides/0049-the-call-that-failed-one-token-at-a-time.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "fu-1",
+   "kind": "follow-up",
+   "q": "Why not just retry until it parses?",
+   "a": "At 99% per token over 300 tokens, a call is right 4.9% of the time, assuming independent slips; three independent tries lift that only to 14.0%, at up to triple the cost. Retrying works best after constraint has removed most of the ways to fail.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: the arithmetic, then the fixes",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0049-the-call-that-failed-one-token-at-a-time.html#how-it-works"
+   }
+  },
+  {
+   "id": "fu-2",
+   "kind": "follow-up",
+   "q": "Can format restrictions cost anything?",
+   "a": "In Tam et al.'s tests, JSON mode (on OpenAI and Gemini models, Llama-3-8B and Gemma-2-9B) lowered accuracy on reasoning tasks while matching or beating free text on classification, and looser formats generally did better on reasoning. llama.cpp's grammar guide also warns that unsupported schema features are skipped silently. Keep reasoning outside the JSON, or before the answer field, and test the grammar you actually get.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: the arithmetic, then the fixes",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0049-the-call-that-failed-one-token-at-a-time.html#how-it-works"
+   }
+  },
+  {
+   "id": "fu-3",
+   "kind": "follow-up",
+   "q": "The JSON is now always valid. Is the call right?",
+   "a": "Not necessarily. A grammar guarantees the shape, not the content: a valid call can name the wrong customer or the wrong unit. Check the values against the tool's rules, and where a field has few options, list them in the schema so the choice itself is constrained (our suggestion).",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: the arithmetic, then the fixes",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0049-the-call-that-failed-one-token-at-a-time.html#how-it-works"
+   }
+  },
+  {
+   "id": "cy-1",
+   "kind": "check",
+   "q": "If each token is right with probability 0.99, independently, how likely is a 300-token output to be entirely right? And at 0.999?",
+   "a": "0.99<sup>300</sup> ≈ 4.9%; 0.999<sup>300</sup> ≈ 74.1%.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: the arithmetic, then the fixes",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0049-the-call-that-failed-one-token-at-a-time.html#how-it-works"
+   }
+  },
+  {
+   "id": "cy-2",
+   "kind": "check",
+   "q": "What does constrained decoding do at each generation step?",
+   "a": "It sets the probability of every token that would break the required format to zero, so the model can only pick tokens that keep the output valid. This guarantees the structure, not the content.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: the arithmetic, then the fixes",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0049-the-call-that-failed-one-token-at-a-time.html#how-it-works"
+   }
+  },
+  {
+   "id": "cy-3",
+   "kind": "check",
+   "q": "When would constraining a tool call's JSON structure barely raise its success rate?",
+   "a": "When the slips were in the values, not the structure. Masking braces and key names then removes almost no errors, and every wrong value still fails the call.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: the arithmetic, then the fixes",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0049-the-call-that-failed-one-token-at-a-time.html#how-it-works"
+   }
+  }
+ ]
+}
