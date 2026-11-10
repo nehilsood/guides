@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Index That Wouldn't Fit in RAM</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 51 · extra · Day 109 · about 10 minutes</div>
+    <h1>The index that wouldn't fit in RAM</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/rag-interview-questions-8-the-ivf">RAG Interview Questions #8 · The IVF-PQ Compression Trick</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “Finance wants the RAM bill for your vector index cut. It holds 200 million embeddings in HNSW, picked because it found 99% of the true nearest neighbours in the demo. What do you propose, and what do you give up?”
+      <small>Staff ML Engineer interview, Google</small>
+    </div>
+    <p>This builds on Day 108, “RAG 1: chunking, embeddings, vector search”. <b>HNSW</b> is a graph index: each vector links to a few dozen near neighbours, and a search hops along links towards the query. <b>Recall</b> here is the share of the true nearest neighbours a search finds, compared with checking every vector.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “HNSW won the benchmark. Buy more memory.”</p>
+      <p><strong>Trap B:</strong> “Compress everything as hard as possible; recall barely moves.”</p>
+      <p>Both skip the sum: where do the bytes go, and how much recall does each byte buy?</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“Moving off plain HNSW, which keeps every vector at full precision in RAM: 200 million vectors of 768 four-byte numbers is 614 GB, about 666 GB with 32 links each. The authors of Faiss, Meta's open vector-search library, say graph indexes suit cases with no memory limit, typically under 1M vectors; once vectors need compressing just to fit, their decision guide sends you to IVF.</p>
+      <p>I'd propose IVF-PQ. IVF groups the vectors into clusters and searches only the few nearest the query; PQ shrinks each vector to a 64-byte code. That's about 14 GB, ids included. What I give up is exactness: code distances are approximate, so I'd re-score the top few hundred against full vectors kept on disk, and tune clusters searched and code size on held-out queries, ones kept aside for testing (<a href="0024-the-merge-that-swallowed-the-cursor.html">guide 24</a>), until recall against exact search meets my target.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A police identikit doesn't keep a photo of every face. It has, say, 256 noses, 256 pairs of eyes and 256 mouths. A face is filed as “nose 17, eyes 203, mouth 88”. To match a witness, you work out once how close each of the 256 noses is to the one described, then score any filed face by adding up three looked-up numbers.</p>
+    <p>The files are kept by district, so you search only the districts nearest where the person was seen. Then you pull the real photos of the best 50 matches and look properly.</p>
+    <p>Filing faces as part numbers is <b>product quantization (PQ)</b>: cut each vector into pieces and replace each piece with the number of its nearest stand-in from a small learned set. Searching by district is an <b>inverted file (IVF)</b>: k-means clustering, which groups points around a set of centres, sorts the vectors into lists, one per centre, and a query opens only the closest few lists. Checking the photos is <b>re-ranking</b>.</p>
+    <div class="flows" aria-label="An IVF-PQ search with re-ranking">
+      <div class="flow">
+        <div class="flow-label">One query</div>
+        <div class="strip"><span class="box">Find the nearest few lists</span><span class="arrow">→</span><span class="box">Score their 64-byte codes</span><span class="arrow">→</span><span class="box">Re-score the top few hundred with full vectors</span><span class="arrow">→</span><span class="box">Best chunks to the model</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> Cut a 768-number vector into 64 pieces of 12 numbers, and store each piece as one byte. How big was a piece before? 12 numbers × 4 bytes = 48 bytes. Every piece shrinks 48 times, so the vector goes from 3,072 bytes to 64 (our arithmetic).</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: price it, cluster, compress, re-rank, measure</h2>
+    <ol>
+      <li><b>Do the sum.</b> The <a href="https://github.com/facebookresearch/faiss/wiki/Guidelines-to-choose-an-index">Faiss guidelines</a> give HNSW's memory as (d × 4 + M × 2 × 4) bytes per vector, where d is the vector length and M the links per vector, and say “all Faiss indexes are stored in RAM”. The <a href="https://github.com/facebookresearch/faiss/wiki/Faiss-indexes">index table</a> gives IVF-PQ as the code size plus 8 bytes, “the vector id”. The links aren't the problem: the HNSW paper puts them at “about 60-450 bytes per object”. The full-precision vectors are.</li>
+      <li><b>Cluster.</b> For 100M to 1B vectors the guidelines suggest 1,048,576 lists, using a small HNSW to find the nearest list centres. Those centres stay full size: about 3.2 GB (our arithmetic). New vectors join their nearest list without retraining; retrain the centres if the data drifts (our reasoning). The Faiss paper notes its HNSW index doesn't support deleting or changing vectors.</li>
+      <li><b>Compress.</b> <a href="https://inria.hal.science/inria-00514462">Jégou, Douze and Schmid</a> split each vector into low-dimensional pieces and quantize each separately; distances “can be efficiently estimated from their codes”, and comparing the uncompressed query with the codes “increases precision”.</li>
+      <li><b>Re-rank.</b> Jégou et al. measure recall@R, the share of queries whose true nearest neighbour lands in the top R, which shows how often it is found “if a short-list of R vectors is verified using Euclidean distances”. Keep the full vectors on disk; each query reads only its short list.</li>
+      <li><b>Measure.</b> Run held-out queries through exact search once for the right answers, then sweep lists searched and code size. The <a href="https://arxiv.org/abs/2401.08281">Faiss paper</a>: “To refine the index parameters, benchmarking should be used.”</li>
+    </ol>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>200M vectors, 768 numbers each (our arithmetic)</th><th>Bytes per vector</th><th>RAM</th></tr></thead>
+        <tbody>
+          <tr><td>Full vectors, no index</td><td class="num">768 × 4 = 3,072</td><td class="num">614.4 GB</td></tr>
+          <tr><td>HNSW, 32 links</td><td class="num">3,072 + 32 × 2 × 4 = 3,328</td><td class="num">665.6 GB</td></tr>
+          <tr><td>IVF-PQ, 64-byte codes</td><td class="num">64 + 8 = 72</td><td class="num">14.4 GB + centres</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p><b>Worked example, with real numbers.</b> Jégou et al.'s Table V searches 1,000,991 GIST image vectors (960 numbers each) with tiny 8-byte codes. Comparing the query with every code took 17.2 ms and put the true nearest neighbour in the top 100 for 65.2% of queries. IVF with 1,024 lists, opening 8, compared only 27,818 codes in 8.8 ms and reached 68.2%: faster and no worse. Opening 1 list: 1.5 ms but 30.8%. The paper doesn't give the hardware beside the table, so read the times against each other, not as absolutes.</p>
+    <p><b>Where the premise outruns the evidence.</b> Our reasoning: 99% in a demo says little about 200 million vectors, and recall against exact search isn't answer quality. What matters is whether the answering chunk reaches the model; measure that too.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Why not keep HNSW but store compressed vectors in it?</p><p>Faiss offers that; benchmark it. But the links stay: 32 per vector is 256 bytes, 51.2 GB for 200 million (our arithmetic), four times the 64-byte codes. And the Faiss paper notes that beyond 10M vectors a graph's construction time “typically becomes the limiting factor”.</p></div>
+      <div class="fu" id="fu-2"><p class="q">How do you pick the number of lists to search?</p><p>It's set at query time, so sweep it on held-out queries. In Jégou et al.'s test on a million image vectors with 8-byte codes, opening 8 of 1,024 lists instead of 1 lifted the share of queries with the true neighbour in the top 100 from 30.8% to 68.2%, and time from 1.5 to 8.8 ms, as the paper reports it (hardware not stated).</p></div>
+      <div class="fu" id="fu-3"><p class="q">New documents arrive every day. Does that change the choice?</p><p>New codes can be added to their nearest IVF list without retraining; if the new data drifts from what the centres were trained on, retrain them (our reasoning). The Faiss paper notes that its HNSW index “does not support suppression and mutation”, so deleting or editing vectors there means rebuilding.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>How much RAM do 200 million 768-number float vectors need in plain HNSW, and in IVF-PQ with 64-byte codes?</summary><p>3,072 bytes each is 614.4 GB; with 32 HNSW links (256 bytes more) about 665.6 GB. IVF-PQ stores 64 bytes plus an 8-byte id, 72 bytes, so 14.4 GB plus the list centres.</p></details>
+      <details class="cy" id="cy-2"><summary>What do the IVF and PQ halves of IVF-PQ each do?</summary><p>IVF sorts the vectors into lists around k-means centres, and a query opens only the few lists nearest it. PQ cuts each vector into pieces and stores each piece as the number of its nearest stand-in from a small learned set, usually one byte.</p></details>
+      <details class="cy" id="cy-3"><summary>Why re-score IVF-PQ results with the full vectors?</summary><p>Distances from the codes are estimates, so the true nearest neighbour can rank below near misses. Re-scoring a short list of a few hundred with exact distances fixes the order, and only those few full vectors need to be read from disk.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">8</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://inria.hal.science/inria-00514462">Product Quantization for Nearest Neighbor Search</a> (Jégou, Douze and Schmid, IEEE TPAMI 2011).</li>
+      <li><a href="https://arxiv.org/abs/2401.08281">The Faiss library</a> (Douze et al., 2024): section 5.3, IVF against graph indexes.</li>
+      <li><a href="https://github.com/facebookresearch/faiss/wiki/Guidelines-to-choose-an-index">Guidelines to choose an index</a> (Faiss wiki): memory formulas and list counts.</li>
+      <li><a href="https://arxiv.org/abs/1603.09320">Efficient and robust approximate nearest neighbor search using HNSW graphs</a> (Malkov and Yashunin).</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/rag-interview-questions-8-the-ivf">AI Interview Prep, RAG Interview Questions #8</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

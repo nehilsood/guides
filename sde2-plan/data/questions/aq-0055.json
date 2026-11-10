@@ -1,0 +1,88 @@
+{
+ "lesson": "aq-0055",
+ "label": "AQ 0055",
+ "track": "ai",
+ "title": "The filter that wasn't a sandbox",
+ "url": "https://nehilsood.github.io/guides/agent-questions/guides/0055-the-filter-that-wasnt-a-sandbox.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "fu-1",
+   "kind": "follow-up",
+   "q": "Would an allowlist, naming what's permitted instead of what's banned, fix the filter?",
+   "a": "Better, but an allowed object still leads to others (a format string reaches attributes through getattr), and the code still runs inside your server. gVisor's docs make the same point about rule-based policies at the kernel level: “extremely difficult (if not impossible)” to define reliably for unknown programs. Keep it as a layer; isolate underneath.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The idea in plain words",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0055-the-filter-that-wasnt-a-sandbox.html#the-idea-in-plain-words"
+   }
+  },
+  {
+   "id": "fu-2",
+   "kind": "follow-up",
+   "q": "gVisor or Firecracker?",
+   "a": "gVisor puts its own kernel, written in Go and running as an ordinary user-space program, between the code and the host. Firecracker gives each workload a small virtual machine with its own kernel under KVM; its site claims boot in under 125 ms. Our summary: the VM is the thicker wall, gVisor the easier fit for container platforms, at a cost its docs name: “poor performance for system call heavy workloads”.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: what reading the code misses, and where the wall goes",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0055-the-filter-that-wasnt-a-sandbox.html#how-it-works"
+   }
+  },
+  {
+   "id": "fu-3",
+   "kind": "follow-up",
+   "q": "What goes in the sandbox's settings besides isolation?",
+   "a": "No network unless a named host is needed; no credentials inside, so tools that need keys run outside it; CPU, memory and wall-clock limits; a read-only filesystem apart from a scratch folder; and a fresh sandbox for every run, thrown away afterwards (our checklist, in line with guide 5's Code Mode example).",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: what reading the code misses, and where the wall goes",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0055-the-filter-that-wasnt-a-sandbox.html#how-it-works"
+   }
+  },
+  {
+   "id": "cy-1",
+   "kind": "check",
+   "q": "Why can't an AST blocklist make running untrusted Python safe?",
+   "a": "It judges the source text, but the danger is what the running code can reach: attribute lookups hidden in strings (str.format calls getattr), allowed libraries that touch files or the network, and loops that exhaust memory or CPU.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Your 30-second answer",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0055-the-filter-that-wasnt-a-sandbox.html#your-30-second-answer"
+   }
+  },
+  {
+   "id": "cy-2",
+   "kind": "check",
+   "q": "What do Python's docs and RestrictedPython's docs say about using them as a sandbox?",
+   "a": "Python's sys docs say audit hooks are “not suitable for implementing a ‘sandbox’” and can be bypassed; RestrictedPython's docs say it “is not a sandbox system or a secured environment”.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: what reading the code misses, and where the wall goes",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0055-the-filter-that-wasnt-a-sandbox.html#how-it-works"
+   }
+  },
+  {
+   "id": "cy-3",
+   "kind": "check",
+   "q": "Where should the security boundary for agent-written code sit?",
+   "a": "Below the language: a gVisor container or a Firecracker microVM, with no network by default, no secrets inside, CPU, memory and time limits, and a fresh sandbox per run. A code filter stays only as a quick first check.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Your 30-second answer",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0055-the-filter-that-wasnt-a-sandbox.html#your-30-second-answer"
+   }
+  }
+ ]
+}

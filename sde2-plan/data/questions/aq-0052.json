@@ -1,0 +1,88 @@
+{
+ "lesson": "aq-0052",
+ "label": "AQ 0052",
+ "track": "ai",
+ "title": "The retriever that shouted loudest",
+ "url": "https://nehilsood.github.io/guides/agent-questions/guides/0052-the-retriever-that-shouted-loudest.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "fu-1",
+   "kind": "follow-up",
+   "q": "Why not rescale each list to 0–1 first, then average?",
+   "a": "That min-max rescaling can work. But each score now depends on the best and worst chunks retrieved for that query, so one extreme score, or fetching 100 chunks instead of 20, shifts everyone (our reasoning). Ranks avoid that, which is why Elasticsearch's RRF docs say it “requires no tuning”.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: why scores clash, and how ranks fix it",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0052-the-retriever-that-shouted-loudest.html#how-it-works"
+   }
+  },
+  {
+   "id": "fu-2",
+   "kind": "follow-up",
+   "q": "What does k = 60 do in reciprocal rank fusion?",
+   "a": "It flattens the curve: with k = 60, rank 1 is worth 1/61 and rank 10 still 1/70, so being decent in two lists can beat being first in one. Cormack et al. fixed 60 in a pilot and found it near-optimal but not critical; Elasticsearch defaults its rank constant to 60.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: why scores clash, and how ranks fix it",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0052-the-retriever-that-shouted-loudest.html#how-it-works"
+   }
+  },
+  {
+   "id": "fu-3",
+   "kind": "follow-up",
+   "q": "A chunk appears in only one retriever's list. What does RRF do?",
+   "a": "It gets that one list's share and nothing from the other, so it ranks below chunks that both lists put near the top. To give one-list finds a better chance, fetch deeper lists, say 100 each, before fusing (our suggestion).",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: why scores clash, and how ranks fix it",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0052-the-retriever-that-shouted-loudest.html#how-it-works"
+   }
+  },
+  {
+   "id": "cy-1",
+   "kind": "check",
+   "q": "Why does averaging raw BM25 and cosine scores let BM25 decide the order?",
+   "a": "A BM25 score is a sum of word weights, often tens of points and different for every query, while cosine similarity never passes 1. The cosine part barely changes the average, so the order follows BM25.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "Your 30-second answer",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0052-the-retriever-that-shouted-loudest.html#your-30-second-answer"
+   }
+  },
+  {
+   "id": "cy-2",
+   "kind": "check",
+   "q": "Write the reciprocal rank fusion score, and the k Cormack et al. used.",
+   "a": "For each document, add 1 ÷ (k + its rank) over every ranked list it appears in. Cormack, Clarke and Büttcher fixed k = 60 in a pilot and found the choice was not critical.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: why scores clash, and how ranks fix it",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0052-the-retriever-that-shouted-loudest.html#how-it-works"
+   }
+  },
+  {
+   "id": "cy-3",
+   "kind": "check",
+   "q": "In hybrid search, where does a reranker usually go relative to rank fusion?",
+   "a": "After it: fuse BM25 and dense lists by rank into a short list, then let the reranker, which reads query and chunk together, reorder that short list. It is too slow to run on every chunk.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: why scores clash, and how ranks fix it",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0052-the-retriever-that-shouted-loudest.html#how-it-works"
+   }
+  }
+ ]
+}

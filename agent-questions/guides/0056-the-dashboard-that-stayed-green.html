@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Dashboard That Stayed Green</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 56 · extra · Day 151 · about 10 minutes</div>
+    <h1>The dashboard that stayed green</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/machine-learning-system-design-interview-0c0">Machine Learning System Design Interview #21 · The Silent Feature Death</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “The A/B readout for your new pricing model makes no sense, yet its service never threw an error: 99.9% uptime, 15 ms per request. The model passed every offline check before launch. Where do you look first, and what would you add so this can't hide again?”
+      <small>Senior ML system design interview, Facebook</small>
+    </div>
+    <p>This builds on Day 150, “Closing the loop: user feedback, monitoring, regression evals”. A <b>feature</b> is one input the model reads, such as a product's demand last hour or a competitor's price. A <b>feature pipeline</b> is the job that computes those inputs and stores them for the model to look up at request time. An <b>A/B test</b> splits users between the old and new model (<a href="0011-the-skill-that-was-never-tried.html">guide 11</a>); each group is an <b>arm</b>. <b>Offline checks</b> score a model on stored data before launch.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Roll back to the old model.”</p>
+      <p><strong>Trap B:</strong> “The service is healthy, so the model is simply worse. Cancel the launch.”</p>
+      <p>Both trust the service checks. If the inputs went stale, the old model reads the same stale inputs, and the new model was never really tested.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“I'd check the inputs before the model. Uptime and latency say the service answered, not that it answered from today's data. A feature job can stop updating, or start filling in a stand-in default value, and nothing errors: the model just scores old or empty inputs. Google's Rules of ML describes this: once a table its features come from stops updating, the system keeps working and decays gradually; Play once refreshed a table six months stale and install rate rose 2%.</p>
+      <p>So first: how old is each feature table, how often is each feature missing or at its default, and do logged serving values match what training saw? Then alert on those, as Google's ML Test Score recommends, and refuse to read an experiment whose inputs failed them.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A delivery driver's fuel gauge has come loose inside the tank, and since Tuesday the needle has sat at three-quarters. The engine runs sweetly, no warning light comes on, the satnav works. On Friday she plans a long route on what the needle shows, and runs dry between towns.</p>
+    <p>Nothing checked whether the needle had moved since Tuesday.</p>
+    <p>Service checks, such as uptime, latency and error counts, are the engine lights. A model's answers also depend on its inputs being current and filled in. An input that stopped updating is <b>stale</b>; the time since its last update is its <b>freshness</b>. When serving inputs differ from what the model trained on, that is <b>training/serving skew</b>.</p>
+    <div class="flows" aria-label="Two kinds of check on one prediction">
+      <div class="flow">
+        <div class="flow-label">What the dashboard watched</div>
+        <div class="strip"><span class="box">Request arrives</span><span class="arrow">→</span><span class="box">Model answers in 15 ms</span><span class="arrow">→</span><span class="box">No error: green</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">What it missed</div>
+        <div class="strip"><span class="box">Feature job stopped</span><span class="arrow">→</span><span class="box">Lookups return old values or defaults</span><span class="arrow">→</span><span class="box">Prices set from last week</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> A competitor-price lookup fails and the code fills in −1, a value the model has seen before. Which check notices? Not the error count: nothing threw. Not latency: a default is fast. Only a check on the values themselves (our reasoning).</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: why it hides, and the checks that find it</h2>
+    <ol>
+      <li><b>Inputs can break without an error.</b> Google's <a href="https://research.google.com/pubs/archive/aad9f93b86b7addfea4c419b9100c6cdd26cacea.pdf">ML Test Score</a> (Breck et al., IEEE Big Data 2017) warns that outages and changes upstream “can radically change the feature’s meaning” without producing values strange enough to trip other monitoring.</li>
+      <li><b>Stale inputs decay slowly.</b> Google's <a href="https://developers.google.com/machine-learning/guides/rules-of-ml">Rules of ML</a> (Zinkevich), Rule #10: when a table the model's inputs are looked up from stops updating, behaviour stays “reasonably good, decaying gradually”. Its example: “Play once had a table that was stale for 6 months, and refreshing the table alone gave a boost of 2% in install rate.”</li>
+      <li><b>Watch the age of every source.</b> The ML Test Score's example is a table of the most popular items: “it is crucial to monitor the age of this table, so that if the process stops running, alerts will fire.” How old is too old? The ML Test Score suggests a small A/B test with older models to draw an age-against-quality curve; do the same per table (our extension).</li>
+      <li><b>Watch the values.</b> In <a href="https://mlsys.org/Conferences/2019/doc/2019/167.pdf">Data Validation for Machine Learning</a> (Breck et al., SysML 2019), a refactor makes a failed backend call pin one number to −1 for a slice of traffic, one subset of requests. The model keeps predicting, less accurately, and “the data looks perfectly fine for the training code, since -1 is an acceptable value”. Their system compares each feature's spread of values from day to day, and training against serving, and names the value that moved most. They dropped standard statistical tests such as chi-square, which flagged harmless noise in 100 million values in 7 of 10 trials.</li>
+      <li><b>Compare training and serving.</b> The ML Test Score: log a sample of serving traffic; where serving inputs become training data, tag each example so the two can be compared, since for the same example “the feature values should be perfectly identical at training and serving time”.</li>
+      <li><b>Gate the readout.</b> Our design: an A/B result counts only if freshness and coverage (how often each feature is filled in) checks passed in both arms for the whole test.</li>
+    </ol>
+    <p><b>An illustration, with our own numbers.</b> One test week, two kinds of check:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Check</th><th>Normal</th><th>During the test</th><th>Alert set?</th></tr></thead>
+        <tbody>
+          <tr><td>Uptime</td><td class="num">99.9%</td><td class="num">99.9%</td><td>Yes, quiet</td></tr>
+          <tr><td>Median latency</td><td class="num">15 ms</td><td class="num">15 ms</td><td>Yes, quiet</td></tr>
+          <tr><td>Age of competitor-price table</td><td class="num">under 1 hour</td><td class="num">9 days</td><td>No</td></tr>
+          <tr><td>Requests with demand at its default</td><td class="num">2%</td><td class="num">38%</td><td>No</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p><b>Where the premise outruns the evidence.</b> In a real incident, check the experiment too: whether users were split as planned and the arms are the sizes expected. And the 2% is one table at one Google product, not a rule for how much staleness costs (our reasoning).</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Why not run a standard statistical test on each feature every day?</p><p>At production volumes it fires on harmless changes. Breck et al. (SysML 2019) mixed 0.01% noise into 100 million values and ran a chi-square test, a standard check of whether two distributions match: it raised a needless alert in 7 of 10 trials. They use the largest change in any one value's share instead, with thresholds like “allow changes of only up to 1% for each value”.</p></div>
+      <div class="fu" id="fu-2"><p class="q">The model is retrained daily on its own logged traffic. Does that make it worse?</p><p>Yes, if the bug runs for days: in Breck et al.'s −1 example, served data becomes the next day's training data, so the bad values carry into the next model too. Retrain without the affected days once the feature is fixed (our reasoning). It's the same loop as a recommender learning from clicks it caused (<a href="0050-the-recommender-trained-on-its-own-clicks.html">Q50</a>).</p></div>
+      <div class="fu" id="fu-3"><p class="q">How fresh does each feature need to be?</p><p>Measure it. Rules of ML, Rule #8, asks how much quality drops with a model a day, a week or a quarter old; the ML Test Score suggests a small A/B test with older models to draw an age-against-quality curve. Do the same for each feature table, then set its age alert from the curve (our extension).</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>Why can a model service show full uptime and no errors while its predictions are wrong?</summary><p>Service checks test that it answered, not what it answered from. A feature job that stops updating, or a lookup that falls back to a default, raises no error; the model scores stale or empty inputs.</p></details>
+      <details class="cy" id="cy-2"><summary>What does Google's Rules of ML report about a stale table at Play?</summary><p>Rule #10 says Play once had a table stale for six months, and refreshing it alone raised install rate by 2%; stopped tables make systems decay gradually rather than fail.</p></details>
+      <details class="cy" id="cy-3"><summary>Name three input checks that catch a silently broken feature pipeline.</summary><p>The age of each feature table, with an alert if it stops updating; the share of requests where each feature is missing or at its default; and logged serving values compared with training values for the same examples.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">8</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://developers.google.com/machine-learning/guides/rules-of-ml">Rules of Machine Learning</a> (Zinkevich, Google): Rules #8 to #11 on freshness and silent failures.</li>
+      <li><a href="https://research.google.com/pubs/archive/aad9f93b86b7addfea4c419b9100c6cdd26cacea.pdf">The ML Test Score</a> (Breck et al., 2017): the seven monitoring tests.</li>
+      <li><a href="https://mlsys.org/Conferences/2019/doc/2019/167.pdf">Data Validation for Machine Learning</a> (Breck et al., SysML 2019): the −1 example and the drift metric.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/machine-learning-system-design-interview-0c0">AI Interview Prep, Machine Learning System Design Interview #21</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

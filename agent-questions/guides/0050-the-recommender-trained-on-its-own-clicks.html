@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Recommender Trained on Its Own Clicks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 50 · extra · Day 107 · about 10 minutes</div>
+    <h1>The recommender trained on its own clicks</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/machine-learning-system-design-interview-5b3">Machine Learning System Design Interview #8 · The CTR Feedback Loop Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “Fewer users come back each week. Yet clicks per impression are at a record, and the feed's ranking model retrains on each day's clicks and ships cleanly every morning. Your head of engineering asks you to explain the gap.”
+      <small>Machine learning system design interview</small>
+    </div>
+    <p>This builds on Day 106, “Classic ML system design: recommendations and search ranking”. An <b>impression</b> is one item shown to one user; the <b>click-through rate (CTR)</b> is clicks divided by impressions. <b>Retention</b> is the share of users who come back.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Retention is a product problem. The model's job is clicks, and it's doing it.”</p>
+      <p><strong>Trap B:</strong> “Retrain more often so it keeps up with users.”</p>
+      <p>Both trust the model because its own metric is up. But it chose what users saw, then learned from their clicks on its choices.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“The model is doing exactly what I asked: predicting clicks. Two things can split clicks from people coming back. First, the target. A click stands in for value, and an easy way to raise it is items that tempt and then disappoint (our reasoning). YouTube's 2016 paper says ranking by click-through rate ‘often promotes deceptive videos’, so they rank mainly by expected watch time. Second, the loop. It retrains only on reactions to what it chose to show, so its picks look right and the feed can narrow. In Chaney et al.'s simulations, repeated retraining made users behave more alike without making them better off.</p>
+      <p>So I'd chart retention against a group still on the old model, keep a small slice of traffic randomised, weight clicks by how likely each slot was to be seen, and judge launches on return visits, not clicks.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A bookshop owner restocks every Monday from last week's receipts. The front-window books sell best, partly because they're in the window, so she orders more of them and puts them back there. Window sales climb every week.</p>
+    <p>Two things go wrong quietly. Loud covers sell well from the window, but buyers don't love them. And the shelf at the back, which nobody walks to, never sells, so she stops stocking it. Receipts look wonderful; fewer regulars come in.</p>
+    <p>The receipts are her clicks. Learning from data your own choices produced is a <b>feedback loop</b>. Users click near the top more, whatever is there: <b>position bias</b>. And a click is a <b>proxy</b>, a number that stands in for what you want; once you chase it, <a href="0028-the-reward-that-only-paid-for-passing.html">Goodhart's law</a> (guide 28) applies.</p>
+    <div class="flows" aria-label="The recommender's daily feedback loop">
+      <div class="flow">
+        <div class="flow-label">One day of the loop</div>
+        <div class="strip"><span class="box">Model ranks the feed</span><span class="arrow">→</span><span class="box">Users click what's shown, mostly near the top</span><span class="arrow">→</span><span class="box">Those clicks train tomorrow's model</span><span class="back">↺ every 24 hours</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> An item the model never shows gets no clicks. What does tomorrow's model learn about it? That nobody wants it, though nobody saw it. Repeat that every night and the feed can narrow (our reasoning; Chaney et al. saw it in simulations).</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: five checks and fixes</h2>
+    <ol>
+      <li><b>Put retention beside CTR, against a control.</b> Keep some users on last month's model (an <a href="0011-the-skill-that-was-never-tried.html">A/B test</a>, guide 11) and compare return visits. Covington et al. add that at YouTube “live A/B results are not always correlated with offline experiments”, which is why the test must be live.</li>
+      <li><b>Check what it is rewarded for.</b> The same <a href="https://research.google.com/pubs/archive/45530.pdf">YouTube paper</a> (2016): “Ranking by click-through rate often promotes deceptive videos that the user does not complete (‘clickbait’) whereas watch time better captures engagement.” Their ranking objective is “generally a simple function of expected watch time per impression”.</li>
+      <li><b>Measure the narrowing.</b> <a href="https://arxiv.org/abs/1710.11214">Chaney, Stewart and Engelhardt</a> simulated users and recommenders. With repeated retraining, every recommender except random made similar users' choices overlap more than ideal recommendations needed, “without corresponding increases in utility”. In production, track distinct topics per user and the share of impressions taken by the most popular items.</li>
+      <li><b>Correct for position.</b> <a href="https://arxiv.org/abs/1608.04468">Joachims, Swaminathan and Schnabel</a> (arXiv 2016): “the order of presentation has a strong influence on where users click.” Their fix is <b>inverse propensity scoring</b>: weight each click by one over the probability that its slot was looked at. They measured those probabilities with a swap test: move the top result to a random lower slot, and the same item's click rate in each slot shows how much the slot alone drives clicks.</li>
+      <li><b>Explore on purpose.</b> Keep a small slice of traffic randomised. <a href="https://arxiv.org/abs/1003.0146">Li et al.</a> (Yahoo!, 2010) argue that any bandit algorithm, which mixes trying new items with showing known winners, can be evaluated offline using “previously recorded random traffic”. YouTube trained on all watches, not just ones its recommendations produced, or “the recommender would be overly biased towards exploitation”.</li>
+    </ol>
+    <p><b>An illustration, with our own numbers.</b> Items A and B are equally good: 20% of users who notice either one click it. A sits in slot 1, which 60% of users look at; B sits in slot 5, which 10% look at.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Item</th><th>Chance the slot is seen</th><th>Observed CTR</th><th>CTR ÷ chance seen</th></tr></thead>
+        <tbody>
+          <tr><td>A, slot 1</td><td class="num">0.60</td><td class="num">0.60 × 20% = 12%</td><td class="num">12% ÷ 0.60 = 20%</td></tr>
+          <tr><td>B, slot 5</td><td class="num">0.10</td><td class="num">0.10 × 20% = 2%</td><td class="num">2% ÷ 0.10 = 20%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>Raw clicks call A six times better, so A stays on top and B sinks. Weighted, they tie, which is the truth.</p>
+    <p><b>Where the premise outruns the evidence.</b> Our reasoning: the question shows two lines moving together, not cause. A holiday, a competitor or an app change can cut retention too. The control group settles it: if users on the old model stay while the rest leave, the model is the cause.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Why not just switch the target from clicks to watch time?</p><p>It helps against clickbait, which is why YouTube's 2016 paper ranks mainly by expected watch time. But watch time is a proxy too (our reasoning: long, dull items can score well), and the model still learns only from what it chose to show. Pair a better target with exploration and a retention check.</p></div>
+      <div class="fu" id="fu-2"><p class="q">Exploration costs clicks today. How do you justify it?</p><p>A small random slice is the only data where the model didn't decide what users saw, so it can score a new model fairly offline, as Li et al. did with Yahoo!'s recorded random traffic, and gives new items a chance.</p></div>
+      <div class="fu" id="fu-3"><p class="q">How would you find out how strong position bias is in your feed?</p><p>Run Joachims et al.'s swap test: for a small share of users, swap the item at slot 1 with the one at another slot. The same item's click rate in each slot shows how much the slot itself drives clicks, and gives the weights for inverse propensity scoring.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>How can a recommender's click-through rate climb while users leave?</summary><p>A click only stands in for value: tempting items that disappoint raise it, and YouTube's 2016 paper says ranking by click rate promotes clickbait. And retraining only on reactions to its own picks can make those picks look right while the feed narrows: Chaney et al. found that in simulations, so I'd measure it in production.</p></details>
+      <details class="cy" id="cy-2"><summary>What does inverse propensity scoring do to click data?</summary><p>It weights each click by one over the probability that the user looked at that slot, so items shown low down aren't judged worse just because fewer people saw them. Joachims et al. use it to learn rankings from biased clicks.</p></details>
+      <details class="cy" id="cy-3"><summary>What did Chaney et al.'s simulations find about retraining recommenders on their own data?</summary><p>With repeated retraining, every recommender except random made similar users consume more alike than ideal recommendations would, without a matching rise in utility, the value users get from what they consume.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">8</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/1710.11214">How Algorithmic Confounding in Recommendation Systems Increases Homogeneity and Decreases Utility</a> (Chaney, Stewart and Engelhardt, RecSys 2018).</li>
+      <li><a href="https://arxiv.org/abs/1608.04468">Unbiased Learning-to-Rank with Biased Feedback</a> (Joachims, Swaminathan and Schnabel, arXiv 2016; WSDM 2017): propensity weights and the swap test.</li>
+      <li><a href="https://research.google.com/pubs/archive/45530.pdf">Deep Neural Networks for YouTube Recommendations</a> (Covington, Adams and Sargin, RecSys 2016): why they rank by watch time.</li>
+      <li><a href="https://arxiv.org/abs/1003.0146">A Contextual-Bandit Approach to Personalized News Article Recommendation</a> (Li et al., WWW 2010): evaluating from random traffic.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/machine-learning-system-design-interview-5b3">AI Interview Prep, Machine Learning System Design Interview #8</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

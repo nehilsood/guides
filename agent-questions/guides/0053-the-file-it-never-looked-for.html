@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The File It Never Looked For</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 53 · extra · Day 121 · about 10 minutes</div>
+    <h1>The file it never looked for</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-34">AI Agent Engineering Interview #34 · The 70B Scaling Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “Your lead wants a 70B model in place of your coding agent's 2B. The reason: it reported success, yet verify.py still fails on the real parser.py; the trace shows it wrote and tested a new parser.py without ever listing the folder. What would you try first?”
+      <small>Senior AI Engineer interview, Google DeepMind</small>
+    </div>
+    <p>This builds on Day 120, “Agents 1: tool calling and the agent loop”. “2B” means two billion weights (<a href="0025-the-agent-that-learned-its-harness-by-heart.html">guide 25</a>). The <b>harness</b> is the code around the model: its prompt, its tools and how results come back. <b>SWE-bench</b> is a set of real GitHub bugs an agent must fix so that hidden tests pass; <b>SWE-bench Lite</b> is 300 of its smaller bugs (both in <a href="0001-the-pipeline-that-beat-the-agent.html">guide 1</a>).</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Small models are a false economy. The 70B will pay for itself in fewer failed runs.”</p>
+      <p><strong>Trap B:</strong> “Add ‘ALWAYS check that files exist’ to the prompt, in capitals.”</p>
+      <p>Trap A blames the model, Trap B hopes a louder rule fixes it. But the harness let the agent choose what got checked, and that is cheaper to change than either.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“I'd change the harness first, because it let the agent decide both what to change and what to check. No tool call ever brought the real parser.py into the model's view, so it wrote one from the task's description and tested its own copy. So I'd put the folder listing in the first prompt and ask it to read before editing; make the file tool refuse to create a file that already exists, as Anthropic's SWE-bench edit tool does; and have the harness, not the agent, run verify.py on the real file and check the diff.</p>
+      <p>Harness changes move scores: with GPT-4 Turbo held fixed, SWE-agent, the research coding agent in guide 4, solved 18% of SWE-bench Lite against 11% for a plain shell. Then I'd rerun the same tasks on both models and compare cost per solved task.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A health inspector visits a restaurant and asks to test the chicken curry. The kitchen cooks her a fresh pan: hot, clean, perfect. She passes it. The curry going out to diners comes from the pot that has sat lukewarm since lunch, and nobody tests that.</p>
+    <p>Her test was fine, and so was the cooking. What failed is who picked the sample. Real inspectors take theirs from the pot being served, without warning.</p>
+    <p>In the agent's run, the kitchen and the inspector were the same: the agent wrote a file and chose to test it. And a model sees only what its tools bring into its context. The task named parser.py, but no call read the file, so the model worked from the words. Changing what goes into that context, which tools exist and who decides what counts as done is <b>harness engineering</b>.</p>
+    <div class="flows" aria-label="The run that happened and the run the harness should force">
+      <div class="flow">
+        <div class="flow-label">The run that happened</div>
+        <div class="strip"><span class="box">Task names parser.py</span><span class="arrow">→</span><span class="box">Writes a new parser.py</span><span class="arrow">→</span><span class="box">Checks its own file</span><span class="arrow">→</span><span class="box">“Success”</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">The run the harness should force</div>
+        <div class="strip"><span class="box">Folder listing in the prompt</span><span class="arrow">→</span><span class="box">Read parser.py</span><span class="arrow">→</span><span class="box">Edit it</span><span class="arrow">→</span><span class="box">Harness runs verify.py</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> Trap B's capital-letter rule asks the model to remember a check on every run. A create tool that refuses an existing path makes the check happen whether the model remembers or not. Which would you trust from a small model? (our reasoning)</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: four harness changes, then the model question</h2>
+    <ol>
+      <li><b>Put the workspace in view.</b> Start the run with a listing of the working folder. Anthropic's <a href="https://www.anthropic.com/engineering/swe-bench-sonnet">SWE-bench agent prompt</a> (January 2025) opens its steps with: “As a first step, it might be a good idea to explore the repo to familiarize yourself with its structure.”</li>
+      <li><b>Make mistakes hard.</b> The same post's edit tool says “The <code>create</code> command cannot be used if the specified <code>path</code> already exists as a file”, so writing a fresh parser.py over the real one should fail with an error the model reads (our reading). For SWE-bench, Anthropic “spent more time optimizing our tools than the overall prompt” (<a href="https://www.anthropic.com/engineering/building-effective-agents">Building effective agents</a>).</li>
+      <li><b>Give useful feedback.</b> <a href="https://arxiv.org/abs/2405.15793">SWE-agent</a>'s edit tool, which <a href="0004-the-edit-that-missed-its-line.html">guide 4</a> walks through, applies an edit only “if it does not produce major errors”, as judged by a <b>linter</b>, a checker that spots syntax errors. Otherwise “Select errors from the linter are shown to the agent”.</li>
+      <li><b>Let the harness decide success.</b> Our design: the harness, not the agent, runs verify.py on a clean copy of the repository plus the agent's changes, and rejects a diff that adds a new parser.py instead of editing the original.</li>
+      <li><b>Then compare models in the same harness.</b> Anthropic's post: performance “can vary significantly based on this scaffolding, even when using the same underlying AI model”. SWE-agent's tools took GPT-4 Turbo from 11.0% with a plain shell to 18.0% on SWE-bench Lite (Tables 1 and 3), a “64% relative increase”; six runs of the full setup ranged from 17.3% to 18.7%. Fine-tuning the 2B instead would teach this harness's habits (<a href="0025-the-agent-that-learned-its-harness-by-heart.html">guide 25</a>), while harness changes travel: SWE-agent's interface solved 10.5% of full SWE-bench with Claude 3 Opus.</li>
+    </ol>
+    <p><b>An illustration, with our own numbers.</b> Say a run costs 1 cent on the 2B and 20 cents on the 70B, and after the harness fix the 2B solves 40 of 100 tasks and the 70B 55:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Model, same harness</th><th>Cost per run</th><th>Solved of 100</th><th>Cost per solved task</th></tr></thead>
+        <tbody>
+          <tr><td>2B</td><td class="num">1¢</td><td class="num">40</td><td class="num">100¢ ÷ 40 = 2.5¢</td></tr>
+          <tr><td>70B</td><td class="num">20¢</td><td class="num">55</td><td class="num">2,000¢ ÷ 55 ≈ 36.4¢</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The 70B solves 15 more tasks at about 14.5 times the cost per solve.</p>
+    <p><b>Where the premise outruns the evidence.</b> None of these sources tested a 2B model; SWE-agent used GPT-4 Turbo and Claude 3 Opus. That harness fixes rescue the 2B is plausible for this failure, but it may still fail once it reads the file. The rerun decides (our reasoning).</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Why not fine-tune the 2B on runs that start by listing files?</p><p>You could, but fine-tuning on one harness's runs also teaches that harness's habits, and such a model can collapse in another harness (<a href="0025-the-agent-that-learned-its-harness-by-heart.html">guide 25</a>). Harness changes are cheaper to try and travel between models: SWE-agent's interface, built for GPT-4 Turbo, still solved 10.5% of the full benchmark with Claude 3 Opus.</p></div>
+      <div class="fu" id="fu-2"><p class="q">How should the harness catch a fake success like this?</p><p>Never take the agent's word. The harness runs the real verify.py itself on a clean copy plus the agent's diff, and checks that the diff edits parser.py at its original path rather than creating a new file (our design). Anthropic's SWE-bench edit tool also refuses to create a file where one already exists.</p></div>
+      <div class="fu" id="fu-3"><p class="q">When is the bigger model the right call?</p><p>When the same tasks still fail in a good harness, and the traces show the agent reading the right code and still fixing it wrongly, not failing to look. Anthropic notes that SWE-bench scores vary a lot with the scaffolding even for one model, so compare models in the same harness, on cost per solved task.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>Why didn't the coding agent's own passing check catch that it never fixed the real file?</summary><p>It chose what to check: its own new copy of the file. A check means something only when the harness picks it and runs it against the real file (our reasoning).</p></details>
+      <details class="cy" id="cy-2"><summary>Name three harness changes that stop a coding agent writing its own copy of a file it was asked to fix.</summary><p>Show the folder listing at the start and ask it to read before editing; a create tool that refuses a path that already exists; and the harness, not the agent, runs the check on the real file and inspects the diff.</p></details>
+      <details class="cy" id="cy-3"><summary>Why compare a 2B and a 70B coding agent in the same harness, on cost per solved task?</summary><p>Harness changes alone move scores: SWE-agent's tools took GPT-4 Turbo from 11.0% with a plain shell to 18.0% on SWE-bench Lite. Compared in one harness, a cheaper model that solves somewhat fewer tasks can still cost far less per solved task.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">8</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2405.15793">SWE-agent: Agent-Computer Interfaces Enable Automated Software Engineering</a> (Yang et al., 2024): Table 3, the interface ablations.</li>
+      <li><a href="https://www.anthropic.com/engineering/swe-bench-sonnet">Raising the bar on SWE-bench Verified</a> (Anthropic, 2025): the prompt and the two tools.</li>
+      <li><a href="https://www.anthropic.com/engineering/building-effective-agents">Building effective agents</a> (Anthropic, 2024): appendix 2, prompt-engineering your tools.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/ai-agent-engineering-interview-34">AI Interview Prep, AI Agent Engineering Interview #34</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Filter That Wasn't a Sandbox</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 55 · extra · Day 144 · about 10 minutes</div>
+    <h1>The filter that wasn't a sandbox</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/llm-inference-interview-questions-383">LLM Inference Interview Questions #13 · The AST Sandbox Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “Six weeks after launch, your code-running agent is breached. Security had approved it because every script it writes passes an AST filter first: no <code>os</code>, no <code>subprocess</code>, no double-underscore attributes. What kind of attack could that filter never have stopped?”
+      <small>Staff AI Engineer interview, Google</small>
+    </div>
+    <p>This builds on Day 143, “AI app architecture: gateway, guardrails, prompt-injection defences”. An <b>AST</b> (abstract syntax tree) is a program parsed into its parts, so a filter can reject banned parts before anything runs. Python's <b>dunder</b> names, like <code>__class__</code>, are its internal hooks. A <b>sandbox</b> is a sealed place to run code, with limits set from outside it (<a href="0005-the-tool-that-can-do-anything.html">guide 5</a>). A <b>container</b> is a program walled off from others on one machine; a <b>microVM</b> is a tiny virtual machine with its own kernel; <b>audit hooks</b> are checks Python runs before sensitive actions.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Find the trick it used and add it to the blocklist.”</p>
+      <p><strong>Trap B:</strong> “Swap the home-made filter for RestrictedPython, which is built for this.”</p>
+      <p>Both still try to make code safe by reading it. The danger is in what the code can reach once it runs.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“Anything that doesn't look dangerous in the source. The filter judges text; the attack lives in what the running code can reach. A banned attribute can hide in a string, because <code>str.format</code> looks attributes up by name; an allowed library can read files or open connections itself; a short loop can eat all the memory. A blocklist must name every path to danger, and Python has too many. Its own docs call audit hooks ‘not suitable for implementing a sandbox’, and RestrictedPython says it ‘is not a sandbox system’.</p>
+      <p>So the filter stays as a quick first check, and the boundary moves below Python: each script in a gVisor container or a Firecracker microVM, no network by default, no secrets inside, CPU, memory and time limits, a fresh box per run.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A museum guard checks every bag at the door for hammers and crowbars. Inside, the display cases are unlocked. A visitor with an empty bag walks out with a painting anyway: she used what was already in the room.</p>
+    <p>The bag check stops the obvious, but only what it was told to look for. Real museums lock the cases.</p>
+    <p>The AST filter is the bag check: a <b>denylist</b>, a list of banned things. Python is the room: every allowed object leads to others. Locking the cases means isolating the code from the computer it runs on. The <b>kernel</b> is the core of the operating system; programs ask it for files, network and memory through <b>system calls</b>. Isolation that sits at that level doesn't care how the code was written. And the code needn't come from a clever model: instructions planted in something the agent reads can ask for it (<a href="0012-the-comment-that-gave-the-orders.html">guide 12</a>).</p>
+    <div class="flows" aria-label="Where the check sits, before and after">
+      <div class="flow">
+        <div class="flow-label">The approved design</div>
+        <div class="strip"><span class="box">Model writes a script</span><span class="arrow">→</span><span class="box">AST filter reads it</span><span class="arrow">→</span><span class="box">Runs with the server's files, network and keys</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">The fix</div>
+        <div class="strip"><span class="box">Model writes a script</span><span class="arrow">→</span><span class="box">Quick filter</span><span class="arrow">→</span><span class="box">Fresh microVM: no network, no secrets, hard limits</span><span class="arrow">→</span><span class="box">Only the output comes back</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> An illustration; nothing is run. The filter bans the attribute <code>__class__</code>. A script contains the text <code>"{0.__class__}"</code> and passes it to <code>format</code>. What does the filter see? A string, which is allowed. What does Python do? Looks the attribute up by name and returns what it finds: data leaks out, though no code runs. The check and the action happen at different times.</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: what reading the code misses, and where the wall goes</h2>
+    <ol>
+      <li><b>Names can hide in strings.</b> Python's <a href="https://docs.python.org/3/library/string.html">format-string docs</a>: “An expression of the form '.name' selects the named attribute using getattr()”. Armin Ronacher <a href="https://lucumr.pocoo.org/2016/12/29/careful-with-str-format/">wrote in 2016</a> that this “came up as a way to bypass the Jinja2 Sandbox”.</li>
+      <li><b>Allowed code reaches far.</b> <a href="https://restrictedpython.readthedocs.io/en/latest/idea.html">RestrictedPython's docs</a> say compiling restricted code “is not sufficient as a sandbox environment, as all calls to libraries are still available”, and <a href="https://restrictedpython.readthedocs.io/en/latest/">its front page</a> that it “is not a sandbox system or a secured environment”.</li>
+      <li><b>Harmless-looking code can exhaust the machine.</b> Even <code>ast.literal_eval</code>, which runs no code, can on “a relatively small input” cause “memory exhaustion or to C stack exhaustion, crashing the process”, per the <a href="https://docs.python.org/3/library/ast.html">ast docs</a>.</li>
+      <li><b>In-process guards can be switched off.</b> The <a href="https://docs.python.org/3/library/sys.html">sys docs</a> say audit hooks “are not suitable for implementing a ‘sandbox’” and “malicious code can trivially disable or bypass” them.</li>
+      <li><b>Put the wall below the language.</b> <a href="https://gvisor.dev/docs/">gVisor</a> sits under a container and moves the system interfaces into “a distinct, per-sandbox application kernel in order to minimize the risk of a container escape exploit”. <a href="https://firecracker-microvm.github.io/">Firecracker</a> runs each workload in a microVM with “KVM-based isolation” (KVM is Linux's built-in support for virtual machines); its site claims boot in under 125 ms and under 5 MiB of overhead per VM. Guide 5's V8 isolate, a gVisor container and a microVM are three strengths of the same idea: a sealed box with limits set from outside.</li>
+    </ol>
+    <p><b>An illustration, put together from the docs above; not a real breach.</b> How four kinds of attack look to each layer:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Attack</th><th>What the AST filter sees</th><th>What stops it</th></tr></thead>
+        <tbody>
+          <tr><td>Dunder lookup inside a format string</td><td>A string: allowed</td><td>Nothing worth reaching inside the sandbox</td></tr>
+          <tr><td>An allowed data library reads a credentials file</td><td>An allowed call</td><td>No secrets mounted; read-only files</td></tr>
+          <tr><td>A loop builds a list until memory runs out</td><td>Ordinary code</td><td>Memory, CPU and time limits</td></tr>
+          <tr><td>An allowed web helper posts data out</td><td>An allowed call</td><td>Network off by default</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p><b>Where the premise outruns the evidence.</b> The question doesn't say how the breach happened, so any row is a candidate. And kernel isolation lowers risk rather than removing it: gVisor's own words are “minimize the risk”. Keep the filter, the limits and the isolation as layers (our reasoning).</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Would an allowlist, naming what's permitted instead of what's banned, fix the filter?</p><p>Better, but an allowed object still leads to others (a format string reaches attributes through getattr), and the code still runs inside your server. gVisor's docs make the same point about rule-based policies at the kernel level: “extremely difficult (if not impossible)” to define reliably for unknown programs. Keep it as a layer; isolate underneath.</p></div>
+      <div class="fu" id="fu-2"><p class="q">gVisor or Firecracker?</p><p>gVisor puts its own kernel, written in Go and running as an ordinary user-space program, between the code and the host. Firecracker gives each workload a small virtual machine with its own kernel under KVM; its site claims boot in under 125 ms. Our summary: the VM is the thicker wall, gVisor the easier fit for container platforms, at a cost its docs name: “poor performance for system call heavy workloads”.</p></div>
+      <div class="fu" id="fu-3"><p class="q">What goes in the sandbox's settings besides isolation?</p><p>No network unless a named host is needed; no credentials inside, so tools that need keys run outside it; CPU, memory and wall-clock limits; a read-only filesystem apart from a scratch folder; and a fresh sandbox for every run, thrown away afterwards (our checklist, in line with guide 5's Code Mode example).</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>Why can't an AST blocklist make running untrusted Python safe?</summary><p>It judges the source text, but the danger is what the running code can reach: attribute lookups hidden in strings (str.format calls getattr), allowed libraries that touch files or the network, and loops that exhaust memory or CPU.</p></details>
+      <details class="cy" id="cy-2"><summary>What do Python's docs and RestrictedPython's docs say about using them as a sandbox?</summary><p>Python's sys docs say audit hooks are “not suitable for implementing a ‘sandbox’” and can be bypassed; RestrictedPython's docs say it “is not a sandbox system or a secured environment”.</p></details>
+      <details class="cy" id="cy-3"><summary>Where should the security boundary for agent-written code sit?</summary><p>Below the language: a gVisor container or a Firecracker microVM, with no network by default, no secrets inside, CPU, memory and time limits, and a fresh sandbox per run. A code filter stays only as a quick first check.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">8</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://gvisor.dev/docs/">What is gVisor?</a> (gVisor docs): how an application kernel compares with VMs and syscall filters.</li>
+      <li><a href="https://restrictedpython.readthedocs.io/en/latest/idea.html">The idea behind RestrictedPython</a> (RestrictedPython docs): what it does and doesn't promise.</li>
+      <li><a href="https://lucumr.pocoo.org/2016/12/29/careful-with-str-format/">Be Careful with Python's New-Style String Format</a> (Ronacher, 2016).</li>
+      <li><a href="https://firecracker-microvm.github.io/">Firecracker</a> (project site): microVMs for “multi-tenant container and function-based services”.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/llm-inference-interview-questions-383">AI Interview Prep, LLM Inference Interview Questions #13</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

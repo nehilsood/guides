@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Failure It Kept Rereading</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 54 · extra · Day 123 · about 10 minutes</div>
+    <h1>The failure it kept rereading</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/llm-inference-interview-questions-680">LLM Inference Interview Questions #14 · The Context Poisoning Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “A trace shows your agent sending the same malformed call to a broken edit tool eleven times running. So you add a line to the system prompt: when a tool fails, note it and switch approach. Now the agent reports failures far more often, yet finishes no more tasks. Why didn't the line help, and what would?”
+      <small>Senior AI Engineer interview, Anthropic</small>
+    </div>
+    <p>This builds on Day 122, “Agents 2: failure modes, spend caps, tracing, multi-agent”. The <b>system prompt</b> holds an app's standing instructions to the model (<a href="0012-the-comment-that-gave-the-orders.html">guide 12</a>). Each tool call and its result go back into the model's context on every later step (<a href="0003-the-call-with-no-answer.html">guide 3</a>), and a long context full of look-alikes makes models worse (<a href="0007-the-step-it-did-twice.html">guide 7</a>).</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “The instruction isn't strong enough. Spell out the error handling in more detail.”</p>
+      <p><strong>Trap B:</strong> “Raise the step limit so it has room to find another way.”</p>
+      <p>Both leave the eleven failures where the model reads them on every step. More instructions add text; more steps add failures.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“The new line changes what the model writes, not what it reads. After eleven identical failures, much of the recent context is one pattern: this call, this error. Models continue the patterns in their context. Sinha et al. found models make more mistakes when the history holds their own earlier errors; prompting them to re-check their work gave mixed results, while cutting the history helped one model on their task. Manus warns that a context full of similar actions makes an agent repeat them.</p>
+      <p>So I'd fix it in the harness: block an identical failing call after two tries, collapse the failed attempts into one short note saying what failed and why, and repair or hide the broken tool. One failure, with its error, is worth keeping. Eleven copies teach the wrong lesson.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A piano student pencils the fingering she tries above a hard bar. It doesn't work, so she tries again, and pencils it again, and again. After eleven tries the bar is covered in the same wrong fingering, and her eyes follow the pencil every time she reaches it.</p>
+    <p>Her teacher adds a sticky note: “If you miss, write ‘missed’ and try something else.” Now each attempt ends with a twelfth mark, ‘missed’. She notices her misses better. She still plays what the page shows.</p>
+    <p>What works is a rubber: erase the eleven marks, write one line, “3-4-5 doesn't fit here”. The model is the student, and its context is the pencilled page.</p>
+    <div class="flows" aria-label="A context filling with one failure, and the cleaned version">
+      <div class="flow">
+        <div class="flow-label">What the model rereads on step 12</div>
+        <div class="strip"><span class="box">Task</span><span class="arrow">→</span><span class="box">Call edit(bad args) → error</span><span class="arrow">→</span><span class="box">…the same, 10 more times</span><span class="arrow">→</span><span class="box">Call 12: the same</span></div>
+      </div>
+      <div class="flow">
+        <div class="flow-label">After the harness steps in</div>
+        <div class="strip"><span class="box">Task</span><span class="arrow">→</span><span class="box">Note: edit fails on these args, error X; tool disabled</span><span class="arrow">→</span><span class="box">Next call: a different tool</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> The new prompt line made the agent write “tool failed, noting it” after each failure. Where does that sentence go? Into the context, beside the failure. Detection went up because the model is writing about failures; nothing removed them (our reasoning).</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: why it repeats, and what the harness does</h2>
+    <ol>
+      <li><b>Errors breed errors.</b> <a href="https://arxiv.org/abs/2509.09677">Sinha et al.</a> (ICLR 2026) gave models a long, simple task, keeping a running sum of numbers looked up in a word-to-number table, and planted errors in their chat history. With more planted errors, accuracy at turn 100 “consistently degrades further”: models “become more likely to make mistakes when the context contains their errors from prior turns”. The authors call this <b>self-conditioning</b>, and bigger models didn't escape it. That held for ordinary models: Qwen3 with thinking on, reasoning at length before each answer, did not self-condition in their test.</li>
+      <li><b>Prompting to self-check fell short.</b> In their appendix, asking models to re-check their earlier answers gave “mixed” results: it helped Gemma3 early, then used up its context, and did little for Qwen3 thinking models. For Gemma3 12B, keeping only the most recent turns made performance improve “significantly”, on a task where old turns aren't needed.</li>
+      <li><b>Repeats make repeats likelier.</b> <a href="https://arxiv.org/abs/2206.02369">Xu et al.</a> (NeurIPS 2022) found, in a 750M-parameter model like GPT-2 Large, that “the more times a sentence is repeated in the context, the higher the probability of continuing to generate that sentence”. That was text, not tool calls (our inference that it carries over). <a href="https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus">Manus</a> (2025) reports it from practice: “Language models are excellent mimics”.</li>
+      <li><b>The harness fixes it.</b> Our design: after two identical failures (same tool, arguments and error), refuse the next and say why. Replace the run of failures with one note: the tool, the arguments, the error. Remove each failed call together with its result, or the history breaks the call-and-result pairing (guide 3). Then repair the tool, or hide it; Manus blocks tools by masking, so the tool stays defined but the model can't pick it. This departs from guide 6's add-only advice on purpose: there, summaries dropped detail the agent needed, runs got longer and every rewrite lost the prompt cache; here the note keeps the error, only identical copies go, and the cache is lost for one step, only when the blocker fires.</li>
+
+    </ol>
+    <p><b>An illustration, with our own numbers.</b> Eleven failed calls at 150 tokens each are 1,650 tokens of one pattern; the collapsed note is about 40. Anthropic's <a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents">context engineering guide</a> (2025) sets the aim: “the smallest possible set of high-signal tokens that maximize the likelihood of some desired outcome”.</p>
+    <p><b>Where the premise outruns the evidence.</b> Sinha et al.'s task is synthetic, a reasoning model may be less affected, and Manus and Anthropic report practice, not controlled tests on tool calls. And no context edit fixes a broken tool; the agent needs a working alternative (our reasoning).</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Manus says to leave failures in the context. Doesn't collapsing them contradict that?</p><p>Manus's point is that a failed action with its error steers the model away from repeating it. The same post warns that a context full of similar action-and-result pairs makes the model follow the pattern. Keep one failure and its error as a note; drop the copies (our reconciliation of the two). Manus's own fix for copycat runs is small variation in wording and format; ours is removing the copies.</p></div>
+      <div class="fu" id="fu-2"><p class="q">Won't rewriting the history break the prompt cache?</p><p>Yes: cached pricing needs the prompt to start with exactly the same text as before (<a href="0006-the-summary-that-cost-more.html">guide 6</a>), so a rewrite makes everything after it full price for one step. Collapse only when the repeat-blocker fires, not every turn, and the cost is small next to eleven wasted calls (our reasoning).</p></div>
+      <div class="fu" id="fu-3"><p class="q">How would you decide when to stop retrying?</p><p>Count identical calls (same tool, same arguments, same error) in a row; after two, the harness blocks the third and says why. After a few different failures in a row, end the run with a clear error or hand it to a person. The thresholds are our choice; tune them on real traces.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>Why doesn't a prompt line telling an agent to note failures and switch approach raise task success?</summary><p>It changes what the model writes, not what it reads: the run of identical failures stays in context, and models continue patterns. Sinha et al. found prompting models to re-check their work gave mixed results, while cutting the history helped one model on their task.</p></details>
+      <details class="cy" id="cy-2"><summary>What is self-conditioning, in Sinha et al.'s study?</summary><p>Models become more likely to make mistakes when their context holds their own earlier errors. They showed it by planting errors in chat histories on a long running-sum task; larger models were affected too, though Qwen3 with thinking on was not.</p></details>
+      <details class="cy" id="cy-3"><summary>Name three harness changes for an agent stuck repeating a failing tool call.</summary><p>Block identical failing calls after a couple of tries; collapse the failed attempts, each call with its result, into one note with the error; and repair, replace or hide the broken tool.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">8</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://arxiv.org/abs/2509.09677">The Illusion of Diminishing Returns: Measuring Long Horizon Execution in LLMs</a> (Sinha et al., ICLR 2026): section 3.2 and appendix C.</li>
+      <li><a href="https://manus.im/blog/Context-Engineering-for-AI-Agents-Lessons-from-Building-Manus">Context Engineering for AI Agents: Lessons from Building Manus</a> (Ji, 2025).</li>
+      <li><a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents">Effective context engineering for AI agents</a> (Anthropic, 2025).</li>
+      <li><a href="https://arxiv.org/abs/2206.02369">Learning to Break the Loop</a> (Xu et al., NeurIPS 2022): the self-reinforcement of repetition.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/llm-inference-interview-questions-680">AI Interview Prep, LLM Inference Interview Questions #14</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>

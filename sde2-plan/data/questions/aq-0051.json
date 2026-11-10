@@ -1,0 +1,88 @@
+{
+ "lesson": "aq-0051",
+ "label": "AQ 0051",
+ "track": "ai",
+ "title": "The index that wouldn't fit in RAM",
+ "url": "https://nehilsood.github.io/guides/agent-questions/guides/0051-the-index-that-wouldnt-fit-in-ram.html",
+ "plain": [],
+ "questions": [
+  {
+   "id": "fu-1",
+   "kind": "follow-up",
+   "q": "Why not keep HNSW but store compressed vectors in it?",
+   "a": "Faiss offers that; benchmark it. But the links stay: 32 per vector is 256 bytes, 51.2 GB for 200 million (our arithmetic), four times the 64-byte codes. And the Faiss paper notes that beyond 10M vectors a graph's construction time “typically becomes the limiting factor”.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: price it, cluster, compress, re-rank, measure",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0051-the-index-that-wouldnt-fit-in-ram.html#how-it-works"
+   }
+  },
+  {
+   "id": "fu-2",
+   "kind": "follow-up",
+   "q": "How do you pick the number of lists to search?",
+   "a": "It's set at query time, so sweep it on held-out queries. In Jégou et al.'s test on a million image vectors with 8-byte codes, opening 8 of 1,024 lists instead of 1 lifted the share of queries with the true neighbour in the top 100 from 30.8% to 68.2%, and time from 1.5 to 8.8 ms, as the paper reports it (hardware not stated).",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: price it, cluster, compress, re-rank, measure",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0051-the-index-that-wouldnt-fit-in-ram.html#how-it-works"
+   }
+  },
+  {
+   "id": "fu-3",
+   "kind": "follow-up",
+   "q": "New documents arrive every day. Does that change the choice?",
+   "a": "New codes can be added to their nearest IVF list without retraining; if the new data drifts from what the centres were trained on, retrain them (our reasoning). The Faiss paper notes that its HNSW index “does not support suppression and mutation”, so deleting or editing vectors there means rebuilding.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: price it, cluster, compress, re-rank, measure",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0051-the-index-that-wouldnt-fit-in-ram.html#how-it-works"
+   }
+  },
+  {
+   "id": "cy-1",
+   "kind": "check",
+   "q": "How much RAM do 200 million 768-number float vectors need in plain HNSW, and in IVF-PQ with 64-byte codes?",
+   "a": "3,072 bytes each is 614.4 GB; with 32 HNSW links (256 bytes more) about 665.6 GB. IVF-PQ stores 64 bytes plus an 8-byte id, 72 bytes, so 14.4 GB plus the list centres.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: price it, cluster, compress, re-rank, measure",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0051-the-index-that-wouldnt-fit-in-ram.html#how-it-works"
+   }
+  },
+  {
+   "id": "cy-2",
+   "kind": "check",
+   "q": "What do the IVF and PQ halves of IVF-PQ each do?",
+   "a": "IVF sorts the vectors into lists around k-means centres, and a query opens only the few lists nearest it. PQ cuts each vector into pieces and stores each piece as the number of its nearest stand-in from a small learned set, usually one byte.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "The idea in plain words",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0051-the-index-that-wouldnt-fit-in-ram.html#the-idea-in-plain-words"
+   }
+  },
+  {
+   "id": "cy-3",
+   "kind": "check",
+   "q": "Why re-score IVF-PQ results with the full vectors?",
+   "a": "Distances from the codes are estimates, so the true nearest neighbour can rank below near misses. Re-scoring a short list of a few hundred with exact distances fixes the order, and only those few full vectors need to be read from disk.",
+   "options": null,
+   "correct": null,
+   "flag": null,
+   "teach": {
+    "title": "How it works: price it, cluster, compress, re-rank, measure",
+    "url": "https://nehilsood.github.io/guides/agent-questions/guides/0051-the-index-that-wouldnt-fit-in-ram.html#how-it-works"
+   }
+  }
+ ]
+}

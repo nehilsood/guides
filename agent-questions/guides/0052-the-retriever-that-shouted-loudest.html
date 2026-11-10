@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%23243b55%27/%3E%3Cpath d=%27M9 9h6a3 3 0 0 1 3 3v11a2 2 0 0 0-2-2H9zM23 9h-6a3 3 0 0 0-3 3v11a2 2 0 0 1 2-2h7z%27 fill=%27none%27 stroke=%27%23fff%27 stroke-width=%271.6%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Retriever That Shouted Loudest</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,750&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../assets/aq.css">
+
+</head>
+<body>
+<nav class="crumb"><a href="../index.html">Agent Questions</a></nav>
+<main>
+  <header>
+    <div class="eyebrow">Agent question 52 · extra · Day 114 · about 10 minutes</div>
+    <h1>The retriever that shouted loudest</h1>
+    <div class="meta">Original: <a href="https://aiinterviewprep.substack.com/p/rag-interview-questions-1-the-averaging">RAG Interview Questions #1 · The Averaging Trap</a></div>
+  </header>
+
+  <section>
+    <h2 id="the-question"><span class="n">1</span>The question</h2>
+    <div class="ask">
+      “Today your search ranks results with one retriever. The team wants BM25, dense embeddings and a reranker all to have a say, and each of them scores on its own scale. How do you turn them into one list?”
+      <small>Senior ML Engineer interview, Google</small>
+    </div>
+    <p>This builds on Day 113, “RAG 2: hybrid search, reranking, query rewriting”. <b>BM25</b> is the classic keyword scorer: a chunk scores for each query word it contains, more for rare words. The <b>dense retriever</b> compares embeddings by <b>cosine similarity</b>, a number between −1 and 1.</p>
+  </section>
+
+  <section>
+    <h2 id="the-trap"><span class="n">2</span>The trap</h2>
+    <div class="trap">
+      <p><strong>Trap A:</strong> “Add the scores up, maybe divide by three, and sort.”</p>
+      <p><strong>Trap B:</strong> “Learn a weight for each scorer and sum the weighted scores.”</p>
+      <p>A sum only means something if the numbers share units. Trap B can work, but the right weight shifts from query to query, because one of the scales does (our reasoning).</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="your-30-second-answer"><span class="n">3</span>Your 30-second answer</h2>
+    <div class="say">
+      <p>“Averaging raw scores lets whichever scorer has bigger numbers decide. A BM25 score is a sum of word weights, so it has no fixed top and grows with rare words and longer queries; cosine similarity never passes 1. Averaged, the dense retriever barely moves the order.</p>
+      <p>I'd fuse ranks instead. Reciprocal rank fusion gives a chunk 1 ÷ (60 + its rank) from each list and adds them, so only positions count. Cormack and colleagues fixed the 60 in a pilot, and across their pilot tests and the TREC search benchmarks it usually beat the best single system, by 4 to 5% on average, with no training. Then I'd let the reranker, which reads the query and chunk together, reorder the fused top 50, and check the result on labelled queries.”</p>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="the-idea-in-plain-words"><span class="n">4</span>The idea in plain words</h2>
+    <p>A magazine wants one “films of the year” list from two sources: the box-office chart, in millions of pounds taken, and a critics' poll, scored out of 10. Add the two numbers and the box office decides everything: a film that took £40 million beats any critics' favourite by a mile, whatever the critics said.</p>
+    <p>The fix every chart-maker knows is to forget the numbers and use the positions. Third in one chart and fifth in the other is a fair thing to combine. A pound and a critic's point aren't.</p>
+    <p>Combining ranked lists is <b>rank fusion</b>. The standard version is <b>reciprocal rank fusion (RRF)</b>: each list gives a document 1 ÷ (k + its rank), and the gifts are added.</p>
+    <div class="flows" aria-label="Hybrid search with rank fusion, then reranking">
+      <div class="flow">
+        <div class="flow-label">One query</div>
+        <div class="strip"><span class="box">BM25 top 100 + dense top 100</span><span class="arrow">→</span><span class="box">Fuse by rank (RRF)</span><span class="arrow">→</span><span class="box">Reranker reorders the top 50</span><span class="arrow">→</span><span class="box">Best chunks to the model</span></div>
+      </div>
+    </div>
+    <div class="think"><b>Think about it.</b> In a million chunks, a word found in 200 of them gets a BM25 weight of about 8.5; a word found in 100,000 gets about 2.2 (our arithmetic with the formula below). A query of four rare words can push a score past 30, while the same chunks' cosine scores stay under 1. Which scorer decides an average?</div>
+  </section>
+
+  <section>
+    <h2 id="how-it-works"><span class="n">5</span>How it works: why scores clash, and how ranks fix it</h2>
+    <ol>
+      <li><b>BM25 has no ceiling across queries.</b> Robertson and Zaragoza's <a href="https://www.staff.city.ac.uk/~sbrp622/papers/foundations_bm25_review.pdf">review</a> gives each word a weight that, with no relevance data, is log((N − n + 0.5) ÷ (n + 0.5)), a form of idf (inverse document frequency), where N counts the documents and n those holding the word. One word's share “cannot exceed a saturation point” however often it repeats, but “the full document score is obtained by summing these term-weights” over the query's words. More rare words, bigger scores.</li>
+      <li><b>Cosine has a hard ceiling.</b> It can't pass 1, so next to BM25 it is a rounding error.</li>
+      <li><b>Fuse ranks.</b> <a href="https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf">Cormack, Clarke and Büttcher</a> (SIGIR 2009) score each document by the sum of 1 ÷ (k + r) over the rankings, where r is its rank in each; they write that “k = 60 was fixed during a pilot investigation”, whose results showed it “was near-optimal, but that the choice was not critical”. They write that k “mitigates the impact of high rankings by outlier systems”, and that RRF “combines ranks without regard to the arbitrary scores”. Rescaling each list to 0–1 first puts them on one scale, but each score then depends on that query's best and worst retrieved chunks, so one outlier, or fetching more chunks, shifts everyone (our reasoning).</li>
+      <li><b>Rerank last.</b> Our reasoning: a reranker reads the query and the chunk together, so it is the best single judge, and too slow to run on everything. Let RRF build a short list, then let the reranker order it. Fused as a third list, it would get the same say as BM25.</li>
+      <li><b>Measure.</b> Score on queries with known right chunks, against each retriever alone.</li>
+    </ol>
+    <p><b>An illustration, with our own numbers.</b> Four chunks, scored by both retrievers:</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Chunk</th><th>BM25 (rank)</th><th>Cosine (rank)</th><th>Average of raw scores</th><th>RRF, k = 60</th></tr></thead>
+        <tbody>
+          <tr><td>A</td><td class="num">24.0 (1)</td><td class="num">0.74 (4)</td><td class="num">12.37</td><td class="num">1/61 + 1/64 = 0.03202</td></tr>
+          <tr><td>B</td><td class="num">21.5 (2)</td><td class="num">0.86 (2)</td><td class="num">11.18</td><td class="num">1/62 + 1/62 = 0.03226</td></tr>
+          <tr><td>D</td><td class="num">12.0 (3)</td><td class="num">0.80 (3)</td><td class="num">6.40</td><td class="num">1/63 + 1/63 = 0.03175</td></tr>
+          <tr><td>C</td><td class="num">6.0 (4)</td><td class="num">0.89 (1)</td><td class="num">3.45</td><td class="num">1/64 + 1/61 = 0.03202</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>The average gives A, B, D, C: BM25's order exactly, as if the dense retriever were switched off. RRF puts B first, the chunk both liked, and ties A with C, each one list's favourite and the other's last.</p>
+    <p><b>Where the premise outruns the evidence.</b> Scores aren't always useless. In Cormack et al.'s own tables CombMNZ, which multiplies the sum of scores by the number of lists that found the document, edged RRF on TREC 3 (mean average precision 0.4381 against 0.4350) and, within noise (p about 0.2), on LETOR 3, a learning-to-rank test set. On TREC 9 the best single run, which had a person in the loop, beat RRF (0.3519 against 0.2830). Raw scores on clashing scales are the problem; ranks are the safe default.</p>
+  </section>
+
+  <section>
+    <h2 id="follow-ups"><span class="n">6</span>Follow-ups they'll ask</h2>
+    <div>
+      <div class="fu" id="fu-1"><p class="q">Why not rescale each list to 0–1 first, then average?</p><p>That min-max rescaling can work. But each score now depends on the best and worst chunks retrieved for that query, so one extreme score, or fetching 100 chunks instead of 20, shifts everyone (our reasoning). Ranks avoid that, which is why Elasticsearch's RRF docs say it “requires no tuning”.</p></div>
+      <div class="fu" id="fu-2"><p class="q">What does k = 60 do in reciprocal rank fusion?</p><p>It flattens the curve: with k = 60, rank 1 is worth 1/61 and rank 10 still 1/70, so being decent in two lists can beat being first in one. Cormack et al. fixed 60 in a pilot and found it near-optimal but not critical; Elasticsearch defaults its rank constant to 60.</p></div>
+      <div class="fu" id="fu-3"><p class="q">A chunk appears in only one retriever's list. What does RRF do?</p><p>It gets that one list's share and nothing from the other, so it ranks below chunks that both lists put near the top. To give one-list finds a better chance, fetch deeper lists, say 100 each, before fusing (our suggestion).</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="check-yourself"><span class="n">7</span>Check yourself</h2>
+    <div>
+      <details class="cy" id="cy-1"><summary>Why does averaging raw BM25 and cosine scores let BM25 decide the order?</summary><p>A BM25 score is a sum of word weights, often tens of points and different for every query, while cosine similarity never passes 1. The cosine part barely changes the average, so the order follows BM25.</p></details>
+      <details class="cy" id="cy-2"><summary>Write the reciprocal rank fusion score, and the k Cormack et al. used.</summary><p>For each document, add 1 ÷ (k + its rank) over every ranked list it appears in. Cormack, Clarke and Büttcher fixed k = 60 in a pilot and found the choice was not critical.</p></details>
+      <details class="cy" id="cy-3"><summary>In hybrid search, where does a reranker usually go relative to rank fusion?</summary><p>After it: fuse BM25 and dense lists by rank into a short list, then let the reranker, which reads query and chunk together, reorder that short list. It is too slow to run on every chunk.</p></details>
+    </div>
+  </section>
+
+  <section>
+    <h2 id="go-deeper"><span class="n">8</span>Go deeper</h2>
+    <ul>
+      <li><a href="https://plg.uwaterloo.ca/~gvcormac/cormacksigir09-rrf.pdf">Reciprocal Rank Fusion outperforms Condorcet and individual Rank Learning Methods</a> (Cormack, Clarke and Büttcher, SIGIR 2009): two pages, k = 60 and the TREC tables.</li>
+      <li><a href="https://www.staff.city.ac.uk/~sbrp622/papers/foundations_bm25_review.pdf">The Probabilistic Relevance Framework: BM25 and Beyond</a> (Robertson and Zaragoza, 2009): section 3, the BM25 formula.</li>
+      <li><a href="https://www.elastic.co/docs/reference/elasticsearch/rest-apis/reciprocal-rank-fusion">Reciprocal rank fusion</a> (Elasticsearch docs): RRF as a production retriever.</li>
+    </ul>
+  </section>
+
+  <footer>Question idea from <a href="https://aiinterviewprep.substack.com/p/rag-interview-questions-1-the-averaging">AI Interview Prep, RAG Interview Questions #1</a>. The explanation and answer here are my own, written from the sources above.</footer>
+</main>
+
+</body>
+</html>
